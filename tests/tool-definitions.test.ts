@@ -27,7 +27,7 @@ const ALL_TOOL_NAMES = [
   // Enhanced input tools
   'game_key_hold', 'game_key_release', 'game_scroll', 'game_mouse_drag', 'game_gamepad',
   // Project management tools
-  'create_project', 'manage_autoloads', 'manage_input_map', 'manage_export_presets',
+  'create_project', 'create_csharp_script', 'manage_autoloads', 'manage_input_map', 'manage_export_presets',
   // Advanced runtime tools
   'game_get_camera', 'game_set_camera', 'game_raycast', 'game_get_audio', 'game_spawn_node',
   // Shader, audio, navigation, tilemap, collision, environment tools
@@ -71,8 +71,8 @@ beforeAll(() => {
 });
 
 describe('Tool definitions', () => {
-  it('defines exactly 154 tools', () => {
-    expect(ALL_TOOL_NAMES).toHaveLength(154);
+  it('defines exactly 155 tools', () => {
+    expect(ALL_TOOL_NAMES).toHaveLength(155);
   });
 
   it('all tool names are unique', () => {

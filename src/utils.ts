@@ -232,3 +232,95 @@ export function isGodot44OrLater(version: string): boolean {
   }
   return false;
 }
+
+export const DEFAULT_GODOT_NET_SDK_VERSION = '4.4.0';
+export const DEFAULT_DOTNET_TARGET_FRAMEWORK = 'net8.0';
+
+export function toDotnetIdentifier(name: string): string {
+  const cleaned = (name || '').replace(/[^A-Za-z0-9_]/g, '_');
+  if (cleaned.length === 0) return 'Game';
+  return /^[0-9]/.test(cleaned) ? '_' + cleaned : cleaned;
+}
+
+export function toDotnetNamespace(name: string): string {
+  return (name || '')
+    .split('.')
+    .map(seg => toDotnetIdentifier(seg))
+    .join('.');
+}
+
+export function isValidCsharpIdentifier(name: string): boolean {
+  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(name);
+}
+
+export function generateGodotProjectFeatures(isDotnet: boolean, version: string = '4.4'): string {
+  return isDotnet
+    ? `PackedStringArray("${version}", "C#")`
+    : `PackedStringArray("${version}")`;
+}
+
+export function generateCsprojContent(
+  projectName: string,
+  sdkVersion: string = DEFAULT_GODOT_NET_SDK_VERSION,
+  targetFramework: string = DEFAULT_DOTNET_TARGET_FRAMEWORK
+): string {
+  const rootNamespace = toDotnetIdentifier(projectName);
+  return `<Project Sdk="Godot.NET.Sdk/${sdkVersion}">
+  <PropertyGroup>
+    <TargetFramework>${targetFramework}</TargetFramework>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <Nullable>enable</Nullable>
+    <RootNamespace>${rootNamespace}</RootNamespace>
+  </PropertyGroup>
+</Project>
+`;
+}
+
+export interface CsharpScriptOptions {
+  className: string;
+  baseClass?: string;
+  namespaceName?: string;
+  methods?: string[];
+}
+
+const CSHARP_GODOT_OVERRIDES: Record<string, string> = {
+  _Ready: 'public override void _Ready()',
+  _Process: 'public override void _Process(double delta)',
+  _PhysicsProcess: 'public override void _PhysicsProcess(double delta)',
+  _Input: 'public override void _Input(InputEvent @event)',
+  _UnhandledInput: 'public override void _UnhandledInput(InputEvent @event)',
+  _EnterTree: 'public override void _EnterTree()',
+  _ExitTree: 'public override void _ExitTree()',
+};
+
+export function generateCsharpScriptSource(opts: CsharpScriptOptions): string {
+  const className = toDotnetIdentifier(opts.className);
+  const baseClass = (opts.baseClass && opts.baseClass.trim()) || 'Node';
+  const indent = opts.namespaceName ? '\t\t' : '\t';
+  const bodyIndent = indent + '\t';
+
+  const methodBlocks: string[] = [];
+  const seenMethods = new Set<string>();
+  for (const raw of opts.methods || []) {
+    const name = String(raw).trim();
+    if (!name || seenMethods.has(name)) continue;
+    seenMethods.add(name);
+    const signature = CSHARP_GODOT_OVERRIDES[name] || `public void ${toDotnetIdentifier(name)}()`;
+    methodBlocks.push(`${indent}${signature}\n${indent}{\n${bodyIndent}\n${indent}}`);
+  }
+  const body = methodBlocks.length > 0 ? methodBlocks.join('\n\n') : `${indent}`;
+
+  const classIndent = opts.namespaceName ? '\t' : '';
+  const classBlock =
+    `${classIndent}public partial class ${className} : ${baseClass}\n` +
+    `${classIndent}{\n` +
+    `${body}\n` +
+    `${classIndent}}`;
+
+  const lines = ['using Godot;', ''];
+  if (opts.namespaceName) {
+    lines.push(`namespace ${toDotnetNamespace(opts.namespaceName)};`, '');
+  }
+  lines.push(classBlock, '');
+  return lines.join('\n');
+}
