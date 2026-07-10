@@ -37,6 +37,7 @@ import {
   toDotnetIdentifier,
   isValidCsharpIdentifier,
   parseGodotScriptDiagnostics,
+  collectGdPaths,
   type OperationParams,
 } from './utils.js';
 
@@ -2898,6 +2899,19 @@ class GodotServer {
           },
         },
         {
+          name: 'validate_scripts',
+          description: 'Batch-check GDScript files (git-changed by default, or all)',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              projectPath: { type: 'string', description: 'Godot project path' },
+              scope: { type: 'string', enum: ['changed', 'all'], description: '"changed" = git-changed .gd (default); "all" = every .gd in project' },
+              scriptPaths: { type: 'array', items: { type: 'string' }, description: 'Optional explicit list of .gd paths to check (overrides scope)' },
+            },
+            required: ['projectPath'],
+          },
+        },
+        {
           name: 'create_script',
           description: 'Create a GDScript file from a template',
           inputSchema: {
@@ -3573,6 +3587,8 @@ class GodotServer {
           return await this.handleManageResource(request.params.arguments);
         case 'validate_script':
           return await this.handleValidateScript(request.params.arguments);
+        case 'validate_scripts':
+          return await this.handleValidateScripts(request.params.arguments);
         case 'create_script':
           return await this.handleCreateScript(request.params.arguments);
         case 'manage_scene_signals':
@@ -6275,6 +6291,35 @@ class GodotServer {
     }));
   }
 
+  private async runGdScriptCheck(
+    projectPath: string,
+    scriptFull: string
+  ): Promise<{ completed: boolean; errors: ReturnType<typeof parseGodotScriptDiagnostics>; error?: string }> {
+    let output = '';
+    let failed = false;
+    try {
+      const { stdout, stderr } = await execFileAsync(
+        this.godotPath!,
+        ['--headless', '--path', projectPath, '--check-only', '--script', scriptFull],
+        { timeout: 30000, maxBuffer: 16 * 1024 * 1024 }
+      );
+      output = `${stdout ?? ''}${stderr ?? ''}`;
+    } catch (error: any) {
+      failed = true;
+      output = `${error?.stdout ?? ''}${error?.stderr ?? ''}`;
+      const aborted = error?.killed === true || error?.signal != null ||
+        error?.code === 'ETIMEDOUT' || error?.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER';
+      if (aborted) return { completed: false, errors: [], error: 'Godot timed out or produced too much output' };
+      if (!output) return { completed: false, errors: [], error: error?.message || 'Unknown error' };
+    }
+    const errors = parseGodotScriptDiagnostics(output);
+    if (errors.length === 0 && failed) {
+      const tail = output.trim().split(/\r?\n/).slice(-6).join(' ');
+      return { completed: false, errors: [], error: `Godot exited with an error: ${tail}` };
+    }
+    return { completed: true, errors };
+  }
+
   private async handleValidateScript(args: any) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.scriptPath) return createErrorResponse('projectPath and scriptPath are required.');
@@ -6288,35 +6333,131 @@ class GodotServer {
       await this.detectGodotPath();
       if (!this.godotPath) return createErrorResponse('Could not find a valid Godot executable path');
     }
-    let output = '';
-    let failed = false;
-    try {
-      const { stdout, stderr } = await execFileAsync(
-        this.godotPath!,
-        ['--headless', '--path', args.projectPath, '--check-only', '--script', scriptFull],
-        { timeout: 30000, maxBuffer: 16 * 1024 * 1024 }
-      );
-      output = `${stdout ?? ''}${stderr ?? ''}`;
-    } catch (error: any) {
-      failed = true;
-      output = `${error?.stdout ?? ''}${error?.stderr ?? ''}`;
-      const aborted = error?.killed === true || error?.signal != null ||
-        error?.code === 'ETIMEDOUT' || error?.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER';
-      if (aborted)
-        return createErrorResponse('validate_script did not complete (Godot timed out or produced too much output).');
-      if (!output)
-        return createErrorResponse(`validate_script failed: ${error?.message || 'Unknown error'}`);
-    }
-    const errors = parseGodotScriptDiagnostics(output);
-    if (errors.length === 0 && failed) {
-      const tail = output.trim().split(/\r?\n/).slice(-8).join('\n');
-      return createErrorResponse(`validate_script could not check the script; Godot exited with an error:\n${tail}`);
-    }
+    const check = await this.runGdScriptCheck(args.projectPath, scriptFull);
+    if (!check.completed)
+      return createErrorResponse(`validate_script could not check the script; ${check.error}`);
     return {
       content: [
         {
           type: 'text',
-          text: JSON.stringify({ valid: errors.length === 0, scriptPath: args.scriptPath, errorCount: errors.length, errors }, null, 2),
+          text: JSON.stringify({ valid: check.errors.length === 0, scriptPath: args.scriptPath, errorCount: check.errors.length, errors: check.errors }, null, 2),
+        },
+      ],
+    };
+  }
+
+  private async listChangedGdFiles(projectPath: string): Promise<{ files?: string[]; error?: string }> {
+    const git = (gitArgs: string[]) =>
+      execFileAsync('git', ['-c', 'core.quotepath=false', '-C', projectPath, ...gitArgs], { timeout: 15000, maxBuffer: 16 * 1024 * 1024 });
+    try {
+      await git(['rev-parse', '--is-inside-work-tree']);
+    } catch {
+      return { error: 'Not a git repository (or git is unavailable). Use scope: "all" or pass scriptPaths.' };
+    }
+    try {
+      const outputs = await Promise.all([
+        git(['diff', '--name-only', '--relative']),
+        git(['diff', '--name-only', '--relative', '--cached']),
+        git(['ls-files', '--others', '--exclude-standard']),
+      ]);
+      return { files: collectGdPaths(outputs.map(o => o.stdout ?? '')) };
+    } catch (error: any) {
+      return { error: `Failed to list changed files: ${error?.message || 'Unknown error'}` };
+    }
+  }
+
+  private listAllGdFiles(projectPath: string): string[] {
+    const results: string[] = [];
+    const skipDirs = new Set(['.godot', '.git', 'node_modules', '.import']);
+    const walk = (dir: string) => {
+      let entries;
+      try {
+        entries = readdirSync(dir, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const entry of entries) {
+        if (entry.isDirectory()) {
+          if (skipDirs.has(entry.name) || entry.name.startsWith('.')) continue;
+          walk(join(dir, entry.name));
+        } else if (entry.isFile() && /\.gd$/i.test(entry.name)) {
+          results.push(relative(projectPath, join(dir, entry.name)).replace(/\\/g, '/'));
+        }
+      }
+    };
+    walk(projectPath);
+    return results;
+  }
+
+  private async handleValidateScripts(args: any) {
+    args = normalizeParameters(args || {});
+    if (!args.projectPath) return createErrorResponse('projectPath is required.');
+    if (!validatePath(args.projectPath)) return createErrorResponse('Invalid path.');
+    const projectFile = join(args.projectPath, 'project.godot');
+    if (!existsSync(projectFile)) return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
+    if (!this.godotPath) {
+      await this.detectGodotPath();
+      if (!this.godotPath) return createErrorResponse('Could not find a valid Godot executable path');
+    }
+
+    let scope: string;
+    let candidates: string[];
+    const explicit = Array.isArray(args.scriptPaths) && args.scriptPaths.length > 0;
+    if (explicit) {
+      scope = 'explicit';
+      candidates = args.scriptPaths.map((p: any) => String(p));
+    } else if (args.scope === undefined || args.scope === 'changed') {
+      scope = 'changed';
+      const changed = await this.listChangedGdFiles(args.projectPath);
+      if (changed.error) return createErrorResponse(changed.error);
+      candidates = changed.files!;
+    } else if (args.scope === 'all') {
+      scope = 'all';
+      candidates = this.listAllGdFiles(args.projectPath);
+    } else {
+      return createErrorResponse(`Invalid scope "${args.scope}". Use "changed" or "all", or pass scriptPaths.`);
+    }
+
+    const results: any[] = [];
+    let filesWithErrors = 0;
+    const toCheck: string[] = [];
+    for (const rel of candidates) {
+      if (!/\.gd$/i.test(rel) || !validatePath(rel)) {
+        if (explicit) results.push({ scriptPath: rel, checked: false, error: 'Not a valid .gd path' });
+        continue;
+      }
+      if (!existsSync(join(args.projectPath, rel))) {
+        if (explicit) results.push({ scriptPath: rel, checked: false, error: 'Script does not exist' });
+        continue;
+      }
+      toCheck.push(rel);
+    }
+
+    const MAX_BATCH = 60;
+    if (toCheck.length > MAX_BATCH)
+      return createErrorResponse(`Too many scripts to validate (${toCheck.length} > ${MAX_BATCH}). Narrow the scope or pass an explicit scriptPaths list.`);
+
+    for (const rel of toCheck) {
+      const check = await this.runGdScriptCheck(args.projectPath, join(args.projectPath, rel));
+      if (!check.completed) {
+        results.push({ scriptPath: rel, checked: false, error: check.error });
+      } else {
+        if (check.errors.length > 0) filesWithErrors++;
+        results.push({ scriptPath: rel, checked: true, valid: check.errors.length === 0, errorCount: check.errors.length, errors: check.errors });
+      }
+    }
+
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            scope,
+            fileCount: results.length,
+            filesWithErrors,
+            allValid: filesWithErrors === 0 && results.every(r => r.checked !== false),
+            results,
+          }, null, 2),
         },
       ],
     };

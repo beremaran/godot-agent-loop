@@ -152,6 +152,7 @@ export const PARAMETER_MAPPINGS: Record<string, string> = {
   'scaling_scale': 'scalingScale',
   'source_path': 'sourcePath',
   'new_name': 'newName',
+  'script_paths': 'scriptPaths',
 };
 
 export const REVERSE_PARAMETER_MAPPINGS: Record<string, string> = Object.fromEntries(
@@ -261,6 +262,22 @@ export function parseGodotScriptDiagnostics(output: string): ScriptDiagnostic[] 
     diagnostics.push({ message, ...(file ? { file } : {}), ...(line !== undefined ? { line } : {}) });
   }
   return diagnostics;
+}
+
+export function collectGdPaths(outputs: string[]): string[] {
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (const out of outputs) {
+    for (const rawLine of (out || '').split(/\r?\n/)) {
+      const filePath = rawLine.trim().replace(/\\/g, '/');
+      if (!/\.gd$/i.test(filePath)) continue;
+      if (!seen.has(filePath)) {
+        seen.add(filePath);
+        result.push(filePath);
+      }
+    }
+  }
+  return result;
 }
 
 export const DEFAULT_GODOT_NET_SDK_VERSION = '4.4.0';

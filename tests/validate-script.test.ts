@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseGodotScriptDiagnostics } from '../src/utils.js';
+import { parseGodotScriptDiagnostics, collectGdPaths } from '../src/utils.js';
 
 describe('parseGodotScriptDiagnostics', () => {
   it('returns no diagnostics for empty/clean output', () => {
@@ -61,5 +61,27 @@ describe('parseGodotScriptDiagnostics', () => {
     const d = parseGodotScriptDiagnostics(out);
     expect(d[0].file).toBe('res://real.gd');
     expect(d[0].line).toBe(4);
+  });
+});
+
+describe('collectGdPaths', () => {
+  it('collects .gd paths across multiple git outputs and dedupes', () => {
+    const unstaged = 'scripts/a.gd\nscripts/readme.md\n';
+    const staged = 'scripts/b.gd\n';
+    const untracked = 'scripts/c.gd\nscripts/a.gd\n';
+    expect(collectGdPaths([unstaged, staged, untracked]))
+      .toEqual(['scripts/a.gd', 'scripts/b.gd', 'scripts/c.gd']);
+  });
+
+  it('excludes non-.gd files', () => {
+    expect(collectGdPaths(['a.tscn\nb.cs\nc.md\n'])).toEqual([]);
+  });
+
+  it('normalizes backslashes and trims blank lines', () => {
+    expect(collectGdPaths(['scripts\\player.gd\n\n  ui/menu.gd  \n'])).toEqual(['scripts/player.gd', 'ui/menu.gd']);
+  });
+
+  it('returns empty for empty output', () => {
+    expect(collectGdPaths(['', '\n'])).toEqual([]);
   });
 });

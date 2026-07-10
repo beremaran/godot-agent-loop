@@ -8,7 +8,7 @@
 [![](https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white 'TypeScript')](https://www.typescriptlang.org/)
 [![](https://img.shields.io/badge/License-MIT-red.svg 'MIT License')](https://opensource.org/licenses/MIT)
 
-A comprehensive [Model Context Protocol](https://modelcontextprotocol.io/introduction) (MCP) server that gives AI assistants **full control** over the Godot game engine. **156 tools** spanning networking, 3D/2D rendering, UI controls, audio effects, animation trees, file I/O, runtime code execution, property inspection, scene manipulation, signal management, physics, project creation, and more.
+A comprehensive [Model Context Protocol](https://modelcontextprotocol.io/introduction) (MCP) server that gives AI assistants **full control** over the Godot game engine. **157 tools** spanning networking, 3D/2D rendering, UI controls, audio effects, animation trees, file I/O, runtime code execution, property inspection, scene manipulation, signal management, physics, project creation, and more.
 
 ## Acknowledgments
 
@@ -16,7 +16,7 @@ This project is built upon and extends [godot-mcp](https://github.com/Coding-Sol
 
 ## What's New (Improvements Over Original)
 
-The original godot-mcp provided 20 tools for basic project management and scene creation. This fork extends it to **156 tools** with the following major additions:
+The original godot-mcp provided 20 tools for basic project management and scene creation. This fork extends it to **157 tools** with the following major additions:
 
 ### Runtime Code Execution
 - **`game_eval`** - Execute arbitrary GDScript code in the running game with return values
@@ -165,6 +165,7 @@ The original godot-mcp provided 20 tools for basic project management and scene 
 - **`manage_resource`** - Read or modify .tres/.res resource files
 - **`create_script`** - Create a GDScript file from a template
 - **`validate_script`** - Check a GDScript file for syntax/type errors headlessly (no run needed)
+- **`validate_scripts`** - Batch-check GDScript files: git-changed ones by default, or all
 - **`manage_scene_signals`** - List/add/remove signal connections in .tscn files
 - **`manage_layers`** - List/set named layer definitions in project
 - **`manage_plugins`** - List/enable/disable editor plugins
@@ -196,7 +197,7 @@ The original godot-mcp provided 20 tools for basic project management and scene 
 - **PackedArray serialization** - Proper JSON arrays instead of string fallback
 - **Graceful error handling** - Scene read fallback to raw .tscn text on missing dependencies
 
-## All 156 Tools
+## All 157 Tools
 
 ### Project Management (7 tools)
 | Tool | Description |
@@ -418,13 +419,14 @@ The original godot-mcp provided 20 tools for basic project management and scene 
 | `game_audio_bus_layout` | Create/remove/reorder audio buses and routing |
 | `game_audio_spatial` | Configure AudioStreamPlayer3D spatial properties |
 
-### Editor & Project Tools (13 tools)
+### Editor & Project Tools (14 tools)
 | Tool | Description |
 |------|-------------|
 | `rename_file` | Rename or move a file within the project |
 | `manage_resource` | Read or modify .tres/.res resource files |
 | `create_script` | Create a GDScript file from a template |
 | `validate_script` | Check a GDScript file for syntax/type errors (headless) |
+| `validate_scripts` | Batch-check GDScript files (git-changed by default, or all) |
 | `manage_scene_signals` | List/add/remove signal connections in .tscn files |
 | `manage_layers` | List/set named layer definitions in project |
 | `manage_plugins` | List/enable/disable editor plugins |
@@ -567,7 +569,7 @@ The project uses [Vitest](https://vitest.dev/) with 446 tests across 5 files:
 | `tests/tool-definitions.test.ts` | 163 | All 155 tools defined, schemas valid, names unique, descriptions < 80 chars |
 | `tests/handlers.test.ts` | 225 | Game command arg transforms, required-param validation, headless op path checks, source structure |
 | `tests/dotnet.test.ts` | 20 | .NET feature flag, .csproj generation, C# script template generation, identifier validation |
-| `tests/validate-script.test.ts` | 7 | GDScript diagnostic parsing (parse/type errors, line numbers) |
+| `tests/validate-script.test.ts` | 12 | GDScript diagnostic parsing + git-changed file collection |
 
 ```bash
 npm test          # run once
@@ -619,4 +621,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Credits
 
 - **Original project**: [godot-mcp](https://github.com/Coding-Solo/godot-mcp) by [Solomon Elias (Coding-Solo)](https://github.com/Coding-Solo) - provided the foundational MCP server architecture, headless operations system, and TCP interaction framework
-- **Extended by**: [Tugcan Topaloglu](https://github.com/tugcantopaloglu) - extended to 156 tools covering networking, 3D/2D rendering, UI controls, audio effects, animation trees, file I/O, runtime code execution, node manipulation, signals, project creation, camera control, physics, and comprehensive type conversion
+- **Extended by**: [Tugcan Topaloglu](https://github.com/tugcantopaloglu) - extended to 157 tools covering networking, 3D/2D rendering, UI controls, audio effects, animation trees, file I/O, runtime code execution, node manipulation, signals, project creation, camera control, physics, and comprehensive type conversion
