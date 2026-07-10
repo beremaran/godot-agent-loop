@@ -36,6 +36,7 @@ import {
   generateCsharpScriptSource,
   toDotnetIdentifier,
   isValidCsharpIdentifier,
+  parseGodotScriptDiagnostics,
   type OperationParams,
 } from './utils.js';
 
@@ -2885,6 +2886,18 @@ class GodotServer {
           },
         },
         {
+          name: 'validate_script',
+          description: 'Check a GDScript file for syntax/type errors (headless, no run)',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              projectPath: { type: 'string', description: 'Godot project path' },
+              scriptPath: { type: 'string', description: 'GDScript file path relative to project (e.g. "scripts/player.gd")' },
+            },
+            required: ['projectPath', 'scriptPath'],
+          },
+        },
+        {
           name: 'create_script',
           description: 'Create a GDScript file from a template',
           inputSchema: {
@@ -3558,6 +3571,8 @@ class GodotServer {
           return await this.handleRenameFile(request.params.arguments);
         case 'manage_resource':
           return await this.handleManageResource(request.params.arguments);
+        case 'validate_script':
+          return await this.handleValidateScript(request.params.arguments);
         case 'create_script':
           return await this.handleCreateScript(request.params.arguments);
         case 'manage_scene_signals':
@@ -6258,6 +6273,53 @@ class GodotServer {
       projectPath: a.projectPath,
       params: { resourcePath: a.resourcePath, action: a.action, ...(a.properties ? { properties: a.properties } : {}) },
     }));
+  }
+
+  private async handleValidateScript(args: any) {
+    args = normalizeParameters(args || {});
+    if (!args.projectPath || !args.scriptPath) return createErrorResponse('projectPath and scriptPath are required.');
+    if (!validatePath(args.projectPath) || !validatePath(args.scriptPath)) return createErrorResponse('Invalid path.');
+    if (!/\.gd$/i.test(args.scriptPath)) return createErrorResponse('validate_script only checks GDScript (.gd) files.');
+    const projectFile = join(args.projectPath, 'project.godot');
+    if (!existsSync(projectFile)) return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
+    const scriptFull = join(args.projectPath, args.scriptPath);
+    if (!existsSync(scriptFull)) return createErrorResponse(`Script does not exist: ${args.scriptPath}`);
+    if (!this.godotPath) {
+      await this.detectGodotPath();
+      if (!this.godotPath) return createErrorResponse('Could not find a valid Godot executable path');
+    }
+    let output = '';
+    let failed = false;
+    try {
+      const { stdout, stderr } = await execFileAsync(
+        this.godotPath!,
+        ['--headless', '--path', args.projectPath, '--check-only', '--script', scriptFull],
+        { timeout: 30000, maxBuffer: 16 * 1024 * 1024 }
+      );
+      output = `${stdout ?? ''}${stderr ?? ''}`;
+    } catch (error: any) {
+      failed = true;
+      output = `${error?.stdout ?? ''}${error?.stderr ?? ''}`;
+      const aborted = error?.killed === true || error?.signal != null ||
+        error?.code === 'ETIMEDOUT' || error?.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER';
+      if (aborted)
+        return createErrorResponse('validate_script did not complete (Godot timed out or produced too much output).');
+      if (!output)
+        return createErrorResponse(`validate_script failed: ${error?.message || 'Unknown error'}`);
+    }
+    const errors = parseGodotScriptDiagnostics(output);
+    if (errors.length === 0 && failed) {
+      const tail = output.trim().split(/\r?\n/).slice(-8).join('\n');
+      return createErrorResponse(`validate_script could not check the script; Godot exited with an error:\n${tail}`);
+    }
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({ valid: errors.length === 0, scriptPath: args.scriptPath, errorCount: errors.length, errors }, null, 2),
+        },
+      ],
+    };
   }
 
   private async handleCreateScript(args: any) {

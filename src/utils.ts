@@ -233,6 +233,36 @@ export function isGodot44OrLater(version: string): boolean {
   return false;
 }
 
+export interface ScriptDiagnostic {
+  message: string;
+  file?: string;
+  line?: number;
+}
+
+export function parseGodotScriptDiagnostics(output: string): ScriptDiagnostic[] {
+  const lines = (output || '').split(/\r?\n/);
+  const diagnostics: ScriptDiagnostic[] = [];
+  const locRe = /\((res:\/\/.+):(\d+)\)/;
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(/SCRIPT ERROR:\s*(.+?)\s*$/);
+    if (!m) continue;
+    const message = m[1].replace(/^Parse Error:\s*/, '');
+    let file: string | undefined;
+    let line: number | undefined;
+    for (const j of [i + 1, i]) {
+      if (j >= lines.length) continue;
+      const loc = lines[j].match(locRe);
+      if (loc) {
+        file = loc[1];
+        line = parseInt(loc[2], 10);
+        break;
+      }
+    }
+    diagnostics.push({ message, ...(file ? { file } : {}), ...(line !== undefined ? { line } : {}) });
+  }
+  return diagnostics;
+}
+
 export const DEFAULT_GODOT_NET_SDK_VERSION = '4.4.0';
 export const DEFAULT_DOTNET_TARGET_FRAMEWORK = 'net8.0';
 
