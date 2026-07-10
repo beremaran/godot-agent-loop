@@ -1,5 +1,6 @@
 #!/usr/bin/env -S godot --headless --script
 extends SceneTree
+@warning_ignore_start("untyped_declaration", "inference_on_variant", "unsafe_property_access", "unsafe_method_access", "unsafe_cast", "unsafe_call_argument", "return_value_discarded", "narrowing_conversion", "int_as_enum_without_cast")
 
 # Debug mode flag
 var debug_mode = false
@@ -544,9 +545,10 @@ func add_node(params):
             print("Setting properties on node")
         var properties = params.properties
         for property in properties:
+            var converted = _convert_property_value(new_node, property, properties[property])
             if debug_mode:
-                print("Setting property: " + property + " = " + str(properties[property]))
-            new_node.set(property, properties[property])
+                print("Setting property: " + property + " = " + str(converted))
+            new_node.set(property, converted)
     
     parent.add_child(new_node)
     new_node.owner = scene_root
@@ -1296,6 +1298,14 @@ func _convert_property_value(node, prop_name, value):
                     return str(value)
                 TYPE_NODE_PATH:
                     return NodePath(str(value))
+                TYPE_OBJECT:
+                    if value is String and value.begins_with("res://"):
+                        if ResourceLoader.exists(value):
+                            var res = load(value)
+                            if res != null:
+                                return res
+                        printerr("Failed to load resource from path: " + value)
+                    return value
             break
     return value
 
@@ -1774,36 +1784,104 @@ func manage_scene_structure(params):
     if not full_path.begins_with("res://"):
         full_path = "res://" + full_path
 
-    if not ResourceLoader.exists(full_path):
+    if not FileAccess.file_exists(full_path):
         printerr("Scene not found: " + full_path)
         quit(1)
+        return
 
-    var scene = ResourceLoader.load(full_path) as PackedScene
+    var scene = load(full_path) as PackedScene
     if scene == null:
         printerr("Failed to load scene: " + full_path)
         quit(1)
+        return
 
-    var state = scene.get_state()
-    # For simple operations, work with the text file directly
-    var content = FileAccess.get_file_as_string(full_path)
+    var root = scene.instantiate()
+    var target = _resolve_scene_node(root, node_path_str)
+    if target == null:
+        printerr("Node not found: " + node_path_str)
+        quit(1)
+        return
 
     if action == "rename":
         var new_name = params.get("new_name", "")
         if new_name.is_empty():
             printerr("new_name is required for rename")
             quit(1)
-        # Replace node name in tscn file
-        var old_name = node_path_str.get_file()
-        content = content.replace('name="%s"' % old_name, 'name="%s"' % new_name)
-        var file = FileAccess.open(full_path, FileAccess.WRITE)
-        file.store_string(content)
-        file.close()
-        print("Node renamed from '%s' to '%s'" % [old_name, new_name])
+            return
+        target.name = new_name
+        print("Node renamed to '%s'" % target.name)
     elif action == "duplicate":
-        print("Scene structure duplicated (node: %s)" % node_path_str)
+        if target == root:
+            printerr("Cannot duplicate the root node")
+            quit(1)
+            return
+        var dup = target.duplicate()
+        target.get_parent().add_child(dup, true)
+        _set_owner_recursive(dup, root)
+        print("Node duplicated: %s (as '%s')" % [node_path_str, dup.name])
     elif action == "move":
         var new_parent_path = params.get("new_parent_path", "")
-        print("Node moved: %s -> parent %s" % [node_path_str, new_parent_path])
+        if new_parent_path.is_empty():
+            printerr("new_parent_path is required for move")
+            quit(1)
+            return
+        if target == root:
+            printerr("Cannot move the root node")
+            quit(1)
+            return
+        var new_parent = _resolve_scene_node(root, new_parent_path)
+        if new_parent == null:
+            printerr("New parent not found: " + new_parent_path)
+            quit(1)
+            return
+        if new_parent == target or _is_ancestor(target, new_parent):
+            printerr("Cannot move a node into itself or one of its descendants")
+            quit(1)
+            return
+        target.get_parent().remove_child(target)
+        new_parent.add_child(target, true)
+        _set_owner_recursive(target, root)
+        print("Node moved: %s -> parent %s (as '%s')" % [node_path_str, new_parent_path, target.name])
     else:
         printerr("Unknown manage_scene_structure action: " + action)
         quit(1)
+        return
+
+    var packed = PackedScene.new()
+    var pack_result = packed.pack(root)
+    if pack_result != OK:
+        printerr("Failed to pack scene: " + str(pack_result))
+        quit(1)
+        return
+    var save_error = ResourceSaver.save(packed, full_path)
+    if save_error != OK:
+        printerr("Failed to save scene: " + str(save_error))
+        quit(1)
+        return
+    print("Scene structure saved: " + full_path)
+
+
+func _resolve_scene_node(root, tool_path):
+    if tool_path == "" or tool_path == "root" or tool_path == ".":
+        return root
+    var p = tool_path
+    if p.begins_with("root/"):
+        p = p.substr(5)
+    return root.get_node_or_null(p)
+
+
+func _set_owner_recursive(node, owner_root):
+    node.owner = owner_root
+    if node.scene_file_path != "":
+        return
+    for c in node.get_children():
+        _set_owner_recursive(c, owner_root)
+
+
+func _is_ancestor(node, maybe_descendant):
+    var n = maybe_descendant.get_parent()
+    while n != null:
+        if n == node:
+            return true
+        n = n.get_parent()
+    return false

@@ -451,7 +451,7 @@ The original godot-mcp provided 20 tools for basic project management and scene 
 
 ## Requirements
 
-- [Godot Engine](https://godotengine.org/download) (4.x recommended, 4.4+ for UID features)
+- [Godot Engine](https://godotengine.org/download) 4.4 or later (the headless operations script and UID features require 4.4+)
 - [Node.js](https://nodejs.org/) >= 18.0.0
 - An AI assistant that supports MCP (Claude Code, Cline, Cursor, etc.)
 
