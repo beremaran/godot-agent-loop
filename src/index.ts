@@ -5186,7 +5186,8 @@ class GodotServer {
       }
       writeFileSync(projectFile, content, 'utf8');
       if (isDotnet) {
-        writeFileSync(join(args.projectPath, `${assemblyName}.csproj`), generateCsprojContent(args.projectName), 'utf8');
+        const sdkVersion = (await this.detectGodotNetSdkVersion()) ?? undefined;
+        writeFileSync(join(args.projectPath, `${assemblyName}.csproj`), generateCsprojContent(args.projectName, sdkVersion), 'utf8');
       }
       return { content: [{ type: 'text', text: `Project "${args.projectName}" created at ${args.projectPath}${isDotnet ? ' (Godot .NET / C#)' : ''}` }] };
     } catch (error: any) {
@@ -5199,6 +5200,19 @@ class GodotServer {
       return readdirSync(projectPath).some(entry => entry.toLowerCase().endsWith('.csproj'));
     } catch {
       return false;
+    }
+  }
+
+  private async detectGodotNetSdkVersion(): Promise<string | null> {
+    try {
+      if (!this.godotPath) await this.detectGodotPath();
+      if (!this.godotPath) return null;
+      const { stdout } = await execFileAsync(this.godotPath, ['--version'], { timeout: 10000 });
+      const match = stdout.trim().match(/^(\d+)\.(\d+)(?:\.\d+)?\.stable\b/);
+      if (!match) return null;
+      return `${match[1]}.${match[2]}.0`;
+    } catch {
+      return null;
     }
   }
 
