@@ -9,8 +9,9 @@ var _client: StreamPeerTCP
 var _buffer: String = ""
 var _busy: bool = false
 var _busy_since: float = 0.0
+var _current_id: Variant = null
 const PORT: int = 9090
-const BUSY_TIMEOUT: float = 30.0
+const BUSY_TIMEOUT: float = 120.0
 var _key_map: Dictionary
 var _held_keys: Dictionary = {}
 
@@ -37,6 +38,7 @@ func _process(_delta: float) -> void:
 			push_warning("McpInteractionServer: _busy flag stuck for %.1fs, force-resetting" % elapsed)
 			_busy = false
 			_busy_since = 0.0
+			_current_id = null
 
 	# Accept new connections
 	if _server.is_connection_available():
@@ -60,6 +62,7 @@ func _process(_delta: float) -> void:
 		_buffer = ""
 		_busy = false
 		_busy_since = 0.0
+		_current_id = null
 		return
 
 	if status != StreamPeerTCP.STATUS_CONNECTED:
@@ -82,22 +85,25 @@ func _process(_delta: float) -> void:
 
 
 func _handle_command(json_str: String) -> void:
-	if _busy:
-		_send_response_raw({"error": "Server busy processing another command. Try again."})
-		return
-	_busy = true
-	_busy_since = Time.get_ticks_msec() / 1000.0
-
 	var json: JSON = JSON.new()
 	var parse_err: int = json.parse(json_str)
 	if parse_err != OK:
-		_send_response({"error": "Invalid JSON: %s" % json.get_error_message()})
+		_send_response_raw({"error": "Invalid JSON: %s" % json.get_error_message()})
 		return
 
 	var data: Variant = json.data
 	if not data is Dictionary:
-		_send_response({"error": "Expected JSON object"})
+		_send_response_raw({"error": "Expected JSON object"})
 		return
+
+	var req_id: Variant = data.get("id", null)
+
+	if _busy:
+		_send_response_raw({"error": "Server busy processing another command. Try again.", "id": req_id})
+		return
+	_busy = true
+	_busy_since = Time.get_ticks_msec() / 1000.0
+	_current_id = req_id
 
 	var command: String = data.get("command", "")
 	var params: Dictionary = data.get("params", {})
@@ -322,6 +328,10 @@ func _handle_command(json_str: String) -> void:
 			_cmd_render_settings(params)
 		"resource":
 			_cmd_resource(params)
+		"video":
+			_cmd_video(params)
+		"terrain":
+			_cmd_terrain(params)
 		_:
 			_send_response({"error": "Unknown command: %s" % command})
 
@@ -330,6 +340,9 @@ func _handle_command(json_str: String) -> void:
 func _send_response(data: Dictionary) -> void:
 	_busy = false
 	_busy_since = 0.0
+	if _current_id != null and not data.has("id"):
+		data["id"] = _current_id
+	_current_id = null
 	_send_response_raw(data)
 
 
@@ -783,9 +796,14 @@ func _cmd_get_performance(_params: Dictionary) -> void:
 # --- Wait N Frames ---
 func _cmd_wait(params: Dictionary) -> void:
 	var frames: int = int(params.get("frames", 1))
+	var frame_type: String = str(params.get("frame_type", "render")).to_lower()
+	var use_physics: bool = frame_type == "physics" or bool(params.get("physics", false))
 	for i in frames:
-		await get_tree().process_frame
-	_send_response({"success": true, "waited_frames": frames})
+		if use_physics:
+			await get_tree().physics_frame
+		else:
+			await get_tree().process_frame
+	_send_response({"success": true, "waited_frames": frames, "frame_type": "physics" if use_physics else "render"})
 
 
 # --- Helper: Convert Godot Variant to JSON-safe value ---
@@ -891,6 +909,12 @@ func _variant_to_json(value: Variant) -> Variant:
 func _json_to_variant(value: Variant, type_hint: String = "") -> Variant:
 	if value == null:
 		return null
+	if value is String and type_hint != "" and type_hint != "String":
+		var trimmed: String = (value as String).strip_edges()
+		if trimmed.begins_with("{") or trimmed.begins_with("["):
+			var parser: JSON = JSON.new()
+			if parser.parse(trimmed) == OK:
+				value = parser.data
 	if value is Dictionary:
 		var dict: Dictionary = value
 		# Explicit type hints take priority
@@ -1157,7 +1181,12 @@ func _cmd_tween_property(params: Dictionary) -> void:
 	var ease_type: int = int(params.get("ease_type", 2))  # Tween.EASE_IN_OUT
 
 	var tween: Tween = create_tween()
-	tween.tween_property(node, property, final_value, duration).set_trans(trans_type).set_ease(ease_type)
+	var tweener: PropertyTweener = tween.tween_property(node, property, final_value, duration)
+	if tweener == null:
+		tween.kill()
+		_send_response({"error": "tween_property failed: value type does not match property '%s' on %s" % [property, node.get_class()]})
+		return
+	tweener.set_trans(trans_type).set_ease(ease_type)
 	_send_response({"success": true, "node": node_path, "property": property, "duration": duration})
 
 
@@ -2546,7 +2575,7 @@ func _cmd_ui_theme(params: Dictionary) -> void:
 		applied.append("constant:" + name)
 
 	# Font size overrides
-	var font_sizes: Dictionary = overrides.get("font_sizes", {})
+	var font_sizes: Dictionary = overrides.get("fontSizes", overrides.get("font_sizes", {}))
 	for name in font_sizes:
 		ctrl.add_theme_font_size_override(name, int(font_sizes[name]))
 		applied.append("font_size:" + name)
@@ -2815,12 +2844,35 @@ func _cmd_rpc(params: Dictionary) -> void:
 		return
 	var action: String = params.get("action", "call")
 	var method: String = params.get("method", "")
+	if method.is_empty():
+		_send_response({"error": "method is required"})
+		return
 	if action == "call":
 		var args: Array = params.get("args", [])
 		node.rpc(method, args)
 		_send_response({"success": true, "action": "call", "method": method})
+	elif action == "configure":
+		var config: Dictionary = {}
+		if params.has("mode"):
+			var m: Variant = params["mode"]
+			if m is String:
+				match (m as String).to_lower():
+					"any_peer": config["rpc_mode"] = MultiplayerAPI.RPC_MODE_ANY_PEER
+					"authority": config["rpc_mode"] = MultiplayerAPI.RPC_MODE_AUTHORITY
+			else:
+				config["rpc_mode"] = int(m)
+		if params.has("sync"):
+			var sync_val: Variant = params["sync"]
+			if sync_val is String:
+				config["call_local"] = (sync_val as String).to_lower() == "call_local"
+			else:
+				config["call_local"] = bool(sync_val)
+		if params.has("channel"):
+			config["channel"] = int(params["channel"])
+		node.rpc_config(method, config)
+		_send_response({"success": true, "action": "configure", "method": method, "config": config})
 	else:
-		_send_response({"success": true, "action": action, "method": method})
+		_send_response({"error": "Unknown rpc action: %s" % action})
 
 
 func _cmd_touch(params: Dictionary) -> void:
@@ -3091,6 +3143,17 @@ func _cmd_csg(params: Dictionary) -> void:
 				"subtraction": node.operation = CSGShape3D.OPERATION_SUBTRACTION
 		if params.has("name") and not (params["name"] as String).is_empty():
 			node.name = params["name"]
+		if node is CSGBox3D and params.has("size"):
+			var box_size: Variant = _json_to_variant(params["size"], "Vector3")
+			if box_size is Vector3:
+				(node as CSGBox3D).size = box_size
+		if node is CSGSphere3D and params.has("radius"):
+			(node as CSGSphere3D).radius = float(params["radius"])
+		if node is CSGCylinder3D:
+			if params.has("radius"):
+				(node as CSGCylinder3D).radius = float(params["radius"])
+			if params.has("height"):
+				(node as CSGCylinder3D).height = float(params["height"])
 		parent.add_child(node)
 		node.owner = get_tree().edited_scene_root if get_tree().edited_scene_root else get_tree().root
 		_send_response({"success": true, "action": "create", "path": str(node.get_path()), "type": csg_type})
@@ -3410,6 +3473,20 @@ func _cmd_path_3d(params: Dictionary) -> void:
 				var pt: Vector3 = (node as Path3D).curve.get_point_position(i)
 				pts.append({"x": pt.x, "y": pt.y, "z": pt.z})
 			_send_response({"success": true, "action": "get_points", "points": pts})
+		"set_points":
+			var node_path: String = params.get("node_path", "")
+			var node: Node = get_tree().root.get_node_or_null(node_path)
+			if node == null or not node is Path3D:
+				_send_response({"error": "Path3D not found: %s" % node_path})
+				return
+			var curve: Curve3D = (node as Path3D).curve
+			if curve == null:
+				curve = Curve3D.new()
+				(node as Path3D).curve = curve
+			curve.clear_points()
+			for p in params.get("points", []):
+				curve.add_point(Vector3(float(p.get("x", 0)), float(p.get("y", 0)), float(p.get("z", 0))))
+			_send_response({"success": true, "action": "set_points", "point_count": curve.point_count})
 		_:
 			_send_response({"error": "Unknown path_3d action: %s" % action})
 
@@ -3424,19 +3501,21 @@ func _cmd_sky(params: Dictionary) -> void:
 	if action == "create" or env.sky == null:
 		env.sky = Sky.new()
 		env.background_mode = Environment.BG_SKY
-		var sky_mat: ProceduralSkyMaterial = ProceduralSkyMaterial.new()
-		if params.has("top_color"):
-			var c: Dictionary = params["top_color"]
-			sky_mat.sky_top_color = Color(float(c.get("r", 0.4)), float(c.get("g", 0.6)), float(c.get("b", 1.0)))
-		if params.has("bottom_color"):
-			var c: Dictionary = params["bottom_color"]
-			sky_mat.sky_horizon_color = Color(float(c.get("r", 0.7)), float(c.get("g", 0.8)), float(c.get("b", 0.9)))
-		if params.has("ground_color"):
-			var c: Dictionary = params["ground_color"]
-			sky_mat.ground_bottom_color = Color(float(c.get("r", 0.1)), float(c.get("g", 0.1)), float(c.get("b", 0.1)))
-		if params.has("sun_energy"):
-			sky_mat.sun_curve = float(params["sun_energy"])
-		env.sky.sky_material = sky_mat
+	var sky_mat: ProceduralSkyMaterial = env.sky.sky_material as ProceduralSkyMaterial
+	if sky_mat == null:
+		sky_mat = ProceduralSkyMaterial.new()
+	if params.has("top_color"):
+		var c: Dictionary = params["top_color"]
+		sky_mat.sky_top_color = Color(float(c.get("r", 0.4)), float(c.get("g", 0.6)), float(c.get("b", 1.0)))
+	if params.has("bottom_color"):
+		var c: Dictionary = params["bottom_color"]
+		sky_mat.sky_horizon_color = Color(float(c.get("r", 0.7)), float(c.get("g", 0.8)), float(c.get("b", 0.9)))
+	if params.has("ground_color"):
+		var c: Dictionary = params["ground_color"]
+		sky_mat.ground_bottom_color = Color(float(c.get("r", 0.1)), float(c.get("g", 0.1)), float(c.get("b", 0.1)))
+	if params.has("sun_energy"):
+		sky_mat.sun_curve = float(params["sun_energy"])
+	env.sky.sky_material = sky_mat
 	_send_response({"success": true, "action": action, "sky_type": sky_type})
 
 
@@ -3594,6 +3673,34 @@ func _cmd_canvas(params: Dictionary) -> void:
 				cm.name = params["name"]
 			parent.add_child(cm)
 			_send_response({"success": true, "action": "create_modulate", "path": str(cm.get_path())})
+		"configure":
+			var node_path: String = params.get("node_path", "")
+			var node: Node = get_tree().root.get_node_or_null(node_path)
+			if node == null:
+				_send_response({"error": "Node not found: %s" % node_path})
+				return
+			var applied: Array = []
+			if node is CanvasLayer:
+				var cl2: CanvasLayer = node as CanvasLayer
+				if params.has("layer"):
+					cl2.layer = int(params["layer"])
+					applied.append("layer")
+				if params.has("offset"):
+					var o: Dictionary = params["offset"]
+					cl2.offset = Vector2(float(o.get("x", 0)), float(o.get("y", 0)))
+					applied.append("offset")
+				if params.has("visible"):
+					cl2.visible = bool(params["visible"])
+					applied.append("visible")
+			elif node is CanvasModulate:
+				if params.has("color"):
+					var c: Dictionary = params["color"]
+					(node as CanvasModulate).color = Color(float(c.get("r", 1)), float(c.get("g", 1)), float(c.get("b", 1)), float(c.get("a", 1)))
+					applied.append("color")
+			else:
+				_send_response({"error": "Node is not a CanvasLayer or CanvasModulate: %s" % node.get_class()})
+				return
+			_send_response({"success": true, "action": "configure", "applied": applied})
 		_:
 			_send_response({"error": "Unknown canvas action: %s" % action})
 
@@ -3608,6 +3715,9 @@ func _cmd_canvas_draw(params: Dictionary) -> void:
 		if _canvas_draw_node != null and is_instance_valid(_canvas_draw_node):
 			_canvas_draw_node.queue_redraw()
 		_send_response({"success": true, "action": "clear"})
+		return
+	if not action in ["line", "rect", "circle", "polygon", "text"]:
+		_send_response({"error": "Unknown canvas_draw action: %s" % action})
 		return
 	# Ensure draw node
 	if _canvas_draw_node == null or not is_instance_valid(_canvas_draw_node):
@@ -3647,6 +3757,16 @@ func _draw():
 			"circle":
 				var ct = p.get("center", {})
 				draw_circle(Vector2(float(ct.get("x",0)),float(ct.get("y",0))),float(p.get("radius",10)),c)
+			"polygon":
+				var pts = p.get("points", [])
+				var pv = PackedVector2Array()
+				for pt in pts:
+					pv.append(Vector2(float(pt.get("x",0)),float(pt.get("y",0))))
+				if pv.size() >= 3:
+					draw_colored_polygon(pv, c)
+			"text":
+				var pos = p.get("position", p.get("pos", {}))
+				draw_string(ThemeDB.fallback_font, Vector2(float(pos.get("x",0)),float(pos.get("y",0))), str(p.get("text","")), HORIZONTAL_ALIGNMENT_LEFT, -1, int(p.get("font_size",16)), c)
 """
 	s.reload()
 	return s
@@ -3691,6 +3811,18 @@ func _cmd_light_2d(params: Dictionary) -> void:
 				light.name = params["name"]
 			parent.add_child(light)
 			_send_response({"success": true, "action": "create_directional", "path": str(light.get_path())})
+		"create_occluder":
+			var occ: LightOccluder2D = LightOccluder2D.new()
+			var poly: OccluderPolygon2D = OccluderPolygon2D.new()
+			var packed: PackedVector2Array = PackedVector2Array()
+			for p in params.get("points", []):
+				packed.append(Vector2(float(p.get("x", 0)), float(p.get("y", 0))))
+			poly.polygon = packed
+			occ.occluder = poly
+			if params.has("name") and not (params["name"] as String).is_empty():
+				occ.name = params["name"]
+			parent.add_child(occ)
+			_send_response({"success": true, "action": "create_occluder", "path": str(occ.get_path()), "point_count": packed.size()})
 		_:
 			_send_response({"error": "Unknown light_2d action: %s" % action})
 
@@ -3729,6 +3861,41 @@ func _cmd_parallax(params: Dictionary) -> void:
 				layer.name = params["name"]
 			parent.add_child(layer)
 			_send_response({"success": true, "action": "add_layer", "path": str(layer.get_path())})
+		"configure":
+			var node_path: String = params.get("node_path", "")
+			var node: Node = get_tree().root.get_node_or_null(node_path)
+			if node == null:
+				_send_response({"error": "Node not found: %s" % node_path})
+				return
+			var applied: Array = []
+			if node is ParallaxBackground:
+				var pbg: ParallaxBackground = node as ParallaxBackground
+				if params.has("scroll_offset"):
+					var so: Dictionary = params["scroll_offset"]
+					pbg.scroll_offset = Vector2(float(so.get("x", 0)), float(so.get("y", 0)))
+					applied.append("scroll_offset")
+				if params.has("scroll_base_offset"):
+					var sbo: Dictionary = params["scroll_base_offset"]
+					pbg.scroll_base_offset = Vector2(float(sbo.get("x", 0)), float(sbo.get("y", 0)))
+					applied.append("scroll_base_offset")
+			elif node is ParallaxLayer:
+				var pl: ParallaxLayer = node as ParallaxLayer
+				if params.has("motion_scale"):
+					var ms2: Dictionary = params["motion_scale"]
+					pl.motion_scale = Vector2(float(ms2.get("x", 1)), float(ms2.get("y", 1)))
+					applied.append("motion_scale")
+				if params.has("motion_offset"):
+					var mo2: Dictionary = params["motion_offset"]
+					pl.motion_offset = Vector2(float(mo2.get("x", 0)), float(mo2.get("y", 0)))
+					applied.append("motion_offset")
+				if params.has("mirroring"):
+					var mi2: Dictionary = params["mirroring"]
+					pl.motion_mirroring = Vector2(float(mi2.get("x", 0)), float(mi2.get("y", 0)))
+					applied.append("mirroring")
+			else:
+				_send_response({"error": "Node is not a ParallaxBackground or ParallaxLayer: %s" % node.get_class()})
+				return
+			_send_response({"success": true, "action": "configure", "applied": applied})
 		_:
 			_send_response({"error": "Unknown parallax action: %s" % action})
 
@@ -3855,6 +4022,46 @@ func _cmd_physics_2d(params: Dictionary) -> void:
 			for b in bodies:
 				result.append({"name": b.name, "path": str(b.get_path())})
 			_send_response({"success": true, "action": "overlap", "bodies": result})
+		"point_query":
+			var pos_d: Dictionary = params.get("position", params.get("point", {}))
+			var query: PhysicsPointQueryParameters2D = PhysicsPointQueryParameters2D.new()
+			query.position = Vector2(float(pos_d.get("x", 0)), float(pos_d.get("y", 0)))
+			query.collide_with_areas = bool(params.get("collide_with_areas", true))
+			query.collide_with_bodies = bool(params.get("collide_with_bodies", true))
+			if params.has("collision_mask"):
+				query.collision_mask = int(params["collision_mask"])
+			var hits: Array = space.intersect_point(query, int(params.get("max_results", 32)))
+			var out: Array = []
+			for h in hits:
+				out.append({"collider": str(h.get("collider", "")), "rid": str(h.get("rid", ""))})
+			_send_response({"success": true, "action": "point_query", "count": out.size(), "results": out})
+		"shape_query":
+			var shape_type: String = params.get("shape_type", "circle")
+			var shape: Shape2D = null
+			if shape_type == "rectangle":
+				var rect: RectangleShape2D = RectangleShape2D.new()
+				var sz: Dictionary = params.get("size", {"x": 10, "y": 10})
+				rect.size = Vector2(float(sz.get("x", 10)), float(sz.get("y", 10)))
+				shape = rect
+			else:
+				var circ: CircleShape2D = CircleShape2D.new()
+				circ.radius = float(params.get("radius", 10.0))
+				shape = circ
+			var sq: PhysicsShapeQueryParameters2D = PhysicsShapeQueryParameters2D.new()
+			sq.shape = shape
+			var spos_d: Dictionary = params.get("position", {})
+			var xf: Transform2D = Transform2D.IDENTITY
+			xf.origin = Vector2(float(spos_d.get("x", 0)), float(spos_d.get("y", 0)))
+			sq.transform = xf
+			sq.collide_with_areas = bool(params.get("collide_with_areas", true))
+			sq.collide_with_bodies = bool(params.get("collide_with_bodies", true))
+			if params.has("collision_mask"):
+				sq.collision_mask = int(params["collision_mask"])
+			var shits: Array = space.intersect_shape(sq, int(params.get("max_results", 32)))
+			var sout: Array = []
+			for h in shits:
+				sout.append({"collider": str(h.get("collider", "")), "rid": str(h.get("rid", ""))})
+			_send_response({"success": true, "action": "shape_query", "count": sout.size(), "results": sout})
 		_:
 			_send_response({"error": "Unknown physics_2d action: %s" % action})
 
@@ -3977,6 +4184,21 @@ func _cmd_audio_effect(params: Dictionary) -> void:
 			var idx: int = int(params.get("index", 0))
 			AudioServer.remove_bus_effect(bus_idx, idx)
 			_send_response({"success": true, "action": "remove", "index": idx})
+		"configure":
+			var idx: int = int(params.get("index", 0))
+			if idx < 0 or idx >= AudioServer.get_bus_effect_count(bus_idx):
+				_send_response({"error": "Effect index out of range: %d" % idx})
+				return
+			var eff: AudioEffect = AudioServer.get_bus_effect(bus_idx, idx)
+			var applied: Array = []
+			var props: Dictionary = params.get("properties", {})
+			for key in props:
+				eff.set(key, props[key])
+				applied.append(str(key))
+			if params.has("enabled"):
+				AudioServer.set_bus_effect_enabled(bus_idx, idx, bool(params["enabled"]))
+				applied.append("enabled")
+			_send_response({"success": true, "action": "configure", "index": idx, "applied": applied})
 		_:
 			_send_response({"error": "Unknown audio_effect action: %s" % action})
 
@@ -4077,21 +4299,60 @@ func _cmd_ui_control(params: Dictionary) -> void:
 			ctrl.release_focus()
 			_send_response({"success": true, "action": "release_focus"})
 		"configure":
+			var applied: Array = []
 			if params.has("tooltip"):
 				ctrl.tooltip_text = str(params["tooltip"])
+				applied.append("tooltip")
 			if params.has("mouse_filter"):
 				match params["mouse_filter"]:
 					"stop": ctrl.mouse_filter = Control.MOUSE_FILTER_STOP
 					"pass": ctrl.mouse_filter = Control.MOUSE_FILTER_PASS
 					"ignore": ctrl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+				applied.append("mouse_filter")
 			if params.has("min_size"):
 				var s: Dictionary = params["min_size"]
 				ctrl.custom_minimum_size = Vector2(float(s.get("x", 0)), float(s.get("y", 0)))
-			_send_response({"success": true, "action": "configure"})
+				applied.append("min_size")
+			if params.has("anchor_preset"):
+				var preset: int = _resolve_anchor_preset(params["anchor_preset"])
+				if preset < 0:
+					_send_response({"error": "Invalid anchor_preset: %s" % str(params["anchor_preset"])})
+					return
+				ctrl.set_anchors_and_offsets_preset(preset as Control.LayoutPreset)
+				applied.append("anchor_preset")
+			_send_response({"success": true, "action": "configure", "applied": applied})
 		"get_info":
 			_send_response({"success": true, "size": _variant_to_json(ctrl.size), "position": _variant_to_json(ctrl.position), "has_focus": ctrl.has_focus(), "visible": ctrl.visible, "tooltip": ctrl.tooltip_text, "mouse_filter": ctrl.mouse_filter})
 		_:
 			_send_response({"error": "Unknown ui_control action: %s" % action})
+
+
+func _resolve_anchor_preset(value: Variant) -> int:
+	if value is int or value is float:
+		return int(value)
+	if value is String:
+		var names: Dictionary = {
+			"top_left": Control.PRESET_TOP_LEFT,
+			"top_right": Control.PRESET_TOP_RIGHT,
+			"bottom_left": Control.PRESET_BOTTOM_LEFT,
+			"bottom_right": Control.PRESET_BOTTOM_RIGHT,
+			"center_left": Control.PRESET_CENTER_LEFT,
+			"center_top": Control.PRESET_CENTER_TOP,
+			"center_right": Control.PRESET_CENTER_RIGHT,
+			"center_bottom": Control.PRESET_CENTER_BOTTOM,
+			"center": Control.PRESET_CENTER,
+			"left_wide": Control.PRESET_LEFT_WIDE,
+			"top_wide": Control.PRESET_TOP_WIDE,
+			"right_wide": Control.PRESET_RIGHT_WIDE,
+			"bottom_wide": Control.PRESET_BOTTOM_WIDE,
+			"vcenter_wide": Control.PRESET_VCENTER_WIDE,
+			"hcenter_wide": Control.PRESET_HCENTER_WIDE,
+			"full_rect": Control.PRESET_FULL_RECT,
+		}
+		var key: String = (value as String).to_lower()
+		if names.has(key):
+			return names[key]
+	return -1
 
 
 func _cmd_ui_text(params: Dictionary) -> void:
@@ -4116,21 +4377,34 @@ func _cmd_ui_text(params: Dictionary) -> void:
 			if node is LineEdit: (node as LineEdit).text = text
 			elif node is TextEdit: (node as TextEdit).text = text
 			elif node is RichTextLabel: (node as RichTextLabel).text = text
+			else:
+				_send_response({"error": "Node is not a text control (LineEdit/TextEdit/RichTextLabel): %s" % node.get_class()})
+				return
 			_send_response({"success": true, "action": "set"})
 		"append":
 			var text: String = str(params.get("text", ""))
 			if node is TextEdit: (node as TextEdit).text += text
 			elif node is RichTextLabel: (node as RichTextLabel).append_text(text)
+			elif node is LineEdit: (node as LineEdit).text += text
+			else:
+				_send_response({"error": "Node is not a text control (LineEdit/TextEdit/RichTextLabel): %s" % node.get_class()})
+				return
 			_send_response({"success": true, "action": "append"})
 		"clear":
 			if node is LineEdit: (node as LineEdit).text = ""
 			elif node is TextEdit: (node as TextEdit).text = ""
 			elif node is RichTextLabel: (node as RichTextLabel).clear()
+			else:
+				_send_response({"error": "Node is not a text control (LineEdit/TextEdit/RichTextLabel): %s" % node.get_class()})
+				return
 			_send_response({"success": true, "action": "clear"})
 		"bbcode":
 			if node is RichTextLabel:
 				(node as RichTextLabel).bbcode_enabled = true
 				(node as RichTextLabel).text = str(params.get("text", ""))
+			else:
+				_send_response({"error": "Node is not a RichTextLabel: %s" % node.get_class()})
+				return
 			_send_response({"success": true, "action": "bbcode"})
 		_:
 			_send_response({"error": "Unknown ui_text action: %s" % action})
@@ -4405,6 +4679,172 @@ func _cmd_resource(params: Dictionary) -> void:
 			_send_response({"success": true, "action": "exists", "path": res_path, "exists": ResourceLoader.exists(res_path)})
 		_:
 			_send_response({"error": "Unknown resource action: %s" % action})
+
+
+func _cmd_video(params: Dictionary) -> void:
+	var action: String = params.get("action", "play")
+	if action == "create":
+		var parent_path: String = params.get("parent_path", "/root")
+		var parent: Node = get_tree().root.get_node_or_null(parent_path)
+		if parent == null:
+			_send_response({"error": "Parent not found: %s" % parent_path})
+			return
+		var vp: VideoStreamPlayer = VideoStreamPlayer.new()
+		var video_path: String = params.get("video_path", "")
+		if not video_path.is_empty():
+			if not ResourceLoader.exists(video_path):
+				_send_response({"error": "Video resource not found: %s" % video_path})
+				return
+			var stream: Resource = ResourceLoader.load(video_path)
+			if not stream is VideoStream:
+				_send_response({"error": "Resource is not a VideoStream: %s" % video_path})
+				return
+			vp.stream = stream
+		if params.has("volume"):
+			vp.volume = float(params["volume"])
+		if params.has("autoplay"):
+			vp.autoplay = bool(params["autoplay"])
+		if params.has("loop") and "loop" in vp:
+			vp.set("loop", bool(params["loop"]))
+		if params.has("name") and not (params["name"] as String).is_empty():
+			vp.name = params["name"]
+		parent.add_child(vp)
+		if vp.autoplay:
+			vp.play()
+		_send_response({"success": true, "action": "create", "path": str(vp.get_path())})
+		return
+	var node_path: String = params.get("node_path", "")
+	var node: Node = get_tree().root.get_node_or_null(node_path)
+	if node == null or not node is VideoStreamPlayer:
+		_send_response({"error": "VideoStreamPlayer not found: %s" % node_path})
+		return
+	var player: VideoStreamPlayer = node as VideoStreamPlayer
+	match action:
+		"play":
+			player.play()
+			_send_response({"success": true, "action": "play"})
+		"pause":
+			player.paused = true
+			_send_response({"success": true, "action": "pause"})
+		"resume":
+			player.paused = false
+			_send_response({"success": true, "action": "resume"})
+		"stop":
+			player.stop()
+			_send_response({"success": true, "action": "stop"})
+		"seek":
+			player.stream_position = float(params.get("position", 0.0))
+			_send_response({"success": true, "action": "seek", "position": player.stream_position})
+		"get_status":
+			_send_response({"success": true, "action": "get_status", "is_playing": player.is_playing(), "paused": player.paused, "position": player.stream_position, "length": player.get_stream_length()})
+		_:
+			_send_response({"error": "Unknown video action: %s" % action})
+
+
+func _cmd_terrain(params: Dictionary) -> void:
+	var action: String = params.get("action", "create")
+	if action == "create":
+		var parent_path: String = params.get("parent_path", "/root")
+		var parent: Node = get_tree().root.get_node_or_null(parent_path)
+		if parent == null:
+			_send_response({"error": "Parent not found: %s" % parent_path})
+			return
+		var width: int = max(2, int(params.get("width", 16)))
+		var depth: int = max(2, int(params.get("depth", 16)))
+		var max_height: float = float(params.get("max_height", 1.0))
+		var height_data: Array = params.get("height_data", [])
+		var heights: Array = []
+		for i in range(width * depth):
+			var h: float = float(height_data[i]) * max_height if i < height_data.size() else 0.0
+			heights.append(h)
+		var colors: Array = []
+		for i in range(width * depth):
+			colors.append(Color.WHITE)
+		var mi: MeshInstance3D = MeshInstance3D.new()
+		if params.has("name") and not (params["name"] as String).is_empty():
+			mi.name = params["name"]
+		mi.set_meta("terrain_width", width)
+		mi.set_meta("terrain_depth", depth)
+		mi.set_meta("terrain_heights", heights)
+		mi.set_meta("terrain_colors", colors)
+		parent.add_child(mi)
+		_terrain_rebuild(mi)
+		_send_response({"success": true, "action": "create", "path": str(mi.get_path()), "width": width, "depth": depth})
+		return
+	var node_path: String = params.get("node_path", "")
+	var node: Node = get_tree().root.get_node_or_null(node_path)
+	if node == null or not node is MeshInstance3D or not node.has_meta("terrain_width"):
+		_send_response({"error": "Terrain node not found: %s" % node_path})
+		return
+	var mesh_node: MeshInstance3D = node as MeshInstance3D
+	var t_width: int = mesh_node.get_meta("terrain_width")
+	var t_depth: int = mesh_node.get_meta("terrain_depth")
+	var t_heights: Array = mesh_node.get_meta("terrain_heights")
+	var t_colors: Array = mesh_node.get_meta("terrain_colors")
+	match action:
+		"get_height":
+			var gx: int = int(params.get("x", 0))
+			var gz: int = int(params.get("z", 0))
+			if gx < 0 or gx >= t_width or gz < 0 or gz >= t_depth:
+				_send_response({"error": "Coordinate out of bounds"})
+				return
+			_send_response({"success": true, "action": "get_height", "x": gx, "z": gz, "height": t_heights[gz * t_width + gx]})
+		"modify":
+			var cx: float = float(params.get("x", 0))
+			var cz: float = float(params.get("z", 0))
+			var radius: float = float(params.get("radius", 1.0))
+			var delta: float = float(params.get("height_delta", 0.0))
+			for z in range(t_depth):
+				for x in range(t_width):
+					var d: float = Vector2(x - cx, z - cz).length()
+					if d <= radius:
+						var falloff: float = 1.0 - (d / radius) if radius > 0.0 else 1.0
+						t_heights[z * t_width + x] += delta * falloff
+			mesh_node.set_meta("terrain_heights", t_heights)
+			_terrain_rebuild(mesh_node)
+			_send_response({"success": true, "action": "modify"})
+		"paint":
+			var cx: float = float(params.get("x", 0))
+			var cz: float = float(params.get("z", 0))
+			var radius: float = float(params.get("radius", 1.0))
+			var col_d: Dictionary = params.get("color", {"r": 1, "g": 1, "b": 1, "a": 1})
+			var col: Color = Color(float(col_d.get("r", 1)), float(col_d.get("g", 1)), float(col_d.get("b", 1)), float(col_d.get("a", 1)))
+			for z in range(t_depth):
+				for x in range(t_width):
+					if Vector2(x - cx, z - cz).length() <= radius:
+						t_colors[z * t_width + x] = col
+			mesh_node.set_meta("terrain_colors", t_colors)
+			_terrain_rebuild(mesh_node)
+			_send_response({"success": true, "action": "paint"})
+		_:
+			_send_response({"error": "Unknown terrain action: %s" % action})
+
+
+func _terrain_rebuild(mi: MeshInstance3D) -> void:
+	var width: int = mi.get_meta("terrain_width")
+	var depth: int = mi.get_meta("terrain_depth")
+	var heights: Array = mi.get_meta("terrain_heights")
+	var colors: Array = mi.get_meta("terrain_colors")
+	var st: SurfaceTool = SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for z in range(depth - 1):
+		for x in range(width - 1):
+			var i00: int = z * width + x
+			var i10: int = z * width + (x + 1)
+			var i01: int = (z + 1) * width + x
+			var i11: int = (z + 1) * width + (x + 1)
+			var v00: Vector3 = Vector3(x, heights[i00], z)
+			var v10: Vector3 = Vector3(x + 1, heights[i10], z)
+			var v01: Vector3 = Vector3(x, heights[i01], z + 1)
+			var v11: Vector3 = Vector3(x + 1, heights[i11], z + 1)
+			for tri in [[i00, v00], [i10, v10], [i01, v01], [i10, v10], [i11, v11], [i01, v01]]:
+				st.set_color(colors[tri[0]])
+				st.add_vertex(tri[1])
+	st.generate_normals()
+	var mat: StandardMaterial3D = StandardMaterial3D.new()
+	mat.vertex_color_use_as_albedo = true
+	st.set_material(mat)
+	mi.mesh = st.commit()
 
 
 func _exit_tree() -> void:

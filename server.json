@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.tugcantopaloglu/godot-mcp",
   "title": "Godot MCP",
-  "description": "MCP server for full Godot 4.x engine control with 165 tools for AI-driven game development",
+  "description": "MCP server for full Godot 4.x engine control with 154 tools for AI-driven game development",
   "repository": {
     "url": "https://github.com/tugcantopaloglu/godot-mcp",
     "source": "github"

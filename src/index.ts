@@ -8,7 +8,7 @@
  */
 
 import { fileURLToPath } from 'url';
-import { join, dirname, basename, normalize } from 'path';
+import { join, dirname, basename, normalize, resolve, relative, isAbsolute } from 'path';
 import { existsSync, readdirSync, readFileSync, writeFileSync, copyFileSync, unlinkSync, mkdirSync, renameSync } from 'fs';
 import { spawn, execFile } from 'child_process';
 import { promisify } from 'util';
@@ -37,6 +37,21 @@ import {
 // Check if debug mode is enabled
 const DEBUG_MODE: boolean = process.env.DEBUG === 'true';
 const GODOT_DEBUG_MODE: boolean = true; // Always use GODOT DEBUG MODE
+
+const ALLOWED_PROJECT_ROOTS: string[] = (process.env.GODOT_MCP_ALLOWED_DIRS || '')
+  .split(process.platform === 'win32' ? /[;,]/ : /[:,]/)
+  .map(p => p.trim())
+  .filter(p => p.length > 0)
+  .map(p => resolve(p));
+
+function isPathWithinAllowedRoots(target: string): boolean {
+  if (ALLOWED_PROJECT_ROOTS.length === 0) return true;
+  const resolvedTarget = resolve(target);
+  return ALLOWED_PROJECT_ROOTS.some(root => {
+    const rel = relative(root, resolvedTarget);
+    return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
+  });
+}
 
 const execFileAsync = promisify(execFile);
 
@@ -70,8 +85,9 @@ interface GameConnection {
   socket: Socket | null;
   connected: boolean;
   responseBuffer: string;
-  pendingResolve: ((value: any) => void) | null;
+  pendingRequests: Map<number, (value: any) => void>;
   projectPath: string | null;
+  interactionServerInjectedByUs: boolean;
 }
 
 /**
@@ -89,9 +105,11 @@ class GodotServer {
     socket: null,
     connected: false,
     responseBuffer: '',
-    pendingResolve: null,
+    pendingRequests: new Map(),
     projectPath: null,
+    interactionServerInjectedByUs: false,
   };
+  private nextRequestId: number = 1;
   private lastErrorIndex: number = 0;
   private lastLogIndex: number = 0;
   private readonly INTERACTION_PORT = 9090;
@@ -340,18 +358,24 @@ class GodotServer {
     const projectFile = join(projectPath, 'project.godot');
     const destScript = join(projectPath, 'mcp_interaction_server.gd');
 
-    // Copy the interaction script into the project
+    const existingContent = readFileSync(projectFile, 'utf8');
+    if (existingContent.includes(this.AUTOLOAD_NAME)) {
+      this.gameConnection.interactionServerInjectedByUs = false;
+      if (!existsSync(destScript)) {
+        copyFileSync(this.interactionScriptPath, destScript);
+        this.logDebug(`Autoload present but script missing; restored ${destScript}`);
+      } else {
+        this.logDebug('Interaction server autoload and script already present; leaving project untouched');
+      }
+      return;
+    }
+
+    this.gameConnection.interactionServerInjectedByUs = true;
+
     copyFileSync(this.interactionScriptPath, destScript);
     this.logDebug(`Copied interaction server script to ${destScript}`);
 
-    // Add autoload entry to project.godot
-    let content = readFileSync(projectFile, 'utf8');
-
-    // Check if already injected
-    if (content.includes(this.AUTOLOAD_NAME)) {
-      this.logDebug('Interaction server autoload already present');
-      return;
-    }
+    let content = existingContent;
 
     const autoloadLine = `${this.AUTOLOAD_NAME}="*res://mcp_interaction_server.gd"`;
 
@@ -371,6 +395,12 @@ class GodotServer {
    * Remove the interaction server script and autoload from the project
    */
   private removeInteractionServer(projectPath: string): void {
+    if (!this.gameConnection.interactionServerInjectedByUs) {
+      this.logDebug('Interaction server was user-managed; skipping cleanup');
+      return;
+    }
+    this.gameConnection.interactionServerInjectedByUs = false;
+
     const projectFile = join(projectPath, 'project.godot');
     const destScript = join(projectPath, 'mcp_interaction_server.gd');
 
@@ -422,6 +452,7 @@ class GodotServer {
             this.gameConnection.socket = socket;
             this.gameConnection.connected = true;
             this.gameConnection.responseBuffer = '';
+            this.gameConnection.pendingRequests.clear();
             this.logDebug(`Connected to game interaction server (attempt ${attempt})`);
             console.error(`[SERVER] Connected to game interaction server on port ${this.INTERACTION_PORT}`);
 
@@ -432,12 +463,10 @@ class GodotServer {
                 const newlinePos = this.gameConnection.responseBuffer.indexOf('\n');
                 const line = this.gameConnection.responseBuffer.substring(0, newlinePos).trim();
                 this.gameConnection.responseBuffer = this.gameConnection.responseBuffer.substring(newlinePos + 1);
-                if (line.length > 0 && this.gameConnection.pendingResolve) {
+                if (line.length > 0) {
                   try {
                     const parsed = JSON.parse(line);
-                    const resolver = this.gameConnection.pendingResolve;
-                    this.gameConnection.pendingResolve = null;
-                    resolver(parsed);
+                    this.resolveGameResponse(parsed);
                   } catch (e) {
                     this.logDebug(`Failed to parse game response: ${line}`);
                   }
@@ -449,10 +478,7 @@ class GodotServer {
               this.logDebug('Game interaction connection closed');
               this.gameConnection.connected = false;
               this.gameConnection.socket = null;
-              if (this.gameConnection.pendingResolve) {
-                this.gameConnection.pendingResolve({ error: 'Connection closed' });
-                this.gameConnection.pendingResolve = null;
-              }
+              this.rejectAllPending({ error: 'Connection closed' });
             });
 
             socket.on('error', (err: Error) => {
@@ -488,10 +514,30 @@ class GodotServer {
     }
     this.gameConnection.connected = false;
     this.gameConnection.responseBuffer = '';
-    if (this.gameConnection.pendingResolve) {
-      this.gameConnection.pendingResolve({ error: 'Disconnected' });
-      this.gameConnection.pendingResolve = null;
+    this.rejectAllPending({ error: 'Disconnected' });
+  }
+
+  private rejectAllPending(response: any): void {
+    for (const resolver of this.gameConnection.pendingRequests.values()) {
+      resolver(response);
     }
+    this.gameConnection.pendingRequests.clear();
+  }
+
+  private resolveGameResponse(parsed: any): void {
+    const pending = this.gameConnection.pendingRequests;
+    if (pending.size === 0) return;
+    let id: number | undefined;
+    if (parsed && typeof parsed.id === 'number') {
+      if (!pending.has(parsed.id)) return;
+      id = parsed.id;
+    } else {
+      id = pending.keys().next().value;
+    }
+    if (id === undefined) return;
+    const resolver = pending.get(id)!;
+    pending.delete(id);
+    resolver(parsed);
   }
 
   /**
@@ -502,18 +548,19 @@ class GodotServer {
       throw new Error('Not connected to game interaction server. Is the game running?');
     }
 
-    const payload = JSON.stringify({ command, params }) + '\n';
+    const id = this.nextRequestId++;
+    const payload = JSON.stringify({ command, params, id }) + '\n';
 
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
-        this.gameConnection.pendingResolve = null;
+        this.gameConnection.pendingRequests.delete(id);
         reject(new Error(`Game command '${command}' timed out after ${timeoutMs / 1000}s`));
       }, timeoutMs);
 
-      this.gameConnection.pendingResolve = (response: any) => {
+      this.gameConnection.pendingRequests.set(id, (response: any) => {
         clearTimeout(timeout);
         resolve(response);
-      };
+      });
 
       this.gameConnection.socket!.write(payload);
     });
@@ -1295,6 +1342,11 @@ class GodotServer {
               frames: {
                 type: 'number',
                 description: 'Number of frames to wait. Default: 1',
+              },
+              frameType: {
+                type: 'string',
+                enum: ['render', 'physics'],
+                description: 'Frame to wait on: "physics" (fixed 60Hz ticks) or "render". Default: render',
               },
             },
             required: [],
@@ -2572,6 +2624,8 @@ class GodotServer {
               action: { type: 'string', description: 'Action: create_layer, create_modulate, configure' },
               nodePath: { type: 'string', description: 'Node path (for configure)' },
               layer: { type: 'number', description: 'Canvas layer number' },
+              offset: { type: 'object', description: 'CanvasLayer offset {x,y} (for configure)' },
+              visible: { type: 'boolean', description: 'CanvasLayer visibility (for configure)' },
               color: { type: 'object', description: 'Modulate color {r,g,b,a}' },
               name: { type: 'string', description: 'Node name' },
             },
@@ -2592,7 +2646,9 @@ class GodotServer {
               radius: { type: 'number', description: 'Circle radius' },
               rect: { type: 'object', description: 'Rectangle {x,y,w,h}' },
               points: { type: 'array', description: 'Polygon points [{x,y},...]' },
+              position: { type: 'object', description: 'Text position {x,y} (baseline, for text)' },
               text: { type: 'string', description: 'Text to draw' },
+              fontSize: { type: 'number', description: 'Text font size. Default: 16' },
               color: { type: 'object', description: 'Draw color {r,g,b,a}' },
               width: { type: 'number', description: 'Line width. Default: 2' },
               filled: { type: 'boolean', description: 'Fill shape. Default: true' },
@@ -2612,6 +2668,7 @@ class GodotServer {
               color: { type: 'object', description: 'Light color {r,g,b,a}' },
               energy: { type: 'number', description: 'Light energy' },
               range: { type: 'number', description: 'Light texture range' },
+              points: { type: 'array', description: 'Occluder polygon points [{x,y},...] (for create_occluder)' },
               name: { type: 'string', description: 'Node name' },
             },
             required: ['action'],
@@ -2626,9 +2683,11 @@ class GodotServer {
               parentPath: { type: 'string', description: 'Parent node path' },
               action: { type: 'string', description: 'Action: create_background, add_layer, configure' },
               nodePath: { type: 'string', description: 'Node path (for configure)' },
-              motionScale: { type: 'object', description: 'Motion scale {x,y}' },
-              motionOffset: { type: 'object', description: 'Motion offset {x,y}' },
-              mirroring: { type: 'object', description: 'Mirroring {x,y}' },
+              motionScale: { type: 'object', description: 'Motion scale {x,y} (ParallaxLayer)' },
+              motionOffset: { type: 'object', description: 'Motion offset {x,y} (ParallaxLayer)' },
+              mirroring: { type: 'object', description: 'Mirroring {x,y} (ParallaxLayer)' },
+              scrollOffset: { type: 'object', description: 'Scroll offset {x,y} (ParallaxBackground configure)' },
+              scrollBaseOffset: { type: 'object', description: 'Scroll base offset {x,y} (ParallaxBackground configure)' },
               name: { type: 'string', description: 'Node name' },
             },
             required: ['action'],
@@ -2676,6 +2735,11 @@ class GodotServer {
               nodePath: { type: 'string', description: 'Area2D/node path (for overlap)' },
               from: { type: 'object', description: 'Origin point {x,y}' },
               to: { type: 'object', description: 'End point {x,y} (for ray)' },
+              position: { type: 'object', description: 'Query position {x,y} (point_query/shape_query)' },
+              radius: { type: 'number', description: 'Circle radius (shape_query circle)' },
+              size: { type: 'object', description: 'Rectangle size {x,y} (shape_query rectangle)' },
+              shapeType: { type: 'string', description: 'Shape: circle or rectangle (shape_query)' },
+              maxResults: { type: 'number', description: 'Max results. Default: 32' },
               collisionMask: { type: 'number', description: 'Collision mask bitmask' },
             },
             required: ['action'],
@@ -2734,21 +2798,21 @@ class GodotServer {
               action: { type: 'string', description: 'Action: add, remove, configure, list' },
               effectType: { type: 'string', description: 'Effect: reverb, delay, chorus, eq, compressor, limiter' },
               index: { type: 'number', description: 'Effect index' },
-              properties: { type: 'object', description: 'Effect properties to set' },
+              properties: { type: 'object', description: 'Effect properties to set (for configure)' },
+              enabled: { type: 'boolean', description: 'Enable/disable the effect (for configure)' },
             },
             required: ['action'],
           },
         },
         {
           name: 'game_audio_bus_layout',
-          description: 'Create/remove/reorder audio buses and routing',
+          description: 'Create/remove audio buses and routing',
           inputSchema: {
             type: 'object',
             properties: {
-              action: { type: 'string', description: 'Action: add, remove, move, set_send, list' },
+              action: { type: 'string', description: 'Action: add, remove, set_send, list' },
               busName: { type: 'string', description: 'Bus name' },
               sendTo: { type: 'string', description: 'Send target bus name' },
-              index: { type: 'number', description: 'Target index (for move)' },
             },
             required: ['action'],
           },
@@ -3611,6 +3675,12 @@ class GodotServer {
     if (!validatePath(args.projectPath)) {
       return createErrorResponse(
         'Invalid project path'
+      );
+    }
+
+    if (!isPathWithinAllowedRoots(args.projectPath)) {
+      return createErrorResponse(
+        `Project path is outside the allowed roots (GODOT_MCP_ALLOWED_DIRS): ${args.projectPath}`
       );
     }
 
@@ -4578,7 +4648,7 @@ class GodotServer {
   }
 
   private async handleGameWait(args: any) {
-    return this.gameCommand('wait', args, a => ({ frames: a.frames || 1 }), 30000);
+    return this.gameCommand('wait', args, a => ({ frames: a.frames || 1, frame_type: a.frameType || 'render' }), 30000);
   }
 
 
@@ -5609,7 +5679,7 @@ class GodotServer {
       node_path: a.nodePath, action: a.action, method: a.method,
       ...(a.args ? { args: a.args } : {}),
       ...(a.mode ? { mode: a.mode } : {}),
-      ...(a.sync ? { sync: a.sync } : {}),
+      ...(a.sync !== undefined ? { sync: a.sync } : {}),
       ...(a.channel !== undefined ? { channel: a.channel } : {}),
     }));
   }
@@ -5899,6 +5969,8 @@ class GodotServer {
       ...(a.parentPath ? { parent_path: a.parentPath } : {}),
       ...(a.nodePath ? { node_path: a.nodePath } : {}),
       ...(a.layer !== undefined ? { layer: a.layer } : {}),
+      ...(a.offset ? { offset: a.offset } : {}),
+      ...(a.visible !== undefined ? { visible: a.visible } : {}),
       ...(a.color ? { color: a.color } : {}),
       ...(a.name ? { name: a.name } : {}),
     }));
@@ -5916,7 +5988,9 @@ class GodotServer {
       ...(a.radius !== undefined ? { radius: a.radius } : {}),
       ...(a.rect ? { rect: a.rect } : {}),
       ...(a.points ? { points: a.points } : {}),
+      ...(a.position ? { position: a.position } : {}),
       ...(a.text ? { text: a.text } : {}),
+      ...(a.fontSize !== undefined ? { font_size: a.fontSize } : {}),
       ...(a.color ? { color: a.color } : {}),
       ...(a.width !== undefined ? { width: a.width } : {}),
       ...(a.filled !== undefined ? { filled: a.filled } : {}),
@@ -5933,6 +6007,7 @@ class GodotServer {
       ...(a.color ? { color: a.color } : {}),
       ...(a.energy !== undefined ? { energy: a.energy } : {}),
       ...(a.range !== undefined ? { range: a.range } : {}),
+      ...(a.points ? { points: a.points } : {}),
       ...(a.name ? { name: a.name } : {}),
     }));
   }
@@ -5947,6 +6022,8 @@ class GodotServer {
       ...(a.motionScale ? { motion_scale: a.motionScale } : {}),
       ...(a.motionOffset ? { motion_offset: a.motionOffset } : {}),
       ...(a.mirroring ? { mirroring: a.mirroring } : {}),
+      ...(a.scrollOffset ? { scroll_offset: a.scrollOffset } : {}),
+      ...(a.scrollBaseOffset ? { scroll_base_offset: a.scrollBaseOffset } : {}),
       ...(a.name ? { name: a.name } : {}),
     }));
   }
@@ -5984,6 +6061,14 @@ class GodotServer {
       ...(a.nodePath ? { node_path: a.nodePath } : {}),
       ...(a.from ? { from: a.from } : {}),
       ...(a.to ? { to: a.to } : {}),
+      ...(a.position ? { position: a.position } : {}),
+      ...(a.point ? { point: a.point } : {}),
+      ...(a.radius !== undefined ? { radius: a.radius } : {}),
+      ...(a.size ? { size: a.size } : {}),
+      ...(a.shapeType ? { shape_type: a.shapeType } : {}),
+      ...(a.maxResults !== undefined ? { max_results: a.maxResults } : {}),
+      ...(a.collideWithAreas !== undefined ? { collide_with_areas: a.collideWithAreas } : {}),
+      ...(a.collideWithBodies !== undefined ? { collide_with_bodies: a.collideWithBodies } : {}),
       ...(a.collisionMask !== undefined ? { collision_mask: a.collisionMask } : {}),
     }), 15000);
   }
@@ -6027,6 +6112,7 @@ class GodotServer {
       ...(a.effectType ? { effect_type: a.effectType } : {}),
       ...(a.index !== undefined ? { index: a.index } : {}),
       ...(a.properties ? { properties: a.properties } : {}),
+      ...(a.enabled !== undefined ? { enabled: a.enabled } : {}),
     }));
   }
 
