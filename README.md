@@ -18,6 +18,11 @@ This project is built upon and extends [godot-mcp](https://github.com/Coding-Sol
 
 The original godot-mcp provided 20 tools for basic project management and scene creation. This fork extends it to **157 tools** with the following major additions:
 
+### New in 3.0
+- **.NET / C# support** - Scaffold C# projects and generate C# scripts (`create_project` with `dotnet: true`, `create_csharp_script`); the `.csproj` SDK version is matched to your installed Godot.
+- **GDScript diagnostics** - Validate scripts for syntax and type errors without running the game (`validate_script`, and `validate_scripts` for all git-changed or project-wide files).
+- **Correctness and robustness fixes** across the headless scene operations and the runtime interaction server (resource-typed properties now persist, reparenting works, runtime commands are correlated by request id, and the tools survive projects with warnings-as-errors). Requires Godot 4.4 or later; tested and working with the latest Godot **4.7**.
+
 ### Runtime Code Execution
 - **`game_eval`** - Execute arbitrary GDScript code in the running game with return values
 - Full `await` support for async GDScript code
@@ -80,6 +85,15 @@ The original godot-mcp provided 20 tools for basic project management and scene 
 - **`manage_autoloads`** - Add, remove, or list autoloads
 - **`manage_input_map`** - Add, remove, or list input actions and key bindings
 - **`manage_export_presets`** - Create or modify export preset configuration
+
+### .NET / C# Support
+- **`create_project`** with `dotnet: true` - Scaffold a Godot .NET project (`.csproj` with `Godot.NET.Sdk` matched to your Godot version, plus the `"C#"` feature flag)
+- **`create_csharp_script`** - Generate an idiomatic C# script (partial class, correct `_Ready`/`_Process` override signatures); the class name is kept in sync with the file name so Godot can attach it
+- **`get_project_info`** reports an `isDotnet` field
+
+### GDScript Diagnostics
+- **`validate_script`** - Check a single GDScript file for syntax and type errors headlessly, returning `{ valid, errors: [{ message, file, line }] }`
+- **`validate_scripts`** - Batch-validate all git-changed `.gd` files (or the whole project), so an agent can verify its edits before running the game
 
 ### Camera, Physics & Audio
 - **`game_get_camera`** / **`game_set_camera`** - Query and control 2D/3D cameras
@@ -457,7 +471,7 @@ The original godot-mcp provided 20 tools for basic project management and scene 
 
 ## Requirements
 
-- [Godot Engine](https://godotengine.org/download) 4.4 or later (the headless operations script and UID features require 4.4+)
+- [Godot Engine](https://godotengine.org/download) 4.4 or later (the headless operations script and UID features require 4.4+); tested and working with the latest Godot **4.7**
 - (Optional) [.NET SDK](https://dotnet.microsoft.com/download) 8.0+ and the Godot .NET (C#) build, only if you use `create_project`'s `dotnet: true` flag or `create_csharp_script`
 - [Node.js](https://nodejs.org/) >= 18.0.0
 - An AI assistant that supports MCP (Claude Code, Cline, Cursor, etc.)
@@ -604,6 +618,12 @@ npm run test:watch  # watch mode
 "Find all CharacterBody3D nodes in the scene"
 
 "Create a new Godot project called 'MyGame' and write a player script"
+
+"Create a new C# (.NET) Godot project and add a CharacterBody2D script"
+
+"Validate player.gd for errors"
+
+"Check all my changed GDScript files for syntax errors before I run the game"
 
 "Hold down the W key for 2 seconds to test walking"
 
