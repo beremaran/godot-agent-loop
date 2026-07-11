@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -128,6 +128,49 @@ describe('ProjectToolHandlers', () => {
 
     expect(response.isError).toBe(true);
     expect(textFrom(response)).toContain('exited with code 1');
+  });
+
+  it('rejects unsafe CI generator values without writing a workflow', async () => {
+    const root = createProject();
+    const handlers = new ProjectToolHandlers({
+      executable: { path: 'godot' } as any,
+      logDebug: vi.fn(),
+      operations: {} as any,
+      projectSupport: {} as any,
+    });
+
+    const response = await handlers.handleManageCiPipeline({
+      projectPath: root, action: 'create', platforms: ['linux', 'linux; rm -rf /'],
+    });
+
+    expect(response.isError).toBe(true);
+    expect(textFrom(response)).toContain('platforms must be a non-empty array');
+    expect(existsSync(join(root, '.github', 'workflows', 'godot-export.yml'))).toBe(false);
+  });
+
+  it('rejects unsafe Docker generator values and emits an escaped JSON command', async () => {
+    const root = createProject();
+    const handlers = new ProjectToolHandlers({
+      executable: { path: 'godot' } as any,
+      logDebug: vi.fn(),
+      operations: {} as any,
+      projectSupport: {} as any,
+    });
+
+    const invalid = await handlers.handleManageDockerExport({
+      projectPath: root, action: 'create', baseImage: 'ubuntu:22.04\nRUN malicious',
+    });
+    expect(invalid.isError).toBe(true);
+    expect(textFrom(invalid)).toContain('baseImage must be one of');
+    expect(existsSync(join(root, 'Dockerfile'))).toBe(false);
+
+    const valid = await handlers.handleManageDockerExport({
+      projectPath: root, action: 'create', exportPreset: 'Linux/X11', baseImage: 'ubuntu:24.04',
+    });
+    expect(valid.isError).toBeUndefined();
+    expect(textFrom(valid)).toContain('Linux/X11');
+    expect(readFileSync(join(root, 'Dockerfile'), 'utf8'))
+      .toContain('CMD ["godot", "--headless", "--export-release", "Linux/X11", "build/game"]');
   });
 });
 

@@ -15,8 +15,8 @@ export class ToolArgumentValidationError extends Error {
 /**
  * Parses untrusted MCP arguments using the same schema advertised in list_tools.
  * The supported JSON Schema subset intentionally matches the project tool
- * definitions: object properties, required fields, primitive types, enums, and
- * homogeneous arrays. Objects without declared properties remain free-form so
+ * definitions: object properties, required fields, primitive types, enums,
+ * string patterns, and homogeneous arrays. Objects without declared properties remain free-form so
  * tools such as `properties` can carry Godot values.
  */
 export function parseToolArguments(
@@ -56,6 +56,10 @@ function validate(
 
   if (schema.enum && !schema.enum.includes(value as never)) {
     issues.push(`${path} must be one of: ${schema.enum.join(', ')}`);
+  }
+
+  if (schema.pattern && typeof value === 'string' && !new RegExp(schema.pattern).test(value)) {
+    issues.push(`${path} must match: ${schema.pattern}`);
   }
 
   if (schema.type === 'object' && isRecord(value)) {

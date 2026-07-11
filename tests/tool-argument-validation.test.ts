@@ -29,4 +29,19 @@ describe('parseToolArguments', () => {
       properties: { customGodotProperty: { nested: true } },
     })).toBeDefined();
   });
+
+  it('rejects unsafe CI and Docker generator values before dispatch', () => {
+    expect(() => parseToolArguments(tool('manage_ci_pipeline'), {
+      projectPath: '/project', action: 'create', platforms: ['linux', 'linux; rm -rf /'],
+    })).toThrow('arguments.platforms[1] must be one of: windows, linux, macos, web');
+    expect(() => parseToolArguments(tool('manage_docker_export'), {
+      projectPath: '/project', action: 'create', baseImage: 'ubuntu:22.04\nRUN malicious',
+    })).toThrow('arguments.baseImage must be one of: ubuntu:22.04, ubuntu:24.04');
+    expect(() => parseToolArguments(tool('manage_ci_pipeline'), {
+      projectPath: '/project', action: 'create', godotVersion: '4.3-stable\nrun: malicious',
+    })).toThrow('arguments.godotVersion must match:');
+    expect(() => parseToolArguments(tool('manage_docker_export'), {
+      projectPath: '/project', action: 'create', exportPreset: 'Linux/X11\nRUN malicious',
+    })).toThrow('arguments.exportPreset must match:');
+  });
 });

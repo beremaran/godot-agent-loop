@@ -2,6 +2,7 @@ export interface ToolPropertySchema {
   type?: 'array' | 'boolean' | 'integer' | 'number' | 'object' | 'string';
   description?: string;
   enum?: readonly string[];
+  pattern?: string;
   items?: ToolPropertySchema;
   properties?: Record<string, ToolPropertySchema>;
   required?: readonly string[];
@@ -2469,9 +2470,9 @@ export const toolDefinitions = [
     type: 'object',
     properties: {
       projectPath: { type: 'string', description: 'Absolute path to Godot project' },
-      action: { type: 'string', description: 'Action: create or read' },
-      platforms: { type: 'array', description: 'Target platforms: windows, linux, macos, web', items: { type: 'string' } },
-      godotVersion: { type: 'string', description: 'Godot version (e.g. 4.3-stable)' },
+      action: { type: 'string', enum: ['create', 'read'], description: 'Action: create or read' },
+      platforms: { type: 'array', description: 'Target platforms: windows, linux, macos, web', items: { type: 'string', enum: ['windows', 'linux', 'macos', 'web'] } },
+      godotVersion: { type: 'string', pattern: '^4\\.\\d+(?:\\.\\d+)?(?:-stable)?$', description: 'Godot 4 version (e.g. 4.3-stable)' },
     },
     required: ['projectPath', 'action'],
   },
@@ -2483,10 +2484,10 @@ export const toolDefinitions = [
     type: 'object',
     properties: {
       projectPath: { type: 'string', description: 'Absolute path to Godot project' },
-      action: { type: 'string', description: 'Action: create or read' },
-      godotVersion: { type: 'string', description: 'Godot version (e.g. 4.3-stable)' },
-      exportPreset: { type: 'string', description: 'Export preset name' },
-      baseImage: { type: 'string', description: 'Base Docker image (default: ubuntu:22.04)' },
+      action: { type: 'string', enum: ['create', 'read'], description: 'Action: create or read' },
+      godotVersion: { type: 'string', pattern: '^4\\.\\d+(?:\\.\\d+)?(?:-stable)?$', description: 'Godot 4 version (e.g. 4.3-stable)' },
+      exportPreset: { type: 'string', pattern: '^[A-Za-z0-9][A-Za-z0-9 _./-]{0,127}$', description: 'Export preset name (letters, digits, spaces, _, ., /, and -)' },
+      baseImage: { type: 'string', enum: ['ubuntu:22.04', 'ubuntu:24.04'], description: 'Supported base Docker image (default: ubuntu:22.04)' },
     },
     required: ['projectPath', 'action'],
   },

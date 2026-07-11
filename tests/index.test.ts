@@ -172,7 +172,11 @@ function getFakeArgsForSchema(schema: any, toolName: string): any {
     if (prop.enum && prop.enum.length > 0) {
       val = prop.enum[0];
     } else if (prop.type === 'string') {
-      if (key === 'scriptPath' || key === 'filePath') {
+      if (key === 'godotVersion') {
+        val = '4.3-stable';
+      } else if (key === 'exportPreset') {
+        val = 'Linux/X11';
+      } else if (key === 'scriptPath' || key === 'filePath') {
         if (toolName.includes('csharp') || toolName.includes('cs')) {
           val = 'Player.cs';
         } else {
@@ -207,7 +211,7 @@ function getFakeArgsForSchema(schema: any, toolName: string): any {
     } else if (prop.type === 'boolean') {
       val = true;
     } else if (prop.type === 'array') {
-      val = [];
+      val = prop.items?.enum?.length ? [prop.items.enum[0]] : [];
     } else if (prop.type === 'object') {
       val = {};
     }

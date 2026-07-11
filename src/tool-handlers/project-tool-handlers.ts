@@ -32,6 +32,18 @@ import {
 
 const execFileAsync = promisify(execFile);
 
+const CI_EXPORT_PLATFORMS = new Set(['windows', 'linux', 'macos', 'web']);
+const DOCKER_BASE_IMAGES = new Set(['ubuntu:22.04', 'ubuntu:24.04']);
+const GODOT_EXPORT_VERSION = /^4\.\d+(?:\.\d+)?(?:-stable)?$/;
+const EXPORT_PRESET_NAME = /^[A-Za-z0-9][A-Za-z0-9 _./-]{0,127}$/;
+
+function validateGodotExportVersion(version: unknown): string | null {
+  if (typeof version !== 'string' || !GODOT_EXPORT_VERSION.test(version)) {
+    return 'godotVersion must be a supported Godot 4 version such as "4.3-stable".';
+  }
+  return null;
+}
+
 export interface ProjectToolHandlerContext {
   executable: GodotExecutableService;
   logDebug: (message: string) => void;
@@ -1437,9 +1449,17 @@ export class ProjectToolHandlers {
         const content = readFileSync(workflowPath, 'utf8');
         return { content: [{ type: 'text', text: content }] };
       } else if (args.action === 'create') {
-        if (!existsSync(workflowDir)) mkdirSync(workflowDir, { recursive: true });
         const godotVersion = args.godotVersion || '4.3-stable';
+        const versionError = validateGodotExportVersion(godotVersion);
+        if (versionError) return createErrorResponse(versionError);
         const platforms = args.platforms || ['linux'];
+        if (!Array.isArray(platforms) || platforms.length === 0 || !platforms.every(platform => typeof platform === 'string' && CI_EXPORT_PLATFORMS.has(platform))) {
+          return createErrorResponse('platforms must be a non-empty array containing only: windows, linux, macos, web.');
+        }
+        if (new Set(platforms).size !== platforms.length) {
+          return createErrorResponse('platforms must not contain duplicates.');
+        }
+        if (!existsSync(workflowDir)) mkdirSync(workflowDir, { recursive: true });
         const exportSteps = platforms.map((p: string) => `      - name: Export ${p}\n        run: godot --headless --export-release "${p}" build/${p}/game`).join('\n');
         const workflow = `name: Godot Export\non:\n  push:\n    branches: [main]\n  pull_request:\n    branches: [main]\njobs:\n  export:\n    runs-on: ubuntu-latest\n    container:\n      image: barichello/godot-ci:${godotVersion}\n    steps:\n      - uses: actions/checkout@v4\n      - name: Setup export templates\n        run: |\n          mkdir -p ~/.local/share/godot/export_templates/${godotVersion}\n          mv /root/.local/share/godot/export_templates/${godotVersion}/* ~/.local/share/godot/export_templates/${godotVersion}/ || true\n${exportSteps}\n      - uses: actions/upload-artifact@v4\n        with:\n          name: game-builds\n          path: build/\n`;
         writeFileSync(workflowPath, workflow, 'utf8');
@@ -1466,10 +1486,20 @@ export class ProjectToolHandlers {
       } else if (args.action === 'create') {
         const godotVersion = args.godotVersion || '4.3-stable';
         const baseImage = args.baseImage || 'ubuntu:22.04';
-        const exportPreset = args.exportPreset || 'Linux/X11';
+        let exportPreset = args.exportPreset || 'Linux/X11';
+        const versionError = validateGodotExportVersion(godotVersion);
+        if (versionError) return createErrorResponse(versionError);
+        if (typeof baseImage !== 'string' || !DOCKER_BASE_IMAGES.has(baseImage)) {
+          return createErrorResponse('baseImage must be one of: ubuntu:22.04, ubuntu:24.04.');
+        }
+        if (typeof exportPreset !== 'string' || !EXPORT_PRESET_NAME.test(exportPreset)) {
+          return createErrorResponse('exportPreset may contain only letters, digits, spaces, _, ., /, and - (up to 128 characters).');
+        }
+        const exportPresetName = exportPreset;
+        exportPreset = JSON.stringify(exportPreset).slice(1, -1);
         const dockerfile = `FROM ${baseImage}\n\nARG GODOT_VERSION=${godotVersion}\n\nRUN apt-get update && apt-get install -y \\\n    wget unzip ca-certificates \\\n    && rm -rf /var/lib/apt/lists/*\n\nRUN wget -q https://github.com/godotengine/godot/releases/download/\${GODOT_VERSION}/Godot_v\${GODOT_VERSION}_linux.x86_64.zip \\\n    && unzip Godot_v\${GODOT_VERSION}_linux.x86_64.zip \\\n    && mv Godot_v\${GODOT_VERSION}_linux.x86_64 /usr/local/bin/godot \\\n    && rm Godot_v\${GODOT_VERSION}_linux.x86_64.zip\n\nRUN wget -q https://github.com/godotengine/godot/releases/download/\${GODOT_VERSION}/Godot_v\${GODOT_VERSION}_export_templates.tpz \\\n    && mkdir -p /root/.local/share/godot/export_templates/\${GODOT_VERSION} \\\n    && unzip Godot_v\${GODOT_VERSION}_export_templates.tpz \\\n    && mv templates/* /root/.local/share/godot/export_templates/\${GODOT_VERSION}/ \\\n    && rm -rf templates Godot_v\${GODOT_VERSION}_export_templates.tpz\n\nWORKDIR /game\nCOPY . .\n\nRUN mkdir -p build\nCMD ["godot", "--headless", "--export-release", "${exportPreset}", "build/game"]\n`;
         writeFileSync(dockerfilePath, dockerfile, 'utf8');
-        return { content: [{ type: 'text', text: `Dockerfile created for headless Godot export (preset: ${exportPreset})` }] };
+        return { content: [{ type: 'text', text: `Dockerfile created for headless Godot export (preset: ${exportPresetName})` }] };
       }
       return createErrorResponse(`Unknown action: ${args.action}`);
     } catch (error: unknown) {
