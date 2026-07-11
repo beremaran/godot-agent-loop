@@ -9,18 +9,15 @@
 
 import { fileURLToPath } from 'url';
 import { join, dirname, basename, normalize, resolve, relative, isAbsolute } from 'path';
-import { existsSync, readdirSync, readFileSync, writeFileSync, copyFileSync, unlinkSync, mkdirSync, renameSync } from 'fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync, unlinkSync, mkdirSync, renameSync } from 'fs';
 import { spawn, execFile } from 'child_process';
 import { promisify } from 'util';
-import { createConnection, Socket } from 'net';
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
   CallToolRequestSchema,
-  ErrorCode,
   ListToolsRequestSchema,
-  McpError,
 } from '@modelcontextprotocol/sdk/types.js';
 
 import {
@@ -38,10 +35,16 @@ import {
   collectGdPaths,
   type OperationParams,
 } from './utils.js';
+import { toolDefinitions, type ToolName } from './tool-definitions.js';
+import { GodotExecutableValidator, detectGodotExecutablePath } from './godot-executable.js';
+import { HeadlessOperationRunner } from './headless-operation-runner.js';
+import { InteractionServerInstaller } from './interaction-server-installer.js';
+import { GameConnection } from './game-connection.js';
+import { ToolRegistry, type ToolHandler } from './tool-registry.js';
+import { GodotProcessManager, type GodotProcess } from './godot-process-manager.js';
 
 // Check if debug mode is enabled
 const DEBUG_MODE: boolean = process.env.DEBUG === 'true';
-const GODOT_DEBUG_MODE = true; // Always use GODOT DEBUG MODE
 
 const ALLOWED_PROJECT_ROOTS: string[] = (process.env.GODOT_MCP_ALLOWED_DIRS || '')
   .split(process.platform === 'win32' ? /[;,]/ : /[:,]/)
@@ -67,12 +70,6 @@ const __dirname = dirname(__filename);
 /**
  * Interface representing a running Godot process
  */
-interface GodotProcess {
-  process: any;
-  output: string[];
-  errors: string[];
-}
-
 /**
  * Interface for server configuration
  */
@@ -83,45 +80,42 @@ interface GodotServerConfig {
 }
 
 /**
- * Interface for a TCP connection to the running game
- */
-interface GameConnection {
-  socket: Socket | null;
-  connected: boolean;
-  responseBuffer: string;
-  pendingRequests: Map<number, (value: any) => void>;
-  projectPath: string | null;
-  interactionServerInjectedByUs: boolean;
-}
-
-/**
  * Main server class for the Godot MCP server
  */
 export class GodotServer {
   private server: McpServer;
-  private activeProcess: GodotProcess | null = null;
+  private readonly processManager = new GodotProcessManager(message => {
+    this.logDebug(message);
+  });
+  private get activeProcess(): GodotProcess | null {
+    return this.processManager.activeProcess;
+  }
+  private set activeProcess(process: GodotProcess | null) {
+    // Preserve the existing test seam while process ownership moves to the manager.
+    this.processManager.seedActiveProcess(process);
+  }
   private godotPath: string | null = null;
   private operationsScriptPath: string;
-  private interactionScriptPath: string;
-  private validatedPaths = new Map<string, boolean>();
+  private interactionServerInstaller: InteractionServerInstaller;
+  private executableValidator: GodotExecutableValidator;
+  private operationRunner: HeadlessOperationRunner;
   private strictPathValidation = false;
-  private gameConnection: GameConnection = {
-    socket: null,
-    connected: false,
-    responseBuffer: '',
-    pendingRequests: new Map(),
-    projectPath: null,
-    interactionServerInjectedByUs: false,
-  };
-  private nextRequestId = 1;
-  private lastErrorIndex = 0;
-  private lastLogIndex = 0;
-  private readonly INTERACTION_PORT = 9090;
-  private readonly AUTOLOAD_NAME = 'McpInteractionServer';
+  private readonly tcpGameConnection = new GameConnection({
+    port: 9090,
+    log: message => { this.logDebug(message); },
+  });
+  private get gameConnection(): GameConnection {
+    return this.tcpGameConnection;
+  }
+  private set gameConnection(state: Partial<GameConnection>) {
+    // Compatibility for callers/tests that seed connection state directly.
+    Object.assign(this.tcpGameConnection, state);
+  }
 
   constructor(config?: GodotServerConfig) {
     // Apply configuration if provided
     let debugMode = DEBUG_MODE;
+    this.executableValidator = new GodotExecutableValidator(message => { this.logDebug(message); });
 
     if (config) {
       if (config.debugMode !== undefined) {
@@ -147,7 +141,19 @@ export class GodotServer {
 
     // Set the path to the operations script
     this.operationsScriptPath = join(__dirname, 'scripts', 'godot_operations.gd');
-    this.interactionScriptPath = join(__dirname, 'scripts', 'mcp_interaction_server.gd');
+    this.interactionServerInstaller = new InteractionServerInstaller({
+      sourceScriptPath: join(__dirname, 'scripts', 'mcp_interaction_server.gd'),
+      logDebug: message => { this.logDebug(message); },
+    });
+    this.operationRunner = new HeadlessOperationRunner({
+      operationsScriptPath: this.operationsScriptPath,
+      resolveGodotPath: async () => {
+        if (!this.godotPath) await this.detectGodotPath();
+        if (!this.godotPath) throw new Error('Could not find a valid Godot executable path');
+        return this.godotPath;
+      },
+      logDebug: message => { this.logDebug(message); },
+    });
     if (debugMode) console.error(`[DEBUG] Operations script path: ${this.operationsScriptPath}`);
 
     // Initialize the MCP server
@@ -196,137 +202,26 @@ export class GodotServer {
    * @returns True if the path exists or is 'godot' (which might be in PATH)
    */
   private isValidGodotPathSync(path: string): boolean {
-    try {
-      this.logDebug(`Quick-validating Godot path: ${path}`);
-      return path === 'godot' || existsSync(path);
-    } catch (error) {
-      this.logDebug(`Invalid Godot path: ${path}, error: ${error}`);
-      return false;
-    }
+    return this.executableValidator.isValidSync(path);
   }
 
   /**
    * Validate if a Godot path is valid and executable
    */
   private async isValidGodotPath(path: string): Promise<boolean> {
-    // Check cache first
-    if (this.validatedPaths.has(path)) {
-      return this.validatedPaths.get(path)!;
-    }
-
-    try {
-      this.logDebug(`Validating Godot path: ${path}`);
-
-      // Check if the file exists (skip for 'godot' which might be in PATH)
-      if (path !== 'godot' && !existsSync(path)) {
-        this.logDebug(`Path does not exist: ${path}`);
-        this.validatedPaths.set(path, false);
-        return false;
-      }
-
-      // Try to execute Godot with --version flag
-      // Using execFileAsync with argument array to prevent command injection
-      await execFileAsync(path, ['--version']);
-
-      this.logDebug(`Valid Godot path: ${path}`);
-      this.validatedPaths.set(path, true);
-      return true;
-    } catch (error) {
-      this.logDebug(`Invalid Godot path: ${path}, error: ${error}`);
-      this.validatedPaths.set(path, false);
-      return false;
-    }
+    return this.executableValidator.isValid(path);
   }
 
   /**
    * Detect the Godot executable path based on the operating system
    */
   private async detectGodotPath() {
-    // If godotPath is already set and valid, use it
-    if (this.godotPath && await this.isValidGodotPath(this.godotPath)) {
-      this.logDebug(`Using existing Godot path: ${this.godotPath}`);
-      return;
-    }
-
-    // Check environment variable next
-    if (process.env.GODOT_PATH) {
-      const normalizedPath = normalize(process.env.GODOT_PATH);
-      this.logDebug(`Checking GODOT_PATH environment variable: ${normalizedPath}`);
-      if (await this.isValidGodotPath(normalizedPath)) {
-        this.godotPath = normalizedPath;
-        this.logDebug(`Using Godot path from environment: ${this.godotPath}`);
-        return;
-      } else {
-        this.logDebug(`GODOT_PATH environment variable is invalid`);
-      }
-    }
-
-    // Auto-detect based on platform
-    const osPlatform = process.platform;
-    this.logDebug(`Auto-detecting Godot path for platform: ${osPlatform}`);
-
-    const possiblePaths: string[] = [
-      'godot', // Check if 'godot' is in PATH first
-    ];
-
-    // Add platform-specific paths
-    if (osPlatform === 'darwin') {
-      possiblePaths.push(
-        '/Applications/Godot.app/Contents/MacOS/Godot',
-        '/Applications/Godot_4.app/Contents/MacOS/Godot',
-        `${process.env.HOME}/Applications/Godot.app/Contents/MacOS/Godot`,
-        `${process.env.HOME}/Applications/Godot_4.app/Contents/MacOS/Godot`,
-        `${process.env.HOME}/Library/Application Support/Steam/steamapps/common/Godot Engine/Godot.app/Contents/MacOS/Godot`
-      );
-    } else if (osPlatform === 'win32') {
-      possiblePaths.push(
-        'C:\\Program Files\\Godot\\Godot.exe',
-        'C:\\Program Files (x86)\\Godot\\Godot.exe',
-        'C:\\Program Files\\Godot_4\\Godot.exe',
-        'C:\\Program Files (x86)\\Godot_4\\Godot.exe',
-        `${process.env.USERPROFILE}\\Godot\\Godot.exe`
-      );
-    } else if (osPlatform === 'linux') {
-      possiblePaths.push(
-        '/usr/bin/godot',
-        '/usr/local/bin/godot',
-        '/snap/bin/godot',
-        `${process.env.HOME}/.local/bin/godot`
-      );
-    }
-
-    // Try each possible path
-    for (const path of possiblePaths) {
-      const normalizedPath = normalize(path);
-      if (await this.isValidGodotPath(normalizedPath)) {
-        this.godotPath = normalizedPath;
-        this.logDebug(`Found Godot at: ${normalizedPath}`);
-        return;
-      }
-    }
-
-    // If we get here, we couldn't find Godot
-    this.logDebug(`Warning: Could not find Godot in common locations for ${osPlatform}`);
-    console.error(`[SERVER] Could not find Godot in common locations for ${osPlatform}`);
-    console.error(`[SERVER] Set GODOT_PATH=/path/to/godot environment variable or pass { godotPath: '/path/to/godot' } in the config to specify the correct path.`);
-
-    if (this.strictPathValidation) {
-      // In strict mode, throw an error
-      throw new Error(`Could not find a valid Godot executable. Set GODOT_PATH or provide a valid path in config.`);
-    } else {
-      // Fallback to a default path in non-strict mode; this may not be valid and requires user configuration for reliability
-      if (osPlatform === 'win32') {
-        this.godotPath = normalize('C:\\Program Files\\Godot\\Godot.exe');
-      } else if (osPlatform === 'darwin') {
-        this.godotPath = normalize('/Applications/Godot.app/Contents/MacOS/Godot');
-      } else {
-        this.godotPath = normalize('/usr/bin/godot');
-      }
-
-      this.logDebug(`Using default path: ${this.godotPath}, but this may not work.`);
-      console.error(`[SERVER] Using default path: ${this.godotPath}, but this may not work.`);
-      console.error(`[SERVER] This fallback behavior will be removed in a future version. Set strictPathValidation: true to opt-in to the new behavior.`);
-    }
+    this.godotPath = await detectGodotExecutablePath({
+      currentPath: this.godotPath,
+      strictPathValidation: this.strictPathValidation,
+      isValid: path => this.isValidGodotPath(path),
+      logDebug: message => { this.logDebug(message); },
+    });
   }
 
   /**
@@ -356,215 +251,45 @@ export class GodotServer {
    * Inject the interaction server script into the Godot project
    */
   private injectInteractionServer(projectPath: string): void {
-    const projectFile = join(projectPath, 'project.godot');
-    const destScript = join(projectPath, 'mcp_interaction_server.gd');
-
-    const existingContent = readFileSync(projectFile, 'utf8');
-    if (existingContent.includes(this.AUTOLOAD_NAME)) {
-      this.gameConnection.interactionServerInjectedByUs = false;
-      if (!existsSync(destScript)) {
-        copyFileSync(this.interactionScriptPath, destScript);
-        this.logDebug(`Autoload present but script missing; restored ${destScript}`);
-      } else {
-        this.logDebug('Interaction server autoload and script already present; leaving project untouched');
-      }
-      return;
-    }
-
-    this.gameConnection.interactionServerInjectedByUs = true;
-
-    copyFileSync(this.interactionScriptPath, destScript);
-    this.logDebug(`Copied interaction server script to ${destScript}`);
-
-    let content = existingContent;
-
-    const autoloadLine = `${this.AUTOLOAD_NAME}="*res://mcp_interaction_server.gd"`;
-
-    if (content.includes('[autoload]')) {
-      // Add after existing [autoload] section header
-      content = content.replace('[autoload]', `[autoload]\n\n${autoloadLine}`);
-    } else {
-      // Add new [autoload] section at end
-      content += `\n[autoload]\n\n${autoloadLine}\n`;
-    }
-
-    writeFileSync(projectFile, content, 'utf8');
-    this.logDebug(`Injected ${this.AUTOLOAD_NAME} autoload into project.godot`);
+    this.gameConnection.interactionServerInjectedByUs = this.interactionServerInstaller.install(projectPath);
   }
 
   /**
    * Remove the interaction server script and autoload from the project
    */
   private removeInteractionServer(projectPath: string): void {
-    if (!this.gameConnection.interactionServerInjectedByUs) {
-      this.logDebug('Interaction server was user-managed; skipping cleanup');
-      return;
-    }
+    const ownedByMcp = this.gameConnection.interactionServerInjectedByUs;
     this.gameConnection.interactionServerInjectedByUs = false;
-
-    const projectFile = join(projectPath, 'project.godot');
-    const destScript = join(projectPath, 'mcp_interaction_server.gd');
-
-    // Remove autoload line from project.godot
-    if (existsSync(projectFile)) {
-      let content = readFileSync(projectFile, 'utf8');
-      // Remove the autoload line (and any surrounding blank line)
-      const autoloadLine = `${this.AUTOLOAD_NAME}="*res://mcp_interaction_server.gd"`;
-      content = content.replace(new RegExp(`\\n?${autoloadLine.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\n?`), '\n');
-      writeFileSync(projectFile, content, 'utf8');
-      this.logDebug('Removed interaction server autoload from project.godot');
-    }
-
-    // Delete the script file
-    if (existsSync(destScript)) {
-      unlinkSync(destScript);
-      this.logDebug('Deleted interaction server script from project');
-    }
-
-    // Also clean up the .uid file if Godot created one
-    const uidFile = destScript + '.uid';
-    if (existsSync(uidFile)) {
-      unlinkSync(uidFile);
-      this.logDebug('Deleted interaction server .uid file');
-    }
+    this.interactionServerInstaller.remove(projectPath, ownedByMcp);
   }
 
   /**
    * Connect to the game's TCP interaction server with retries
    */
   private async connectToGame(projectPath: string): Promise<void> {
-    this.gameConnection.projectPath = projectPath;
-
-    // Initial delay to let the game start up
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    const maxAttempts = 10;
-    const retryDelay = 500;
-
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      if (!this.activeProcess) {
-        this.logDebug('Game process no longer running, aborting connection');
-        return;
-      }
-
-      try {
-        await new Promise<void>((resolve, reject) => {
-          const socket = createConnection({ host: '127.0.0.1', port: this.INTERACTION_PORT }, () => {
-            this.gameConnection.socket = socket;
-            this.gameConnection.connected = true;
-            this.gameConnection.responseBuffer = '';
-            this.gameConnection.pendingRequests.clear();
-            this.logDebug(`Connected to game interaction server (attempt ${attempt})`);
-            console.error(`[SERVER] Connected to game interaction server on port ${this.INTERACTION_PORT}`);
-
-            socket.on('data', (data: Buffer) => {
-              this.gameConnection.responseBuffer += data.toString();
-              // Process complete lines
-              while (this.gameConnection.responseBuffer.includes('\n')) {
-                const newlinePos = this.gameConnection.responseBuffer.indexOf('\n');
-                const line = this.gameConnection.responseBuffer.substring(0, newlinePos).trim();
-                this.gameConnection.responseBuffer = this.gameConnection.responseBuffer.substring(newlinePos + 1);
-                if (line.length > 0) {
-                  try {
-                    const parsed = JSON.parse(line);
-                    this.resolveGameResponse(parsed);
-                  } catch {
-                    this.logDebug(`Failed to parse game response: ${line}`);
-                  }
-                }
-              }
-            });
-
-            socket.on('close', () => {
-              this.logDebug('Game interaction connection closed');
-              this.gameConnection.connected = false;
-              this.gameConnection.socket = null;
-              this.rejectAllPending({ error: 'Connection closed' });
-            });
-
-            socket.on('error', (err: Error) => {
-              this.logDebug(`Game interaction socket error: ${err.message}`);
-            });
-
-            resolve();
-          });
-
-          socket.on('error', (err: Error) => {
-            reject(err);
-          });
-        });
-
-        // Successfully connected
-        return;
-      } catch {
-        this.logDebug(`Connection attempt ${attempt}/${maxAttempts} failed, retrying in ${retryDelay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, retryDelay));
-      }
-    }
-
-    console.error(`[SERVER] Failed to connect to game interaction server after ${maxAttempts} attempts`);
+    await this.gameConnection.connect(projectPath, () => this.activeProcess !== null);
   }
 
   /**
    * Disconnect from the game interaction server
    */
   private disconnectFromGame(): void {
-    if (this.gameConnection.socket) {
-      this.gameConnection.socket.destroy();
-      this.gameConnection.socket = null;
-    }
-    this.gameConnection.connected = false;
-    this.gameConnection.responseBuffer = '';
-    this.rejectAllPending({ error: 'Disconnected' });
+    this.gameConnection.disconnect();
   }
 
   private rejectAllPending(response: any): void {
-    for (const resolver of this.gameConnection.pendingRequests.values()) {
-      resolver(response);
-    }
-    this.gameConnection.pendingRequests.clear();
+    this.gameConnection.rejectAllPending(response);
   }
 
   private resolveGameResponse(parsed: any): void {
-    const pending = this.gameConnection.pendingRequests;
-    if (pending.size === 0) return;
-    let id: number | undefined;
-    if (parsed && typeof parsed.id === 'number') {
-      if (!pending.has(parsed.id)) return;
-      id = parsed.id;
-    } else {
-      id = pending.keys().next().value;
-    }
-    if (id === undefined) return;
-    const resolver = pending.get(id)!;
-    pending.delete(id);
-    resolver(parsed);
+    this.gameConnection.resolveResponse(parsed);
   }
 
   /**
    * Send a command to the running game and wait for a response
    */
   private async sendGameCommand(command: string, params: Record<string, any> = {}, timeoutMs = 10000): Promise<any> {
-    if (!this.gameConnection.connected || !this.gameConnection.socket) {
-      throw new Error('Not connected to game interaction server. Is the game running?');
-    }
-
-    const id = this.nextRequestId++;
-    const payload = JSON.stringify({ command, params, id }) + '\n';
-
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        this.gameConnection.pendingRequests.delete(id);
-        reject(new Error(`Game command '${command}' timed out after ${timeoutMs / 1000}s`));
-      }, timeoutMs);
-
-      this.gameConnection.pendingRequests.set(id, (response: any) => {
-        clearTimeout(timeout);
-        resolve(response);
-      });
-
-      this.gameConnection.socket!.write(payload);
-    });
+    return this.gameConnection.send(command, params, timeoutMs);
   }
 
   /**
@@ -579,8 +304,7 @@ export class GodotServer {
     }
     if (this.activeProcess) {
       this.logDebug('Killing active Godot process');
-      this.activeProcess.process.kill();
-      this.activeProcess = null;
+      this.processManager.stop();
     }
     await this.server.close();
   }
@@ -638,60 +362,8 @@ export class GodotServer {
     params: OperationParams,
     projectPath: string
   ): Promise<{ stdout: string; stderr: string }> {
-    this.logDebug(`Executing operation: ${operation} in project: ${projectPath}`);
-    this.logDebug(`Original operation params: ${JSON.stringify(params)}`);
-
-    // Convert camelCase parameters to snake_case for Godot script
-    const snakeCaseParams = convertCamelToSnakeCase(params);
-    this.logDebug(`Converted snake_case params: ${JSON.stringify(snakeCaseParams)}`);
-
-
-    // Ensure godotPath is set
-    if (!this.godotPath) {
-      await this.detectGodotPath();
-      if (!this.godotPath) {
-        throw new Error('Could not find a valid Godot executable path');
-      }
-    }
-
-    try {
-      // Serialize the snake_case parameters to a valid JSON string
-      const paramsJson = JSON.stringify(snakeCaseParams);
-
-      // Build argument array for execFile to prevent command injection
-      // Using execFile with argument arrays avoids shell interpretation entirely
-      const args = [
-        '--headless',
-        '--path',
-        projectPath,  // Safe: passed as argument, not interpolated into shell command
-        '--script',
-        this.operationsScriptPath,
-        operation,
-        paramsJson,  // Safe: passed as argument, not interpreted by shell
-      ];
-
-      
-      if (GODOT_DEBUG_MODE) {
-        args.push('--debug-godot');
-      }
-
-      this.logDebug(`Executing: ${this.godotPath} ${args.join(' ')}`);
-
-      const { stdout, stderr } = await execFileAsync(this.godotPath, args);
-
-      return { stdout: stdout ?? '', stderr: stderr ?? '' };
-    } catch (error: unknown) {
-      // If execFileAsync throws, it still contains stdout/stderr
-      if (error instanceof Error && 'stdout' in error && 'stderr' in error) {
-        const execError = error as Error & { stdout: string; stderr: string };
-        return {
-          stdout: execError.stdout ?? '',
-          stderr: execError.stderr ?? '',
-        };
-      }
-
-      throw error;
-    }
+    // Parameter normalization is owned by HeadlessOperationRunner via convertCamelToSnakeCase.
+    return this.operationRunner.execute(operation, params, projectPath);
   }
 
   /**
@@ -764,2833 +436,181 @@ export class GodotServer {
    * Set up the tool handlers for the MCP server
    */
   private setupToolHandlers() {
-    // Define available tools
+    const tools = new ToolRegistry(this.createToolHandlers());
+
     this.server.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: [
-        {
-          name: 'launch_editor',
-          description: 'Launch Godot editor for a specific project',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: {
-                type: 'string',
-                description: 'Godot project path',
-              },
-            },
-            required: ['projectPath'],
-          },
-        },
-        {
-          name: 'run_project',
-          description: 'Run the Godot project and capture output',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: {
-                type: 'string',
-                description: 'Godot project path',
-              },
-              scene: {
-                type: 'string',
-                description: 'Optional: Specific scene to run',
-              },
-            },
-            required: ['projectPath'],
-          },
-        },
-        {
-          name: 'get_debug_output',
-          description: 'Get the current debug output and errors',
-          inputSchema: {
-            type: 'object',
-            properties: {},
-            required: [],
-          },
-        },
-        {
-          name: 'stop_project',
-          description: 'Stop the currently running Godot project',
-          inputSchema: {
-            type: 'object',
-            properties: {},
-            required: [],
-          },
-        },
-        {
-          name: 'get_godot_version',
-          description: 'Get the installed Godot version',
-          inputSchema: {
-            type: 'object',
-            properties: {},
-            required: [],
-          },
-        },
-        {
-          name: 'list_projects',
-          description: 'List Godot projects in a directory',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              directory: {
-                type: 'string',
-                description: 'Directory to search for Godot projects',
-              },
-              recursive: {
-                type: 'boolean',
-                description: 'Whether to search recursively (default: false)',
-              },
-            },
-            required: ['directory'],
-          },
-        },
-        {
-          name: 'get_project_info',
-          description: 'Retrieve metadata about a Godot project',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: {
-                type: 'string',
-                description: 'Godot project path',
-              },
-            },
-            required: ['projectPath'],
-          },
-        },
-        {
-          name: 'create_scene',
-          description: 'Create a new Godot scene file',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: {
-                type: 'string',
-                description: 'Godot project path',
-              },
-              scenePath: {
-                type: 'string',
-                description: 'Path where the scene file will be saved (relative to project)',
-              },
-              rootNodeType: {
-                type: 'string',
-                description: 'Type of the root node (e.g., Node2D, Node3D)',
-              },
-            },
-            required: ['projectPath', 'scenePath'],
-          },
-        },
-        {
-          name: 'add_node',
-          description: 'Add a node to an existing scene',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: {
-                type: 'string',
-                description: 'Godot project path',
-              },
-              scenePath: {
-                type: 'string',
-                description: 'Scene file path (relative to project)',
-              },
-              parentNodePath: {
-                type: 'string',
-                description: 'Path to the parent node (e.g., "root" or "root/Player")',
-              },
-              nodeType: {
-                type: 'string',
-                description: 'Type of node to add (e.g., Sprite2D, CollisionShape2D)',
-              },
-              nodeName: {
-                type: 'string',
-                description: 'Name for the new node',
-              },
-              properties: {
-                type: 'object',
-                description: 'Optional properties to set on the node',
-              },
-            },
-            required: ['projectPath', 'scenePath', 'nodeType', 'nodeName'],
-          },
-        },
-        {
-          name: 'load_sprite',
-          description: 'Load a sprite into a Sprite2D node',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: {
-                type: 'string',
-                description: 'Godot project path',
-              },
-              scenePath: {
-                type: 'string',
-                description: 'Scene file path (relative to project)',
-              },
-              nodePath: {
-                type: 'string',
-                description: 'Path to the Sprite2D node (e.g., "root/Player/Sprite2D")',
-              },
-              texturePath: {
-                type: 'string',
-                description: 'Path to the texture file (relative to project)',
-              },
-            },
-            required: ['projectPath', 'scenePath', 'nodePath', 'texturePath'],
-          },
-        },
-        {
-          name: 'export_mesh_library',
-          description: 'Export a scene as a MeshLibrary resource',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: {
-                type: 'string',
-                description: 'Godot project path',
-              },
-              scenePath: {
-                type: 'string',
-                description: 'Path to the scene file (.tscn) to export',
-              },
-              outputPath: {
-                type: 'string',
-                description: 'Path where the mesh library (.res) will be saved',
-              },
-              meshItemNames: {
-                type: 'array',
-                items: {
-                  type: 'string',
-                },
-                description: 'Optional: Names of specific mesh items to include (defaults to all)',
-              },
-            },
-            required: ['projectPath', 'scenePath', 'outputPath'],
-          },
-        },
-        {
-          name: 'save_scene',
-          description: 'Save changes to a scene file',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: {
-                type: 'string',
-                description: 'Godot project path',
-              },
-              scenePath: {
-                type: 'string',
-                description: 'Scene file path (relative to project)',
-              },
-              newPath: {
-                type: 'string',
-                description: 'Optional: New path to save the scene to (for creating variants)',
-              },
-            },
-            required: ['projectPath', 'scenePath'],
-          },
-        },
-        {
-          name: 'get_uid',
-          description: 'Get the UID for a specific file in a Godot project (for Godot 4.4+)',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: {
-                type: 'string',
-                description: 'Godot project path',
-              },
-              filePath: {
-                type: 'string',
-                description: 'Path to the file (relative to project) for which to get the UID',
-              },
-            },
-            required: ['projectPath', 'filePath'],
-          },
-        },
-        {
-          name: 'update_project_uids',
-          description: 'Update UID references by resaving resources (4.4+)',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: {
-                type: 'string',
-                description: 'Godot project path',
-              },
-            },
-            required: ['projectPath'],
-          },
-        },
-        {
-          name: 'game_screenshot',
-          description: 'Screenshot the running game (returns base64 PNG)',
-          inputSchema: {
-            type: 'object',
-            properties: {},
-            required: [],
-          },
-        },
-        {
-          name: 'game_click',
-          description: 'Click at a position in the running Godot game window',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              x: {
-                type: 'number',
-                description: 'X coordinate to click',
-              },
-              y: {
-                type: 'number',
-                description: 'Y coordinate to click',
-              },
-              button: {
-                type: 'number',
-                description: 'Mouse button (1=left, 2=right, 3=middle). Default: 1',
-              },
-            },
-            required: ['x', 'y'],
-          },
-        },
-        {
-          name: 'game_key_press',
-          description: 'Send a key press or input action to the running game',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              key: {
-                type: 'string',
-                description: 'Key name (e.g. "W", "Space", "Escape", "Enter")',
-              },
-              action: {
-                type: 'string',
-                description: 'Godot input action name (e.g. "move_forward", "ui_accept")',
-              },
-              pressed: {
-                type: 'boolean',
-                description: 'Press (true) or release (false). Default: true (auto-release)',
-              },
-            },
-            required: [],
-          },
-        },
-        {
-          name: 'game_mouse_move',
-          description: 'Move the mouse in the running Godot game',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              x: {
-                type: 'number',
-                description: 'Absolute X position',
-              },
-              y: {
-                type: 'number',
-                description: 'Absolute Y position',
-              },
-              relative_x: {
-                type: 'number',
-                description: 'Relative X movement',
-              },
-              relative_y: {
-                type: 'number',
-                description: 'Relative Y movement',
-              },
-            },
-            required: ['x', 'y'],
-          },
-        },
-        {
-          name: 'game_get_ui',
-          description: 'Get visible UI elements from the running game',
-          inputSchema: {
-            type: 'object',
-            properties: {},
-            required: [],
-          },
-        },
-        {
-          name: 'game_get_scene_tree',
-          description: 'Get scene tree structure of the running game',
-          inputSchema: {
-            type: 'object',
-            properties: {},
-            required: [],
-          },
-        },
-{
-          name: 'game_eval',
-          description: 'Execute GDScript in the running game. Use "return" for values.',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              code: {
-                type: 'string',
-                description: 'GDScript code to execute. Use "return" to return values.',
-              },
-            },
-            required: ['code'],
-          },
-        },
-        {
-          name: 'game_get_property',
-          description: 'Get a property value from any node in the running game by its path',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              nodePath: {
-                type: 'string',
-                description: 'Path to the node (e.g., "/root/Player", "/root/Main/Enemy")',
-              },
-              property: {
-                type: 'string',
-                description: 'Property name to get (e.g., "position", "health", "visible")',
-              },
-            },
-            required: ['nodePath', 'property'],
-          },
-        },
-        {
-          name: 'game_set_property',
-          description: 'Set a property on a node in the running game',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              nodePath: {
-                type: 'string',
-                description: 'Path to the node',
-              },
-              property: {
-                type: 'string',
-                description: 'Property name to set',
-              },
-              value: {
-                description: 'Value to set. Use objects for vectors/colors',
-              },
-              typeHint: {
-                type: 'string',
-                description: 'Optional type hint: "Vector2", "Vector3", "Color"',
-              },
-            },
-            required: ['nodePath', 'property', 'value'],
-          },
-        },
-        {
-          name: 'game_call_method',
-          description: 'Call a method on any node in the running game with optional arguments',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              nodePath: {
-                type: 'string',
-                description: 'Path to the node',
-              },
-              method: {
-                type: 'string',
-                description: 'Method name to call',
-              },
-              args: {
-                type: 'array',
-                description: 'Optional array of arguments to pass to the method',
-              },
-            },
-            required: ['nodePath', 'method'],
-          },
-        },
-        {
-          name: 'game_get_node_info',
-          description: 'Get node info: class, properties, signals, methods, children',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              nodePath: {
-                type: 'string',
-                description: 'Path to the node (e.g., "/root/Player")',
-              },
-            },
-            required: ['nodePath'],
-          },
-        },
-        {
-          name: 'game_instantiate_scene',
-          description: 'Load a PackedScene and add it as a child of a node in the running game',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              scenePath: {
-                type: 'string',
-                description: 'Resource path to the scene (e.g., "res://scenes/enemy.tscn")',
-              },
-              parentPath: {
-                type: 'string',
-                description: 'Path to the parent node. Default: "/root"',
-              },
-            },
-            required: ['scenePath'],
-          },
-        },
-        {
-          name: 'game_remove_node',
-          description: 'Remove and free a node from the running game\'s scene tree',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              nodePath: {
-                type: 'string',
-                description: 'Path to the node to remove',
-              },
-            },
-            required: ['nodePath'],
-          },
-        },
-        {
-          name: 'game_change_scene',
-          description: 'Switch to a different scene file in the running game',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              scenePath: {
-                type: 'string',
-                description: 'Resource path to the scene (e.g., "res://scenes/levels/level2.tscn")',
-              },
-            },
-            required: ['scenePath'],
-          },
-        },
-        {
-          name: 'game_pause',
-          description: 'Pause or unpause the running game',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              paused: {
-                type: 'boolean',
-                description: 'True to pause, false to unpause. Default: true',
-              },
-            },
-            required: [],
-          },
-        },
-        {
-          name: 'game_performance',
-          description: 'Get performance metrics (FPS, memory, draw calls)',
-          inputSchema: {
-            type: 'object',
-            properties: {},
-            required: [],
-          },
-        },
-        {
-          name: 'game_wait',
-          description: 'Wait N frames in the running game',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              frames: {
-                type: 'number',
-                description: 'Number of frames to wait. Default: 1',
-              },
-              frameType: {
-                type: 'string',
-                enum: ['render', 'physics'],
-                description: 'Frame to wait on: "physics" (fixed 60Hz ticks) or "render". Default: render',
-              },
-            },
-            required: [],
-          },
-        },
-{
-          name: 'read_scene',
-          description: 'Read scene file as JSON node tree (headless)',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: {
-                type: 'string',
-                description: 'Godot project path',
-              },
-              scenePath: {
-                type: 'string',
-                description: 'Scene file path (relative to project)',
-              },
-            },
-            required: ['projectPath', 'scenePath'],
-          },
-        },
-        {
-          name: 'modify_scene_node',
-          description: 'Modify node properties in a scene file (headless)',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: {
-                type: 'string',
-                description: 'Godot project path',
-              },
-              scenePath: {
-                type: 'string',
-                description: 'Scene file path (relative to project)',
-              },
-              nodePath: {
-                type: 'string',
-                description: 'Path to the node within the scene (e.g., "root/Player/Sprite2D")',
-              },
-              properties: {
-                type: 'object',
-                description: 'Properties to set on the node as key-value pairs',
-              },
-            },
-            required: ['projectPath', 'scenePath', 'nodePath', 'properties'],
-          },
-        },
-        {
-          name: 'remove_scene_node',
-          description: 'Remove a node from a scene file (headless)',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: {
-                type: 'string',
-                description: 'Godot project path',
-              },
-              scenePath: {
-                type: 'string',
-                description: 'Scene file path (relative to project)',
-              },
-              nodePath: {
-                type: 'string',
-                description: 'Path to the node to remove (e.g., "root/Player/OldNode")',
-              },
-            },
-            required: ['projectPath', 'scenePath', 'nodePath'],
-          },
-        },
-{
-          name: 'read_project_settings',
-          description: 'Read project.godot as structured JSON',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: {
-                type: 'string',
-                description: 'Godot project path',
-              },
-            },
-            required: ['projectPath'],
-          },
-        },
-        {
-          name: 'modify_project_settings',
-          description: 'Modify a project.godot setting',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: {
-                type: 'string',
-                description: 'Godot project path',
-              },
-              section: {
-                type: 'string',
-                description: 'Section in project.godot (e.g., "application", "display", "rendering")',
-              },
-              key: {
-                type: 'string',
-                description: 'Setting key (e.g., "run/main_scene", "window/size/viewport_width")',
-              },
-              value: {
-                type: 'string',
-                description: 'Value to set (as a string, will be written as-is)',
-              },
-            },
-            required: ['projectPath', 'section', 'key', 'value'],
-          },
-        },
-        {
-          name: 'list_project_files',
-          description: 'List project files, optionally filtered by extension',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: {
-                type: 'string',
-                description: 'Godot project path',
-              },
-              extensions: {
-                type: 'array',
-                items: { type: 'string' },
-                description: 'Optional file extensions to filter by (e.g., [".gd", ".tscn"]). Include the dot.',
-              },
-              subdirectory: {
-                type: 'string',
-                description: 'Optional subdirectory to search in (e.g., "scripts/player")',
-              },
-            },
-            required: ['projectPath'],
-          },
-        },
-{
-          name: 'game_connect_signal',
-          description: 'Connect a signal from one node to a method on another node in the running game',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              nodePath: { type: 'string', description: 'Path to the source node that emits the signal' },
-              signalName: { type: 'string', description: 'Name of the signal to connect' },
-              targetPath: { type: 'string', description: 'Path to the target node that receives the signal' },
-              method: { type: 'string', description: 'Method name to call on the target node' },
-            },
-            required: ['nodePath', 'signalName', 'targetPath', 'method'],
-          },
-        },
-        {
-          name: 'game_disconnect_signal',
-          description: 'Disconnect a signal connection in the running game',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              nodePath: { type: 'string', description: 'Path to the source node' },
-              signalName: { type: 'string', description: 'Name of the signal' },
-              targetPath: { type: 'string', description: 'Path to the target node' },
-              method: { type: 'string', description: 'Method name on the target' },
-            },
-            required: ['nodePath', 'signalName', 'targetPath', 'method'],
-          },
-        },
-        {
-          name: 'game_emit_signal',
-          description: 'Emit a signal on a node in the running game, optionally with arguments',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              nodePath: { type: 'string', description: 'Path to the node' },
-              signalName: { type: 'string', description: 'Name of the signal to emit' },
-              args: { type: 'array', description: 'Optional arguments to pass with the signal' },
-            },
-            required: ['nodePath', 'signalName'],
-          },
-        },
-        {
-          name: 'game_play_animation',
-          description: 'Control an AnimationPlayer node: play, stop, pause, or list animations',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              nodePath: { type: 'string', description: 'Path to the AnimationPlayer node' },
-              action: { type: 'string', description: 'Action: "play", "stop", "pause", or "get_list"' },
-              animation: { type: 'string', description: 'Animation name (required for "play" action)' },
-            },
-            required: ['nodePath'],
-          },
-        },
-        {
-          name: 'game_tween_property',
-          description: 'Tween a node property in the running game',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              nodePath: { type: 'string', description: 'Path to the node' },
-              property: { type: 'string', description: 'Property to tween (e.g., "position", "modulate")' },
-              finalValue: { description: 'Target value. Use {x,y} for Vector2, {x,y,z} for Vector3, {r,g,b,a} for Color' },
-              duration: { type: 'number', description: 'Duration in seconds. Default: 1.0' },
-              transType: { type: 'number', description: 'Tween.TransitionType enum value. Default: 0 (LINEAR)' },
-              easeType: { type: 'number', description: 'Tween.EaseType enum value. Default: 2 (IN_OUT)' },
-            },
-            required: ['nodePath', 'property', 'finalValue'],
-          },
-        },
-        {
-          name: 'game_get_nodes_in_group',
-          description: 'Get all nodes belonging to a specific group in the running game',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              group: { type: 'string', description: 'Group name (e.g., "enemies", "player", "checkpoints")' },
-            },
-            required: ['group'],
-          },
-        },
-        {
-          name: 'game_find_nodes_by_class',
-          description: 'Find all nodes of a specific class type in the running game',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              className: { type: 'string', description: 'Class name to search for (e.g., "CharacterBody3D", "Light3D")' },
-              rootPath: { type: 'string', description: 'Root node path to start searching from. Default: "/root"' },
-            },
-            required: ['className'],
-          },
-        },
-        {
-          name: 'game_reparent_node',
-          description: 'Move a node to a new parent in the running game\'s scene tree',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              nodePath: { type: 'string', description: 'Path to the node to move' },
-              newParentPath: { type: 'string', description: 'Path to the new parent node' },
-              keepGlobalTransform: { type: 'boolean', description: 'Whether to keep the global transform. Default: true' },
-            },
-            required: ['nodePath', 'newParentPath'],
-          },
-        },
-{
-          name: 'attach_script',
-          description: 'Attach a GDScript to a scene node (headless)',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: { type: 'string', description: 'Godot project path' },
-              scenePath: { type: 'string', description: 'Scene file path (relative to project)' },
-              nodePath: { type: 'string', description: 'Path to the node within the scene (e.g., "root/Player")' },
-              scriptPath: { type: 'string', description: 'Path to the .gd script file (relative to project)' },
-            },
-            required: ['projectPath', 'scenePath', 'nodePath', 'scriptPath'],
-          },
-        },
-        {
-          name: 'create_resource',
-          description: 'Create a .tres resource file (headless)',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: { type: 'string', description: 'Godot project path' },
-              resourceType: { type: 'string', description: 'Godot class name (e.g., "StandardMaterial3D", "Theme", "Environment")' },
-              resourcePath: { type: 'string', description: 'Where to save the .tres file (relative to project)' },
-              properties: { type: 'object', description: 'Optional properties to set on the resource' },
-            },
-            required: ['projectPath', 'resourceType', 'resourcePath'],
-          },
-        },
-        // File I/O tools
-        {
-          name: 'read_file',
-          description: 'Read a text file from a Godot project',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: { type: 'string', description: 'Godot project path' },
-              filePath: { type: 'string', description: 'File path relative to project root' },
-            },
-            required: ['projectPath', 'filePath'],
-          },
-        },
-        {
-          name: 'write_file',
-          description: 'Create or overwrite a text file in a Godot project',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: { type: 'string', description: 'Godot project path' },
-              filePath: { type: 'string', description: 'File path relative to project root' },
-              content: { type: 'string', description: 'File content to write' },
-            },
-            required: ['projectPath', 'filePath', 'content'],
-          },
-        },
-        {
-          name: 'delete_file',
-          description: 'Delete a file from a Godot project',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: { type: 'string', description: 'Godot project path' },
-              filePath: { type: 'string', description: 'File path relative to project root' },
-            },
-            required: ['projectPath', 'filePath'],
-          },
-        },
-        {
-          name: 'create_directory',
-          description: 'Create a directory inside a Godot project',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: { type: 'string', description: 'Godot project path' },
-              directoryPath: { type: 'string', description: 'Directory path relative to project root' },
-            },
-            required: ['projectPath', 'directoryPath'],
-          },
-        },
-        // Error/Log capture tools
-        {
-          name: 'game_get_errors',
-          description: 'Get new push_error/push_warning messages since last call',
-          inputSchema: {
-            type: 'object',
-            properties: {},
-            required: [],
-          },
-        },
-        {
-          name: 'game_get_logs',
-          description: 'Get new print output from the running game since last call',
-          inputSchema: {
-            type: 'object',
-            properties: {},
-            required: [],
-          },
-        },
-        // Enhanced input tools
-        {
-          name: 'game_key_hold',
-          description: 'Hold a key down without auto-releasing',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              key: { type: 'string', description: 'Key name (e.g. "W", "Space", "Shift")' },
-              action: { type: 'string', description: 'Godot input action name (e.g. "move_forward")' },
-            },
-            required: [],
-          },
-        },
-        {
-          name: 'game_key_release',
-          description: 'Release a previously held key',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              key: { type: 'string', description: 'Key name to release' },
-              action: { type: 'string', description: 'Godot input action name to release' },
-            },
-            required: [],
-          },
-        },
-        {
-          name: 'game_scroll',
-          description: 'Send mouse scroll wheel event at position',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              x: { type: 'number', description: 'X position for scroll event' },
-              y: { type: 'number', description: 'Y position for scroll event' },
-              direction: { type: 'string', description: '"up", "down", "left", or "right". Default: "up"' },
-              amount: { type: 'number', description: 'Scroll amount (clicks). Default: 1' },
-            },
-            required: ['x', 'y'],
-          },
-        },
-        {
-          name: 'game_mouse_drag',
-          description: 'Drag mouse between two points over N frames',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              fromX: { type: 'number', description: 'Start X coordinate' },
-              fromY: { type: 'number', description: 'Start Y coordinate' },
-              toX: { type: 'number', description: 'End X coordinate' },
-              toY: { type: 'number', description: 'End Y coordinate' },
-              button: { type: 'number', description: 'Mouse button (1=left). Default: 1' },
-              steps: { type: 'number', description: 'Number of frames for the drag. Default: 10' },
-            },
-            required: ['fromX', 'fromY', 'toX', 'toY'],
-          },
-        },
-        {
-          name: 'game_gamepad',
-          description: 'Send gamepad button or axis input event',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              type: { type: 'string', description: '"button" or "axis"' },
-              index: { type: 'number', description: 'Button or axis index' },
-              value: { type: 'number', description: 'Value: 0/1 for buttons, -1.0 to 1.0 for axes' },
-              device: { type: 'number', description: 'Gamepad device index. Default: 0' },
-            },
-            required: ['type', 'index', 'value'],
-          },
-        },
-        // Project management tools
-        {
-          name: 'create_project',
-          description: 'Create a new Godot project from scratch',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: { type: 'string', description: 'Directory where the project will be created' },
-              projectName: { type: 'string', description: 'Name of the project' },
-              dotnet: { type: 'boolean', description: 'Scaffold a .NET (C#) project (.csproj + "C#" feature). Default: false' },
-            },
-            required: ['projectPath', 'projectName'],
-          },
-        },
-        {
-          name: 'create_csharp_script',
-          description: 'Create a C# script file in a Godot .NET project',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: { type: 'string', description: 'Godot .NET project path (must contain a .csproj)' },
-              scriptPath: { type: 'string', description: 'Script file path relative to project (e.g. "scripts/Player.cs")' },
-              className: { type: 'string', description: 'C# class name. Default: derived from the file name' },
-              baseClass: { type: 'string', description: 'Godot base class to extend. Default: Node' },
-              namespaceName: { type: 'string', description: 'Optional C# namespace' },
-              methods: { type: 'array', items: { type: 'string' }, description: 'Method stubs (e.g. _Ready, _Process) to include' },
-              source: { type: 'string', description: 'Full source code (overrides template)' },
-            },
-            required: ['projectPath', 'scriptPath'],
-          },
-        },
-        {
-          name: 'manage_autoloads',
-          description: 'Add, remove, or list autoloads in a Godot project',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: { type: 'string', description: 'Godot project path' },
-              action: { type: 'string', description: '"list", "add", or "remove"' },
-              name: { type: 'string', description: 'Autoload name (required for add/remove)' },
-              path: { type: 'string', description: 'Script/scene path (required for add, e.g. "res://globals.gd")' },
-            },
-            required: ['projectPath', 'action'],
-          },
-        },
-        {
-          name: 'manage_input_map',
-          description: 'Add, remove, or list input actions and bindings',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: { type: 'string', description: 'Godot project path' },
-              action: { type: 'string', description: '"list", "add", or "remove"' },
-              actionName: { type: 'string', description: 'Input action name (required for add/remove)' },
-              key: { type: 'string', description: 'Key to bind (for add, e.g. "W", "Space")' },
-              deadzone: { type: 'number', description: 'Deadzone for the action. Default: 0.5' },
-            },
-            required: ['projectPath', 'action'],
-          },
-        },
-        {
-          name: 'manage_export_presets',
-          description: 'Create or modify export preset configuration',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: { type: 'string', description: 'Godot project path' },
-              action: { type: 'string', description: '"list", "add", or "remove"' },
-              name: { type: 'string', description: 'Preset name (required for add/remove)' },
-              platform: { type: 'string', description: 'Platform (for add, e.g. "Windows Desktop", "Linux", "Web")' },
-              runnable: { type: 'boolean', description: 'Whether this preset is runnable. Default: false' },
-            },
-            required: ['projectPath', 'action'],
-          },
-        },
-        // Advanced runtime tools
-        {
-          name: 'game_get_camera',
-          description: 'Get active camera position, rotation, and size',
-          inputSchema: {
-            type: 'object',
-            properties: {},
-            required: [],
-          },
-        },
-        {
-          name: 'game_set_camera',
-          description: 'Move or rotate the active camera',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              position: { type: 'object', description: '{x,y} or {x,y,z} for camera position' },
-              rotation: { type: 'object', description: '{x,y,z} rotation in degrees' },
-              zoom: { type: 'object', description: '{x,y} zoom for Camera2D' },
-              fov: { type: 'number', description: 'Field of view for Camera3D' },
-            },
-            required: [],
-          },
-        },
-        {
-          name: 'game_raycast',
-          description: 'Cast a ray and return collision results',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              from: { type: 'object', description: 'Start point {x,y} or {x,y,z}' },
-              to: { type: 'object', description: 'End point {x,y} or {x,y,z}' },
-              collisionMask: { type: 'number', description: 'Collision mask. Default: 0xFFFFFFFF' },
-            },
-            required: ['from', 'to'],
-          },
-        },
-        {
-          name: 'game_get_audio',
-          description: 'Get audio bus layout and playing streams',
-          inputSchema: {
-            type: 'object',
-            properties: {},
-            required: [],
-          },
-        },
-        {
-          name: 'game_spawn_node',
-          description: 'Create a new node of any type at runtime',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              type: { type: 'string', description: 'Node class name (e.g. "Sprite2D", "CharacterBody3D")' },
-              name: { type: 'string', description: 'Name for the new node. Default: auto-generated' },
-              parentPath: { type: 'string', description: 'Parent node path. Default: "/root"' },
-              properties: { type: 'object', description: 'Properties to set on the new node' },
-            },
-            required: ['type'],
-          },
-        },
-        // Shader, audio, navigation, tilemap, collision, environment tools
-        {
-          name: 'game_set_shader_param',
-          description: 'Set a shader parameter on a node\'s material',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              nodePath: { type: 'string', description: 'Path to the node with a ShaderMaterial' },
-              paramName: { type: 'string', description: 'Shader parameter name' },
-              value: { description: 'Value to set (number, object, array, etc.)' },
-              typeHint: { type: 'string', description: 'Optional type hint (e.g. "Color", "Vector2")' },
-            },
-            required: ['nodePath', 'paramName', 'value'],
-          },
-        },
-        {
-          name: 'game_audio_play',
-          description: 'Play, stop, or pause an AudioStreamPlayer node',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              nodePath: { type: 'string', description: 'Path to AudioStreamPlayer/2D/3D node' },
-              action: { type: 'string', description: 'Action: play, stop, pause, resume' },
-              stream: { type: 'string', description: 'Optional res:// path to load a new stream' },
-              volume: { type: 'number', description: 'Volume (linear 0-1)' },
-              pitch: { type: 'number', description: 'Pitch scale' },
-              bus: { type: 'string', description: 'Audio bus name' },
-              fromPosition: { type: 'number', description: 'Start position in seconds' },
-            },
-            required: ['nodePath'],
-          },
-        },
-        {
-          name: 'game_audio_bus',
-          description: 'Set volume, mute, or solo on an audio bus',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              busName: { type: 'string', description: 'Bus name. Default: "Master"' },
-              volume: { type: 'number', description: 'Volume (linear 0-1)' },
-              mute: { type: 'boolean', description: 'Mute the bus' },
-              solo: { type: 'boolean', description: 'Solo the bus' },
-            },
-            required: [],
-          },
-        },
-        {
-          name: 'game_navigate_path',
-          description: 'Query a navigation path between two points',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              start: { type: 'object', description: 'Start point {x,y} or {x,y,z}' },
-              end: { type: 'object', description: 'End point {x,y} or {x,y,z}' },
-              optimize: { type: 'boolean', description: 'Use string-pulling optimization. Default: true' },
-            },
-            required: ['start', 'end'],
-          },
-        },
-        {
-          name: 'game_tilemap',
-          description: 'Get or set cells in a TileMapLayer node',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              nodePath: { type: 'string', description: 'Path to TileMapLayer node' },
-              action: { type: 'string', description: 'Action: set_cells, get_cell, erase_cells, get_used_cells' },
-              x: { type: 'number', description: 'Cell X coordinate (for get_cell)' },
-              y: { type: 'number', description: 'Cell Y coordinate (for get_cell)' },
-              cells: { type: 'array', description: 'Array of cell objects for set_cells/erase_cells' },
-              sourceId: { type: 'number', description: 'Filter by source_id (for get_used_cells)' },
-            },
-            required: ['nodePath', 'action'],
-          },
-        },
-        {
-          name: 'game_add_collision',
-          description: 'Add a collision shape to a physics body node',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              parentPath: { type: 'string', description: 'Path to CollisionBody/Area node' },
-              shapeType: { type: 'string', description: 'Shape: box, sphere/circle, capsule, cylinder, ray, segment' },
-              shapeParams: { type: 'object', description: 'Shape dimensions (e.g. {radius, height})' },
-              collisionLayer: { type: 'number', description: 'Collision layer bitmask' },
-              collisionMask: { type: 'number', description: 'Collision mask bitmask' },
-              disabled: { type: 'boolean', description: 'Start disabled' },
-            },
-            required: ['parentPath', 'shapeType'],
-          },
-        },
-        {
-          name: 'game_environment',
-          description: 'Get or set environment and post-processing settings',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              action: { type: 'string', description: 'Action: get or set. Default: set' },
-              backgroundMode: { type: 'number', description: '0=clear, 1=custom_color, 2=sky, 3=canvas' },
-              backgroundColor: { type: 'object', description: 'Background color {r,g,b,a}' },
-              ambientLightColor: { type: 'object', description: 'Ambient light color {r,g,b,a}' },
-              ambientLightEnergy: { type: 'number', description: 'Ambient light energy' },
-              fogEnabled: { type: 'boolean', description: 'Enable fog' },
-              fogDensity: { type: 'number', description: 'Fog density' },
-              fogLightColor: { type: 'object', description: 'Fog light color {r,g,b,a}' },
-              glowEnabled: { type: 'boolean', description: 'Enable glow' },
-              glowIntensity: { type: 'number', description: 'Glow intensity' },
-              glowBloom: { type: 'number', description: 'Glow bloom' },
-              tonemapMode: { type: 'number', description: '0=linear, 1=reinhardt, 2=filmic, 3=aces' },
-              ssaoEnabled: { type: 'boolean', description: 'Enable SSAO' },
-              ssaoRadius: { type: 'number', description: 'SSAO radius' },
-              ssaoIntensity: { type: 'number', description: 'SSAO intensity' },
-              ssrEnabled: { type: 'boolean', description: 'Enable SSR' },
-              brightness: { type: 'number', description: 'Brightness adjustment' },
-              contrast: { type: 'number', description: 'Contrast adjustment' },
-              saturation: { type: 'number', description: 'Saturation adjustment' },
-            },
-            required: [],
-          },
-        },
-        // Group, timer, particles, animation, export, state, physics, joint, bone, theme, viewport, debug tools
-        {
-          name: 'game_manage_group',
-          description: 'Add or remove a node from a group, or list groups',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              nodePath: { type: 'string', description: 'Path to the node' },
-              action: { type: 'string', description: 'Action: add, remove, get_groups, clear_group' },
-              group: { type: 'string', description: 'Group name' },
-            },
-            required: ['action'],
-          },
-        },
-        {
-          name: 'game_create_timer',
-          description: 'Create a Timer node with configuration',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              parentPath: { type: 'string', description: 'Parent node path. Default: "/root"' },
-              waitTime: { type: 'number', description: 'Timer duration in seconds. Default: 1.0' },
-              oneShot: { type: 'boolean', description: 'One-shot mode. Default: false' },
-              autostart: { type: 'boolean', description: 'Auto-start the timer. Default: false' },
-              name: { type: 'string', description: 'Optional timer node name' },
-            },
-            required: [],
-          },
-        },
-        {
-          name: 'game_set_particles',
-          description: 'Configure GPUParticles2D/3D node properties',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              nodePath: { type: 'string', description: 'Path to GPUParticles node' },
-              emitting: { type: 'boolean', description: 'Enable/disable emission' },
-              amount: { type: 'number', description: 'Number of particles' },
-              lifetime: { type: 'number', description: 'Particle lifetime in seconds' },
-              oneShot: { type: 'boolean', description: 'One-shot mode' },
-              speedScale: { type: 'number', description: 'Speed scale' },
-              explosiveness: { type: 'number', description: 'Explosiveness ratio (0-1)' },
-              randomness: { type: 'number', description: 'Randomness ratio (0-1)' },
-              processMaterial: { type: 'object', description: 'ParticleProcessMaterial settings' },
-            },
-            required: ['nodePath'],
-          },
-        },
-        {
-          name: 'game_create_animation',
-          description: 'Create an animation with tracks and keyframes',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              nodePath: { type: 'string', description: 'Path to AnimationPlayer node' },
-              animationName: { type: 'string', description: 'Name for the new animation' },
-              length: { type: 'number', description: 'Animation length in seconds. Default: 1.0' },
-              loopMode: { type: 'number', description: '0=none, 1=linear, 2=pingpong' },
-              tracks: { type: 'array', description: 'Array of track definitions' },
-              library: { type: 'string', description: 'Animation library name. Default: ""' },
-            },
-            required: ['nodePath', 'animationName'],
-          },
-        },
-        {
-          name: 'export_project',
-          description: 'Export a Godot project using a preset',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: { type: 'string', description: 'Godot project path' },
-              presetName: { type: 'string', description: 'Export preset name' },
-              outputPath: { type: 'string', description: 'Output file path for the exported build' },
-              debug: { type: 'boolean', description: 'Use debug export. Default: false' },
-            },
-            required: ['projectPath', 'presetName', 'outputPath'],
-          },
-        },
-        {
-          name: 'game_serialize_state',
-          description: 'Save or load node tree state as JSON',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              nodePath: { type: 'string', description: 'Root node path. Default: "/root"' },
-              action: { type: 'string', description: 'Action: save or load. Default: save' },
-              data: { type: 'object', description: 'State data to restore (for load)' },
-              maxDepth: { type: 'number', description: 'Max tree depth to serialize. Default: 5' },
-            },
-            required: [],
-          },
-        },
-        {
-          name: 'game_physics_body',
-          description: 'Configure physics body properties (mass, velocity, etc.)',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              nodePath: { type: 'string', description: 'Path to physics body node' },
-              gravityScale: { type: 'number', description: 'Gravity scale' },
-              mass: { type: 'number', description: 'Body mass' },
-              linearVelocity: { type: 'object', description: 'Linear velocity {x,y} or {x,y,z}' },
-              angularVelocity: { description: 'Angular velocity (float for 2D, {x,y,z} for 3D)' },
-              linearDamp: { type: 'number', description: 'Linear damping' },
-              angularDamp: { type: 'number', description: 'Angular damping' },
-              friction: { type: 'number', description: 'Physics material friction' },
-              bounce: { type: 'number', description: 'Physics material bounce' },
-              freeze: { type: 'boolean', description: 'Freeze the body' },
-              sleeping: { type: 'boolean', description: 'Put body to sleep' },
-            },
-            required: ['nodePath'],
-          },
-        },
-        {
-          name: 'game_create_joint',
-          description: 'Create a physics joint between two bodies',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              parentPath: { type: 'string', description: 'Parent node path for the joint' },
-              jointType: { type: 'string', description: 'Joint type: pin_2d, spring_2d, groove_2d, pin_3d, hinge_3d, cone_3d, slider_3d' },
-              nodeAPath: { type: 'string', description: 'Path to first body' },
-              nodeBPath: { type: 'string', description: 'Path to second body' },
-              stiffness: { type: 'number', description: 'Spring stiffness (spring_2d)' },
-              damping: { type: 'number', description: 'Spring damping (spring_2d)' },
-              length: { type: 'number', description: 'Length (spring_2d, groove_2d)' },
-              softness: { type: 'number', description: 'Softness (pin_2d)' },
-            },
-            required: ['parentPath', 'jointType'],
-          },
-        },
-        {
-          name: 'game_bone_pose',
-          description: 'Get or set bone poses on a Skeleton3D node',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              nodePath: { type: 'string', description: 'Path to Skeleton3D node' },
-              action: { type: 'string', description: 'Action: list, get, or set. Default: list' },
-              boneIndex: { type: 'number', description: 'Bone index' },
-              boneName: { type: 'string', description: 'Bone name (alternative to index)' },
-              position: { type: 'object', description: 'Bone position {x,y,z}' },
-              rotation: { type: 'object', description: 'Bone rotation quaternion {x,y,z,w}' },
-              scale: { type: 'object', description: 'Bone scale {x,y,z}' },
-            },
-            required: ['nodePath'],
-          },
-        },
-        {
-          name: 'game_ui_theme',
-          description: 'Apply theme overrides to a Control node',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              nodePath: { type: 'string', description: 'Path to Control node' },
-              overrides: { type: 'object', description: 'Theme overrides: {colors, constants, fontSizes}' },
-            },
-            required: ['nodePath', 'overrides'],
-          },
-        },
-        {
-          name: 'game_viewport',
-          description: 'Create or configure a SubViewport node',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              action: { type: 'string', description: 'Action: create, configure, or get' },
-              parentPath: { type: 'string', description: 'Parent path (for create)' },
-              nodePath: { type: 'string', description: 'SubViewport path (for configure/get)' },
-              width: { type: 'number', description: 'Viewport width' },
-              height: { type: 'number', description: 'Viewport height' },
-              msaa: { type: 'number', description: 'MSAA level (0=disabled, 1=2x, 2=4x, 3=8x)' },
-              transparentBg: { type: 'boolean', description: 'Transparent background' },
-              name: { type: 'string', description: 'Viewport name (for create)' },
-            },
-            required: [],
-          },
-        },
-        {
-          name: 'game_debug_draw',
-          description: 'Draw debug lines, spheres, or boxes in 3D',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              action: { type: 'string', description: 'Action: line, sphere, box, or clear' },
-              from: { type: 'object', description: 'Line start {x,y,z}' },
-              to: { type: 'object', description: 'Line end {x,y,z}' },
-              center: { type: 'object', description: 'Sphere/box center {x,y,z}' },
-              radius: { type: 'number', description: 'Sphere radius. Default: 0.5' },
-              size: { type: 'object', description: 'Box size {x,y,z}' },
-              color: { type: 'object', description: 'Draw color {r,g,b,a}. Default: red' },
-              duration: { type: 'number', description: 'Frames to persist (0=permanent)' },
-            },
-            required: ['action'],
-          },
-        },
-        // Batch 1: Networking + Input + System + Signals + Script
-        {
-          name: 'game_http_request',
-          description: 'HTTP GET/POST/PUT/DELETE with headers and body',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              url: { type: 'string', description: 'Request URL' },
-              method: { type: 'string', description: 'HTTP method: GET, POST, PUT, DELETE. Default: GET' },
-              headers: { type: 'object', description: 'Request headers as key-value pairs' },
-              body: { type: 'string', description: 'Request body string' },
-              timeout: { type: 'number', description: 'Timeout in seconds. Default: 30' },
-            },
-            required: ['url'],
-          },
-        },
-        {
-          name: 'game_websocket',
-          description: 'WebSocket client connect/disconnect/send messages',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              action: { type: 'string', description: 'Action: connect, disconnect, send, status' },
-              url: { type: 'string', description: 'WebSocket URL (for connect)' },
-              message: { type: 'string', description: 'Message to send (for send)' },
-            },
-            required: ['action'],
-          },
-        },
-        {
-          name: 'game_multiplayer',
-          description: 'ENet multiplayer create server/client/disconnect',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              action: { type: 'string', description: 'Action: create_server, create_client, disconnect, status' },
-              port: { type: 'number', description: 'Server port. Default: 7000' },
-              address: { type: 'string', description: 'Server address for client. Default: 127.0.0.1' },
-              maxClients: { type: 'number', description: 'Max clients for server. Default: 32' },
-            },
-            required: ['action'],
-          },
-        },
-        {
-          name: 'game_rpc',
-          description: 'Call or configure RPC methods on nodes',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              nodePath: { type: 'string', description: 'Path to the node' },
-              action: { type: 'string', description: 'Action: call, configure' },
-              method: { type: 'string', description: 'Method name' },
-              args: { type: 'array', description: 'Arguments for the RPC call' },
-              mode: { type: 'string', description: 'RPC mode: any_peer, authority' },
-              sync: { type: 'string', description: 'Sync mode: call_local, call_remote' },
-              channel: { type: 'number', description: 'Transfer channel' },
-            },
-            required: ['nodePath', 'action', 'method'],
-          },
-        },
-        {
-          name: 'game_touch',
-          description: 'Simulate touch press/release/drag and gestures',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              action: { type: 'string', description: 'Action: press, release, drag' },
-              x: { type: 'number', description: 'Touch X position' },
-              y: { type: 'number', description: 'Touch Y position' },
-              index: { type: 'number', description: 'Touch index. Default: 0' },
-              toX: { type: 'number', description: 'Drag end X (for drag)' },
-              toY: { type: 'number', description: 'Drag end Y (for drag)' },
-              steps: { type: 'number', description: 'Drag steps. Default: 10' },
-            },
-            required: ['action', 'x', 'y'],
-          },
-        },
-        {
-          name: 'game_input_state',
-          description: 'Query pressed keys, mouse position, connected pads',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              action: { type: 'string', description: 'Action: query, warp_mouse, set_mouse_mode' },
-              x: { type: 'number', description: 'Mouse X (for warp_mouse)' },
-              y: { type: 'number', description: 'Mouse Y (for warp_mouse)' },
-              mouseMode: { type: 'string', description: 'Mode: visible, hidden, captured, confined' },
-            },
-            required: [],
-          },
-        },
-        {
-          name: 'game_input_action',
-          description: 'Manage runtime InputMap actions and strength',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              action: { type: 'string', description: 'Action: set_strength, add_action, remove_action, list' },
-              actionName: { type: 'string', description: 'Input action name' },
-              strength: { type: 'number', description: 'Action strength 0.0-1.0' },
-              key: { type: 'string', description: 'Key name (for add_action)' },
-            },
-            required: ['action'],
-          },
-        },
-        {
-          name: 'game_list_signals',
-          description: 'List all signals on a node with connections',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              nodePath: { type: 'string', description: 'Path to the node' },
-            },
-            required: ['nodePath'],
-          },
-        },
-        {
-          name: 'game_await_signal',
-          description: 'Await a signal with timeout and return args',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              nodePath: { type: 'string', description: 'Path to the node' },
-              signalName: { type: 'string', description: 'Signal name to await' },
-              timeout: { type: 'number', description: 'Timeout in seconds. Default: 10' },
-            },
-            required: ['nodePath', 'signalName'],
-          },
-        },
-        {
-          name: 'game_script',
-          description: 'Attach, detach, or get source of node scripts',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              nodePath: { type: 'string', description: 'Path to the node' },
-              action: { type: 'string', description: 'Action: attach, detach, get_source' },
-              source: { type: 'string', description: 'GDScript source code (for attach)' },
-              className: { type: 'string', description: 'Class the script extends' },
-            },
-            required: ['nodePath', 'action'],
-          },
-        },
-        {
-          name: 'game_window',
-          description: 'Get/set window size, fullscreen, title, position',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              action: { type: 'string', description: 'Action: get or set. Default: get' },
-              width: { type: 'number', description: 'Window width' },
-              height: { type: 'number', description: 'Window height' },
-              fullscreen: { type: 'boolean', description: 'Fullscreen mode' },
-              borderless: { type: 'boolean', description: 'Borderless mode' },
-              title: { type: 'string', description: 'Window title' },
-              position: { type: 'object', description: 'Window position {x, y}' },
-              vsync: { type: 'boolean', description: 'Enable vsync' },
-            },
-            required: [],
-          },
-        },
-        {
-          name: 'game_os_info',
-          description: 'Get platform, locale, screen, adapter, memory info',
-          inputSchema: {
-            type: 'object',
-            properties: {},
-            required: [],
-          },
-        },
-        {
-          name: 'game_time_scale',
-          description: 'Get/set Engine.time_scale and timing info',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              action: { type: 'string', description: 'Action: get or set. Default: get' },
-              timeScale: { type: 'number', description: 'Time scale value (for set)' },
-            },
-            required: [],
-          },
-        },
-        {
-          name: 'game_process_mode',
-          description: 'Set node process mode (pausable/always/disabled)',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              nodePath: { type: 'string', description: 'Path to the node' },
-              mode: { type: 'string', description: 'Mode: inherit, pausable, when_paused, always, disabled' },
-            },
-            required: ['nodePath', 'mode'],
-          },
-        },
-        {
-          name: 'game_world_settings',
-          description: 'Get/set gravity, physics FPS, and world settings',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              action: { type: 'string', description: 'Action: get or set. Default: get' },
-              gravity: { type: 'number', description: 'Gravity magnitude' },
-              gravityDirection: { type: 'object', description: 'Gravity direction vector {x,y,z}' },
-              physicsFps: { type: 'number', description: 'Physics ticks per second' },
-            },
-            required: [],
-          },
-        },
-        // Batch 2: 3D Rendering + Lighting + Sky + Physics
-        {
-          name: 'game_csg',
-          description: 'Create/configure CSG nodes with boolean operations',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              parentPath: { type: 'string', description: 'Parent node path' },
-              action: { type: 'string', description: 'Action: create or configure' },
-              csgType: { type: 'string', description: 'CSG type: box, sphere, cylinder, mesh, combiner' },
-              nodePath: { type: 'string', description: 'Node path (for configure)' },
-              operation: { type: 'string', description: 'Boolean op: union, intersection, subtraction' },
-              size: { type: 'object', description: 'Size {x,y,z} (box)' },
-              radius: { type: 'number', description: 'Radius (sphere/cylinder)' },
-              height: { type: 'number', description: 'Height (cylinder)' },
-              material: { type: 'string', description: 'Material resource path' },
-              name: { type: 'string', description: 'Node name' },
-            },
-            required: ['action'],
-          },
-        },
-        {
-          name: 'game_multimesh',
-          description: 'Create/configure MultiMeshInstance3D for instancing',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              parentPath: { type: 'string', description: 'Parent node path' },
-              action: { type: 'string', description: 'Action: create, set_instance, get_info' },
-              nodePath: { type: 'string', description: 'Node path (for set_instance/get_info)' },
-              meshType: { type: 'string', description: 'Mesh: box, sphere, cylinder, quad' },
-              count: { type: 'number', description: 'Instance count' },
-              index: { type: 'number', description: 'Instance index (for set_instance)' },
-              transform: { type: 'object', description: 'Transform {origin:{x,y,z}, rotation:{x,y,z}}' },
-              name: { type: 'string', description: 'Node name' },
-            },
-            required: ['action'],
-          },
-        },
-        {
-          name: 'game_procedural_mesh',
-          description: 'Generate meshes via ArrayMesh from vertex data',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              parentPath: { type: 'string', description: 'Parent node path' },
-              vertices: { type: 'array', description: 'Vertex positions [[x,y,z],...]' },
-              normals: { type: 'array', description: 'Vertex normals [[x,y,z],...]' },
-              uvs: { type: 'array', description: 'UV coordinates [[u,v],...]' },
-              indices: { type: 'array', description: 'Triangle indices [i0,i1,i2,...]' },
-              name: { type: 'string', description: 'Node name' },
-            },
-            required: ['parentPath', 'vertices'],
-          },
-        },
-        {
-          name: 'game_light_3d',
-          description: 'Create/configure 3D lights (directional/omni/spot)',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              parentPath: { type: 'string', description: 'Parent node path' },
-              action: { type: 'string', description: 'Action: create or configure' },
-              lightType: { type: 'string', description: 'Type: directional, omni, spot' },
-              nodePath: { type: 'string', description: 'Node path (for configure)' },
-              color: { type: 'object', description: 'Light color {r,g,b}' },
-              energy: { type: 'number', description: 'Light energy/intensity' },
-              range: { type: 'number', description: 'Light range (omni/spot)' },
-              shadows: { type: 'boolean', description: 'Enable shadow casting' },
-              spotAngle: { type: 'number', description: 'Spot cone angle in degrees' },
-              name: { type: 'string', description: 'Node name' },
-            },
-            required: ['action'],
-          },
-        },
-        {
-          name: 'game_mesh_instance',
-          description: 'Create MeshInstance3D with primitive meshes',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              parentPath: { type: 'string', description: 'Parent node path' },
-              meshType: { type: 'string', description: 'Mesh: box, sphere, cylinder, capsule, plane, quad' },
-              size: { type: 'object', description: 'Mesh size {x,y,z}' },
-              radius: { type: 'number', description: 'Mesh radius' },
-              height: { type: 'number', description: 'Mesh height' },
-              material: { type: 'string', description: 'Material resource path or color hex' },
-              name: { type: 'string', description: 'Node name' },
-            },
-            required: ['parentPath', 'meshType'],
-          },
-        },
-        {
-          name: 'game_gridmap',
-          description: 'GridMap set/get/clear cells and query used cells',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              nodePath: { type: 'string', description: 'Path to GridMap node' },
-              action: { type: 'string', description: 'Action: set_cell, get_cell, clear, get_used' },
-              x: { type: 'number', description: 'Cell X coordinate' },
-              y: { type: 'number', description: 'Cell Y coordinate' },
-              z: { type: 'number', description: 'Cell Z coordinate' },
-              item: { type: 'number', description: 'MeshLibrary item index' },
-              orientation: { type: 'number', description: 'Cell orientation index' },
-            },
-            required: ['nodePath', 'action'],
-          },
-        },
-        {
-          name: 'game_3d_effects',
-          description: 'Create ReflectionProbe, Decal, or FogVolume',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              parentPath: { type: 'string', description: 'Parent node path' },
-              effectType: { type: 'string', description: 'Type: reflection_probe, decal, fog_volume' },
-              size: { type: 'object', description: 'Effect size {x,y,z}' },
-              intensity: { type: 'number', description: 'Effect intensity' },
-              name: { type: 'string', description: 'Node name' },
-            },
-            required: ['parentPath', 'effectType'],
-          },
-        },
-        {
-          name: 'game_gi',
-          description: 'Create/configure VoxelGI or LightmapGI',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              parentPath: { type: 'string', description: 'Parent node path' },
-              giType: { type: 'string', description: 'Type: voxel_gi or lightmap_gi' },
-              size: { type: 'object', description: 'Extents size {x,y,z}' },
-              name: { type: 'string', description: 'Node name' },
-            },
-            required: ['parentPath', 'giType'],
-          },
-        },
-        {
-          name: 'game_path_3d',
-          description: 'Create Path3D/Curve3D and manage curve points',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              parentPath: { type: 'string', description: 'Parent node path' },
-              action: { type: 'string', description: 'Action: create, add_point, set_points, get_points' },
-              nodePath: { type: 'string', description: 'Path3D node path (for add/set/get)' },
-              points: { type: 'array', description: 'Array of points [{x,y,z},...]' },
-              point: { type: 'object', description: 'Single point {x,y,z}' },
-              name: { type: 'string', description: 'Node name' },
-            },
-            required: ['action'],
-          },
-        },
-        {
-          name: 'game_sky',
-          description: 'Create/configure Sky with procedural/physical sky',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              action: { type: 'string', description: 'Action: create or configure' },
-              skyType: { type: 'string', description: 'Type: procedural or physical' },
-              topColor: { type: 'object', description: 'Sky top color {r,g,b}' },
-              bottomColor: { type: 'object', description: 'Horizon bottom color {r,g,b}' },
-              sunEnergy: { type: 'number', description: 'Sun energy/brightness' },
-              groundColor: { type: 'object', description: 'Ground color {r,g,b}' },
-            },
-            required: ['action'],
-          },
-        },
-        {
-          name: 'game_camera_attributes',
-          description: 'Configure DOF, exposure, auto-exposure on camera',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              action: { type: 'string', description: 'Action: get or set' },
-              dofBlurFar: { type: 'number', description: 'DOF far blur distance' },
-              dofBlurNear: { type: 'number', description: 'DOF near blur distance' },
-              dofBlurAmount: { type: 'number', description: 'DOF blur amount' },
-              exposureMultiplier: { type: 'number', description: 'Exposure multiplier' },
-              autoExposure: { type: 'boolean', description: 'Enable auto exposure' },
-              autoExposureScale: { type: 'number', description: 'Auto exposure scale' },
-            },
-            required: [],
-          },
-        },
-        {
-          name: 'game_navigation_3d',
-          description: 'Create/configure NavigationRegion3D and bake',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              parentPath: { type: 'string', description: 'Parent node path' },
-              action: { type: 'string', description: 'Action: create, bake, configure' },
-              nodePath: { type: 'string', description: 'Node path (for bake/configure)' },
-              cellSize: { type: 'number', description: 'Navigation cell size' },
-              agentRadius: { type: 'number', description: 'Agent radius' },
-              agentHeight: { type: 'number', description: 'Agent height' },
-              name: { type: 'string', description: 'Node name' },
-            },
-            required: ['action'],
-          },
-        },
-        {
-          name: 'game_physics_3d',
-          description: 'Area3D queries and point/shape intersection tests',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              action: { type: 'string', description: 'Action: overlap, point_query, shape_query, ray' },
-              nodePath: { type: 'string', description: 'Area3D/node path (for overlap)' },
-              from: { type: 'object', description: 'Ray/point origin {x,y,z}' },
-              to: { type: 'object', description: 'Ray end {x,y,z}' },
-              collisionMask: { type: 'number', description: 'Collision mask bitmask' },
-            },
-            required: ['action'],
-          },
-        },
-        // Batch 3: 2D Systems + Animation Advanced + Audio Effects
-        {
-          name: 'game_canvas',
-          description: 'Create/configure CanvasLayer and CanvasModulate',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              parentPath: { type: 'string', description: 'Parent node path' },
-              action: { type: 'string', description: 'Action: create_layer, create_modulate, configure' },
-              nodePath: { type: 'string', description: 'Node path (for configure)' },
-              layer: { type: 'number', description: 'Canvas layer number' },
-              offset: { type: 'object', description: 'CanvasLayer offset {x,y} (for configure)' },
-              visible: { type: 'boolean', description: 'CanvasLayer visibility (for configure)' },
-              color: { type: 'object', description: 'Modulate color {r,g,b,a}' },
-              name: { type: 'string', description: 'Node name' },
-            },
-            required: ['action'],
-          },
-        },
-        {
-          name: 'game_canvas_draw',
-          description: '2D drawing: line/rect/circle/polygon/text/clear',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              parentPath: { type: 'string', description: 'Parent node path for draw node' },
-              action: { type: 'string', description: 'Action: line, rect, circle, polygon, text, clear' },
-              from: { type: 'object', description: 'Start point {x,y}' },
-              to: { type: 'object', description: 'End point {x,y}' },
-              center: { type: 'object', description: 'Center point {x,y}' },
-              radius: { type: 'number', description: 'Circle radius' },
-              rect: { type: 'object', description: 'Rectangle {x,y,w,h}' },
-              points: { type: 'array', description: 'Polygon points [{x,y},...]' },
-              position: { type: 'object', description: 'Text position {x,y} (baseline, for text)' },
-              text: { type: 'string', description: 'Text to draw' },
-              fontSize: { type: 'number', description: 'Text font size. Default: 16' },
-              color: { type: 'object', description: 'Draw color {r,g,b,a}' },
-              width: { type: 'number', description: 'Line width. Default: 2' },
-              filled: { type: 'boolean', description: 'Fill shape. Default: true' },
-            },
-            required: ['action'],
-          },
-        },
-        {
-          name: 'game_light_2d',
-          description: 'Create/configure 2D lights and light occluders',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              parentPath: { type: 'string', description: 'Parent node path' },
-              action: { type: 'string', description: 'Action: create_point, create_directional, create_occluder' },
-              nodePath: { type: 'string', description: 'Node path (for configure)' },
-              color: { type: 'object', description: 'Light color {r,g,b,a}' },
-              energy: { type: 'number', description: 'Light energy' },
-              range: { type: 'number', description: 'Light texture range' },
-              points: { type: 'array', description: 'Occluder polygon points [{x,y},...] (for create_occluder)' },
-              name: { type: 'string', description: 'Node name' },
-            },
-            required: ['action'],
-          },
-        },
-        {
-          name: 'game_parallax',
-          description: 'Create/configure ParallaxBackground and layers',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              parentPath: { type: 'string', description: 'Parent node path' },
-              action: { type: 'string', description: 'Action: create_background, add_layer, configure' },
-              nodePath: { type: 'string', description: 'Node path (for configure)' },
-              motionScale: { type: 'object', description: 'Motion scale {x,y} (ParallaxLayer)' },
-              motionOffset: { type: 'object', description: 'Motion offset {x,y} (ParallaxLayer)' },
-              mirroring: { type: 'object', description: 'Mirroring {x,y} (ParallaxLayer)' },
-              scrollOffset: { type: 'object', description: 'Scroll offset {x,y} (ParallaxBackground configure)' },
-              scrollBaseOffset: { type: 'object', description: 'Scroll base offset {x,y} (ParallaxBackground configure)' },
-              name: { type: 'string', description: 'Node name' },
-            },
-            required: ['action'],
-          },
-        },
-        {
-          name: 'game_shape_2d',
-          description: 'Line2D/Polygon2D point manipulation',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              nodePath: { type: 'string', description: 'Path to Line2D/Polygon2D node' },
-              action: { type: 'string', description: 'Action: add_point, set_points, clear, get_points' },
-              points: { type: 'array', description: 'Array of points [{x,y},...]' },
-              point: { type: 'object', description: 'Single point {x,y}' },
-              width: { type: 'number', description: 'Line width' },
-              color: { type: 'object', description: 'Color {r,g,b,a}' },
-            },
-            required: ['nodePath', 'action'],
-          },
-        },
-        {
-          name: 'game_path_2d',
-          description: 'Path2D/Curve2D management and AnimatedSprite2D',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              action: { type: 'string', description: 'Action: create, add_point, set_points, get_points' },
-              parentPath: { type: 'string', description: 'Parent node path (for create)' },
-              nodePath: { type: 'string', description: 'Path2D node path' },
-              points: { type: 'array', description: 'Array of points [{x,y},...]' },
-              point: { type: 'object', description: 'Single point {x,y}' },
-              name: { type: 'string', description: 'Node name' },
-            },
-            required: ['action'],
-          },
-        },
-        {
-          name: 'game_physics_2d',
-          description: 'Area2D queries and 2D point/shape intersections',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              action: { type: 'string', description: 'Action: overlap, point_query, shape_query, ray' },
-              nodePath: { type: 'string', description: 'Area2D/node path (for overlap)' },
-              from: { type: 'object', description: 'Origin point {x,y}' },
-              to: { type: 'object', description: 'End point {x,y} (for ray)' },
-              position: { type: 'object', description: 'Query position {x,y} (point_query/shape_query)' },
-              radius: { type: 'number', description: 'Circle radius (shape_query circle)' },
-              size: { type: 'object', description: 'Rectangle size {x,y} (shape_query rectangle)' },
-              shapeType: { type: 'string', description: 'Shape: circle or rectangle (shape_query)' },
-              maxResults: { type: 'number', description: 'Max results. Default: 32' },
-              collisionMask: { type: 'number', description: 'Collision mask bitmask' },
-            },
-            required: ['action'],
-          },
-        },
-        {
-          name: 'game_animation_tree',
-          description: 'AnimationTree state machine travel and params',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              nodePath: { type: 'string', description: 'Path to AnimationTree node' },
-              action: { type: 'string', description: 'Action: travel, set_param, get_state, get_params' },
-              stateName: { type: 'string', description: 'State name (for travel)' },
-              paramName: { type: 'string', description: 'Parameter name' },
-              paramValue: { description: 'Parameter value' },
-            },
-            required: ['nodePath', 'action'],
-          },
-        },
-        {
-          name: 'game_animation_control',
-          description: 'AnimationPlayer seek/queue/speed/info control',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              nodePath: { type: 'string', description: 'Path to AnimationPlayer node' },
-              action: { type: 'string', description: 'Action: seek, queue, set_speed, get_info, stop' },
-              animationName: { type: 'string', description: 'Animation name' },
-              position: { type: 'number', description: 'Seek position in seconds' },
-              speed: { type: 'number', description: 'Playback speed scale' },
-            },
-            required: ['nodePath', 'action'],
-          },
-        },
-        {
-          name: 'game_skeleton_ik',
-          description: 'SkeletonIK3D start/stop/set target position',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              nodePath: { type: 'string', description: 'Path to SkeletonIK3D node' },
-              action: { type: 'string', description: 'Action: start, stop, set_target' },
-              target: { type: 'object', description: 'Target position {x,y,z}' },
-            },
-            required: ['nodePath', 'action'],
-          },
-        },
-        {
-          name: 'game_audio_effect',
-          description: 'Add/remove/configure audio bus effects',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              busName: { type: 'string', description: 'Audio bus name. Default: Master' },
-              action: { type: 'string', description: 'Action: add, remove, configure, list' },
-              effectType: { type: 'string', description: 'Effect: reverb, delay, chorus, eq, compressor, limiter' },
-              index: { type: 'number', description: 'Effect index' },
-              properties: { type: 'object', description: 'Effect properties to set (for configure)' },
-              enabled: { type: 'boolean', description: 'Enable/disable the effect (for configure)' },
-            },
-            required: ['action'],
-          },
-        },
-        {
-          name: 'game_audio_bus_layout',
-          description: 'Create/remove audio buses and routing',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              action: { type: 'string', description: 'Action: add, remove, set_send, list' },
-              busName: { type: 'string', description: 'Bus name' },
-              sendTo: { type: 'string', description: 'Send target bus name' },
-            },
-            required: ['action'],
-          },
-        },
-        {
-          name: 'game_audio_spatial',
-          description: 'Configure AudioStreamPlayer3D spatial properties',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              nodePath: { type: 'string', description: 'Path to AudioStreamPlayer3D' },
-              action: { type: 'string', description: 'Action: configure, get_info' },
-              maxDistance: { type: 'number', description: 'Maximum audible distance' },
-              unitSize: { type: 'number', description: 'Unit size for distance attenuation' },
-              maxDb: { type: 'number', description: 'Maximum volume in dB' },
-              attenuationModel: { type: 'string', description: 'Model: inverse, inverse_square, logarithmic' },
-            },
-            required: ['nodePath', 'action'],
-          },
-        },
-        // Batch 4: Editor/Headless + Localization + Resource
-        {
-          name: 'rename_file',
-          description: 'Rename or move a file within the project',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: { type: 'string', description: 'Godot project path' },
-              filePath: { type: 'string', description: 'Current file path (relative to project)' },
-              newPath: { type: 'string', description: 'New file path (relative to project)' },
-            },
-            required: ['projectPath', 'filePath', 'newPath'],
-          },
-        },
-        {
-          name: 'manage_resource',
-          description: 'Read or modify .tres/.res resource files',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: { type: 'string', description: 'Godot project path' },
-              resourcePath: { type: 'string', description: 'Resource file path (relative to project)' },
-              action: { type: 'string', description: 'Action: read or modify' },
-              properties: { type: 'object', description: 'Properties to modify' },
-            },
-            required: ['projectPath', 'resourcePath', 'action'],
-          },
-        },
-        {
-          name: 'validate_script',
-          description: 'Check a GDScript file for syntax/type errors (headless, no run)',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: { type: 'string', description: 'Godot project path' },
-              scriptPath: { type: 'string', description: 'GDScript file path relative to project (e.g. "scripts/player.gd")' },
-            },
-            required: ['projectPath', 'scriptPath'],
-          },
-        },
-        {
-          name: 'validate_scripts',
-          description: 'Batch-check GDScript files (git-changed by default, or all)',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: { type: 'string', description: 'Godot project path' },
-              scope: { type: 'string', enum: ['changed', 'all'], description: '"changed" = git-changed .gd (default); "all" = every .gd in project' },
-              scriptPaths: { type: 'array', items: { type: 'string' }, description: 'Optional explicit list of .gd paths to check (overrides scope)' },
-            },
-            required: ['projectPath'],
-          },
-        },
-        {
-          name: 'create_script',
-          description: 'Create a GDScript file from a template',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: { type: 'string', description: 'Godot project path' },
-              scriptPath: { type: 'string', description: 'Script file path (relative to project)' },
-              extends: { type: 'string', description: 'Base class to extend. Default: Node' },
-              className: { type: 'string', description: 'Optional class_name' },
-              methods: { type: 'array', description: 'Method stubs to include' },
-              source: { type: 'string', description: 'Full source code (overrides template)' },
-            },
-            required: ['projectPath', 'scriptPath'],
-          },
-        },
-        {
-          name: 'manage_scene_signals',
-          description: 'List/add/remove signal connections in .tscn files',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: { type: 'string', description: 'Godot project path' },
-              scenePath: { type: 'string', description: 'Scene file path (relative to project)' },
-              action: { type: 'string', description: 'Action: list, add, remove' },
-              signalName: { type: 'string', description: 'Signal name' },
-              sourcePath: { type: 'string', description: 'Source node path' },
-              targetPath: { type: 'string', description: 'Target node path' },
-              method: { type: 'string', description: 'Target method name' },
-            },
-            required: ['projectPath', 'scenePath', 'action'],
-          },
-        },
-        {
-          name: 'manage_layers',
-          description: 'List/set named layer definitions in project',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: { type: 'string', description: 'Godot project path' },
-              action: { type: 'string', description: 'Action: list or set' },
-              layerType: { type: 'string', description: 'Type: render, physics_2d, physics_3d, navigation' },
-              layer: { type: 'number', description: 'Layer number (1-32)' },
-              name: { type: 'string', description: 'Layer name' },
-            },
-            required: ['projectPath', 'action'],
-          },
-        },
-        {
-          name: 'manage_plugins',
-          description: 'List/enable/disable editor plugins',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: { type: 'string', description: 'Godot project path' },
-              action: { type: 'string', description: 'Action: list, enable, disable' },
-              pluginName: { type: 'string', description: 'Plugin name' },
-            },
-            required: ['projectPath', 'action'],
-          },
-        },
-        {
-          name: 'manage_shader',
-          description: 'Create or read .gdshader files',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: { type: 'string', description: 'Godot project path' },
-              shaderPath: { type: 'string', description: 'Shader file path (relative to project)' },
-              action: { type: 'string', description: 'Action: create or read' },
-              shaderType: { type: 'string', description: 'Type: spatial, canvas_item, particles, sky' },
-              source: { type: 'string', description: 'Shader source code (for create)' },
-            },
-            required: ['projectPath', 'shaderPath', 'action'],
-          },
-        },
-        {
-          name: 'manage_theme_resource',
-          description: 'Create/read/modify Theme .tres resources',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: { type: 'string', description: 'Godot project path' },
-              resourcePath: { type: 'string', description: 'Theme file path (relative to project)' },
-              action: { type: 'string', description: 'Action: create, read, modify' },
-              properties: { type: 'object', description: 'Theme properties to set' },
-            },
-            required: ['projectPath', 'resourcePath', 'action'],
-          },
-        },
-        {
-          name: 'set_main_scene',
-          description: 'Set the main scene in project.godot',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: { type: 'string', description: 'Godot project path' },
-              scenePath: { type: 'string', description: 'Scene path (relative to project)' },
-            },
-            required: ['projectPath', 'scenePath'],
-          },
-        },
-        {
-          name: 'manage_scene_structure',
-          description: 'Rename/duplicate/move nodes within .tscn scenes',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: { type: 'string', description: 'Godot project path' },
-              scenePath: { type: 'string', description: 'Scene file path (relative to project)' },
-              action: { type: 'string', description: 'Action: rename, duplicate, move' },
-              nodePath: { type: 'string', description: 'Source node path in scene' },
-              newName: { type: 'string', description: 'New name (for rename)' },
-              newParentPath: { type: 'string', description: 'New parent path (for move)' },
-            },
-            required: ['projectPath', 'scenePath', 'action', 'nodePath'],
-          },
-        },
-        {
-          name: 'manage_translations',
-          description: 'List/add/remove translation files in project',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: { type: 'string', description: 'Godot project path' },
-              action: { type: 'string', description: 'Action: list, add, remove' },
-              translationPath: { type: 'string', description: 'Translation file path' },
-            },
-            required: ['projectPath', 'action'],
-          },
-        },
-        {
-          name: 'game_locale',
-          description: 'Set/get locale and translate strings at runtime',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              action: { type: 'string', description: 'Action: get, set, translate' },
-              locale: { type: 'string', description: 'Locale code (e.g. en, es, fr)' },
-              key: { type: 'string', description: 'Translation key (for translate)' },
-            },
-            required: ['action'],
-          },
-        },
-        // Batch 5: UI Controls + Rendering + Resource Runtime
-        {
-          name: 'game_ui_control',
-          description: 'Set focus, anchors, tooltip, mouse filter on Control',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              nodePath: { type: 'string', description: 'Path to Control node' },
-              action: { type: 'string', description: 'Action: configure, grab_focus, release_focus, get_info' },
-              anchorPreset: { type: 'number', description: 'Anchor preset value' },
-              tooltip: { type: 'string', description: 'Tooltip text' },
-              mouseFilter: { type: 'string', description: 'Mouse filter: stop, pass, ignore' },
-              minSize: { type: 'object', description: 'Minimum size {x,y}' },
-            },
-            required: ['nodePath', 'action'],
-          },
-        },
-        {
-          name: 'game_ui_text',
-          description: 'LineEdit/TextEdit/RichTextLabel text operations',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              nodePath: { type: 'string', description: 'Path to text control' },
-              action: { type: 'string', description: 'Action: get, set, append, clear, select, bbcode' },
-              text: { type: 'string', description: 'Text content' },
-              caretPosition: { type: 'number', description: 'Caret column position' },
-              selectionFrom: { type: 'number', description: 'Selection start' },
-              selectionTo: { type: 'number', description: 'Selection end' },
-            },
-            required: ['nodePath', 'action'],
-          },
-        },
-        {
-          name: 'game_ui_popup',
-          description: 'Show/hide/popup for Popup/Dialog/Window nodes',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              nodePath: { type: 'string', description: 'Path to Popup/Dialog/Window' },
-              action: { type: 'string', description: 'Action: popup_centered, popup, hide, get_info' },
-              size: { type: 'object', description: 'Popup size {x,y}' },
-              title: { type: 'string', description: 'Dialog title text' },
-              text: { type: 'string', description: 'Dialog body text' },
-            },
-            required: ['nodePath', 'action'],
-          },
-        },
-        {
-          name: 'game_ui_tree',
-          description: 'Tree control: get/select/collapse/add/remove items',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              nodePath: { type: 'string', description: 'Path to Tree control' },
-              action: { type: 'string', description: 'Action: get_items, select, collapse, expand, add, remove' },
-              itemPath: { type: 'string', description: 'Item path (slash-separated indices)' },
-              text: { type: 'string', description: 'Item text (for add)' },
-              column: { type: 'number', description: 'Column index. Default: 0' },
-            },
-            required: ['nodePath', 'action'],
-          },
-        },
-        {
-          name: 'game_ui_item_list',
-          description: 'ItemList/OptionButton: get/select/add/remove items',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              nodePath: { type: 'string', description: 'Path to ItemList/OptionButton' },
-              action: { type: 'string', description: 'Action: get_items, select, add, remove, clear' },
-              index: { type: 'number', description: 'Item index' },
-              text: { type: 'string', description: 'Item text (for add)' },
-            },
-            required: ['nodePath', 'action'],
-          },
-        },
-        {
-          name: 'game_ui_tabs',
-          description: 'TabContainer/TabBar: get/set current tab',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              nodePath: { type: 'string', description: 'Path to TabContainer/TabBar' },
-              action: { type: 'string', description: 'Action: get_tabs, set_current, set_title' },
-              index: { type: 'number', description: 'Tab index' },
-              title: { type: 'string', description: 'Tab title' },
-            },
-            required: ['nodePath', 'action'],
-          },
-        },
-        {
-          name: 'game_ui_menu',
-          description: 'PopupMenu/MenuBar: add/remove/get menu items',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              nodePath: { type: 'string', description: 'Path to PopupMenu/MenuBar' },
-              action: { type: 'string', description: 'Action: get_items, add, remove, set_checked, clear' },
-              index: { type: 'number', description: 'Item index' },
-              text: { type: 'string', description: 'Item text (for add)' },
-              checked: { type: 'boolean', description: 'Checked state' },
-              id: { type: 'number', description: 'Item ID' },
-            },
-            required: ['nodePath', 'action'],
-          },
-        },
-        {
-          name: 'game_ui_range',
-          description: 'ProgressBar/Slider/SpinBox/ColorPicker get/set',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              nodePath: { type: 'string', description: 'Path to Range/ColorPicker node' },
-              action: { type: 'string', description: 'Action: get or set' },
-              value: { type: 'number', description: 'Value (for Range nodes)' },
-              minValue: { type: 'number', description: 'Minimum value' },
-              maxValue: { type: 'number', description: 'Maximum value' },
-              step: { type: 'number', description: 'Step value' },
-              color: { type: 'object', description: 'Color {r,g,b,a} (for ColorPicker)' },
-            },
-            required: ['nodePath', 'action'],
-          },
-        },
-        {
-          name: 'game_render_settings',
-          description: 'Get/set MSAA, FXAA, TAA, scaling mode/scale',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              action: { type: 'string', description: 'Action: get or set' },
-              msaa2d: { type: 'number', description: 'MSAA 2D mode (0-3)' },
-              msaa3d: { type: 'number', description: 'MSAA 3D mode (0-3)' },
-              fxaa: { type: 'boolean', description: 'Enable FXAA' },
-              taa: { type: 'boolean', description: 'Enable TAA' },
-              scalingMode: { type: 'number', description: 'Scaling mode (0=bilinear, 1=FSR1, 2=FSR2)' },
-              scalingScale: { type: 'number', description: 'Render scale (0.0-1.0)' },
-            },
-            required: [],
-          },
-        },
-        {
-          name: 'game_resource',
-          description: 'Runtime resource load, save, or preload',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              action: { type: 'string', description: 'Action: load, save, exists' },
-              path: { type: 'string', description: 'Resource path (res://)' },
-              nodePath: { type: 'string', description: 'Node path (for save - saves node resource)' },
-              property: { type: 'string', description: 'Property name holding the resource' },
-            },
-            required: ['action', 'path'],
-          },
-        },
-        // Batch 6: Visual Shader + Terrain + Video + CI/CD
-        {
-          name: 'game_visual_shader',
-          description: 'Create and edit VisualShader graphs: add/connect/disconnect nodes',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              action: { type: 'string', description: 'Action: create, add_node, connect, disconnect, get_nodes, apply' },
-              nodePath: { type: 'string', description: 'Target node path (for apply)' },
-              shaderType: { type: 'string', description: 'Shader type: spatial, canvas_item, particles, sky, fog' },
-              nodeClass: { type: 'string', description: 'VisualShaderNode class name (for add_node)' },
-              position: { type: 'object', description: 'Node position {x, y} (for add_node)' },
-              fromNode: { type: 'number', description: 'Source node ID (for connect/disconnect)' },
-              fromPort: { type: 'number', description: 'Source port index' },
-              toNode: { type: 'number', description: 'Destination node ID (for connect/disconnect)' },
-              toPort: { type: 'number', description: 'Destination port index' },
-              shaderId: { type: 'number', description: 'Shader resource ID (for multi-shader scenes)' },
-            },
-            required: ['action'],
-          },
-        },
-        {
-          name: 'game_terrain',
-          description: 'Create/modify terrain meshes from heightmap data',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              action: { type: 'string', description: 'Action: create, modify, get_height, paint' },
-              parentPath: { type: 'string', description: 'Parent node path' },
-              nodePath: { type: 'string', description: 'Terrain node path' },
-              heightData: { type: 'array', description: 'Array of float height values (for create)', items: { type: 'number' } },
-              width: { type: 'number', description: 'Terrain width in vertices' },
-              depth: { type: 'number', description: 'Terrain depth in vertices' },
-              maxHeight: { type: 'number', description: 'Maximum terrain height' },
-              x: { type: 'number', description: 'X position (for modify/get_height/paint)' },
-              z: { type: 'number', description: 'Z position (for modify/get_height/paint)' },
-              radius: { type: 'number', description: 'Brush radius (for modify/paint)' },
-              heightDelta: { type: 'number', description: 'Height change amount (for modify)' },
-              color: { type: 'object', description: 'Vertex color {r,g,b,a} (for paint)' },
-              name: { type: 'string', description: 'Node name' },
-            },
-            required: ['action'],
-          },
-        },
-        {
-          name: 'game_video',
-          description: 'Video playback control: play, pause, stop, seek on VideoStreamPlayer',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              action: { type: 'string', description: 'Action: create, play, pause, stop, seek, get_status' },
-              nodePath: { type: 'string', description: 'Path to VideoStreamPlayer node' },
-              parentPath: { type: 'string', description: 'Parent node path (for create)' },
-              videoPath: { type: 'string', description: 'res:// path to video file' },
-              position: { type: 'number', description: 'Seek position in seconds' },
-              volume: { type: 'number', description: 'Volume (linear 0-1)' },
-              loop: { type: 'boolean', description: 'Enable looping' },
-              autoplay: { type: 'boolean', description: 'Auto-play on ready' },
-              name: { type: 'string', description: 'Node name (for create)' },
-            },
-            required: ['action'],
-          },
-        },
-        {
-          name: 'manage_ci_pipeline',
-          description: 'Create/read GitHub Actions workflow for automated Godot exports',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: { type: 'string', description: 'Absolute path to Godot project' },
-              action: { type: 'string', description: 'Action: create or read' },
-              platforms: { type: 'array', description: 'Target platforms: windows, linux, macos, web', items: { type: 'string' } },
-              godotVersion: { type: 'string', description: 'Godot version (e.g. 4.3-stable)' },
-            },
-            required: ['projectPath', 'action'],
-          },
-        },
-        {
-          name: 'manage_docker_export',
-          description: 'Create Dockerfile for headless Godot export',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              projectPath: { type: 'string', description: 'Absolute path to Godot project' },
-              action: { type: 'string', description: 'Action: create or read' },
-              godotVersion: { type: 'string', description: 'Godot version (e.g. 4.3-stable)' },
-              exportPreset: { type: 'string', description: 'Export preset name' },
-              baseImage: { type: 'string', description: 'Base Docker image (default: ubuntu:22.04)' },
-            },
-            required: ['projectPath', 'action'],
-          },
-        },
-      ],
+      tools: toolDefinitions,
     }));
 
-    // Handle tool calls
     this.server.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       this.logDebug(`Handling tool request: ${request.params.name}`);
-      switch (request.params.name) {
-        case 'launch_editor':
-          return await this.handleLaunchEditor(request.params.arguments);
-        case 'run_project':
-          return await this.handleRunProject(request.params.arguments);
-        case 'get_debug_output':
-          return await this.handleGetDebugOutput();
-        case 'stop_project':
-          return await this.handleStopProject();
-        case 'get_godot_version':
-          return await this.handleGetGodotVersion();
-        case 'list_projects':
-          return await this.handleListProjects(request.params.arguments);
-        case 'get_project_info':
-          return await this.handleGetProjectInfo(request.params.arguments);
-        case 'create_scene':
-          return await this.handleCreateScene(request.params.arguments);
-        case 'add_node':
-          return await this.handleAddNode(request.params.arguments);
-        case 'load_sprite':
-          return await this.handleLoadSprite(request.params.arguments);
-        case 'export_mesh_library':
-          return await this.handleExportMeshLibrary(request.params.arguments);
-        case 'save_scene':
-          return await this.handleSaveScene(request.params.arguments);
-        case 'get_uid':
-          return await this.handleGetUid(request.params.arguments);
-        case 'update_project_uids':
-          return await this.handleUpdateProjectUids(request.params.arguments);
-        case 'game_screenshot':
-          return await this.handleGameScreenshot();
-        case 'game_click':
-          return await this.handleGameClick(request.params.arguments);
-        case 'game_key_press':
-          return await this.handleGameKeyPress(request.params.arguments);
-        case 'game_mouse_move':
-          return await this.handleGameMouseMove(request.params.arguments);
-        case 'game_get_ui':
-          return await this.handleGameGetUi();
-        case 'game_get_scene_tree':
-          return await this.handleGameGetSceneTree();
-        // New runtime interaction tools
-        case 'game_eval':
-          return await this.handleGameEval(request.params.arguments);
-        case 'game_get_property':
-          return await this.handleGameGetProperty(request.params.arguments);
-        case 'game_set_property':
-          return await this.handleGameSetProperty(request.params.arguments);
-        case 'game_call_method':
-          return await this.handleGameCallMethod(request.params.arguments);
-        case 'game_get_node_info':
-          return await this.handleGameGetNodeInfo(request.params.arguments);
-        case 'game_instantiate_scene':
-          return await this.handleGameInstantiateScene(request.params.arguments);
-        case 'game_remove_node':
-          return await this.handleGameRemoveNode(request.params.arguments);
-        case 'game_change_scene':
-          return await this.handleGameChangeScene(request.params.arguments);
-        case 'game_pause':
-          return await this.handleGamePause(request.params.arguments);
-        case 'game_performance':
-          return await this.handleGamePerformance();
-        case 'game_wait':
-          return await this.handleGameWait(request.params.arguments);
-        // Headless scene tools
-        case 'read_scene':
-          return await this.handleReadScene(request.params.arguments);
-        case 'modify_scene_node':
-          return await this.handleModifySceneNode(request.params.arguments);
-        case 'remove_scene_node':
-          return await this.handleRemoveSceneNode(request.params.arguments);
-        // Project management tools
-        case 'read_project_settings':
-          return await this.handleReadProjectSettings(request.params.arguments);
-        case 'modify_project_settings':
-          return await this.handleModifyProjectSettings(request.params.arguments);
-        case 'list_project_files':
-          return await this.handleListProjectFiles(request.params.arguments);
-        // New runtime signal/animation/group tools
-        case 'game_connect_signal':
-          return await this.handleGameConnectSignal(request.params.arguments);
-        case 'game_disconnect_signal':
-          return await this.handleGameDisconnectSignal(request.params.arguments);
-        case 'game_emit_signal':
-          return await this.handleGameEmitSignal(request.params.arguments);
-        case 'game_play_animation':
-          return await this.handleGamePlayAnimation(request.params.arguments);
-        case 'game_tween_property':
-          return await this.handleGameTweenProperty(request.params.arguments);
-        case 'game_get_nodes_in_group':
-          return await this.handleGameGetNodesInGroup(request.params.arguments);
-        case 'game_find_nodes_by_class':
-          return await this.handleGameFindNodesByClass(request.params.arguments);
-        case 'game_reparent_node':
-          return await this.handleGameReparentNode(request.params.arguments);
-        // Headless resource tools
-        case 'attach_script':
-          return await this.handleAttachScript(request.params.arguments);
-        case 'create_resource':
-          return await this.handleCreateResource(request.params.arguments);
-        // File I/O tools
-        case 'read_file':
-          return await this.handleReadFile(request.params.arguments);
-        case 'write_file':
-          return await this.handleWriteFile(request.params.arguments);
-        case 'delete_file':
-          return await this.handleDeleteFile(request.params.arguments);
-        case 'create_directory':
-          return await this.handleCreateDirectory(request.params.arguments);
-        // Error/Log capture tools
-        case 'game_get_errors':
-          return await this.handleGameGetErrors();
-        case 'game_get_logs':
-          return await this.handleGameGetLogs();
-        // Enhanced input tools
-        case 'game_key_hold':
-          return await this.handleGameKeyHold(request.params.arguments);
-        case 'game_key_release':
-          return await this.handleGameKeyRelease(request.params.arguments);
-        case 'game_scroll':
-          return await this.handleGameScroll(request.params.arguments);
-        case 'game_mouse_drag':
-          return await this.handleGameMouseDrag(request.params.arguments);
-        case 'game_gamepad':
-          return await this.handleGameGamepad(request.params.arguments);
-        // Project management tools
-        case 'create_project':
-          return await this.handleCreateProject(request.params.arguments);
-        case 'create_csharp_script':
-          return await this.handleCreateCsharpScript(request.params.arguments);
-        case 'manage_autoloads':
-          return await this.handleManageAutoloads(request.params.arguments);
-        case 'manage_input_map':
-          return await this.handleManageInputMap(request.params.arguments);
-        case 'manage_export_presets':
-          return await this.handleManageExportPresets(request.params.arguments);
-        // Advanced runtime tools
-        case 'game_get_camera':
-          return await this.handleGameGetCamera();
-        case 'game_set_camera':
-          return await this.handleGameSetCamera(request.params.arguments);
-        case 'game_raycast':
-          return await this.handleGameRaycast(request.params.arguments);
-        case 'game_get_audio':
-          return await this.handleGameGetAudio();
-        case 'game_spawn_node':
-          return await this.handleGameSpawnNode(request.params.arguments);
-        // Shader, audio, navigation, tilemap, collision, environment tools
-        case 'game_set_shader_param':
-          return await this.handleGameSetShaderParam(request.params.arguments);
-        case 'game_audio_play':
-          return await this.handleGameAudioPlay(request.params.arguments);
-        case 'game_audio_bus':
-          return await this.handleGameAudioBus(request.params.arguments);
-        case 'game_navigate_path':
-          return await this.handleGameNavigatePath(request.params.arguments);
-        case 'game_tilemap':
-          return await this.handleGameTilemap(request.params.arguments);
-        case 'game_add_collision':
-          return await this.handleGameAddCollision(request.params.arguments);
-        case 'game_environment':
-          return await this.handleGameEnvironment(request.params.arguments);
-        // Group, timer, particles, animation, export, state, physics, joint, bone, theme, viewport, debug
-        case 'game_manage_group':
-          return await this.handleGameManageGroup(request.params.arguments);
-        case 'game_create_timer':
-          return await this.handleGameCreateTimer(request.params.arguments);
-        case 'game_set_particles':
-          return await this.handleGameSetParticles(request.params.arguments);
-        case 'game_create_animation':
-          return await this.handleGameCreateAnimation(request.params.arguments);
-        case 'export_project':
-          return await this.handleExportProject(request.params.arguments);
-        case 'game_serialize_state':
-          return await this.handleGameSerializeState(request.params.arguments);
-        case 'game_physics_body':
-          return await this.handleGamePhysicsBody(request.params.arguments);
-        case 'game_create_joint':
-          return await this.handleGameCreateJoint(request.params.arguments);
-        case 'game_bone_pose':
-          return await this.handleGameBonePose(request.params.arguments);
-        case 'game_ui_theme':
-          return await this.handleGameUiTheme(request.params.arguments);
-        case 'game_viewport':
-          return await this.handleGameViewport(request.params.arguments);
-        case 'game_debug_draw':
-          return await this.handleGameDebugDraw(request.params.arguments);
-        // Batch 1: Networking + Input + System + Signals + Script
-        case 'game_http_request':
-          return await this.handleGameHttpRequest(request.params.arguments);
-        case 'game_websocket':
-          return await this.handleGameWebsocket(request.params.arguments);
-        case 'game_multiplayer':
-          return await this.handleGameMultiplayer(request.params.arguments);
-        case 'game_rpc':
-          return await this.handleGameRpc(request.params.arguments);
-        case 'game_touch':
-          return await this.handleGameTouch(request.params.arguments);
-        case 'game_input_state':
-          return await this.handleGameInputState(request.params.arguments);
-        case 'game_input_action':
-          return await this.handleGameInputAction(request.params.arguments);
-        case 'game_list_signals':
-          return await this.handleGameListSignals(request.params.arguments);
-        case 'game_await_signal':
-          return await this.handleGameAwaitSignal(request.params.arguments);
-        case 'game_script':
-          return await this.handleGameScript(request.params.arguments);
-        case 'game_window':
-          return await this.handleGameWindow(request.params.arguments);
-        case 'game_os_info':
-          return await this.handleGameOsInfo(request.params.arguments);
-        case 'game_time_scale':
-          return await this.handleGameTimeScale(request.params.arguments);
-        case 'game_process_mode':
-          return await this.handleGameProcessMode(request.params.arguments);
-        case 'game_world_settings':
-          return await this.handleGameWorldSettings(request.params.arguments);
-        // Batch 2: 3D Rendering + Lighting + Sky + Physics
-        case 'game_csg':
-          return await this.handleGameCsg(request.params.arguments);
-        case 'game_multimesh':
-          return await this.handleGameMultimesh(request.params.arguments);
-        case 'game_procedural_mesh':
-          return await this.handleGameProceduralMesh(request.params.arguments);
-        case 'game_light_3d':
-          return await this.handleGameLight3d(request.params.arguments);
-        case 'game_mesh_instance':
-          return await this.handleGameMeshInstance(request.params.arguments);
-        case 'game_gridmap':
-          return await this.handleGameGridmap(request.params.arguments);
-        case 'game_3d_effects':
-          return await this.handleGame3dEffects(request.params.arguments);
-        case 'game_gi':
-          return await this.handleGameGi(request.params.arguments);
-        case 'game_path_3d':
-          return await this.handleGamePath3d(request.params.arguments);
-        case 'game_sky':
-          return await this.handleGameSky(request.params.arguments);
-        case 'game_camera_attributes':
-          return await this.handleGameCameraAttributes(request.params.arguments);
-        case 'game_navigation_3d':
-          return await this.handleGameNavigation3d(request.params.arguments);
-        case 'game_physics_3d':
-          return await this.handleGamePhysics3d(request.params.arguments);
-        // Batch 3: 2D Systems + Animation Advanced + Audio Effects
-        case 'game_canvas':
-          return await this.handleGameCanvas(request.params.arguments);
-        case 'game_canvas_draw':
-          return await this.handleGameCanvasDraw(request.params.arguments);
-        case 'game_light_2d':
-          return await this.handleGameLight2d(request.params.arguments);
-        case 'game_parallax':
-          return await this.handleGameParallax(request.params.arguments);
-        case 'game_shape_2d':
-          return await this.handleGameShape2d(request.params.arguments);
-        case 'game_path_2d':
-          return await this.handleGamePath2d(request.params.arguments);
-        case 'game_physics_2d':
-          return await this.handleGamePhysics2d(request.params.arguments);
-        case 'game_animation_tree':
-          return await this.handleGameAnimationTree(request.params.arguments);
-        case 'game_animation_control':
-          return await this.handleGameAnimationControl(request.params.arguments);
-        case 'game_skeleton_ik':
-          return await this.handleGameSkeletonIk(request.params.arguments);
-        case 'game_audio_effect':
-          return await this.handleGameAudioEffect(request.params.arguments);
-        case 'game_audio_bus_layout':
-          return await this.handleGameAudioBusLayout(request.params.arguments);
-        case 'game_audio_spatial':
-          return await this.handleGameAudioSpatial(request.params.arguments);
-        // Batch 4: Editor/Headless + Localization + Resource
-        case 'rename_file':
-          return await this.handleRenameFile(request.params.arguments);
-        case 'manage_resource':
-          return await this.handleManageResource(request.params.arguments);
-        case 'validate_script':
-          return await this.handleValidateScript(request.params.arguments);
-        case 'validate_scripts':
-          return await this.handleValidateScripts(request.params.arguments);
-        case 'create_script':
-          return await this.handleCreateScript(request.params.arguments);
-        case 'manage_scene_signals':
-          return await this.handleManageSceneSignals(request.params.arguments);
-        case 'manage_layers':
-          return await this.handleManageLayers(request.params.arguments);
-        case 'manage_plugins':
-          return await this.handleManagePlugins(request.params.arguments);
-        case 'manage_shader':
-          return await this.handleManageShader(request.params.arguments);
-        case 'manage_theme_resource':
-          return await this.handleManageThemeResource(request.params.arguments);
-        case 'set_main_scene':
-          return await this.handleSetMainScene(request.params.arguments);
-        case 'manage_scene_structure':
-          return await this.handleManageSceneStructure(request.params.arguments);
-        case 'manage_translations':
-          return await this.handleManageTranslations(request.params.arguments);
-        case 'game_locale':
-          return await this.handleGameLocale(request.params.arguments);
-        // Batch 5: UI Controls + Rendering + Resource Runtime
-        case 'game_ui_control':
-          return await this.handleGameUiControl(request.params.arguments);
-        case 'game_ui_text':
-          return await this.handleGameUiText(request.params.arguments);
-        case 'game_ui_popup':
-          return await this.handleGameUiPopup(request.params.arguments);
-        case 'game_ui_tree':
-          return await this.handleGameUiTree(request.params.arguments);
-        case 'game_ui_item_list':
-          return await this.handleGameUiItemList(request.params.arguments);
-        case 'game_ui_tabs':
-          return await this.handleGameUiTabs(request.params.arguments);
-        case 'game_ui_menu':
-          return await this.handleGameUiMenu(request.params.arguments);
-        case 'game_ui_range':
-          return await this.handleGameUiRange(request.params.arguments);
-        case 'game_render_settings':
-          return await this.handleGameRenderSettings(request.params.arguments);
-        case 'game_resource':
-          return await this.handleGameResource(request.params.arguments);
-        // Batch 6: Visual Shader + Terrain + Video + CI/CD
-        case 'game_visual_shader':
-          return await this.handleGameVisualShader(request.params.arguments);
-        case 'game_terrain':
-          return await this.handleGameTerrain(request.params.arguments);
-        case 'game_video':
-          return await this.handleGameVideo(request.params.arguments);
-        case 'manage_ci_pipeline':
-          return await this.handleManageCiPipeline(request.params.arguments);
-        case 'manage_docker_export':
-          return await this.handleManageDockerExport(request.params.arguments);
-        default:
-          throw new McpError(
-            ErrorCode.MethodNotFound,
-            `Unknown tool: ${request.params.name}`
-          );
-      }
+      return tools.dispatch(request.params.name, request.params.arguments);
     });
   }
+
+  private createToolHandlers(): Record<ToolName, ToolHandler> {
+    return {
+      'launch_editor': args => this.handleLaunchEditor(args),
+      'run_project': args => this.handleRunProject(args),
+      'get_debug_output': () => this.handleGetDebugOutput(),
+      'stop_project': () => this.handleStopProject(),
+      'get_godot_version': () => this.handleGetGodotVersion(),
+      'list_projects': args => this.handleListProjects(args),
+      'get_project_info': args => this.handleGetProjectInfo(args),
+      'create_scene': args => this.handleCreateScene(args),
+      'add_node': args => this.handleAddNode(args),
+      'load_sprite': args => this.handleLoadSprite(args),
+      'export_mesh_library': args => this.handleExportMeshLibrary(args),
+      'save_scene': args => this.handleSaveScene(args),
+      'get_uid': args => this.handleGetUid(args),
+      'update_project_uids': args => this.handleUpdateProjectUids(args),
+      'game_screenshot': () => this.handleGameScreenshot(),
+      'game_click': args => this.handleGameClick(args),
+      'game_key_press': args => this.handleGameKeyPress(args),
+      'game_mouse_move': args => this.handleGameMouseMove(args),
+      'game_get_ui': () => this.handleGameGetUi(),
+      'game_get_scene_tree': () => this.handleGameGetSceneTree(),
+      'game_eval': args => this.handleGameEval(args),
+      'game_get_property': args => this.handleGameGetProperty(args),
+      'game_set_property': args => this.handleGameSetProperty(args),
+      'game_call_method': args => this.handleGameCallMethod(args),
+      'game_get_node_info': args => this.handleGameGetNodeInfo(args),
+      'game_instantiate_scene': args => this.handleGameInstantiateScene(args),
+      'game_remove_node': args => this.handleGameRemoveNode(args),
+      'game_change_scene': args => this.handleGameChangeScene(args),
+      'game_pause': args => this.handleGamePause(args),
+      'game_performance': () => this.handleGamePerformance(),
+      'game_wait': args => this.handleGameWait(args),
+      'read_scene': args => this.handleReadScene(args),
+      'modify_scene_node': args => this.handleModifySceneNode(args),
+      'remove_scene_node': args => this.handleRemoveSceneNode(args),
+      'read_project_settings': args => this.handleReadProjectSettings(args),
+      'modify_project_settings': args => this.handleModifyProjectSettings(args),
+      'list_project_files': args => this.handleListProjectFiles(args),
+      'game_connect_signal': args => this.handleGameConnectSignal(args),
+      'game_disconnect_signal': args => this.handleGameDisconnectSignal(args),
+      'game_emit_signal': args => this.handleGameEmitSignal(args),
+      'game_play_animation': args => this.handleGamePlayAnimation(args),
+      'game_tween_property': args => this.handleGameTweenProperty(args),
+      'game_get_nodes_in_group': args => this.handleGameGetNodesInGroup(args),
+      'game_find_nodes_by_class': args => this.handleGameFindNodesByClass(args),
+      'game_reparent_node': args => this.handleGameReparentNode(args),
+      'attach_script': args => this.handleAttachScript(args),
+      'create_resource': args => this.handleCreateResource(args),
+      'read_file': args => this.handleReadFile(args),
+      'write_file': args => this.handleWriteFile(args),
+      'delete_file': args => this.handleDeleteFile(args),
+      'create_directory': args => this.handleCreateDirectory(args),
+      'game_get_errors': () => this.handleGameGetErrors(),
+      'game_get_logs': () => this.handleGameGetLogs(),
+      'game_key_hold': args => this.handleGameKeyHold(args),
+      'game_key_release': args => this.handleGameKeyRelease(args),
+      'game_scroll': args => this.handleGameScroll(args),
+      'game_mouse_drag': args => this.handleGameMouseDrag(args),
+      'game_gamepad': args => this.handleGameGamepad(args),
+      'create_project': args => this.handleCreateProject(args),
+      'create_csharp_script': args => this.handleCreateCsharpScript(args),
+      'manage_autoloads': args => this.handleManageAutoloads(args),
+      'manage_input_map': args => this.handleManageInputMap(args),
+      'manage_export_presets': args => this.handleManageExportPresets(args),
+      'game_get_camera': () => this.handleGameGetCamera(),
+      'game_set_camera': args => this.handleGameSetCamera(args),
+      'game_raycast': args => this.handleGameRaycast(args),
+      'game_get_audio': () => this.handleGameGetAudio(),
+      'game_spawn_node': args => this.handleGameSpawnNode(args),
+      'game_set_shader_param': args => this.handleGameSetShaderParam(args),
+      'game_audio_play': args => this.handleGameAudioPlay(args),
+      'game_audio_bus': args => this.handleGameAudioBus(args),
+      'game_navigate_path': args => this.handleGameNavigatePath(args),
+      'game_tilemap': args => this.handleGameTilemap(args),
+      'game_add_collision': args => this.handleGameAddCollision(args),
+      'game_environment': args => this.handleGameEnvironment(args),
+      'game_manage_group': args => this.handleGameManageGroup(args),
+      'game_create_timer': args => this.handleGameCreateTimer(args),
+      'game_set_particles': args => this.handleGameSetParticles(args),
+      'game_create_animation': args => this.handleGameCreateAnimation(args),
+      'export_project': args => this.handleExportProject(args),
+      'game_serialize_state': args => this.handleGameSerializeState(args),
+      'game_physics_body': args => this.handleGamePhysicsBody(args),
+      'game_create_joint': args => this.handleGameCreateJoint(args),
+      'game_bone_pose': args => this.handleGameBonePose(args),
+      'game_ui_theme': args => this.handleGameUiTheme(args),
+      'game_viewport': args => this.handleGameViewport(args),
+      'game_debug_draw': args => this.handleGameDebugDraw(args),
+      'game_http_request': args => this.handleGameHttpRequest(args),
+      'game_websocket': args => this.handleGameWebsocket(args),
+      'game_multiplayer': args => this.handleGameMultiplayer(args),
+      'game_rpc': args => this.handleGameRpc(args),
+      'game_touch': args => this.handleGameTouch(args),
+      'game_input_state': args => this.handleGameInputState(args),
+      'game_input_action': args => this.handleGameInputAction(args),
+      'game_list_signals': args => this.handleGameListSignals(args),
+      'game_await_signal': args => this.handleGameAwaitSignal(args),
+      'game_script': args => this.handleGameScript(args),
+      'game_window': args => this.handleGameWindow(args),
+      'game_os_info': args => this.handleGameOsInfo(args),
+      'game_time_scale': args => this.handleGameTimeScale(args),
+      'game_process_mode': args => this.handleGameProcessMode(args),
+      'game_world_settings': args => this.handleGameWorldSettings(args),
+      'game_csg': args => this.handleGameCsg(args),
+      'game_multimesh': args => this.handleGameMultimesh(args),
+      'game_procedural_mesh': args => this.handleGameProceduralMesh(args),
+      'game_light_3d': args => this.handleGameLight3d(args),
+      'game_mesh_instance': args => this.handleGameMeshInstance(args),
+      'game_gridmap': args => this.handleGameGridmap(args),
+      'game_3d_effects': args => this.handleGame3dEffects(args),
+      'game_gi': args => this.handleGameGi(args),
+      'game_path_3d': args => this.handleGamePath3d(args),
+      'game_sky': args => this.handleGameSky(args),
+      'game_camera_attributes': args => this.handleGameCameraAttributes(args),
+      'game_navigation_3d': args => this.handleGameNavigation3d(args),
+      'game_physics_3d': args => this.handleGamePhysics3d(args),
+      'game_canvas': args => this.handleGameCanvas(args),
+      'game_canvas_draw': args => this.handleGameCanvasDraw(args),
+      'game_light_2d': args => this.handleGameLight2d(args),
+      'game_parallax': args => this.handleGameParallax(args),
+      'game_shape_2d': args => this.handleGameShape2d(args),
+      'game_path_2d': args => this.handleGamePath2d(args),
+      'game_physics_2d': args => this.handleGamePhysics2d(args),
+      'game_animation_tree': args => this.handleGameAnimationTree(args),
+      'game_animation_control': args => this.handleGameAnimationControl(args),
+      'game_skeleton_ik': args => this.handleGameSkeletonIk(args),
+      'game_audio_effect': args => this.handleGameAudioEffect(args),
+      'game_audio_bus_layout': args => this.handleGameAudioBusLayout(args),
+      'game_audio_spatial': args => this.handleGameAudioSpatial(args),
+      'rename_file': args => this.handleRenameFile(args),
+      'manage_resource': args => this.handleManageResource(args),
+      'validate_script': args => this.handleValidateScript(args),
+      'validate_scripts': args => this.handleValidateScripts(args),
+      'create_script': args => this.handleCreateScript(args),
+      'manage_scene_signals': args => this.handleManageSceneSignals(args),
+      'manage_layers': args => this.handleManageLayers(args),
+      'manage_plugins': args => this.handleManagePlugins(args),
+      'manage_shader': args => this.handleManageShader(args),
+      'manage_theme_resource': args => this.handleManageThemeResource(args),
+      'set_main_scene': args => this.handleSetMainScene(args),
+      'manage_scene_structure': args => this.handleManageSceneStructure(args),
+      'manage_translations': args => this.handleManageTranslations(args),
+      'game_locale': args => this.handleGameLocale(args),
+      'game_ui_control': args => this.handleGameUiControl(args),
+      'game_ui_text': args => this.handleGameUiText(args),
+      'game_ui_popup': args => this.handleGameUiPopup(args),
+      'game_ui_tree': args => this.handleGameUiTree(args),
+      'game_ui_item_list': args => this.handleGameUiItemList(args),
+      'game_ui_tabs': args => this.handleGameUiTabs(args),
+      'game_ui_menu': args => this.handleGameUiMenu(args),
+      'game_ui_range': args => this.handleGameUiRange(args),
+      'game_render_settings': args => this.handleGameRenderSettings(args),
+      'game_resource': args => this.handleGameResource(args),
+      'game_visual_shader': args => this.handleGameVisualShader(args),
+      'game_terrain': args => this.handleGameTerrain(args),
+      'game_video': args => this.handleGameVideo(args),
+      'manage_ci_pipeline': args => this.handleManageCiPipeline(args),
+      'manage_docker_export': args => this.handleManageDockerExport(args),
+    };
+  }
+
+
 
   /**
    * Handle the launch_editor tool
@@ -3698,7 +718,7 @@ export class GodotServer {
         if (this.gameConnection.projectPath) {
           this.removeInteractionServer(this.gameConnection.projectPath);
         }
-        this.activeProcess.process.kill();
+        this.processManager.stop();
       }
 
       // Inject interaction server before launching
@@ -3711,46 +731,20 @@ export class GodotServer {
       }
 
       this.logDebug(`Running Godot project: ${args.projectPath}`);
-      const process = spawn(this.godotPath!, cmdArgs, { stdio: 'pipe' });
-      const output: string[] = [];
-      const errors: string[] = [];
-
-      process.stdout?.on('data', (data: Buffer) => {
-        const lines = data.toString().split('\n');
-        output.push(...lines);
-        lines.forEach((line: string) => {
-          if (line.trim()) this.logDebug(`[Godot stdout] ${line}`);
-        });
+      this.processManager.start({
+        executable: this.godotPath!,
+        args: cmdArgs,
+        onExit: () => {
+          this.disconnectFromGame();
+          if (this.gameConnection.projectPath) {
+            this.removeInteractionServer(this.gameConnection.projectPath);
+            this.gameConnection.projectPath = null;
+          }
+        },
+        onError: err => {
+          console.error('Failed to start Godot process:', err);
+        },
       });
-
-      process.stderr?.on('data', (data: Buffer) => {
-        const lines = data.toString().split('\n');
-        errors.push(...lines);
-        lines.forEach((line: string) => {
-          if (line.trim()) this.logDebug(`[Godot stderr] ${line}`);
-        });
-      });
-
-      process.on('exit', (code: number | null) => {
-        this.logDebug(`Godot process exited with code ${code}`);
-        this.disconnectFromGame();
-        if (this.gameConnection.projectPath) {
-          this.removeInteractionServer(this.gameConnection.projectPath);
-          this.gameConnection.projectPath = null;
-        }
-        if (this.activeProcess && this.activeProcess.process === process) {
-          this.activeProcess = null;
-        }
-      });
-
-      process.on('error', (err: Error) => {
-        console.error('Failed to start Godot process:', err);
-        if (this.activeProcess && this.activeProcess.process === process) {
-          this.activeProcess = null;
-        }
-      });
-
-      this.activeProcess = { process, output, errors };
 
       // Start async TCP connection to the interaction server (fire-and-forget)
       this.connectToGame(args.projectPath).catch(err => {
@@ -3761,7 +755,7 @@ export class GodotServer {
         content: [
           {
             type: 'text',
-            text: `Godot project started in debug mode. Use get_debug_output to see output. Game interaction server connecting on port ${this.INTERACTION_PORT}...`,
+            text: `Godot project started in debug mode. Use get_debug_output to see output. Game interaction server connecting on port ${this.gameConnection.interactionPort}...`,
           },
         ],
       };
@@ -3812,12 +806,9 @@ export class GodotServer {
 
     this.logDebug('Stopping active Godot process');
     this.disconnectFromGame();
-    this.activeProcess.process.kill();
-    const output = this.activeProcess.output;
-    const errors = this.activeProcess.errors;
-    this.activeProcess = null;
-    this.lastErrorIndex = 0;
-    this.lastLogIndex = 0;
+    const stoppedProcess = this.processManager.stop()!;
+    const output = stoppedProcess.output;
+    const errors = stoppedProcess.errors;
 
     // Remove injected interaction server
     if (this.gameConnection.projectPath) {
@@ -5077,16 +2068,14 @@ export class GodotServer {
   private async handleGameGetErrors() {
     if (!this.activeProcess)
       return createErrorResponse('No active Godot process. Use run_project first.');
-    const errors = this.activeProcess.errors.slice(this.lastErrorIndex);
-    this.lastErrorIndex = this.activeProcess.errors.length;
+    const errors = this.processManager.readNewErrors();
     return { content: [{ type: 'text', text: JSON.stringify({ count: errors.length, errors }, null, 2) }] };
   }
 
   private async handleGameGetLogs() {
     if (!this.activeProcess)
       return createErrorResponse('No active Godot process. Use run_project first.');
-    const logs = this.activeProcess.output.slice(this.lastLogIndex);
-    this.lastLogIndex = this.activeProcess.output.length;
+    const logs = this.processManager.readNewLogs();
     return { content: [{ type: 'text', text: JSON.stringify({ count: logs.length, logs }, null, 2) }] };
   }
 

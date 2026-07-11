@@ -1920,30 +1920,20 @@ describe('executeOperation parameter conversion', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 10. Switch statement dispatch
+// 10. Registry dispatch
 // ---------------------------------------------------------------------------
-describe('Tool dispatch switch statement', () => {
-  it('has a default case that throws McpError', () => {
-    expect(sourceCode).toContain("throw new McpError(");
-    expect(sourceCode).toContain("ErrorCode.MethodNotFound");
-    expect(sourceCode).toContain("Unknown tool:");
+describe('Tool registry dispatch', () => {
+  it('delegates tool calls through ToolRegistry', () => {
+    expect(sourceCode).toContain('new ToolRegistry(this.createToolHandlers())');
+    expect(sourceCode).toContain('return tools.dispatch(request.params.name, request.params.arguments)');
   });
 
-  it('every case returns await this.handle*', () => {
-    const caseRegex = /case '(\w+)':\s*\n\s*return await this\.handle/g;
-    const matches = [...sourceCode.matchAll(caseRegex)];
-    // Should match all 157 tools
-    expect(matches.length).toBe(157);
+  it('does not retain the monolithic switch', () => {
+    expect(sourceCode).not.toContain('switch (request.params.name)');
   });
 
-  it('no case falls through without return', () => {
-    // Each case should have "return await" — no break statements
-    const switchBlock = sourceCode.substring(
-      sourceCode.indexOf("switch (request.params.name)"),
-      sourceCode.indexOf("default:")
-    );
-    const caseStatements = switchBlock.match(/case '[^']+'/g) || [];
-    const returnStatements = switchBlock.match(/return await/g) || [];
-    expect(returnStatements.length).toBe(caseStatements.length);
+  it('binds an exhaustive typed handler map without runtime reflection', () => {
+    expect(sourceCode).toContain('Record<ToolName, ToolHandler>');
+    expect(sourceCode).not.toContain('method.call(target');
   });
 });

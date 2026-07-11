@@ -67,7 +67,10 @@ const ALL_TOOL_NAMES = [
 let sourceCode: string;
 
 beforeAll(() => {
-  sourceCode = readFileSync(join(__dirname, '..', 'src', 'index.ts'), 'utf8');
+  sourceCode = [
+    readFileSync(join(__dirname, '..', 'src', 'index.ts'), 'utf8'),
+    readFileSync(join(__dirname, '..', 'src', 'tool-definitions.ts'), 'utf8'),
+  ].join('\n');
 });
 
 describe('Tool definitions', () => {
@@ -107,9 +110,13 @@ describe('Tool definitions', () => {
     expect(matches.length).toBeGreaterThanOrEqual(ALL_TOOL_NAMES.length);
   });
 
-  it('switch statement handles all tool names', () => {
+  it('has a convention-based handler for every tool name', () => {
     for (const name of ALL_TOOL_NAMES) {
-      expect(sourceCode).toContain(`case '${name}':`);
+      const handlerName = `handle${name
+        .split('_')
+        .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+        .join('')}`;
+      expect(sourceCode).toContain(handlerName);
     }
   });
 
