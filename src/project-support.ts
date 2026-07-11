@@ -5,6 +5,7 @@ import { promisify } from 'util';
 
 import {
   collectGdPaths,
+  errorMessage,
   parseGodotScriptDiagnostics,
   type ScriptDiagnostic,
 } from './utils.js';
@@ -180,13 +181,14 @@ export class ProjectSupport {
         { timeout: 30000, maxBuffer: 16 * 1024 * 1024 },
       );
       output = `${stdout ?? ''}${stderr ?? ''}`;
-    } catch (error: any) {
+    } catch (error: unknown) {
       failed = true;
-      output = `${error?.stdout ?? ''}${error?.stderr ?? ''}`;
-      const aborted = error?.killed === true || error?.signal != null ||
-        error?.code === 'ETIMEDOUT' || error?.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER';
+      const execError = error as { stdout?: string; stderr?: string; killed?: boolean; signal?: string; code?: string };
+      output = `${execError.stdout ?? ''}${execError.stderr ?? ''}`;
+      const aborted = execError.killed === true || execError.signal != null ||
+        execError.code === 'ETIMEDOUT' || execError.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER';
       if (aborted) return { completed: false, errors: [], error: 'Godot timed out or produced too much output' };
-      if (!output) return { completed: false, errors: [], error: error?.message || 'Unknown error' };
+      if (!output) return { completed: false, errors: [], error: errorMessage(error) };
     }
 
     const errors = parseGodotScriptDiagnostics(output);
@@ -218,8 +220,8 @@ export class ProjectSupport {
         git(['ls-files', '--others', '--exclude-standard']),
       ]);
       return { files: collectGdPaths(outputs.map(output => output.stdout ?? '')) };
-    } catch (error: any) {
-      return { error: `Failed to list changed files: ${error?.message || 'Unknown error'}` };
+    } catch (error: unknown) {
+      return { error: `Failed to list changed files: ${errorMessage(error)}` };
     }
   }
 

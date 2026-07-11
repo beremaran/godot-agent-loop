@@ -22,4 +22,4 @@ finishing the separation and improving maintainability.
 - [x] Add direct unit tests for the extracted handler modules.
 - [x] Replace brittle source-structure tests with behavior-focused tests where
   practical.
-- [ ] Introduce stronger argument types and reduce remaining `any` usage.
+- [x] Introduce stronger argument types and reduce remaining `any` usage.

@@ -16,6 +16,7 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
+import type { GameResponse } from './game-connection.js';
 
 import type { OperationParams } from './utils.js';
 import { toolDefinitions } from './tool-definitions.js';
@@ -312,11 +313,11 @@ export class GodotServer {
     this.gameConnection.disconnect();
   }
 
-  private rejectAllPending(response: any): void {
+  private rejectAllPending(response: GameResponse): void {
     this.gameConnection.rejectAllPending(response);
   }
 
-  private resolveGameResponse(parsed: any): void {
+  private resolveGameResponse(parsed: unknown): void {
     this.gameConnection.resolveResponse(parsed);
   }
 

@@ -1,7 +1,7 @@
 import { existsSync } from 'fs';
 import { join } from 'path';
 
-import { createErrorResponse, validatePath, type OperationParams } from './utils.js';
+import { createErrorResponse, errorMessage, validatePath, type OperationParams, type ToolResponse } from './utils.js';
 import type { HeadlessOperationRunner } from './headless-operation-runner.js';
 
 /** Coordinates validated tool operations that execute Godot headlessly. */
@@ -12,7 +12,7 @@ export class HeadlessOperationService {
     return this.runner.execute(operation, params, projectPath);
   }
 
-  public async run(operation: string, projectPath: string, params: OperationParams): Promise<any> {
+  public async run(operation: string, projectPath: string, params: OperationParams): Promise<ToolResponse> {
     if (!projectPath) return createErrorResponse('projectPath is required.');
     if (!validatePath(projectPath)) return createErrorResponse('Invalid path.');
     if (!existsSync(join(projectPath, 'project.godot')))
@@ -22,8 +22,8 @@ export class HeadlessOperationService {
       const { stdout, stderr } = await this.execute(operation, params, projectPath);
       if (stderr && stderr.includes('Failed to')) return createErrorResponse(`${operation} failed: ${stderr}`);
       return { content: [{ type: 'text', text: `${operation} succeeded.\n\nOutput: ${stdout}` }] };
-    } catch (error: any) {
-      return createErrorResponse(`${operation} failed: ${error?.message || 'Unknown error'}`);
+    } catch (error: unknown) {
+      return createErrorResponse(`${operation} failed: ${errorMessage(error)}`);
     }
   }
 }

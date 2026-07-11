@@ -9,7 +9,13 @@ export interface GameConnectionOptions {
   log?: (message: string) => void;
 }
 
-type ResponseResolver = (value: any) => void;
+export interface GameResponse {
+  id?: number;
+  error?: string;
+  [key: string]: unknown;
+}
+
+type ResponseResolver = (value: GameResponse) => void;
 
 /** Owns the TCP protocol and request lifecycle for a running Godot game. */
 export class GameConnection {
@@ -73,27 +79,29 @@ export class GameConnection {
     this.rejectAllPending({ error: 'Disconnected' });
   }
 
-  rejectAllPending(response: any): void {
+  rejectAllPending(response: GameResponse): void {
     for (const resolver of this.pendingRequests.values()) resolver(response);
     this.pendingRequests.clear();
   }
 
-  resolveResponse(parsed: any): void {
+  resolveResponse(parsed: unknown): void {
     if (this.pendingRequests.size === 0) return;
+    if (!parsed || typeof parsed !== 'object') return;
+    const response = parsed as GameResponse;
     let id: number | undefined;
-    if (parsed && typeof parsed.id === 'number') {
-      if (!this.pendingRequests.has(parsed.id)) return;
-      id = parsed.id;
+    if (typeof response.id === 'number') {
+      if (!this.pendingRequests.has(response.id)) return;
+      id = response.id;
     } else {
       id = this.pendingRequests.keys().next().value;
     }
     if (id === undefined) return;
     const resolver = this.pendingRequests.get(id)!;
     this.pendingRequests.delete(id);
-    resolver(parsed);
+    resolver(response);
   }
 
-  async send(command: string, params: Record<string, any> = {}, timeoutMs = 10000): Promise<any> {
+  async send(command: string, params: Record<string, unknown> = {}, timeoutMs = 10000): Promise<GameResponse> {
     if (!this.connected || !this.socket) {
       throw new Error('Not connected to game interaction server. Is the game running?');
     }

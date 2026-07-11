@@ -7,6 +7,7 @@ import {
   normalizeParameters,
   validatePath,
   createErrorResponse,
+  errorMessage,
   isGodot44OrLater,
   generateGodotProjectFeatures,
   generateCsprojContent,
@@ -14,7 +15,7 @@ import {
   toDotnetIdentifier,
   isValidCsharpIdentifier,
 } from '../utils.js';
-import type { OperationParams } from '../utils.js';
+import { type OperationParams, type ToolArguments, type ToolResponse } from '../utils.js';
 import type { ProjectSupport } from '../project-support.js';
 import type { GodotExecutableService } from '../godot-executable.js';
 import type { HeadlessOperationService } from '../headless-operation-service.js';
@@ -32,7 +33,16 @@ interface ProjectOperationApi {
   getGodotPath: () => string | null;
   detectGodotPath: () => Promise<void>;
   executeOperation: (operation: string, params: OperationParams, projectPath: string) => Promise<{ stdout: string; stderr: string }>;
-  headlessOp: (operation: string, args: any, argsFn: (a: any) => { projectPath: string; params: OperationParams }) => Promise<any>;
+  headlessOp: (operation: string, args: ToolArguments, argsFn: (a: ToolArguments) => { projectPath: string; params: OperationParams }) => Promise<ToolResponse>;
+}
+
+interface ValidationResult {
+  scriptPath: string;
+  checked: boolean;
+  valid?: boolean;
+  error?: string;
+  errorCount?: number;
+  errors?: unknown[];
 }
 
 /** Implements project, scene, file, script, and export tools. */
@@ -52,7 +62,7 @@ export class ProjectToolHandlers {
     };
   }
 
-  public async handleListProjects(args: any) {
+  public async handleListProjects(args: ToolArguments) {
     // Normalize parameters to camelCase
     args = normalizeParameters(args);
     
@@ -87,9 +97,9 @@ export class ProjectToolHandlers {
           },
         ],
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return createErrorResponse(
-        `Failed to list projects: ${error?.message || 'Unknown error'}`
+        `Failed to list projects: ${errorMessage(error)}`
       );
     }
   }
@@ -100,7 +110,7 @@ export class ProjectToolHandlers {
    * @returns Promise resolving to an object with counts of scenes, scripts, assets, and other files
    */
 
-  public async handleGetProjectInfo(args: any) {
+  public async handleGetProjectInfo(args: ToolArguments) {
     // Normalize parameters to camelCase
     args = normalizeParameters(args);
     
@@ -176,9 +186,9 @@ export class ProjectToolHandlers {
           },
         ],
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return createErrorResponse(
-        `Failed to get project info: ${error?.message || 'Unknown error'}`
+        `Failed to get project info: ${errorMessage(error)}`
       );
     }
   }
@@ -187,7 +197,7 @@ export class ProjectToolHandlers {
    * Handle the create_scene tool
    */
 
-  public async handleCreateScene(args: any) {
+  public async handleCreateScene(args: ToolArguments) {
     // Normalize parameters to camelCase
     args = normalizeParameters(args);
     
@@ -235,9 +245,9 @@ export class ProjectToolHandlers {
           },
         ],
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return createErrorResponse(
-        `Failed to create scene: ${error?.message || 'Unknown error'}`
+        `Failed to create scene: ${errorMessage(error)}`
       );
     }
   }
@@ -246,7 +256,7 @@ export class ProjectToolHandlers {
    * Handle the add_node tool
    */
 
-  public async handleAddNode(args: any) {
+  public async handleAddNode(args: ToolArguments) {
     // Normalize parameters to camelCase
     args = normalizeParameters(args);
     
@@ -280,7 +290,7 @@ export class ProjectToolHandlers {
       }
 
       // Prepare parameters for the operation (already in camelCase)
-      const params: any = {
+      const params: OperationParams = {
         scenePath: args.scenePath,
         nodeType: args.nodeType,
         nodeName: args.nodeName,
@@ -312,9 +322,9 @@ export class ProjectToolHandlers {
           },
         ],
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return createErrorResponse(
-        `Failed to add node: ${error?.message || 'Unknown error'}`
+        `Failed to add node: ${errorMessage(error)}`
       );
     }
   }
@@ -323,7 +333,7 @@ export class ProjectToolHandlers {
    * Handle the load_sprite tool
    */
 
-  public async handleLoadSprite(args: any) {
+  public async handleLoadSprite(args: ToolArguments) {
     // Normalize parameters to camelCase
     args = normalizeParameters(args);
     
@@ -393,9 +403,9 @@ export class ProjectToolHandlers {
           },
         ],
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return createErrorResponse(
-        `Failed to load sprite: ${error?.message || 'Unknown error'}`
+        `Failed to load sprite: ${errorMessage(error)}`
       );
     }
   }
@@ -404,7 +414,7 @@ export class ProjectToolHandlers {
    * Handle the export_mesh_library tool
    */
 
-  public async handleExportMeshLibrary(args: any) {
+  public async handleExportMeshLibrary(args: ToolArguments) {
     // Normalize parameters to camelCase
     args = normalizeParameters(args);
     
@@ -442,7 +452,7 @@ export class ProjectToolHandlers {
       }
 
       // Prepare parameters for the operation (already in camelCase)
-      const params: any = {
+      const params: OperationParams = {
         scenePath: args.scenePath,
         outputPath: args.outputPath,
       };
@@ -469,9 +479,9 @@ export class ProjectToolHandlers {
           },
         ],
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return createErrorResponse(
-        `Failed to export mesh library: ${error?.message || 'Unknown error'}`
+        `Failed to export mesh library: ${errorMessage(error)}`
       );
     }
   }
@@ -480,7 +490,7 @@ export class ProjectToolHandlers {
    * Handle the save_scene tool
    */
 
-  public async handleSaveScene(args: any) {
+  public async handleSaveScene(args: ToolArguments) {
     // Normalize parameters to camelCase
     args = normalizeParameters(args);
     
@@ -521,7 +531,7 @@ export class ProjectToolHandlers {
       }
 
       // Prepare parameters for the operation (already in camelCase)
-      const params: any = {
+      const params: OperationParams = {
         scenePath: args.scenePath,
       };
 
@@ -548,9 +558,9 @@ export class ProjectToolHandlers {
           },
         ],
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return createErrorResponse(
-        `Failed to save scene: ${error?.message || 'Unknown error'}`
+        `Failed to save scene: ${errorMessage(error)}`
       );
     }
   }
@@ -559,7 +569,7 @@ export class ProjectToolHandlers {
    * Handle the get_uid tool
    */
 
-  public async handleGetUid(args: any) {
+  public async handleGetUid(args: ToolArguments) {
     // Normalize parameters to camelCase
     args = normalizeParameters(args);
     
@@ -634,9 +644,9 @@ export class ProjectToolHandlers {
           },
         ],
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return createErrorResponse(
-        `Failed to get UID: ${error?.message || 'Unknown error'}`
+        `Failed to get UID: ${errorMessage(error)}`
       );
     }
   }
@@ -646,7 +656,7 @@ export class ProjectToolHandlers {
    * Handle the game_screenshot tool
    */
 
-  public async handleReadScene(args: any) {
+  public async handleReadScene(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.scenePath) {
       return createErrorResponse('projectPath and scenePath are required.');
@@ -694,8 +704,8 @@ export class ProjectToolHandlers {
       return {
         content: [{ type: 'text', text: `Scene read output:\n${stdout}\n${stderr ? 'Errors:\n' + stderr : ''}` }],
       };
-    } catch (error: any) {
-      return createErrorResponse(`Failed to read scene: ${error?.message || 'Unknown error'}`);
+    } catch (error: unknown) {
+      return createErrorResponse(`Failed to read scene: ${errorMessage(error)}`);
     }
   }
 
@@ -703,7 +713,7 @@ export class ProjectToolHandlers {
    * Handle the modify_scene_node tool
    */
 
-  public async handleModifySceneNode(args: any) {
+  public async handleModifySceneNode(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.scenePath || !args.nodePath || !args.properties)
       return createErrorResponse('projectPath, scenePath, nodePath, and properties are required.');
@@ -713,7 +723,7 @@ export class ProjectToolHandlers {
     }));
   }
 
-  public async handleRemoveSceneNode(args: any) {
+  public async handleRemoveSceneNode(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.scenePath || !args.nodePath)
       return createErrorResponse('projectPath, scenePath, and nodePath are required.');
@@ -728,7 +738,7 @@ export class ProjectToolHandlers {
    * Handle the read_project_settings tool - Parse project.godot as JSON
    */
 
-  public async handleReadProjectSettings(args: any) {
+  public async handleReadProjectSettings(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath) {
       return createErrorResponse('projectPath is required.');
@@ -774,8 +784,8 @@ export class ProjectToolHandlers {
       return {
         content: [{ type: 'text', text: JSON.stringify(sections, null, 2) }],
       };
-    } catch (error: any) {
-      return createErrorResponse(`Failed to read project settings: ${error?.message || 'Unknown error'}`);
+    } catch (error: unknown) {
+      return createErrorResponse(`Failed to read project settings: ${errorMessage(error)}`);
     }
   }
 
@@ -783,7 +793,7 @@ export class ProjectToolHandlers {
    * Handle the modify_project_settings tool - Change a project.godot setting
    */
 
-  public async handleModifyProjectSettings(args: any) {
+  public async handleModifyProjectSettings(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.section || !args.key || args.value === undefined) {
       return createErrorResponse('projectPath, section, key, and value are required.');
@@ -833,8 +843,8 @@ export class ProjectToolHandlers {
       return {
         content: [{ type: 'text', text: `Setting updated: [${args.section}] ${args.key}=${args.value}` }],
       };
-    } catch (error: any) {
-      return createErrorResponse(`Failed to modify project settings: ${error?.message || 'Unknown error'}`);
+    } catch (error: unknown) {
+      return createErrorResponse(`Failed to modify project settings: ${errorMessage(error)}`);
     }
   }
 
@@ -842,7 +852,7 @@ export class ProjectToolHandlers {
    * Handle the list_project_files tool - List files with extension filtering
    */
 
-  public async handleListProjectFiles(args: any) {
+  public async handleListProjectFiles(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath) {
       return createErrorResponse('projectPath is required.');
@@ -895,12 +905,12 @@ export class ProjectToolHandlers {
       return {
         content: [{ type: 'text', text: JSON.stringify({ count: files.length, files }, null, 2) }],
       };
-    } catch (error: any) {
-      return createErrorResponse(`Failed to list project files: ${error?.message || 'Unknown error'}`);
+    } catch (error: unknown) {
+      return createErrorResponse(`Failed to list project files: ${errorMessage(error)}`);
     }
   }
 
-  public async handleAttachScript(args: any) {
+  public async handleAttachScript(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.scenePath || !args.nodePath || !args.scriptPath)
       return createErrorResponse('projectPath, scenePath, nodePath, and scriptPath are required.');
@@ -910,7 +920,7 @@ export class ProjectToolHandlers {
     }));
   }
 
-  public async handleCreateResource(args: any) {
+  public async handleCreateResource(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.resourceType || !args.resourcePath)
       return createErrorResponse('projectPath, resourceType, and resourcePath are required.');
@@ -922,7 +932,7 @@ export class ProjectToolHandlers {
 
   // --- File I/O handlers ---
 
-  public async handleReadFile(args: any) {
+  public async handleReadFile(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.filePath)
       return createErrorResponse('projectPath and filePath are required.');
@@ -937,12 +947,12 @@ export class ProjectToolHandlers {
     try {
       const content = readFileSync(fullPath, 'utf8');
       return { content: [{ type: 'text', text: content }] };
-    } catch (error: any) {
-      return createErrorResponse(`Failed to read file: ${error?.message || 'Unknown error'}`);
+    } catch (error: unknown) {
+      return createErrorResponse(`Failed to read file: ${errorMessage(error)}`);
     }
   }
 
-  public async handleWriteFile(args: any) {
+  public async handleWriteFile(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.filePath || args.content === undefined)
       return createErrorResponse('projectPath, filePath, and content are required.');
@@ -959,12 +969,12 @@ export class ProjectToolHandlers {
       }
       writeFileSync(fullPath, args.content, 'utf8');
       return { content: [{ type: 'text', text: `File written: ${args.filePath}` }] };
-    } catch (error: any) {
-      return createErrorResponse(`Failed to write file: ${error?.message || 'Unknown error'}`);
+    } catch (error: unknown) {
+      return createErrorResponse(`Failed to write file: ${errorMessage(error)}`);
     }
   }
 
-  public async handleDeleteFile(args: any) {
+  public async handleDeleteFile(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.filePath)
       return createErrorResponse('projectPath and filePath are required.');
@@ -979,12 +989,12 @@ export class ProjectToolHandlers {
     try {
       unlinkSync(fullPath);
       return { content: [{ type: 'text', text: `File deleted: ${args.filePath}` }] };
-    } catch (error: any) {
-      return createErrorResponse(`Failed to delete file: ${error?.message || 'Unknown error'}`);
+    } catch (error: unknown) {
+      return createErrorResponse(`Failed to delete file: ${errorMessage(error)}`);
     }
   }
 
-  public async handleCreateDirectory(args: any) {
+  public async handleCreateDirectory(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.directoryPath)
       return createErrorResponse('projectPath and directoryPath are required.');
@@ -997,14 +1007,14 @@ export class ProjectToolHandlers {
       const fullPath = join(args.projectPath, args.directoryPath);
       mkdirSync(fullPath, { recursive: true });
       return { content: [{ type: 'text', text: `Directory created: ${args.directoryPath}` }] };
-    } catch (error: any) {
-      return createErrorResponse(`Failed to create directory: ${error?.message || 'Unknown error'}`);
+    } catch (error: unknown) {
+      return createErrorResponse(`Failed to create directory: ${errorMessage(error)}`);
     }
   }
 
   // --- Error/Log capture handlers ---
 
-  public async handleCreateProject(args: any) {
+  public async handleCreateProject(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.projectName)
       return createErrorResponse('projectPath and projectName are required.');
@@ -1030,12 +1040,12 @@ export class ProjectToolHandlers {
         writeFileSync(join(args.projectPath, `${assemblyName}.csproj`), generateCsprojContent(args.projectName, sdkVersion), 'utf8');
       }
       return { content: [{ type: 'text', text: `Project "${args.projectName}" created at ${args.projectPath}${isDotnet ? ' (Godot .NET / C#)' : ''}` }] };
-    } catch (error: any) {
-      return createErrorResponse(`Failed to create project: ${error?.message || 'Unknown error'}`);
+    } catch (error: unknown) {
+      return createErrorResponse(`Failed to create project: ${errorMessage(error)}`);
     }
   }
 
-  public async handleCreateCsharpScript(args: any) {
+  public async handleCreateCsharpScript(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.scriptPath) return createErrorResponse('projectPath and scriptPath are required.');
     if (!validatePath(args.projectPath) || !validatePath(args.scriptPath)) return createErrorResponse('Invalid path.');
@@ -1065,12 +1075,12 @@ export class ProjectToolHandlers {
       }
       writeFileSync(fullPath, source, 'utf8');
       return { content: [{ type: 'text', text: `C# script created at ${args.scriptPath}` }] };
-    } catch (error: any) {
-      return createErrorResponse(`create_csharp_script failed: ${error?.message || 'Unknown error'}`);
+    } catch (error: unknown) {
+      return createErrorResponse(`create_csharp_script failed: ${errorMessage(error)}`);
     }
   }
 
-  public async handleManageAutoloads(args: any) {
+  public async handleManageAutoloads(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.action)
       return createErrorResponse('projectPath and action are required.');
@@ -1111,12 +1121,12 @@ export class ProjectToolHandlers {
         return { content: [{ type: 'text', text: `Autoload "${args.name}" removed.` }] };
       }
       return createErrorResponse('Invalid action. Use "list", "add", or "remove".');
-    } catch (error: any) {
-      return createErrorResponse(`Failed to manage autoloads: ${error?.message || 'Unknown error'}`);
+    } catch (error: unknown) {
+      return createErrorResponse(`Failed to manage autoloads: ${errorMessage(error)}`);
     }
   }
 
-  public async handleManageInputMap(args: any) {
+  public async handleManageInputMap(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.action)
       return createErrorResponse('projectPath and action are required.');
@@ -1162,12 +1172,12 @@ export class ProjectToolHandlers {
         return { content: [{ type: 'text', text: `Input action "${args.actionName}" removed.` }] };
       }
       return createErrorResponse('Invalid action. Use "list", "add", or "remove".');
-    } catch (error: any) {
-      return createErrorResponse(`Failed to manage input map: ${error?.message || 'Unknown error'}`);
+    } catch (error: unknown) {
+      return createErrorResponse(`Failed to manage input map: ${errorMessage(error)}`);
     }
   }
 
-  public async handleManageExportPresets(args: any) {
+  public async handleManageExportPresets(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.action)
       return createErrorResponse('projectPath and action are required.');
@@ -1213,14 +1223,14 @@ export class ProjectToolHandlers {
         return { content: [{ type: 'text', text: `Export preset "${args.name}" removed.` }] };
       }
       return createErrorResponse('Invalid action. Use "list", "add", or "remove".');
-    } catch (error: any) {
-      return createErrorResponse(`Failed to manage export presets: ${error?.message || 'Unknown error'}`);
+    } catch (error: unknown) {
+      return createErrorResponse(`Failed to manage export presets: ${errorMessage(error)}`);
     }
   }
 
   // --- Advanced runtime handlers ---
 
-  public async handleExportProject(args: any) {
+  public async handleExportProject(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.presetName || !args.outputPath)
       return createErrorResponse('projectPath, presetName, and outputPath are required.');
@@ -1240,12 +1250,12 @@ export class ProjectToolHandlers {
       if (stderr && stderr.includes('ERROR'))
         return createErrorResponse(`Export failed: ${stderr}`);
       return { content: [{ type: 'text', text: `Export succeeded.\n\nOutput: ${stdout || args.outputPath}` }] };
-    } catch (error: any) {
-      return createErrorResponse(`Export failed: ${error?.message || 'Unknown error'}`);
+    } catch (error: unknown) {
+      return createErrorResponse(`Export failed: ${errorMessage(error)}`);
     }
   }
 
-  public async handleRenameFile(args: any) {
+  public async handleRenameFile(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.filePath || !args.newPath) return createErrorResponse('projectPath, filePath, and newPath are required.');
     if (!validatePath(args.projectPath) || !validatePath(args.filePath) || !validatePath(args.newPath)) return createErrorResponse('Invalid path.');
@@ -1259,12 +1269,12 @@ export class ProjectToolHandlers {
       if (!existsSync(dstDir)) mkdirSync(dstDir, { recursive: true });
       renameSync(srcFull, dstFull);
       return { content: [{ type: 'text', text: `Renamed ${args.filePath} → ${args.newPath}` }] };
-    } catch (error: any) {
-      return createErrorResponse(`rename_file failed: ${error?.message || 'Unknown error'}`);
+    } catch (error: unknown) {
+      return createErrorResponse(`rename_file failed: ${errorMessage(error)}`);
     }
   }
 
-  public async handleManageResource(args: any) {
+  public async handleManageResource(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.resourcePath || !args.action) return createErrorResponse('projectPath, resourcePath, and action are required.');
     return this.context.headlessOp('manage_resource', args, a => ({
@@ -1273,7 +1283,7 @@ export class ProjectToolHandlers {
     }));
   }
 
-  public async handleValidateScript(args: any) {
+  public async handleValidateScript(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.scriptPath) return createErrorResponse('projectPath and scriptPath are required.');
     if (!validatePath(args.projectPath) || !validatePath(args.scriptPath)) return createErrorResponse('Invalid path.');
@@ -1299,7 +1309,7 @@ export class ProjectToolHandlers {
     };
   }
 
-  public async handleValidateScripts(args: any) {
+  public async handleValidateScripts(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath) return createErrorResponse('projectPath is required.');
     if (!validatePath(args.projectPath)) return createErrorResponse('Invalid path.');
@@ -1315,7 +1325,7 @@ export class ProjectToolHandlers {
     const explicit = Array.isArray(args.scriptPaths) && args.scriptPaths.length > 0;
     if (explicit) {
       scope = 'explicit';
-      candidates = args.scriptPaths.map((p: any) => String(p));
+      candidates = args.scriptPaths.map((p: unknown) => String(p));
     } else if (args.scope === undefined || args.scope === 'changed') {
       scope = 'changed';
       const changed = await this.context.projectSupport.listChangedGdFiles(args.projectPath);
@@ -1328,7 +1338,7 @@ export class ProjectToolHandlers {
       return createErrorResponse(`Invalid scope "${args.scope}". Use "changed" or "all", or pass scriptPaths.`);
     }
 
-    const results: any[] = [];
+    const results: ValidationResult[] = [];
     let filesWithErrors = 0;
     const toCheck: string[] = [];
     for (const rel of candidates) {
@@ -1365,7 +1375,7 @@ export class ProjectToolHandlers {
             scope,
             fileCount: results.length,
             filesWithErrors,
-            allValid: filesWithErrors === 0 && results.every(r => r.checked !== false),
+            allValid: filesWithErrors === 0 && results.every(r => r.checked),
             results,
           }, null, 2),
         },
@@ -1373,7 +1383,7 @@ export class ProjectToolHandlers {
     };
   }
 
-  public async handleCreateScript(args: any) {
+  public async handleCreateScript(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.scriptPath) return createErrorResponse('projectPath and scriptPath are required.');
     if (!validatePath(args.projectPath) || !validatePath(args.scriptPath)) return createErrorResponse('Invalid path.');
@@ -1398,12 +1408,12 @@ export class ProjectToolHandlers {
       }
       writeFileSync(fullPath, source, 'utf8');
       return { content: [{ type: 'text', text: `Script created at ${args.scriptPath}` }] };
-    } catch (error: any) {
-      return createErrorResponse(`create_script failed: ${error?.message || 'Unknown error'}`);
+    } catch (error: unknown) {
+      return createErrorResponse(`create_script failed: ${errorMessage(error)}`);
     }
   }
 
-  public async handleManageSceneSignals(args: any) {
+  public async handleManageSceneSignals(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.scenePath || !args.action) return createErrorResponse('projectPath, scenePath, and action are required.');
     return this.context.headlessOp('manage_scene_signals', args, a => ({
@@ -1418,7 +1428,7 @@ export class ProjectToolHandlers {
     }));
   }
 
-  public async handleManageLayers(args: any) {
+  public async handleManageLayers(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.action) return createErrorResponse('projectPath and action are required.');
     if (!validatePath(args.projectPath)) return createErrorResponse('Invalid path.');
@@ -1428,7 +1438,7 @@ export class ProjectToolHandlers {
       let content = readFileSync(projectFile, 'utf8');
       if (args.action === 'list') {
         const layerRegex = /layer_names\/([\w_]+)\/layer_(\d+)="([^"]+)"/g;
-        const layers: any[] = [];
+        const layers: unknown[] = [];
         let match;
         while ((match = layerRegex.exec(content)) !== null) {
           layers.push({ type: match[1], layer: parseInt(match[2]), name: match[3] });
@@ -1449,12 +1459,12 @@ export class ProjectToolHandlers {
         return { content: [{ type: 'text', text: `Layer set: ${settingLine}` }] };
       }
       return createErrorResponse(`Unknown action: ${args.action}`);
-    } catch (error: any) {
-      return createErrorResponse(`manage_layers failed: ${error?.message || 'Unknown error'}`);
+    } catch (error: unknown) {
+      return createErrorResponse(`manage_layers failed: ${errorMessage(error)}`);
     }
   }
 
-  public async handleManagePlugins(args: any) {
+  public async handleManagePlugins(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.action) return createErrorResponse('projectPath and action are required.');
     if (!validatePath(args.projectPath)) return createErrorResponse('Invalid path.');
@@ -1493,12 +1503,12 @@ export class ProjectToolHandlers {
         return { content: [{ type: 'text', text: `Plugin ${args.pluginName} ${args.action}d.` }] };
       }
       return createErrorResponse(`Unknown action: ${args.action}`);
-    } catch (error: any) {
-      return createErrorResponse(`manage_plugins failed: ${error?.message || 'Unknown error'}`);
+    } catch (error: unknown) {
+      return createErrorResponse(`manage_plugins failed: ${errorMessage(error)}`);
     }
   }
 
-  public async handleManageShader(args: any) {
+  public async handleManageShader(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.shaderPath || !args.action) return createErrorResponse('projectPath, shaderPath, and action are required.');
     if (!validatePath(args.projectPath) || !validatePath(args.shaderPath)) return createErrorResponse('Invalid path.');
@@ -1522,12 +1532,12 @@ export class ProjectToolHandlers {
         return { content: [{ type: 'text', text: `Shader created at ${args.shaderPath}` }] };
       }
       return createErrorResponse(`Unknown action: ${args.action}`);
-    } catch (error: any) {
-      return createErrorResponse(`manage_shader failed: ${error?.message || 'Unknown error'}`);
+    } catch (error: unknown) {
+      return createErrorResponse(`manage_shader failed: ${errorMessage(error)}`);
     }
   }
 
-  public async handleManageThemeResource(args: any) {
+  public async handleManageThemeResource(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.resourcePath || !args.action) return createErrorResponse('projectPath, resourcePath, and action are required.');
     return this.context.headlessOp('manage_theme_resource', args, a => ({
@@ -1536,7 +1546,7 @@ export class ProjectToolHandlers {
     }));
   }
 
-  public async handleSetMainScene(args: any) {
+  public async handleSetMainScene(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.scenePath) return createErrorResponse('projectPath and scenePath are required.');
     if (!validatePath(args.projectPath)) return createErrorResponse('Invalid path.');
@@ -1558,12 +1568,12 @@ export class ProjectToolHandlers {
       }
       writeFileSync(projectFile, content, 'utf8');
       return { content: [{ type: 'text', text: `Main scene set to ${resPath}` }] };
-    } catch (error: any) {
-      return createErrorResponse(`set_main_scene failed: ${error?.message || 'Unknown error'}`);
+    } catch (error: unknown) {
+      return createErrorResponse(`set_main_scene failed: ${errorMessage(error)}`);
     }
   }
 
-  public async handleManageSceneStructure(args: any) {
+  public async handleManageSceneStructure(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.scenePath || !args.action || !args.nodePath)
       return createErrorResponse('projectPath, scenePath, action, and nodePath are required.');
@@ -1577,7 +1587,7 @@ export class ProjectToolHandlers {
     }));
   }
 
-  public async handleManageTranslations(args: any) {
+  public async handleManageTranslations(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.action) return createErrorResponse('projectPath and action are required.');
     if (!validatePath(args.projectPath)) return createErrorResponse('Invalid path.');
@@ -1611,12 +1621,12 @@ export class ProjectToolHandlers {
         return { content: [{ type: 'text', text: `Translation removed: ${resPath}` }] };
       }
       return createErrorResponse(`Unknown action: ${args.action}`);
-    } catch (error: any) {
-      return createErrorResponse(`manage_translations failed: ${error?.message || 'Unknown error'}`);
+    } catch (error: unknown) {
+      return createErrorResponse(`manage_translations failed: ${errorMessage(error)}`);
     }
   }
 
-  public async handleManageCiPipeline(args: any) {
+  public async handleManageCiPipeline(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.action) return createErrorResponse('projectPath and action are required.');
     if (!validatePath(args.projectPath)) return createErrorResponse('Invalid path.');
@@ -1639,12 +1649,12 @@ export class ProjectToolHandlers {
         return { content: [{ type: 'text', text: `CI pipeline created at .github/workflows/godot-export.yml for platforms: ${platforms.join(', ')}` }] };
       }
       return createErrorResponse(`Unknown action: ${args.action}`);
-    } catch (error: any) {
-      return createErrorResponse(`manage_ci_pipeline failed: ${error?.message || 'Unknown error'}`);
+    } catch (error: unknown) {
+      return createErrorResponse(`manage_ci_pipeline failed: ${errorMessage(error)}`);
     }
   }
 
-  public async handleManageDockerExport(args: any) {
+  public async handleManageDockerExport(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.action) return createErrorResponse('projectPath and action are required.');
     if (!validatePath(args.projectPath)) return createErrorResponse('Invalid path.');
@@ -1665,8 +1675,8 @@ export class ProjectToolHandlers {
         return { content: [{ type: 'text', text: `Dockerfile created for headless Godot export (preset: ${exportPreset})` }] };
       }
       return createErrorResponse(`Unknown action: ${args.action}`);
-    } catch (error: any) {
-      return createErrorResponse(`manage_docker_export failed: ${error?.message || 'Unknown error'}`);
+    } catch (error: unknown) {
+      return createErrorResponse(`manage_docker_export failed: ${errorMessage(error)}`);
     }
   }
 
@@ -1674,7 +1684,7 @@ export class ProjectToolHandlers {
    * Handle the update_project_uids tool
    */
 
-  public async handleUpdateProjectUids(args: any) {
+  public async handleUpdateProjectUids(args: ToolArguments) {
     // Normalize parameters to camelCase
     args = normalizeParameters(args);
     
@@ -1741,9 +1751,9 @@ export class ProjectToolHandlers {
           },
         ],
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return createErrorResponse(
-        `Failed to update project UIDs: ${error?.message || 'Unknown error'}`
+        `Failed to update project UIDs: ${errorMessage(error)}`
       );
     }
   }

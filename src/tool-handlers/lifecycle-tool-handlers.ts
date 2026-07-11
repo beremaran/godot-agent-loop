@@ -4,7 +4,7 @@ import { join } from 'path';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 
-import { createErrorResponse, normalizeParameters, validatePath } from '../utils.js';
+import { createErrorResponse, normalizeParameters, validatePath, type ToolArguments } from '../utils.js';
 import type { GodotProcess } from '../godot-process-manager.js';
 import type { GodotExecutableService } from '../godot-executable.js';
 
@@ -30,7 +30,7 @@ export interface LifecycleToolHandlerContext {
 export class LifecycleToolHandlers {
   constructor(private readonly context: LifecycleToolHandlerContext) {}
 
-  public async handleLaunchEditor(args: any) {
+  public async handleLaunchEditor(args: ToolArguments) {
     args = normalizeParameters(args);
     if (!args.projectPath) return createErrorResponse('Project path is required');
     if (!validatePath(args.projectPath)) return createErrorResponse('Invalid project path');
@@ -51,7 +51,7 @@ export class LifecycleToolHandlers {
     }
   }
 
-  public async handleRunProject(args: any) {
+  public async handleRunProject(args: ToolArguments) {
     args = normalizeParameters(args);
     if (!args.projectPath) return createErrorResponse('Project path is required');
     if (!validatePath(args.projectPath)) return createErrorResponse('Invalid project path');

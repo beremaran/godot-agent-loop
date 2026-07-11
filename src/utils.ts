@@ -3,7 +3,16 @@
  * Pure functions extracted for testability.
  */
 
-export type OperationParams = Record<string, any>;
+export type OperationParams = Record<string, unknown>;
+export type ToolArguments = Record<string, any>;
+export interface ToolResponse {
+  content: { type: string; [key: string]: unknown }[];
+  [key: string]: unknown;
+}
+
+export function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Unknown error';
+}
 
 export const PARAMETER_MAPPINGS: Record<string, string> = {
   'msaa_2d': 'msaa2d',
@@ -19,7 +28,10 @@ export const REVERSE_PARAMETER_MAPPINGS: Record<string, string> = Object.fromEnt
   Object.entries(PARAMETER_MAPPINGS).map(([snake, camel]) => [camel, snake])
 );
 
-export function normalizeParameters(params: OperationParams): OperationParams {
+export function normalizeParameters(params: OperationParams): OperationParams;
+export function normalizeParameters(params: null): null;
+export function normalizeParameters(params: undefined): undefined;
+export function normalizeParameters(params: OperationParams | null | undefined): OperationParams | null | undefined {
   if (!params || typeof params !== 'object') {
     return params;
   }
@@ -32,7 +44,7 @@ export function normalizeParameters(params: OperationParams): OperationParams {
       const value = params[key];
       result[normalizedKey] = OPAQUE_PARAMETER_OBJECTS.has(normalizedKey) ? value : Array.isArray(value)
         ? value.map(item => item && typeof item === 'object' ? normalizeParameters(item) : item)
-        : value && typeof value === 'object' ? normalizeParameters(value) : value;
+        : value && typeof value === 'object' ? normalizeParameters(value as OperationParams) : value;
     }
   }
 
@@ -49,7 +61,7 @@ export function convertCamelToSnakeCase(params: OperationParams): OperationParam
       const value = params[key];
       result[snakeKey] = Array.isArray(value)
         ? value.map(item => item && typeof item === 'object' ? convertCamelToSnakeCase(item) : item)
-        : value && typeof value === 'object' ? convertCamelToSnakeCase(value) : value;
+        : value && typeof value === 'object' ? convertCamelToSnakeCase(value as OperationParams) : value;
     }
   }
 
@@ -63,7 +75,7 @@ export function validatePath(path: string): boolean {
   return true;
 }
 
-export function createErrorResponse(message: string): any {
+export function createErrorResponse(message: string): ToolResponse {
   console.error(`[SERVER] Error response: ${message}`);
 
   return {

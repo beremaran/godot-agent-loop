@@ -1,4 +1,4 @@
-import { createErrorResponse, convertCamelToSnakeCase, normalizeParameters } from './utils.js';
+import { createErrorResponse, convertCamelToSnakeCase, errorMessage, normalizeParameters, type OperationParams, type ToolArguments, type ToolResponse } from './utils.js';
 import type { GodotProcessManager } from './godot-process-manager.js';
 import type { GameConnection } from './game-connection.js';
 
@@ -25,7 +25,7 @@ export class GameCommandService {
     return this.processManager.readNewLogs();
   }
 
-  public send(command: string, params: Record<string, unknown> = {}, timeoutMs = 10000): Promise<any> {
+  public send(command: string, params: Record<string, unknown> = {}, timeoutMs = 10000): Promise<GameResponse> {
     return this.connection.send(command, params, timeoutMs);
   }
 
@@ -37,19 +37,25 @@ export class GameCommandService {
   public async execute(
     name: string,
     args: unknown,
-    buildParams: (args: any) => Record<string, unknown>,
+    buildParams: (args: ToolArguments) => Record<string, unknown>,
     timeoutMs?: number,
-  ): Promise<any> {
+  ): Promise<ToolResponse> {
     if (!this.hasActiveProcess()) return createErrorResponse('No active Godot process. Use run_project first.');
     if (!this.isConnected()) return createErrorResponse('Not connected to game interaction server.');
 
-    const normalizedArgs = normalizeParameters(args || {});
+    const normalizedArgs = normalizeParameters((args || {}) as OperationParams);
     try {
       const response = await this.send(name, convertCamelToSnakeCase(buildParams(normalizedArgs)), timeoutMs);
       if (response.error) return createErrorResponse(`${name} failed: ${response.error}`);
       return { content: [{ type: 'text', text: JSON.stringify(response, null, 2) }] };
-    } catch (error: any) {
-      return createErrorResponse(`${name} failed: ${error?.message || 'Unknown error'}`);
+    } catch (error: unknown) {
+      return createErrorResponse(`${name} failed: ${errorMessage(error)}`);
     }
   }
+}
+
+export interface GameResponse {
+  id?: number;
+  error?: string;
+  [key: string]: unknown;
 }

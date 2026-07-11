@@ -1,4 +1,4 @@
-import { createErrorResponse, normalizeParameters } from '../utils.js';
+import { createErrorResponse, errorMessage, normalizeParameters, type ToolArguments } from '../utils.js';
 import type { GameCommandService } from '../game-command-service.js';
 
 export interface GameToolHandlerContext {
@@ -54,26 +54,26 @@ export class GameToolHandlers {
           },
         ],
       };
-    } catch (error: any) {
-      return createErrorResponse(`Screenshot failed: ${error?.message || 'Unknown error'}`);
+    } catch (error: unknown) {
+      return createErrorResponse(`Screenshot failed: ${errorMessage(error)}`);
     }
   }
 
-  public async handleGameClick(args: any) {
+  public async handleGameClick(args: ToolArguments) {
     return this.context.commands.execute('click', args, a => ({ x: a.x ?? 0, y: a.y ?? 0, button: a.button ?? 1 }));
   }
 
-  public async handleGameKeyPress(args: any) {
+  public async handleGameKeyPress(args: ToolArguments) {
     args = args || {};
     if (!args.key && !args.action) return createErrorResponse('Must provide either "key" or "action" parameter.');
-    const params: Record<string, any> = {};
+    const params: Record<string, unknown> = {};
     if (args.key) params.key = args.key;
     if (args.action) params.action = args.action;
     if (args.pressed !== undefined) params.pressed = args.pressed;
     return this.context.commands.execute('key_press', args, () => params);
   }
 
-  public async handleGameMouseMove(args: any) {
+  public async handleGameMouseMove(args: ToolArguments) {
     return this.context.commands.execute('mouse_move', args, a => ({
       x: a.x ?? 0, y: a.y ?? 0, relative_x: a.relative_x ?? 0, relative_y: a.relative_y ?? 0,
     }));
@@ -87,19 +87,19 @@ export class GameToolHandlers {
     return this.context.gameCommand('get_scene_tree', {}, () => ({}));
   }
 
-  public async handleGameEval(args: any) {
+  public async handleGameEval(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.code) return createErrorResponse('code parameter is required.');
     return this.context.gameCommand('eval', args, a => ({ code: a.code }), 30000);
   }
 
-  public async handleGameGetProperty(args: any) {
+  public async handleGameGetProperty(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath || !args.property) return createErrorResponse('nodePath and property are required.');
     return this.context.gameCommand('get_property', args, a => ({ node_path: a.nodePath, property: a.property }));
   }
 
-  public async handleGameSetProperty(args: any) {
+  public async handleGameSetProperty(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath || !args.property) return createErrorResponse('nodePath and property are required.');
     return this.context.gameCommand('set_property', args, a => ({
@@ -107,7 +107,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameCallMethod(args: any) {
+  public async handleGameCallMethod(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath || !args.method) return createErrorResponse('nodePath and method are required.');
     return this.context.gameCommand('call_method', args, a => ({
@@ -115,13 +115,13 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameGetNodeInfo(args: any) {
+  public async handleGameGetNodeInfo(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath) return createErrorResponse('nodePath is required.');
     return this.context.gameCommand('get_node_info', args, a => ({ node_path: a.nodePath }));
   }
 
-  public async handleGameInstantiateScene(args: any) {
+  public async handleGameInstantiateScene(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.scenePath) return createErrorResponse('scenePath is required.');
     return this.context.gameCommand('instantiate_scene', args, a => ({
@@ -129,19 +129,19 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameRemoveNode(args: any) {
+  public async handleGameRemoveNode(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath) return createErrorResponse('nodePath is required.');
     return this.context.gameCommand('remove_node', args, a => ({ node_path: a.nodePath }));
   }
 
-  public async handleGameChangeScene(args: any) {
+  public async handleGameChangeScene(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.scenePath) return createErrorResponse('scenePath is required.');
     return this.context.gameCommand('change_scene', args, a => ({ scene_path: a.scenePath }));
   }
 
-  public async handleGamePause(args: any) {
+  public async handleGamePause(args: ToolArguments) {
     return this.context.gameCommand('pause', args, a => ({ paused: a.paused !== undefined ? a.paused : true }));
   }
 
@@ -149,7 +149,7 @@ export class GameToolHandlers {
     return this.context.gameCommand('get_performance', {}, () => ({}));
   }
 
-  public async handleGameWait(args: any) {
+  public async handleGameWait(args: ToolArguments) {
     return this.context.gameCommand('wait', args, a => ({ frames: a.frames || 1, frame_type: a.frameType || 'render' }), 30000);
   }
 
@@ -158,7 +158,7 @@ export class GameToolHandlers {
    * Handle the read_scene tool - Read a scene file structure
    */
 
-  public async handleGameConnectSignal(args: any) {
+  public async handleGameConnectSignal(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath || !args.signalName || !args.targetPath || !args.method)
       return createErrorResponse('nodePath, signalName, targetPath, and method are required.');
@@ -167,7 +167,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameDisconnectSignal(args: any) {
+  public async handleGameDisconnectSignal(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath || !args.signalName || !args.targetPath || !args.method)
       return createErrorResponse('nodePath, signalName, targetPath, and method are required.');
@@ -176,7 +176,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameEmitSignal(args: any) {
+  public async handleGameEmitSignal(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath || !args.signalName) return createErrorResponse('nodePath and signalName are required.');
     return this.context.gameCommand('emit_signal', args, a => ({
@@ -184,7 +184,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGamePlayAnimation(args: any) {
+  public async handleGamePlayAnimation(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath) return createErrorResponse('nodePath is required.');
     return this.context.gameCommand('play_animation', args, a => ({
@@ -192,7 +192,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameTweenProperty(args: any) {
+  public async handleGameTweenProperty(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath || !args.property || args.finalValue === undefined)
       return createErrorResponse('nodePath, property, and finalValue are required.');
@@ -202,13 +202,13 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameGetNodesInGroup(args: any) {
+  public async handleGameGetNodesInGroup(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.group) return createErrorResponse('group is required.');
     return this.context.gameCommand('get_nodes_in_group', args, a => ({ group: a.group }));
   }
 
-  public async handleGameFindNodesByClass(args: any) {
+  public async handleGameFindNodesByClass(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.className) return createErrorResponse('className is required.');
     return this.context.gameCommand('find_nodes_by_class', args, a => ({
@@ -216,7 +216,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameReparentNode(args: any) {
+  public async handleGameReparentNode(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath || !args.newParentPath) return createErrorResponse('nodePath and newParentPath are required.');
     return this.context.gameCommand('reparent_node', args, a => ({
@@ -240,31 +240,31 @@ export class GameToolHandlers {
 
   // --- Enhanced input handlers ---
 
-  public async handleGameKeyHold(args: any) {
+  public async handleGameKeyHold(args: ToolArguments) {
     args = args || {};
     if (!args.key && !args.action) return createErrorResponse('Must provide either "key" or "action" parameter.');
-    const params: Record<string, any> = {};
+    const params: Record<string, unknown> = {};
     if (args.key) params.key = args.key;
     if (args.action) params.action = args.action;
     return this.context.gameCommand('key_hold', args, () => params);
   }
 
-  public async handleGameKeyRelease(args: any) {
+  public async handleGameKeyRelease(args: ToolArguments) {
     args = args || {};
     if (!args.key && !args.action) return createErrorResponse('Must provide either "key" or "action" parameter.');
-    const params: Record<string, any> = {};
+    const params: Record<string, unknown> = {};
     if (args.key) params.key = args.key;
     if (args.action) params.action = args.action;
     return this.context.gameCommand('key_release', args, () => params);
   }
 
-  public async handleGameScroll(args: any) {
+  public async handleGameScroll(args: ToolArguments) {
     return this.context.gameCommand('scroll', args, a => ({
       x: a.x ?? 0, y: a.y ?? 0, direction: a.direction || 'up', amount: a.amount || 1,
     }));
   }
 
-  public async handleGameMouseDrag(args: any) {
+  public async handleGameMouseDrag(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (args.fromX === undefined || args.fromY === undefined || args.toX === undefined || args.toY === undefined)
       return createErrorResponse('fromX, fromY, toX, and toY are required.');
@@ -274,7 +274,7 @@ export class GameToolHandlers {
     }), 30000);
   }
 
-  public async handleGameGamepad(args: any) {
+  public async handleGameGamepad(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.type || args.index === undefined || args.value === undefined)
       return createErrorResponse('type, index, and value are required.');
@@ -289,7 +289,7 @@ export class GameToolHandlers {
     return this.context.gameCommand('get_camera', {}, () => ({}));
   }
 
-  public async handleGameSetCamera(args: any) {
+  public async handleGameSetCamera(args: ToolArguments) {
     return this.context.gameCommand('set_camera', args, a => ({
       ...(a.position ? { position: a.position } : {}),
       ...(a.rotation ? { rotation: a.rotation } : {}),
@@ -298,7 +298,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameRaycast(args: any) {
+  public async handleGameRaycast(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.from || !args.to)
       return createErrorResponse('from and to are required.');
@@ -311,7 +311,7 @@ export class GameToolHandlers {
     return this.context.gameCommand('get_audio', {}, () => ({}));
   }
 
-  public async handleGameSpawnNode(args: any) {
+  public async handleGameSpawnNode(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.type)
       return createErrorResponse('type is required.');
@@ -321,7 +321,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameSetShaderParam(args: any) {
+  public async handleGameSetShaderParam(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath || !args.paramName)
       return createErrorResponse('nodePath and paramName are required.');
@@ -331,7 +331,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameAudioPlay(args: any) {
+  public async handleGameAudioPlay(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath)
       return createErrorResponse('nodePath is required.');
@@ -345,7 +345,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameAudioBus(args: any) {
+  public async handleGameAudioBus(args: ToolArguments) {
     return this.context.gameCommand('audio_bus', args, a => ({
       bus_name: a.busName || 'Master',
       ...(a.volume !== undefined ? { volume: a.volume } : {}),
@@ -354,7 +354,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameNavigatePath(args: any) {
+  public async handleGameNavigatePath(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.start || !args.end)
       return createErrorResponse('start and end are required.');
@@ -363,7 +363,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameTilemap(args: any) {
+  public async handleGameTilemap(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath)
       return createErrorResponse('nodePath is required.');
@@ -378,7 +378,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameAddCollision(args: any) {
+  public async handleGameAddCollision(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.parentPath || !args.shapeType)
       return createErrorResponse('parentPath and shapeType are required.');
@@ -391,9 +391,9 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameEnvironment(args: any) {
+  public async handleGameEnvironment(args: ToolArguments) {
     args = normalizeParameters(args || {});
-    const params: Record<string, any> = { action: args.action || 'set' };
+    const params: Record<string, unknown> = { action: args.action || 'set' };
     // Pass through all environment settings
     const envKeys = [
       'backgroundMode', 'backgroundColor', 'ambientLightColor', 'ambientLightEnergy',
@@ -419,7 +419,7 @@ export class GameToolHandlers {
     return this.context.gameCommand('environment', { ...args }, () => params);
   }
 
-  public async handleGameManageGroup(args: any) {
+  public async handleGameManageGroup(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.action)
       return createErrorResponse('action is required.');
@@ -430,7 +430,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameCreateTimer(args: any) {
+  public async handleGameCreateTimer(args: ToolArguments) {
     return this.context.gameCommand('create_timer', args, a => ({
       parent_path: a.parentPath || '/root',
       wait_time: a.waitTime ?? 1.0,
@@ -440,7 +440,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameSetParticles(args: any) {
+  public async handleGameSetParticles(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath)
       return createErrorResponse('nodePath is required.');
@@ -457,7 +457,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameCreateAnimation(args: any) {
+  public async handleGameCreateAnimation(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath || !args.animationName)
       return createErrorResponse('nodePath and animationName are required.');
@@ -471,7 +471,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameSerializeState(args: any) {
+  public async handleGameSerializeState(args: ToolArguments) {
     args = normalizeParameters(args || {});
     return this.context.gameCommand('serialize_state', args, a => ({
       node_path: a.nodePath || '/root',
@@ -481,7 +481,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGamePhysicsBody(args: any) {
+  public async handleGamePhysicsBody(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath)
       return createErrorResponse('nodePath is required.');
@@ -500,7 +500,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameCreateJoint(args: any) {
+  public async handleGameCreateJoint(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.parentPath || !args.jointType)
       return createErrorResponse('parentPath and jointType are required.');
@@ -518,7 +518,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameBonePose(args: any) {
+  public async handleGameBonePose(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath)
       return createErrorResponse('nodePath is required.');
@@ -533,7 +533,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameUiTheme(args: any) {
+  public async handleGameUiTheme(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath || !args.overrides)
       return createErrorResponse('nodePath and overrides are required.');
@@ -543,7 +543,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameViewport(args: any) {
+  public async handleGameViewport(args: ToolArguments) {
     args = normalizeParameters(args || {});
     return this.context.gameCommand('viewport', args, a => ({
       action: a.action || 'create',
@@ -557,7 +557,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameDebugDraw(args: any) {
+  public async handleGameDebugDraw(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.action)
       return createErrorResponse('action is required.');
@@ -575,7 +575,7 @@ export class GameToolHandlers {
 
   // --- Batch 1: Networking + Input + System + Signals + Script ---
 
-  public async handleGameHttpRequest(args: any) {
+  public async handleGameHttpRequest(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.url) return createErrorResponse('url is required.');
     return this.context.gameCommand('http_request', args, a => ({
@@ -586,7 +586,7 @@ export class GameToolHandlers {
     }), 35000);
   }
 
-  public async handleGameWebsocket(args: any) {
+  public async handleGameWebsocket(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.action) return createErrorResponse('action is required.');
     return this.context.gameCommand('websocket', args, a => ({
@@ -596,7 +596,7 @@ export class GameToolHandlers {
     }), 15000);
   }
 
-  public async handleGameMultiplayer(args: any) {
+  public async handleGameMultiplayer(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.action) return createErrorResponse('action is required.');
     return this.context.gameCommand('multiplayer', args, a => ({
@@ -607,7 +607,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameRpc(args: any) {
+  public async handleGameRpc(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath || !args.action || !args.method) return createErrorResponse('nodePath, action, and method are required.');
     return this.context.gameCommand('rpc', args, a => ({
@@ -619,7 +619,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameTouch(args: any) {
+  public async handleGameTouch(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.action) return createErrorResponse('action is required.');
     return this.context.gameCommand('touch', args, a => ({
@@ -631,7 +631,7 @@ export class GameToolHandlers {
     }), 15000);
   }
 
-  public async handleGameInputState(args: any) {
+  public async handleGameInputState(args: ToolArguments) {
     args = normalizeParameters(args || {});
     return this.context.gameCommand('input_state', args, a => ({
       action: a.action || 'query',
@@ -641,7 +641,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameInputAction(args: any) {
+  public async handleGameInputAction(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.action) return createErrorResponse('action is required.');
     return this.context.gameCommand('input_action', args, a => ({
@@ -652,13 +652,13 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameListSignals(args: any) {
+  public async handleGameListSignals(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath) return createErrorResponse('nodePath is required.');
     return this.context.gameCommand('list_signals', args, a => ({ node_path: a.nodePath }));
   }
 
-  public async handleGameAwaitSignal(args: any) {
+  public async handleGameAwaitSignal(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath || !args.signalName) return createErrorResponse('nodePath and signalName are required.');
     const timeout = (args.timeout || 10) * 1000 + 2000;
@@ -667,7 +667,7 @@ export class GameToolHandlers {
     }), timeout);
   }
 
-  public async handleGameScript(args: any) {
+  public async handleGameScript(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath || !args.action) return createErrorResponse('nodePath and action are required.');
     return this.context.gameCommand('script', args, a => ({
@@ -677,7 +677,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameWindow(args: any) {
+  public async handleGameWindow(args: ToolArguments) {
     args = normalizeParameters(args || {});
     return this.context.gameCommand('window', args, a => ({
       action: a.action || 'get',
@@ -691,11 +691,11 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameOsInfo(_args: any) {
+  public async handleGameOsInfo(_args: ToolArguments) {
     return this.context.gameCommand('os_info', {}, () => ({}));
   }
 
-  public async handleGameTimeScale(args: any) {
+  public async handleGameTimeScale(args: ToolArguments) {
     args = normalizeParameters(args || {});
     return this.context.gameCommand('time_scale', args, a => ({
       action: a.action || 'get',
@@ -703,7 +703,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameProcessMode(args: any) {
+  public async handleGameProcessMode(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath || !args.mode) return createErrorResponse('nodePath and mode are required.');
     return this.context.gameCommand('process_mode', args, a => ({
@@ -711,7 +711,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameWorldSettings(args: any) {
+  public async handleGameWorldSettings(args: ToolArguments) {
     args = normalizeParameters(args || {});
     return this.context.gameCommand('world_settings', args, a => ({
       action: a.action || 'get',
@@ -723,7 +723,7 @@ export class GameToolHandlers {
 
   // --- Batch 2: 3D Rendering + Lighting + Sky + Physics ---
 
-  public async handleGameCsg(args: any) {
+  public async handleGameCsg(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.action) return createErrorResponse('action is required.');
     return this.context.gameCommand('csg', args, a => ({
@@ -740,7 +740,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameMultimesh(args: any) {
+  public async handleGameMultimesh(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.action) return createErrorResponse('action is required.');
     return this.context.gameCommand('multimesh', args, a => ({
@@ -755,7 +755,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameProceduralMesh(args: any) {
+  public async handleGameProceduralMesh(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.parentPath || !args.vertices) return createErrorResponse('parentPath and vertices are required.');
     return this.context.gameCommand('procedural_mesh', args, a => ({
@@ -767,7 +767,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameLight3d(args: any) {
+  public async handleGameLight3d(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.action) return createErrorResponse('action is required.');
     return this.context.gameCommand('light_3d', args, a => ({
@@ -784,7 +784,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameMeshInstance(args: any) {
+  public async handleGameMeshInstance(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.parentPath || !args.meshType) return createErrorResponse('parentPath and meshType are required.');
     return this.context.gameCommand('mesh_instance', args, a => ({
@@ -797,7 +797,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameGridmap(args: any) {
+  public async handleGameGridmap(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath || !args.action) return createErrorResponse('nodePath and action are required.');
     return this.context.gameCommand('gridmap', args, a => ({
@@ -810,7 +810,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGame3dEffects(args: any) {
+  public async handleGame3dEffects(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.parentPath || !args.effectType) return createErrorResponse('parentPath and effectType are required.');
     return this.context.gameCommand('3d_effects', args, a => ({
@@ -821,7 +821,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameGi(args: any) {
+  public async handleGameGi(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.parentPath || !args.giType) return createErrorResponse('parentPath and giType are required.');
     return this.context.gameCommand('gi', args, a => ({
@@ -831,7 +831,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGamePath3d(args: any) {
+  public async handleGamePath3d(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.action) return createErrorResponse('action is required.');
     return this.context.gameCommand('path_3d', args, a => ({
@@ -844,7 +844,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameSky(args: any) {
+  public async handleGameSky(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.action) return createErrorResponse('action is required.');
     return this.context.gameCommand('sky', args, a => ({
@@ -857,7 +857,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameCameraAttributes(args: any) {
+  public async handleGameCameraAttributes(args: ToolArguments) {
     args = normalizeParameters(args || {});
     return this.context.gameCommand('camera_attributes', args, a => ({
       action: a.action || 'get',
@@ -870,7 +870,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameNavigation3d(args: any) {
+  public async handleGameNavigation3d(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.action) return createErrorResponse('action is required.');
     return this.context.gameCommand('navigation_3d', args, a => ({
@@ -884,7 +884,7 @@ export class GameToolHandlers {
     }), 30000);
   }
 
-  public async handleGamePhysics3d(args: any) {
+  public async handleGamePhysics3d(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.action) return createErrorResponse('action is required.');
     return this.context.gameCommand('physics_3d', args, a => ({
@@ -898,7 +898,7 @@ export class GameToolHandlers {
 
   // --- Batch 3: 2D Systems + Animation Advanced + Audio Effects ---
 
-  public async handleGameCanvas(args: any) {
+  public async handleGameCanvas(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.action) return createErrorResponse('action is required.');
     return this.context.gameCommand('canvas', args, a => ({
@@ -913,7 +913,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameCanvasDraw(args: any) {
+  public async handleGameCanvasDraw(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.action) return createErrorResponse('action is required.');
     return this.context.gameCommand('canvas_draw', args, a => ({
@@ -934,7 +934,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameLight2d(args: any) {
+  public async handleGameLight2d(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.action) return createErrorResponse('action is required.');
     return this.context.gameCommand('light_2d', args, a => ({
@@ -949,7 +949,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameParallax(args: any) {
+  public async handleGameParallax(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.action) return createErrorResponse('action is required.');
     return this.context.gameCommand('parallax', args, a => ({
@@ -965,7 +965,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameShape2d(args: any) {
+  public async handleGameShape2d(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath || !args.action) return createErrorResponse('nodePath and action are required.');
     return this.context.gameCommand('shape_2d', args, a => ({
@@ -977,7 +977,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGamePath2d(args: any) {
+  public async handleGamePath2d(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.action) return createErrorResponse('action is required.');
     return this.context.gameCommand('path_2d', args, a => ({
@@ -990,7 +990,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGamePhysics2d(args: any) {
+  public async handleGamePhysics2d(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.action) return createErrorResponse('action is required.');
     return this.context.gameCommand('physics_2d', args, a => ({
@@ -1010,7 +1010,7 @@ export class GameToolHandlers {
     }), 15000);
   }
 
-  public async handleGameAnimationTree(args: any) {
+  public async handleGameAnimationTree(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath || !args.action) return createErrorResponse('nodePath and action are required.');
     return this.context.gameCommand('animation_tree', args, a => ({
@@ -1021,7 +1021,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameAnimationControl(args: any) {
+  public async handleGameAnimationControl(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath || !args.action) return createErrorResponse('nodePath and action are required.');
     return this.context.gameCommand('animation_control', args, a => ({
@@ -1032,7 +1032,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameSkeletonIk(args: any) {
+  public async handleGameSkeletonIk(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath || !args.action) return createErrorResponse('nodePath and action are required.');
     return this.context.gameCommand('skeleton_ik', args, a => ({
@@ -1041,7 +1041,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameAudioEffect(args: any) {
+  public async handleGameAudioEffect(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.action) return createErrorResponse('action is required.');
     return this.context.gameCommand('audio_effect', args, a => ({
@@ -1053,7 +1053,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameAudioBusLayout(args: any) {
+  public async handleGameAudioBusLayout(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.action) return createErrorResponse('action is required.');
     return this.context.gameCommand('audio_bus_layout', args, a => ({
@@ -1064,7 +1064,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameAudioSpatial(args: any) {
+  public async handleGameAudioSpatial(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath || !args.action) return createErrorResponse('nodePath and action are required.');
     return this.context.gameCommand('audio_spatial', args, a => ({
@@ -1078,7 +1078,7 @@ export class GameToolHandlers {
 
   // --- Batch 4: Editor/Headless + Localization + Resource ---
 
-  public async handleGameLocale(args: any) {
+  public async handleGameLocale(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.action) return createErrorResponse('action is required.');
     return this.context.gameCommand('locale', args, a => ({
@@ -1090,7 +1090,7 @@ export class GameToolHandlers {
 
   // --- Batch 5: UI Controls + Rendering + Resource Runtime ---
 
-  public async handleGameUiControl(args: any) {
+  public async handleGameUiControl(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath || !args.action) return createErrorResponse('nodePath and action are required.');
     return this.context.gameCommand('ui_control', args, a => ({
@@ -1102,7 +1102,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameUiText(args: any) {
+  public async handleGameUiText(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath || !args.action) return createErrorResponse('nodePath and action are required.');
     return this.context.gameCommand('ui_text', args, a => ({
@@ -1114,7 +1114,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameUiPopup(args: any) {
+  public async handleGameUiPopup(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath || !args.action) return createErrorResponse('nodePath and action are required.');
     return this.context.gameCommand('ui_popup', args, a => ({
@@ -1125,7 +1125,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameUiTree(args: any) {
+  public async handleGameUiTree(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath || !args.action) return createErrorResponse('nodePath and action are required.');
     return this.context.gameCommand('ui_tree', args, a => ({
@@ -1136,7 +1136,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameUiItemList(args: any) {
+  public async handleGameUiItemList(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath || !args.action) return createErrorResponse('nodePath and action are required.');
     return this.context.gameCommand('ui_item_list', args, a => ({
@@ -1146,7 +1146,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameUiTabs(args: any) {
+  public async handleGameUiTabs(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath || !args.action) return createErrorResponse('nodePath and action are required.');
     return this.context.gameCommand('ui_tabs', args, a => ({
@@ -1156,7 +1156,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameUiMenu(args: any) {
+  public async handleGameUiMenu(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath || !args.action) return createErrorResponse('nodePath and action are required.');
     return this.context.gameCommand('ui_menu', args, a => ({
@@ -1168,7 +1168,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameUiRange(args: any) {
+  public async handleGameUiRange(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath || !args.action) return createErrorResponse('nodePath and action are required.');
     return this.context.gameCommand('ui_range', args, a => ({
@@ -1181,7 +1181,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameRenderSettings(args: any) {
+  public async handleGameRenderSettings(args: ToolArguments) {
     args = normalizeParameters(args || {});
     return this.context.gameCommand('render_settings', args, a => ({
       action: a.action || 'get',
@@ -1194,7 +1194,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameResource(args: any) {
+  public async handleGameResource(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.action || !args.path) return createErrorResponse('action and path are required.');
     return this.context.gameCommand('resource', args, a => ({
@@ -1206,7 +1206,7 @@ export class GameToolHandlers {
 
   // --- Batch 6: Visual Shader + Terrain + Video + CI/CD ---
 
-  public async handleGameVisualShader(args: any) {
+  public async handleGameVisualShader(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.action) return createErrorResponse('action is required.');
     return this.context.gameCommand('visual_shader', args, a => ({
@@ -1223,7 +1223,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameTerrain(args: any) {
+  public async handleGameTerrain(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.action) return createErrorResponse('action is required.');
     return this.context.gameCommand('terrain', args, a => ({
@@ -1243,7 +1243,7 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameVideo(args: any) {
+  public async handleGameVideo(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.action) return createErrorResponse('action is required.');
     return this.context.gameCommand('video', args, a => ({
