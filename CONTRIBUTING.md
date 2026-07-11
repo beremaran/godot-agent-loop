@@ -38,7 +38,7 @@ By participating in this project, you agree to maintain a respectful and inclusi
 ### Setting Up the Development Environment
 
 1. Clone the repository
-2. Install dependencies with `npm install`
+2. Install dependencies with `npm install`; this installs the Husky pre-commit hook
 3. Build the project with `npm run build`
 4. For development with auto-rebuild, use `npm run watch`
 
@@ -191,6 +191,9 @@ When making changes, ensure they work across different platforms:
 - Ensure all tests pass before submitting a Pull Request
 - Test on different platforms if possible
 - Test with different Godot versions
+
+Before every commit, the pre-commit hook runs `npm test` and `npm run lint`.
+Run both checks together at any time with `npm run check`.
 
 ## Documentation
 
