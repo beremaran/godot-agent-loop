@@ -32,6 +32,7 @@ beforeAll(() => {
     readFileSync(join(__dirname, '..', 'src', 'index.ts'), 'utf8'),
     readFileSync(join(__dirname, '..', 'src', 'tool-handlers', 'game-tool-handlers.ts'), 'utf8'),
     readFileSync(join(__dirname, '..', 'src', 'tool-handlers', 'project-tool-handlers.ts'), 'utf8'),
+    readFileSync(join(__dirname, '..', 'src', 'tool-handlers', 'project-handler-services.ts'), 'utf8'),
     readFileSync(join(__dirname, '..', 'src', 'tool-handlers', 'lifecycle-tool-handlers.ts'), 'utf8'),
     readFileSync(join(__dirname, '..', 'src', 'domain-tool-registries.ts'), 'utf8'),
   ].join('\n');
