@@ -1,34 +1,43 @@
 import { createErrorResponse, normalizeParameters } from '../utils.js';
-import type { GodotProcess } from '../godot-process-manager.js';
+import type { GameCommandService } from '../game-command-service.js';
 
 export interface GameToolHandlerContext {
-  getActiveProcess: () => GodotProcess | null;
-  isGameConnected: () => boolean;
-  sendGameCommand: (command: string, params?: Record<string, any>, timeoutMs?: number) => Promise<any>;
-  gameCommand: (
-    name: string,
-    args: any,
-    argsFn: (a: any) => Record<string, any>,
-    timeoutMs?: number,
-  ) => Promise<any>;
+  commands: GameCommandService;
+}
+
+interface GameCommandApi {
+  getActiveProcess: () => boolean;
   readNewErrors: () => string[];
   readNewLogs: () => string[];
+  gameCommand: GameCommandService['execute'];
 }
 
 /** Implements the tools that operate on a running Godot game. */
 export class GameToolHandlers {
-  constructor(private readonly context: GameToolHandlerContext) {}
+  private readonly context: GameToolHandlerContext & GameCommandApi;
+
+  constructor(context: GameToolHandlerContext) {
+    // Keep the per-tool mapping functions local to this handler while the
+    // runtime checks, transport, and response handling live in the service.
+    this.context = {
+      ...context,
+      getActiveProcess: () => context.commands.hasActiveProcess(),
+      readNewErrors: () => context.commands.readNewErrors(),
+      readNewLogs: () => context.commands.readNewLogs(),
+      gameCommand: context.commands.execute.bind(context.commands),
+    };
+  }
 
   public async handleGameScreenshot() {
-    if (!this.context.getActiveProcess()) {
+    if (!this.context.commands.hasActiveProcess()) {
       return createErrorResponse('No active Godot process. Use run_project first.');
     }
-    if (!this.context.isGameConnected()) {
+    if (!this.context.commands.isConnected()) {
       return createErrorResponse('Not connected to game interaction server. Wait a moment and try again.');
     }
 
     try {
-      const response = await this.context.sendGameCommand('screenshot');
+      const response = await this.context.commands.send('screenshot');
       if (response.error) {
         return createErrorResponse(`Screenshot failed: ${response.error}`);
       }
@@ -51,7 +60,7 @@ export class GameToolHandlers {
   }
 
   public async handleGameClick(args: any) {
-    return this.context.gameCommand('click', args, a => ({ x: a.x ?? 0, y: a.y ?? 0, button: a.button ?? 1 }));
+    return this.context.commands.execute('click', args, a => ({ x: a.x ?? 0, y: a.y ?? 0, button: a.button ?? 1 }));
   }
 
   public async handleGameKeyPress(args: any) {
@@ -61,11 +70,11 @@ export class GameToolHandlers {
     if (args.key) params.key = args.key;
     if (args.action) params.action = args.action;
     if (args.pressed !== undefined) params.pressed = args.pressed;
-    return this.context.gameCommand('key_press', args, () => params);
+    return this.context.commands.execute('key_press', args, () => params);
   }
 
   public async handleGameMouseMove(args: any) {
-    return this.context.gameCommand('mouse_move', args, a => ({
+    return this.context.commands.execute('mouse_move', args, a => ({
       x: a.x ?? 0, y: a.y ?? 0, relative_x: a.relative_x ?? 0, relative_y: a.relative_y ?? 0,
     }));
   }

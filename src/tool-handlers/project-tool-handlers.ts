@@ -16,21 +16,41 @@ import {
 } from '../utils.js';
 import type { OperationParams } from '../utils.js';
 import type { ProjectSupport } from '../project-support.js';
+import type { GodotExecutableService } from '../godot-executable.js';
+import type { HeadlessOperationService } from '../headless-operation-service.js';
 
 const execFileAsync = promisify(execFile);
 
 export interface ProjectToolHandlerContext {
+  executable: GodotExecutableService;
+  logDebug: (message: string) => void;
+  operations: HeadlessOperationService;
+  projectSupport: ProjectSupport;
+}
+
+interface ProjectOperationApi {
   getGodotPath: () => string | null;
   detectGodotPath: () => Promise<void>;
-  logDebug: (message: string) => void;
   executeOperation: (operation: string, params: OperationParams, projectPath: string) => Promise<{ stdout: string; stderr: string }>;
   headlessOp: (operation: string, args: any, argsFn: (a: any) => { projectPath: string; params: OperationParams }) => Promise<any>;
-  projectSupport: ProjectSupport;
 }
 
 /** Implements project, scene, file, script, and export tools. */
 export class ProjectToolHandlers {
-  constructor(private readonly context: ProjectToolHandlerContext) {}
+  private readonly context: ProjectToolHandlerContext & ProjectOperationApi;
+
+  constructor(context: ProjectToolHandlerContext) {
+    this.context = {
+      ...context,
+      getGodotPath: () => context.executable.path,
+      detectGodotPath: async () => { await context.executable.detect(); },
+      executeOperation: (operation, params, projectPath) => context.operations.execute(operation, params, projectPath),
+      headlessOp: (operation, args, argsFn) => {
+        const { projectPath, params } = argsFn(args);
+        return context.operations.run(operation, projectPath, params);
+      },
+    };
+  }
 
   public async handleListProjects(args: any) {
     // Normalize parameters to camelCase

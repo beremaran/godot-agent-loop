@@ -16,7 +16,7 @@ finishing the separation and improving maintainability.
   - .NET detection
   - key/scancode mapping
   - script-validation and changed-file helpers
-- [ ] Replace callback-heavy handler contexts with clearer service interfaces,
+- [x] Replace callback-heavy handler contexts with clearer service interfaces,
   especially around `gameCommand`, `headlessOp`, and executable access.
 - [ ] Split the large manual tool registry into composable domain registries.
 - [ ] Add direct unit tests for the extracted handler modules.

@@ -9,7 +9,6 @@
 
 import { fileURLToPath } from 'url';
 import { join, dirname, normalize, resolve, relative, isAbsolute } from 'path';
-import { existsSync } from 'fs';
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
@@ -18,16 +17,12 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 
-import {
-  normalizeParameters,
-  convertCamelToSnakeCase,
-  validatePath,
-  createErrorResponse,
-  type OperationParams,
-} from './utils.js';
+import type { OperationParams } from './utils.js';
 import { toolDefinitions, type ToolName } from './tool-definitions.js';
-import { GodotExecutableValidator, detectGodotExecutablePath } from './godot-executable.js';
+import { GodotExecutableService, GodotExecutableValidator } from './godot-executable.js';
 import { HeadlessOperationRunner } from './headless-operation-runner.js';
+import { HeadlessOperationService } from './headless-operation-service.js';
+import { GameCommandService } from './game-command-service.js';
 import { InteractionServerInstaller } from './interaction-server-installer.js';
 import { GameConnection } from './game-connection.js';
 import { ToolRegistry, type ToolHandler } from './tool-registry.js';
@@ -86,15 +81,23 @@ export class GodotServer {
     // Preserve the existing test seam while process ownership moves to the manager.
     this.processManager.seedActiveProcess(process);
   }
-  private godotPath: string | null = null;
+  private readonly executable: GodotExecutableService;
+  private get godotPath(): string | null {
+    return this.executable.path;
+  }
+  private set godotPath(path: string | null) {
+    this.executable.path = path;
+  }
   private readonly gameToolHandlers: GameToolHandlers;
   private readonly projectToolHandlers: ProjectToolHandlers;
   private readonly lifecycleToolHandlers: LifecycleToolHandlers;
   private readonly projectSupport: ProjectSupport;
   private operationsScriptPath: string;
   private interactionServerInstaller: InteractionServerInstaller;
-  private executableValidator: GodotExecutableValidator;
+  private readonly executableValidator: GodotExecutableValidator;
   private operationRunner: HeadlessOperationRunner;
+  private readonly headlessOperations: HeadlessOperationService;
+  private readonly gameCommands: GameCommandService;
   private strictPathValidation = false;
   private readonly tcpGameConnection = new GameConnection({
     port: 9090,
@@ -112,6 +115,11 @@ export class GodotServer {
     // Apply configuration if provided
     let debugMode = DEBUG_MODE;
     this.executableValidator = new GodotExecutableValidator(message => { this.logDebug(message); });
+    this.executable = new GodotExecutableService(
+      this.executableValidator,
+      config?.strictPathValidation ?? false,
+      message => { this.logDebug(message); },
+    );
 
     if (config) {
       if (config.debugMode !== undefined) {
@@ -144,12 +152,14 @@ export class GodotServer {
     this.operationRunner = new HeadlessOperationRunner({
       operationsScriptPath: this.operationsScriptPath,
       resolveGodotPath: async () => {
-        if (!this.godotPath) await this.detectGodotPath();
-        if (!this.godotPath) throw new Error('Could not find a valid Godot executable path');
-        return this.godotPath;
+        const path = await this.executable.requirePath();
+        if (!path) throw new Error('Could not find a valid Godot executable path');
+        return path;
       },
       logDebug: message => { this.logDebug(message); },
     });
+    this.headlessOperations = new HeadlessOperationService(this.operationRunner);
+    this.gameCommands = new GameCommandService(this.processManager, this.gameConnection);
     if (debugMode) console.error(`[DEBUG] Operations script path: ${this.operationsScriptPath}`);
     this.projectSupport = new ProjectSupport({
       getGodotPath: () => this.godotPath,
@@ -157,24 +167,16 @@ export class GodotServer {
       logDebug: message => { this.logDebug(message); },
     });
     this.gameToolHandlers = new GameToolHandlers({
-      getActiveProcess: () => this.activeProcess,
-      isGameConnected: () => this.gameConnection.connected,
-      sendGameCommand: (command, params, timeoutMs) => this.sendGameCommand(command, params, timeoutMs),
-      gameCommand: (name, args, argsFn, timeoutMs) => this.gameCommand(name, args, argsFn, timeoutMs),
-      readNewErrors: () => this.processManager.readNewErrors(),
-      readNewLogs: () => this.processManager.readNewLogs(),
+      commands: this.gameCommands,
     });
     this.projectToolHandlers = new ProjectToolHandlers({
-      getGodotPath: () => this.godotPath,
-      detectGodotPath: () => this.detectGodotPath(),
+      executable: this.executable,
       logDebug: message => { this.logDebug(message); },
-      executeOperation: (operation, params, projectPath) => this.executeOperation(operation, params, projectPath),
-      headlessOp: (operation, args, argsFn) => this.headlessOp(operation, args, argsFn),
+      operations: this.headlessOperations,
       projectSupport: this.projectSupport,
     });
     this.lifecycleToolHandlers = new LifecycleToolHandlers({
-      getGodotPath: () => this.godotPath,
-      detectGodotPath: () => this.detectGodotPath(),
+      executable: this.executable,
       getActiveProcess: () => this.activeProcess,
       isPathAllowed: projectPath => isPathWithinAllowedRoots(projectPath),
       logDebug: message => { this.logDebug(message); },
@@ -242,26 +244,21 @@ export class GodotServer {
    * @returns True if the path exists or is 'godot' (which might be in PATH)
    */
   private isValidGodotPathSync(path: string): boolean {
-    return this.executableValidator.isValidSync(path);
+    return this.executable.isValidSync(path);
   }
 
   /**
    * Validate if a Godot path is valid and executable
    */
   private async isValidGodotPath(path: string): Promise<boolean> {
-    return this.executableValidator.isValid(path);
+    return this.executable.isValid(path);
   }
 
   /**
    * Detect the Godot executable path based on the operating system
    */
   private async detectGodotPath() {
-    this.godotPath = await detectGodotExecutablePath({
-      currentPath: this.godotPath,
-      strictPathValidation: this.strictPathValidation,
-      isValid: path => this.isValidGodotPath(path),
-      logDebug: message => { this.logDebug(message); },
-    });
+    await this.executable.detect();
   }
 
   /**
@@ -276,14 +273,11 @@ export class GodotServer {
 
     // Normalize the path to ensure consistent format across platforms
     // (e.g., backslashes to forward slashes on Windows, resolving relative paths)
-    const normalizedPath = normalize(customPath);
-    if (await this.isValidGodotPath(normalizedPath)) {
-      this.godotPath = normalizedPath;
-      this.logDebug(`Godot path set to: ${normalizedPath}`);
+    if (await this.executable.setPath(customPath)) {
       return true;
     }
 
-    this.logDebug(`Failed to set invalid Godot path: ${normalizedPath}`);
+    this.logDebug(`Failed to set invalid Godot path: ${normalize(customPath)}`);
     return false;
   }
 
@@ -326,13 +320,6 @@ export class GodotServer {
   }
 
   /**
-   * Send a command to the running game and wait for a response
-   */
-  private async sendGameCommand(command: string, params: Record<string, any> = {}, timeoutMs = 10000): Promise<any> {
-    return this.gameConnection.send(command, params, timeoutMs);
-  }
-
-  /**
    * Clean up resources when shutting down
    */
   private async cleanup() {
@@ -349,47 +336,6 @@ export class GodotServer {
     await this.server.close();
   }
 
-  private async gameCommand(
-    name: string,
-    args: any,
-    argsFn: (a: any) => Record<string, any>,
-    timeoutMs?: number
-  ): Promise<any> {
-    if (!this.activeProcess) return createErrorResponse('No active Godot process. Use run_project first.');
-    if (!this.gameConnection.connected) return createErrorResponse('Not connected to game interaction server.');
-    args = normalizeParameters(args || {});
-    try {
-      const response = await this.sendGameCommand(name, convertCamelToSnakeCase(argsFn(args)), timeoutMs);
-      if (response.error) return createErrorResponse(`${name} failed: ${response.error}`);
-      return { content: [{ type: 'text', text: JSON.stringify(response, null, 2) }] };
-    } catch (error: any) {
-      return createErrorResponse(`${name} failed: ${error?.message || 'Unknown error'}`);
-    }
-  }
-
-  private async headlessOp(
-    operation: string,
-    args: any,
-    argsFn: (a: any) => { projectPath: string; params: OperationParams }
-  ): Promise<any> {
-    args = normalizeParameters(args || {});
-    const { projectPath, params } = argsFn(args);
-
-    if (!projectPath) return createErrorResponse('projectPath is required.');
-    if (!validatePath(projectPath)) return createErrorResponse('Invalid path.');
-
-    const projectFile = join(projectPath, 'project.godot');
-    if (!existsSync(projectFile)) return createErrorResponse(`Not a valid Godot project: ${projectPath}`);
-
-    try {
-      const { stdout, stderr } = await this.executeOperation(operation, params, projectPath);
-      if (stderr && stderr.includes('Failed to')) return createErrorResponse(`${operation} failed: ${stderr}`);
-      return { content: [{ type: 'text', text: `${operation} succeeded.\n\nOutput: ${stdout}` }] };
-    } catch (error: any) {
-      return createErrorResponse(`${operation} failed: ${error?.message || 'Unknown error'}`);
-    }
-  }
-
   /**
    * Execute a Godot operation using the operations script
    * @param operation The operation to execute
@@ -403,7 +349,7 @@ export class GodotServer {
     projectPath: string
   ): Promise<{ stdout: string; stderr: string }> {
     // Parameter normalization is owned by HeadlessOperationRunner via convertCamelToSnakeCase.
-    return this.operationRunner.execute(operation, params, projectPath);
+    return this.headlessOperations.execute(operation, params, projectPath);
   }
 
   // GameToolHandlers owns game_screenshot's type: 'image' / mimeType: 'image/png' response.

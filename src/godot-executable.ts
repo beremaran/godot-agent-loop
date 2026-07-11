@@ -7,6 +7,61 @@ const execFileAsync = promisify(execFile);
 
 export type DebugLogger = (message: string) => void;
 
+/**
+ * Resolves and validates the executable used by Godot-facing services.
+ *
+ * Keeping this mutable state in one service prevents tool handlers from
+ * coordinating a pair of get-path/detect-path callbacks themselves.
+ */
+export class GodotExecutableService {
+  private godotPath: string | null = null;
+
+  constructor(
+    private readonly validator: GodotExecutableValidator,
+    private readonly strictPathValidation: boolean,
+    private readonly logDebug: DebugLogger = () => undefined,
+  ) {}
+
+  public get path(): string | null {
+    return this.godotPath;
+  }
+
+  public set path(path: string | null) {
+    this.godotPath = path;
+  }
+
+  public isValidSync(path: string): boolean {
+    return this.validator.isValidSync(path);
+  }
+
+  public isValid(path: string): Promise<boolean> {
+    return this.validator.isValid(path);
+  }
+
+  public async detect(): Promise<string> {
+    this.godotPath = await detectGodotExecutablePath({
+      currentPath: this.godotPath,
+      strictPathValidation: this.strictPathValidation,
+      isValid: path => this.isValid(path),
+      logDebug: this.logDebug,
+    });
+    return this.godotPath;
+  }
+
+  public async requirePath(): Promise<string | null> {
+    if (!this.godotPath) await this.detect();
+    return this.godotPath;
+  }
+
+  public async setPath(path: string): Promise<boolean> {
+    const normalizedPath = normalize(path);
+    if (!await this.isValid(normalizedPath)) return false;
+    this.godotPath = normalizedPath;
+    this.logDebug(`Godot path set to: ${normalizedPath}`);
+    return true;
+  }
+}
+
 export class GodotExecutableValidator {
   private readonly validatedPaths = new Map<string, boolean>();
 

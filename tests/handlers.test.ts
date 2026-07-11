@@ -24,6 +24,8 @@ import {
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 let sourceCode: string;
+let gameCommandServiceSource: string;
+let headlessOperationServiceSource: string;
 
 beforeAll(() => {
   sourceCode = [
@@ -32,6 +34,8 @@ beforeAll(() => {
     readFileSync(join(__dirname, '..', 'src', 'tool-handlers', 'project-tool-handlers.ts'), 'utf8'),
     readFileSync(join(__dirname, '..', 'src', 'tool-handlers', 'lifecycle-tool-handlers.ts'), 'utf8'),
   ].join('\n');
+  gameCommandServiceSource = readFileSync(join(__dirname, '..', 'src', 'game-command-service.ts'), 'utf8');
+  headlessOperationServiceSource = readFileSync(join(__dirname, '..', 'src', 'headless-operation-service.ts'), 'utf8');
 });
 
 // ---------------------------------------------------------------------------
@@ -1011,41 +1015,34 @@ describe('Handler source structure', () => {
     }
   });
 
-  it('gameCommand checks activeProcess and gameConnection', () => {
-    // Verify the gameCommand helper has the guard checks
-    expect(sourceCode).toContain("if (!this.activeProcess) return createErrorResponse('No active Godot process");
-    expect(sourceCode).toContain("if (!this.gameConnection.connected) return createErrorResponse('Not connected");
+  it('GameCommandService checks the process and game connection', () => {
+    expect(gameCommandServiceSource).toContain('class GameCommandService');
+    expect(gameCommandServiceSource).toContain("if (!this.hasActiveProcess()) return createErrorResponse('No active Godot process");
+    expect(gameCommandServiceSource).toContain("if (!this.isConnected()) return createErrorResponse('Not connected");
   });
 
-  it('headlessOp validates projectPath and checks project.godot', () => {
-    expect(sourceCode).toContain("if (!projectPath) return createErrorResponse('projectPath is required.");
-    expect(sourceCode).toContain("if (!validatePath(projectPath)) return createErrorResponse('Invalid path.");
-    expect(sourceCode).toContain("project.godot");
+  it('HeadlessOperationService validates project paths and project.godot', () => {
+    expect(headlessOperationServiceSource).toContain("if (!projectPath) return createErrorResponse('projectPath is required.");
+    expect(headlessOperationServiceSource).toContain("if (!validatePath(projectPath)) return createErrorResponse('Invalid path.");
+    expect(headlessOperationServiceSource).toContain("project.godot");
   });
 
   it('gameCommand normalizes parameters', () => {
     expect(sourceCode).toContain('args = normalizeParameters(args || {});');
   });
 
-  it('gameCommand wraps sendGameCommand in try-catch', () => {
-    // The gameCommand helper catches errors from sendGameCommand
-    const gameCommandBlock = sourceCode.substring(
-      sourceCode.indexOf('private async gameCommand('),
-      sourceCode.indexOf('private async headlessOp(')
-    );
-    expect(gameCommandBlock).toContain('try {');
-    expect(gameCommandBlock).toContain('catch (error');
-    expect(gameCommandBlock).toContain('sendGameCommand');
+  it('GameCommandService wraps command transport in try-catch', () => {
+    const executeBlock = gameCommandServiceSource.substring(gameCommandServiceSource.indexOf('public async execute('));
+    expect(executeBlock).toContain('try {');
+    expect(executeBlock).toContain('catch (error');
+    expect(executeBlock).toContain('this.send(');
   });
 
-  it('headlessOp wraps executeOperation in try-catch', () => {
-    const headlessOpBlock = sourceCode.substring(
-      sourceCode.indexOf('private async headlessOp('),
-      sourceCode.indexOf('private async executeOperation(')
-    );
-    expect(headlessOpBlock).toContain('try {');
-    expect(headlessOpBlock).toContain('catch (error');
-    expect(headlessOpBlock).toContain('executeOperation');
+  it('HeadlessOperationService wraps execution in try-catch', () => {
+    const runBlock = headlessOperationServiceSource.substring(headlessOperationServiceSource.indexOf('public async run('));
+    expect(runBlock).toContain('try {');
+    expect(runBlock).toContain('catch (error');
+    expect(runBlock).toContain('this.execute(');
   });
 });
 

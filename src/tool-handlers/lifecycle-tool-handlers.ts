@@ -6,12 +6,12 @@ import { promisify } from 'util';
 
 import { createErrorResponse, normalizeParameters, validatePath } from '../utils.js';
 import type { GodotProcess } from '../godot-process-manager.js';
+import type { GodotExecutableService } from '../godot-executable.js';
 
 const execFileAsync = promisify(execFile);
 
 export interface LifecycleToolHandlerContext {
-  getGodotPath: () => string | null;
-  detectGodotPath: () => Promise<void>;
+  executable: GodotExecutableService;
   getActiveProcess: () => GodotProcess | null;
   isPathAllowed: (projectPath: string) => boolean;
   logDebug: (message: string) => void;
@@ -134,8 +134,7 @@ export class LifecycleToolHandlers {
   }
 
   private async requireGodotPath(): Promise<string | null> {
-    if (!this.context.getGodotPath()) await this.context.detectGodotPath();
-    return this.context.getGodotPath();
+    return this.context.executable.requirePath();
   }
 
   private handleProjectExit(): void {
