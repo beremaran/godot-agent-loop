@@ -20,6 +20,7 @@ import { type OperationParams, type ToolArguments, type ToolResponse } from '../
 import type { ProjectSupport } from '../project-support.js';
 import type { GodotExecutableService } from '../godot-executable.js';
 import type { HeadlessOperationService } from '../headless-operation-service.js';
+import type { HeadlessOperationResult } from '../headless-operation-runner.js';
 import { GODOT_VERSION_OPTIONS } from '../godot-subprocess.js';
 import {
   ProjectConfigurationService,
@@ -42,7 +43,7 @@ export interface ProjectToolHandlerContext {
 interface ProjectOperationApi {
   getGodotPath: () => string | null;
   detectGodotPath: () => Promise<void>;
-  executeOperation: (operation: string, params: OperationParams, projectPath: string) => Promise<{ stdout: string; stderr: string }>;
+  executeOperation: (operation: string, params: OperationParams, projectPath: string) => Promise<HeadlessOperationResult>;
   headlessOp: (operation: string, args: ToolArguments, argsFn: (a: ToolArguments) => { projectPath: string; params: OperationParams }) => Promise<ToolResponse>;
 }
 
@@ -94,6 +95,16 @@ export class ProjectToolHandlers {
     const resolved = this.context.pathSecurity.resolveProjectPath(projectPath, relativePath);
     if (!resolved) throw new Error(`Path is outside the project: ${relativePath}`);
     return resolved;
+  }
+
+  /** Converts the runner's structured process status into a tool error. */
+  private headlessFailure(action: string, result: HeadlessOperationResult): ToolResponse | null {
+    if (result.exitCode === 0 && result.signal === null) return null;
+    const status = result.signal
+      ? `terminated by signal ${result.signal}`
+      : `exited with code ${result.exitCode}`;
+    const output = result.stderr || result.stdout;
+    return createErrorResponse(`${action} (${status})${output ? `: ${output}` : '.'}`);
   }
 
   public async handleListProjects(args: ToolArguments) {
@@ -262,13 +273,10 @@ export class ProjectToolHandlers {
       };
 
       // Execute the operation
-      const { stdout, stderr } = await this.context.executeOperation('create_scene', params, args.projectPath);
-
-      if (stderr && stderr.includes('Failed to')) {
-        return createErrorResponse(
-          `Failed to create scene: ${stderr}`
-        );
-      }
+      const result = await this.context.executeOperation('create_scene', params, args.projectPath);
+      const failure = this.headlessFailure('Failed to create scene', result);
+      if (failure) return failure;
+      const { stdout } = result;
 
       return {
         content: [
@@ -339,13 +347,10 @@ export class ProjectToolHandlers {
       }
 
       // Execute the operation
-      const { stdout, stderr } = await this.context.executeOperation('add_node', params, args.projectPath);
-
-      if (stderr && stderr.includes('Failed to')) {
-        return createErrorResponse(
-          `Failed to add node: ${stderr}`
-        );
-      }
+      const result = await this.context.executeOperation('add_node', params, args.projectPath);
+      const failure = this.headlessFailure('Failed to add node', result);
+      if (failure) return failure;
+      const { stdout } = result;
 
       return {
         content: [
@@ -420,13 +425,10 @@ export class ProjectToolHandlers {
       };
 
       // Execute the operation
-      const { stdout, stderr } = await this.context.executeOperation('load_sprite', params, args.projectPath);
-
-      if (stderr && stderr.includes('Failed to')) {
-        return createErrorResponse(
-          `Failed to load sprite: ${stderr}`
-        );
-      }
+      const result = await this.context.executeOperation('load_sprite', params, args.projectPath);
+      const failure = this.headlessFailure('Failed to load sprite', result);
+      if (failure) return failure;
+      const { stdout } = result;
 
       return {
         content: [
@@ -496,13 +498,10 @@ export class ProjectToolHandlers {
       }
 
       // Execute the operation
-      const { stdout, stderr } = await this.context.executeOperation('export_mesh_library', params, args.projectPath);
-
-      if (stderr && stderr.includes('Failed to')) {
-        return createErrorResponse(
-          `Failed to export mesh library: ${stderr}`
-        );
-      }
+      const result = await this.context.executeOperation('export_mesh_library', params, args.projectPath);
+      const failure = this.headlessFailure('Failed to export mesh library', result);
+      if (failure) return failure;
+      const { stdout } = result;
 
       return {
         content: [
@@ -574,13 +573,10 @@ export class ProjectToolHandlers {
       }
 
       // Execute the operation
-      const { stdout, stderr } = await this.context.executeOperation('save_scene', params, args.projectPath);
-
-      if (stderr && stderr.includes('Failed to')) {
-        return createErrorResponse(
-          `Failed to save scene: ${stderr}`
-        );
-      }
+      const result = await this.context.executeOperation('save_scene', params, args.projectPath);
+      const failure = this.headlessFailure('Failed to save scene', result);
+      if (failure) return failure;
+      const { stdout } = result;
 
       const savePath = args.newPath || args.scenePath;
       return {
@@ -661,13 +657,10 @@ export class ProjectToolHandlers {
       };
 
       // Execute the operation
-      const { stdout, stderr } = await this.context.executeOperation('get_uid', params, args.projectPath);
-
-      if (stderr && stderr.includes('Failed to')) {
-        return createErrorResponse(
-          `Failed to get UID: ${stderr}`
-        );
-      }
+      const result = await this.context.executeOperation('get_uid', params, args.projectPath);
+      const failure = this.headlessFailure('Failed to get UID', result);
+      if (failure) return failure;
+      const { stdout } = result;
 
       return {
         content: [
@@ -710,9 +703,12 @@ export class ProjectToolHandlers {
     }
 
     try {
-      const { stdout, stderr } = await this.context.executeOperation('read_scene', {
+      const result = await this.context.executeOperation('read_scene', {
         scenePath: args.scenePath,
       }, args.projectPath);
+      const failure = this.headlessFailure('Failed to read scene', result);
+      if (failure) return failure;
+      const { stdout, stderr } = result;
 
       // Extract JSON from the SCENE_JSON_START/END markers
       const startMarker = 'SCENE_JSON_START';
@@ -1536,13 +1532,10 @@ export class ProjectToolHandlers {
       };
 
       // Execute the operation
-      const { stdout, stderr } = await this.context.executeOperation('resave_resources', params, args.projectPath);
-
-      if (stderr && stderr.includes('Failed to')) {
-        return createErrorResponse(
-          `Failed to update project UIDs: ${stderr}`
-        );
-      }
+      const result = await this.context.executeOperation('resave_resources', params, args.projectPath);
+      const failure = this.headlessFailure('Failed to update project UIDs', result);
+      if (failure) return failure;
+      const { stdout } = result;
 
       return {
         content: [

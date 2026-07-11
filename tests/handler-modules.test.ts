@@ -98,7 +98,7 @@ describe('ProjectToolHandlers', () => {
 
   it('executes create_scene with normalized defaults', async () => {
     const root = createProject();
-    const execute = vi.fn().mockResolvedValue({ stdout: 'created', stderr: '' });
+    const execute = vi.fn().mockResolvedValue({ stdout: 'created', stderr: '', exitCode: 0, signal: null });
     const handlers = new ProjectToolHandlers({
       executable: { path: 'godot' } as any,
       logDebug: vi.fn(),
@@ -113,6 +113,21 @@ describe('ProjectToolHandlers', () => {
       rootNodeType: 'Node2D',
     }, root);
     expect(textFrom(response)).toContain('Scene created successfully at: main.tscn');
+  });
+
+  it('reports a create_scene process failure from its exit status', async () => {
+    const root = createProject();
+    const handlers = new ProjectToolHandlers({
+      executable: { path: 'godot' } as any,
+      logDebug: vi.fn(),
+      operations: { execute: vi.fn().mockResolvedValue({ stdout: '', stderr: '', exitCode: 1, signal: null }) } as any,
+      projectSupport: {} as any,
+    });
+
+    const response = await handlers.handleCreateScene({ projectPath: root, scenePath: 'main.tscn' });
+
+    expect(response.isError).toBe(true);
+    expect(textFrom(response)).toContain('exited with code 1');
   });
 });
 

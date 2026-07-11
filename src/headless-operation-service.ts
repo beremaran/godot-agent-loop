@@ -27,7 +27,6 @@ export class HeadlessOperationService {
         const output = stderr || stdout;
         return createErrorResponse(`${operation} failed (${details})${output ? `: ${output}` : '.'}`);
       }
-      if (stderr && stderr.includes('Failed to')) return createErrorResponse(`${operation} failed: ${stderr}`);
       return { content: [{ type: 'text', text: `${operation} succeeded.\n\nOutput: ${stdout}` }] };
     } catch (error: unknown) {
       return createErrorResponse(`${operation} failed: ${errorMessage(error)}`);

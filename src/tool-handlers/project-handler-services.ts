@@ -176,10 +176,22 @@ export class ProjectExportService {
     if (!this.context.executable.path) return createErrorResponse('Could not find Godot executable.');
     try {
       const flag = args.debug ? '--export-debug' : '--export-release';
-      const { stdout, stderr } = await execFileAsync(this.context.executable.path, ['--headless', '--path', args.projectPath, flag, args.presetName, args.outputPath], GODOT_EXPORT_OPTIONS);
-      if (stderr && stderr.includes('ERROR')) return createErrorResponse(`Export failed: ${stderr}`);
+      const { stdout } = await execFileAsync(this.context.executable.path, ['--headless', '--path', args.projectPath, flag, args.presetName, args.outputPath], GODOT_EXPORT_OPTIONS);
       return { content: [{ type: 'text', text: `Export succeeded.\n\nOutput: ${stdout || args.outputPath}` }] };
-    } catch (error: unknown) { return createErrorResponse(`Export failed: ${errorMessage(error)}`); }
+    } catch (error: unknown) {
+      if (error instanceof Error && 'code' in error) {
+        const processError = error as Error & { code?: number | string; signal?: NodeJS.Signals | null; stdout?: string; stderr?: string };
+        if (typeof processError.code !== 'number' && !processError.signal) {
+          return createErrorResponse(`Export failed: ${errorMessage(error)}`);
+        }
+        const status = processError.signal
+          ? `terminated by signal ${processError.signal}`
+          : `exited with code ${processError.code}`;
+        const output = processError.stderr || processError.stdout;
+        return createErrorResponse(`Export failed (${status})${output ? `: ${output}` : '.'}`);
+      }
+      return createErrorResponse(`Export failed: ${errorMessage(error)}`);
+    }
   }
 }
 

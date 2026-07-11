@@ -574,12 +574,15 @@ func add_node(params):
                     print("Node '" + params.node_name + "' of type '" + params.node_type + "' added successfully")
                 else:
                     printerr("File reported as saved but does not exist at: " + absolute_scene_path)
+                    quit(1)
             else:
                 print("Node '" + params.node_name + "' of type '" + params.node_type + "' added successfully")
         else:
             printerr("Failed to save scene: " + str(save_error))
+            quit(1)
     else:
         printerr("Failed to pack scene: " + str(result))
+        quit(1)
 
 # Load a sprite into a Sprite2D node
 func load_sprite(params):
@@ -706,12 +709,15 @@ func load_sprite(params):
                     print("Absolute file path: " + absolute_path)
                 else:
                     printerr("File reported as saved but does not exist at: " + full_scene_path)
+                    quit(1)
             else:
                 print("Sprite loaded successfully with texture: " + full_texture_path)
         else:
             printerr("Failed to save scene: " + str(error))
+            quit(1)
     else:
         printerr("Failed to pack scene: " + str(result))
+        quit(1)
 
 # Export a scene as a MeshLibrary resource
 func export_mesh_library(params):
@@ -885,12 +891,15 @@ func export_mesh_library(params):
                     print("Absolute file path: " + absolute_path)
                 else:
                     printerr("File reported as saved but does not exist at: " + full_output_path)
+                    quit(1)
             else:
                 print("MeshLibrary exported successfully with " + str(item_id) + " items to: " + full_output_path)
         else:
             printerr("Failed to save MeshLibrary: " + str(error))
+            quit(1)
     else:
         printerr("No valid meshes found in the scene")
+        quit(1)
 
 # Find files with a specific extension recursively
 func find_files(path, extension):
@@ -1045,6 +1054,7 @@ func resave_resources(params):
                 
                     if not file_check_after:
                         printerr("File reported as saved but does not exist at: " + scene_path)
+                        error_count += 1
             else:
                 error_count += 1
                 printerr("Failed to save: " + scene_path + ", error: " + str(error))
@@ -1096,10 +1106,13 @@ func resave_resources(params):
                     
                         if not uid_check_after:
                             printerr("UID file reported as generated but does not exist at: " + uid_path)
+                            error_count += 1
                 else:
                     printerr("Failed to generate UID for: " + script_path + ", error: " + str(error))
+                    error_count += 1
             else:
                 printerr("Failed to load resource: " + script_path)
+                error_count += 1
         elif debug_mode:
             print("UID file already exists for: " + script_path)
     
@@ -1111,6 +1124,8 @@ func resave_resources(params):
         print("- Scripts/shaders missing UIDs: " + str(missing_uids))
         print("- UIDs successfully generated: " + str(generated_uids))
     print("Resave operation complete")
+    if error_count > 0:
+        quit(1)
 
 # Save changes to a scene file
 func save_scene(params):
@@ -1204,12 +1219,15 @@ func save_scene(params):
                     print("Absolute file path: " + absolute_path)
                 else:
                     printerr("File reported as saved but does not exist at: " + save_path)
+                    quit(1)
             else:
                 print("Scene saved successfully to: " + save_path)
         else:
             printerr("Failed to save scene: " + str(error))
+            quit(1)
     else:
         printerr("Failed to pack scene (save_scene): " + str(result))
+        quit(1)
 
 # Helper: Convert a JSON value to the correct Godot type based on a node's property type
 func _convert_property_value(node, prop_name, value):
