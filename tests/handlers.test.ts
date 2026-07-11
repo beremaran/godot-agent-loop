@@ -33,6 +33,7 @@ beforeAll(() => {
     readFileSync(join(__dirname, '..', 'src', 'tool-handlers', 'game-tool-handlers.ts'), 'utf8'),
     readFileSync(join(__dirname, '..', 'src', 'tool-handlers', 'project-tool-handlers.ts'), 'utf8'),
     readFileSync(join(__dirname, '..', 'src', 'tool-handlers', 'lifecycle-tool-handlers.ts'), 'utf8'),
+    readFileSync(join(__dirname, '..', 'src', 'domain-tool-registries.ts'), 'utf8'),
   ].join('\n');
   gameCommandServiceSource = readFileSync(join(__dirname, '..', 'src', 'game-command-service.ts'), 'utf8');
   headlessOperationServiceSource = readFileSync(join(__dirname, '..', 'src', 'headless-operation-service.ts'), 'utf8');
@@ -1926,7 +1927,7 @@ describe('executeOperation parameter conversion', () => {
 // ---------------------------------------------------------------------------
 describe('Tool registry dispatch', () => {
   it('delegates tool calls through ToolRegistry', () => {
-    expect(sourceCode).toContain('new ToolRegistry(this.createToolHandlers())');
+    expect(sourceCode).toContain('new ToolRegistry(createToolHandlers({');
     expect(sourceCode).toContain('return tools.dispatch(request.params.name, request.params.arguments)');
   });
 
@@ -1934,8 +1935,11 @@ describe('Tool registry dispatch', () => {
     expect(sourceCode).not.toContain('switch (request.params.name)');
   });
 
-  it('binds an exhaustive typed handler map without runtime reflection', () => {
-    expect(sourceCode).toContain('Record<ToolName, ToolHandler>');
+  it('composes exhaustive typed handler maps without runtime reflection', () => {
+    expect(sourceCode).toContain('composeToolHandlerRegistries');
+    expect(sourceCode).toContain('createLifecycleToolRegistry');
+    expect(sourceCode).toContain('createProjectToolRegistry');
+    expect(sourceCode).toContain('createGameToolRegistry');
     expect(sourceCode).not.toContain('method.call(target');
   });
 });

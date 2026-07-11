@@ -70,6 +70,7 @@ beforeAll(() => {
   sourceCode = [
     readFileSync(join(__dirname, '..', 'src', 'index.ts'), 'utf8'),
     readFileSync(join(__dirname, '..', 'src', 'tool-definitions.ts'), 'utf8'),
+    readFileSync(join(__dirname, '..', 'src', 'domain-tool-registries.ts'), 'utf8'),
   ].join('\n');
 });
 
