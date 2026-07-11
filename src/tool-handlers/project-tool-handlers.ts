@@ -20,6 +20,7 @@ import { type OperationParams, type ToolArguments, type ToolResponse } from '../
 import type { ProjectSupport } from '../project-support.js';
 import type { GodotExecutableService } from '../godot-executable.js';
 import type { HeadlessOperationService } from '../headless-operation-service.js';
+import { GODOT_EXPORT_OPTIONS, GODOT_VERSION_OPTIONS } from '../godot-subprocess.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -158,8 +159,7 @@ export class ProjectToolHandlers {
       this.context.logDebug(`Getting project info for: ${args.projectPath}`);
   
       // Get Godot version
-      const execOptions = { timeout: 10000 }; // 10 second timeout
-      const { stdout } = await execFileAsync(this.context.getGodotPath()!, ['--version'], execOptions);
+      const { stdout } = await execFileAsync(this.context.getGodotPath()!, ['--version'], GODOT_VERSION_OPTIONS);
   
       // Get project structure using the recursive method
       const projectStructure = await this.context.projectSupport.getProjectStructureAsync(args.projectPath);
@@ -623,7 +623,7 @@ export class ProjectToolHandlers {
       }
 
       // Get Godot version to check if UIDs are supported
-      const { stdout: versionOutput } = await execFileAsync(this.context.getGodotPath()!, ['--version']);
+      const { stdout: versionOutput } = await execFileAsync(this.context.getGodotPath()!, ['--version'], GODOT_VERSION_OPTIONS);
       const version = versionOutput.trim();
 
       if (!isGodot44OrLater(version)) {
@@ -1256,7 +1256,7 @@ export class ProjectToolHandlers {
     try {
       const exportFlag = args.debug ? '--export-debug' : '--export-release';
       const exportArgs = ['--headless', '--path', args.projectPath, exportFlag, args.presetName, args.outputPath];
-      const { stdout, stderr } = await execFileAsync(this.context.getGodotPath()!, exportArgs, { timeout: 120000 });
+      const { stdout, stderr } = await execFileAsync(this.context.getGodotPath()!, exportArgs, GODOT_EXPORT_OPTIONS);
       if (stderr && stderr.includes('ERROR'))
         return createErrorResponse(`Export failed: ${stderr}`);
       return { content: [{ type: 'text', text: `Export succeeded.\n\nOutput: ${stdout || args.outputPath}` }] };
@@ -1730,7 +1730,7 @@ export class ProjectToolHandlers {
       }
 
       // Get Godot version to check if UIDs are supported
-      const { stdout: versionOutput } = await execFileAsync(this.context.getGodotPath()!, ['--version']);
+      const { stdout: versionOutput } = await execFileAsync(this.context.getGodotPath()!, ['--version'], GODOT_VERSION_OPTIONS);
       const version = versionOutput.trim();
 
       if (!isGodot44OrLater(version)) {

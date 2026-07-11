@@ -7,6 +7,7 @@ import { promisify } from 'util';
 import { createErrorResponse, normalizeParameters, validatePath, type ToolArguments } from '../utils.js';
 import type { GodotProcess } from '../godot-process-manager.js';
 import type { GodotExecutableService } from '../godot-executable.js';
+import { GODOT_VERSION_OPTIONS } from '../godot-subprocess.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -128,7 +129,7 @@ export class LifecycleToolHandlers {
       const godotPath = await this.requireGodotPath();
       if (!godotPath) return createErrorResponse('Could not find a valid Godot executable path');
       this.context.logDebug('Getting Godot version');
-      const { stdout } = await execFileAsync(godotPath, ['--version']);
+      const { stdout } = await execFileAsync(godotPath, ['--version'], GODOT_VERSION_OPTIONS);
       return { content: [{ type: 'text', text: stdout.trim() }] };
     } catch (error: unknown) {
       return createErrorResponse(`Failed to get Godot version: ${this.errorMessage(error)}`);

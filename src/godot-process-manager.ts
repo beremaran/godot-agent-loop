@@ -1,4 +1,8 @@
 import { spawn, type ChildProcess } from 'child_process';
+import {
+  GODOT_GRACEFUL_SHUTDOWN_TIMEOUT_MS,
+  GODOT_PROCESS_LOG_LINE_LIMIT,
+} from './godot-subprocess.js';
 
 export interface GodotProcess {
   process: ChildProcess;
@@ -19,26 +23,31 @@ export class GodotProcessManager {
   private lastErrorIndex = 0;
   private lastLogIndex = 0;
 
-  constructor(private readonly log: (message: string) => void = () => undefined) {}
+  constructor(
+    private readonly log: (message: string) => void = () => undefined,
+    private readonly logLineLimit = GODOT_PROCESS_LOG_LINE_LIMIT,
+    private readonly gracefulShutdownTimeoutMs = GODOT_GRACEFUL_SHUTDOWN_TIMEOUT_MS,
+    private readonly spawnProcess: typeof spawn = spawn,
+  ) {}
 
   get active(): boolean {
     return this.activeProcess !== null;
   }
 
   start(options: StartGodotProcessOptions): GodotProcess {
-    const child = spawn(options.executable, options.args, { stdio: 'pipe' });
+    const child = this.spawnProcess(options.executable, options.args, { stdio: 'pipe' });
     const record: GodotProcess = { process: child, output: [], errors: [] };
     this.activeProcess = record;
     this.resetCursors();
 
     child.stdout?.on('data', (data: Buffer) => {
       const lines = data.toString().split('\n');
-      record.output.push(...lines);
+      this.appendLines(record.output, lines);
       for (const line of lines) if (line.trim()) this.log(`[Godot stdout] ${line}`);
     });
     child.stderr?.on('data', (data: Buffer) => {
       const lines = data.toString().split('\n');
-      record.errors.push(...lines);
+      this.appendLines(record.errors, lines);
       for (const line of lines) if (line.trim()) this.log(`[Godot stderr] ${line}`);
     });
     child.on('exit', (code: number | null) => {
@@ -58,7 +67,20 @@ export class GodotProcessManager {
     if (!record) return null;
     this.activeProcess = null;
     this.resetCursors();
-    record.process.kill();
+    let exited = false;
+    const forceKill = setTimeout(() => {
+      if (!exited) {
+        this.log(`Godot process did not exit after ${this.gracefulShutdownTimeoutMs}ms; forcing termination`);
+        record.process.kill('SIGKILL');
+      }
+    }, this.gracefulShutdownTimeoutMs);
+    if (typeof record.process.on === 'function') {
+      record.process.on('exit', () => {
+        exited = true;
+        clearTimeout(forceKill);
+      });
+    }
+    record.process.kill('SIGTERM');
     return record;
   }
 
@@ -83,5 +105,11 @@ export class GodotProcessManager {
   private resetCursors(): void {
     this.lastErrorIndex = 0;
     this.lastLogIndex = 0;
+  }
+
+  private appendLines(target: string[], lines: string[]): void {
+    target.push(...lines);
+    const excess = target.length - this.logLineLimit;
+    if (excess > 0) target.splice(0, excess);
   }
 }

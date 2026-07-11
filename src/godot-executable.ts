@@ -2,6 +2,7 @@ import { execFile } from 'child_process';
 import { existsSync } from 'fs';
 import { normalize } from 'path';
 import { promisify } from 'util';
+import { GODOT_VERSION_OPTIONS } from './godot-subprocess.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -88,7 +89,7 @@ export class GodotExecutableValidator {
         this.validatedPaths.set(path, false);
         return false;
       }
-      await execFileAsync(path, ['--version']);
+      await execFileAsync(path, ['--version'], GODOT_VERSION_OPTIONS);
       this.logDebug(`Valid Godot path: ${path}`);
       this.validatedPaths.set(path, true);
       return true;

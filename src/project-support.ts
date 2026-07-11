@@ -9,6 +9,7 @@ import {
   parseGodotScriptDiagnostics,
   type ScriptDiagnostic,
 } from './utils.js';
+import { GODOT_COMMAND_OPTIONS, GODOT_VERSION_OPTIONS } from './godot-subprocess.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -141,7 +142,7 @@ export class ProjectSupport {
       const godotPath = await this.requireGodotPath();
       if (!godotPath) return null;
 
-      const { stdout } = await execFileAsync(godotPath, ['--version'], { timeout: 10000 });
+      const { stdout } = await execFileAsync(godotPath, ['--version'], GODOT_VERSION_OPTIONS);
       const match = /^(\d+)\.(\d+)(?:\.\d+)?\.stable\b/.exec(stdout.trim());
       return match ? `${match[1]}.${match[2]}.0` : null;
     } catch {
@@ -178,7 +179,7 @@ export class ProjectSupport {
       const { stdout, stderr } = await execFileAsync(
         godotPath,
         ['--headless', '--path', projectPath, '--check-only', '--script', scriptFull],
-        { timeout: 30000, maxBuffer: 16 * 1024 * 1024 },
+        GODOT_COMMAND_OPTIONS,
       );
       output = `${stdout ?? ''}${stderr ?? ''}`;
     } catch (error: unknown) {

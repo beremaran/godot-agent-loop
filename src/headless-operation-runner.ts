@@ -2,6 +2,7 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { convertCamelToSnakeCase, type OperationParams } from './utils.js';
 import type { DebugLogger } from './godot-executable.js';
+import { GODOT_COMMAND_OPTIONS } from './godot-subprocess.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -34,7 +35,7 @@ export class HeadlessOperationRunner {
     logDebug(`Executing: ${godotPath} ${args.join(' ')}`);
 
     try {
-      const { stdout, stderr } = await execFileAsync(godotPath, args);
+      const { stdout, stderr } = await execFileAsync(godotPath, args, GODOT_COMMAND_OPTIONS);
       return { stdout: stdout ?? '', stderr: stderr ?? '', exitCode: 0, signal: null };
     } catch (error: unknown) {
       if (error instanceof Error && 'stdout' in error && 'stderr' in error && 'code' in error) {
