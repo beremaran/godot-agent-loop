@@ -1,13 +1,31 @@
-import { describe, it, expect } from 'vitest';
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { afterEach, describe, it, expect } from 'vitest';
 import {
   PARAMETER_MAPPINGS,
   REVERSE_PARAMETER_MAPPINGS,
   normalizeParameters,
   convertCamelToSnakeCase,
   validatePath,
+  PathSecurity,
   createErrorResponse,
   isGodot44OrLater,
 } from '../src/utils.js';
+
+const temporaryDirectories: string[] = [];
+
+function makeTemporaryDirectory(): string {
+  const directory = mkdtempSync(join(tmpdir(), 'godot-mcp-path-security-'));
+  temporaryDirectories.push(directory);
+  return directory;
+}
+
+afterEach(() => {
+  while (temporaryDirectories.length > 0) {
+    rmSync(temporaryDirectories.pop()!, { recursive: true, force: true });
+  }
+});
 
 describe('PARAMETER_MAPPINGS', () => {
   it('contains only names generic conversion cannot reproduce', () => {
@@ -155,6 +173,41 @@ describe('validatePath', () => {
   it('returns false for null/undefined', () => {
     expect(validatePath(null as any)).toBe(false);
     expect(validatePath(undefined as any)).toBe(false);
+  });
+});
+
+describe('PathSecurity', () => {
+  it('enforces configured allowed roots for projects and project-relative paths', () => {
+    const workspace = makeTemporaryDirectory();
+    const allowedRoot = join(workspace, 'allowed');
+    const project = join(allowedRoot, 'project');
+    const outsideProject = join(workspace, 'outside-project');
+    mkdirSync(project, { recursive: true });
+    mkdirSync(outsideProject);
+    writeFileSync(join(project, 'project.godot'), '');
+
+    const security = new PathSecurity([allowedRoot]);
+
+    expect(security.isProjectPathAllowed(project)).toBe(true);
+    expect(security.isProjectPathAllowed(outsideProject)).toBe(false);
+    expect(security.isRelativePathAllowed(project, 'scenes/main.tscn')).toBe(true);
+    expect(security.isRelativePathAllowed(project, '../outside-project/secret.gd')).toBe(false);
+  });
+
+  it('rejects project-relative paths that escape through a symlink', () => {
+    const workspace = makeTemporaryDirectory();
+    const allowedRoot = join(workspace, 'allowed');
+    const project = join(allowedRoot, 'project');
+    const outsideDirectory = join(workspace, 'outside');
+    mkdirSync(project, { recursive: true });
+    mkdirSync(outsideDirectory);
+    writeFileSync(join(project, 'project.godot'), '');
+    symlinkSync(outsideDirectory, join(project, 'linked-outside'));
+
+    const security = new PathSecurity([allowedRoot]);
+
+    expect(security.resolveProjectPath(project, 'linked-outside/secret.gd')).toBeNull();
+    expect(security.isRelativePathAllowed(project, 'linked-outside/secret.gd')).toBe(false);
   });
 });
 

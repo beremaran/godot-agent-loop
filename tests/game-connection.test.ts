@@ -4,8 +4,10 @@ import { GameConnection } from '../src/game-connection.js';
 
 const servers: Server[] = [];
 
-async function startServer(): Promise<{ server: Server; port: number }> {
+async function startServer(): Promise<{ server: Server; port: number; sockets: import('node:net').Socket[] }> {
+  const sockets: import('node:net').Socket[] = [];
   const server = createServer(socket => {
+    sockets.push(socket);
     let buffer = '';
     socket.on('data', data => {
       buffer += data.toString();
@@ -25,7 +27,15 @@ async function startServer(): Promise<{ server: Server; port: number }> {
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
   if (!address || typeof address === 'string') throw new Error('Server did not bind to a port');
-  return { server, port: address.port };
+  return { server, port: address.port, sockets };
+}
+
+async function waitFor(predicate: () => boolean, timeoutMs = 500): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!predicate()) {
+    if (Date.now() >= deadline) throw new Error('Timed out waiting for condition');
+    await new Promise(resolve => setTimeout(resolve, 5));
+  }
 }
 
 afterEach(async () => {
@@ -61,18 +71,44 @@ describe('GameConnection lifecycle', () => {
   });
 
   it('ignores close callbacks from a superseded socket', async () => {
-    const { port } = await startServer();
+    const { port, sockets } = await startServer();
     const connection = new GameConnection({ port, initialDelayMs: 0, retryDelayMs: 1 });
 
     await connection.connect('/project', () => true);
     expect(connection.isConnected).toBe(true);
 
     const reconnecting = connection.connect('/project', () => true);
+    await reconnecting;
+    expect(sockets).toHaveLength(2);
+
+    // The first server-side socket belongs to the connection that was just superseded.
+    // Its delayed close notification must not clear the newer connection state.
+    sockets[0].destroy();
     await new Promise(resolve => setTimeout(resolve, 10));
     expect(connection.isConnected).toBe(true);
 
-    await reconnecting;
     connection.disconnect();
+  });
+
+  it('cancels a pending retry delay when disconnected', async () => {
+    const logs: string[] = [];
+    const connection = new GameConnection({
+      port: 1,
+      initialDelayMs: 0,
+      retryDelayMs: 1_000,
+      maxAttempts: 2,
+      log: message => { logs.push(message); },
+    });
+
+    const connecting = connection.connect('/project', () => true);
+    await waitFor(() => logs.some(message => message.includes('Connection attempt 1/2 failed')));
+    connection.disconnect();
+    await Promise.race([
+      connecting,
+      new Promise((_, reject) => setTimeout(() => { reject(new Error('disconnect did not cancel retry')); }, 100)),
+    ]);
+
+    expect(connection.isConnected).toBe(false);
   });
 
   it('negotiates the versioned protocol and sends JSON-RPC command requests', async () => {

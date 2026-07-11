@@ -1,6 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { GodotProcessManager } from '../src/godot-process-manager.js';
+import {
+  GODOT_COMMAND_MAX_BUFFER_BYTES,
+  GODOT_COMMAND_OPTIONS,
+  GODOT_COMMAND_TIMEOUT_MS,
+  GODOT_EXPORT_OPTIONS,
+  GODOT_EXPORT_TIMEOUT_MS,
+  GODOT_VERSION_OPTIONS,
+  GODOT_VERSION_TIMEOUT_MS,
+} from '../src/godot-subprocess.js';
 
 type Listener = (...args: any[]) => void;
 
@@ -30,6 +39,12 @@ afterEach(() => {
 });
 
 describe('GodotProcessManager', () => {
+  it('defines bounded output and timeouts for every short-lived Godot subprocess class', () => {
+    expect(GODOT_COMMAND_OPTIONS).toMatchObject({ timeout: GODOT_COMMAND_TIMEOUT_MS, maxBuffer: GODOT_COMMAND_MAX_BUFFER_BYTES });
+    expect(GODOT_VERSION_OPTIONS).toMatchObject({ timeout: GODOT_VERSION_TIMEOUT_MS, maxBuffer: GODOT_COMMAND_MAX_BUFFER_BYTES });
+    expect(GODOT_EXPORT_OPTIONS).toMatchObject({ timeout: GODOT_EXPORT_TIMEOUT_MS, maxBuffer: GODOT_COMMAND_MAX_BUFFER_BYTES });
+  });
+
   it('retains only the configured number of recent stdout and stderr lines', () => {
     const child = createChild();
     const manager = new GodotProcessManager(undefined, 3, undefined, () => child as any);

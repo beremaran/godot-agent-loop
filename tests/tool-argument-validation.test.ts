@@ -14,6 +14,12 @@ describe('parseToolArguments', () => {
     expect(() => parseToolArguments(tool('game_click'), { x: 10 })).toThrow('arguments.y is required');
   });
 
+  it('rejects malformed top-level argument values before dispatch', () => {
+    expect(() => parseToolArguments(tool('game_click'), null)).toThrow('arguments.x is required');
+    expect(() => parseToolArguments(tool('game_click'), 'not-an-object')).toThrow('arguments must be object');
+    expect(() => parseToolArguments(tool('game_click'), [])).toThrow('arguments must be object');
+  });
+
   it('rejects invalid primitive and array item types', () => {
     expect(() => parseToolArguments(tool('game_click'), { x: '10', y: 20 })).toThrow('arguments.x must be number');
     expect(() => parseToolArguments(tool('validate_scripts'), {
