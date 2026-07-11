@@ -10,7 +10,7 @@
 import { fileURLToPath } from 'url';
 import { join, dirname, basename, normalize, resolve, relative, isAbsolute } from 'path';
 import { existsSync, readdirSync } from 'fs';
-import { spawn, execFile } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -38,6 +38,7 @@ import { ToolRegistry, type ToolHandler } from './tool-registry.js';
 import { GodotProcessManager, type GodotProcess } from './godot-process-manager.js';
 import { GameToolHandlers } from './tool-handlers/game-tool-handlers.js';
 import { ProjectToolHandlers } from './tool-handlers/project-tool-handlers.js';
+import { LifecycleToolHandlers } from './tool-handlers/lifecycle-tool-handlers.js';
 
 // Check if debug mode is enabled
 const DEBUG_MODE: boolean = process.env.DEBUG === 'true';
@@ -93,6 +94,7 @@ export class GodotServer {
   private godotPath: string | null = null;
   private readonly gameToolHandlers: GameToolHandlers;
   private readonly projectToolHandlers: ProjectToolHandlers;
+  private readonly lifecycleToolHandlers: LifecycleToolHandlers;
   private operationsScriptPath: string;
   private interactionServerInstaller: InteractionServerInstaller;
   private executableValidator: GodotExecutableValidator;
@@ -175,6 +177,29 @@ export class GodotServer {
       listChangedGdFiles: projectPath => this.listChangedGdFiles(projectPath),
       listAllGdFiles: projectPath => this.listAllGdFiles(projectPath),
       findGodotProjects: (directory, recursive) => this.findGodotProjects(directory, recursive),
+    });
+    this.lifecycleToolHandlers = new LifecycleToolHandlers({
+      getGodotPath: () => this.godotPath,
+      detectGodotPath: () => this.detectGodotPath(),
+      getActiveProcess: () => this.activeProcess,
+      isPathAllowed: projectPath => isPathWithinAllowedRoots(projectPath),
+      logDebug: message => { this.logDebug(message); },
+      startProjectProcess: (executable, args, onExit) => {
+        this.processManager.start({
+          executable,
+          args,
+          onExit,
+          onError: error => { console.error('Failed to start Godot process:', error); },
+        });
+      },
+      stopProjectProcess: () => this.processManager.stop(),
+      connectToGame: projectPath => this.connectToGame(projectPath),
+      disconnectFromGame: () => { this.disconnectFromGame(); },
+      injectInteractionServer: projectPath => { this.injectInteractionServer(projectPath); },
+      removeInteractionServer: projectPath => { this.removeInteractionServer(projectPath); },
+      getConnectedProjectPath: () => this.gameConnection.projectPath,
+      clearConnectedProjectPath: () => { this.gameConnection.projectPath = null; },
+      getInteractionPort: () => this.gameConnection.interactionPort,
     });
 
     // Initialize the MCP server
@@ -473,11 +498,11 @@ export class GodotServer {
 
   private createToolHandlers(): Record<ToolName, ToolHandler> {
     return {
-      'launch_editor': args => this.handleLaunchEditor(args),
-      'run_project': args => this.handleRunProject(args),
-      'get_debug_output': () => this.handleGetDebugOutput(),
-      'stop_project': () => this.handleStopProject(),
-      'get_godot_version': () => this.handleGetGodotVersion(),
+      'launch_editor': args => this.lifecycleToolHandlers.handleLaunchEditor(args),
+      'run_project': args => this.lifecycleToolHandlers.handleRunProject(args),
+      'get_debug_output': () => this.lifecycleToolHandlers.handleGetDebugOutput(),
+      'stop_project': () => this.lifecycleToolHandlers.handleStopProject(),
+      'get_godot_version': () => this.lifecycleToolHandlers.handleGetGodotVersion(),
       'list_projects': args => this.projectToolHandlers.handleListProjects(args),
       'get_project_info': args => this.projectToolHandlers.handleGetProjectInfo(args),
       'create_scene': args => this.projectToolHandlers.handleCreateScene(args),
@@ -634,261 +659,6 @@ export class GodotServer {
   }
 
 
-
-  /**
-   * Handle the launch_editor tool
-   * @param args Tool arguments
-   */
-  private async handleLaunchEditor(args: any) {
-    // Normalize parameters to camelCase
-    args = normalizeParameters(args);
-    
-    if (!args.projectPath) {
-      return createErrorResponse(
-        'Project path is required'
-      );
-    }
-
-    if (!validatePath(args.projectPath)) {
-      return createErrorResponse(
-        'Invalid project path'
-      );
-    }
-
-    try {
-      // Ensure godotPath is set
-      if (!this.godotPath) {
-        await this.detectGodotPath();
-        if (!this.godotPath) {
-          return createErrorResponse(
-            'Could not find a valid Godot executable path'
-          );
-        }
-      }
-
-      // Check if the project directory exists and contains a project.godot file
-      const projectFile = join(args.projectPath, 'project.godot');
-      if (!existsSync(projectFile)) {
-        return createErrorResponse(
-          `Not a valid Godot project: ${args.projectPath}`
-        );
-      }
-
-      this.logDebug(`Launching Godot editor for project: ${args.projectPath}`);
-      const process = spawn(this.godotPath, ['-e', '--path', args.projectPath], {
-        stdio: 'pipe',
-      });
-
-      process.on('error', (err: Error) => {
-        console.error('Failed to start Godot editor:', err);
-      });
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Godot editor launched successfully for project at ${args.projectPath}.`,
-          },
-        ],
-      };
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      return createErrorResponse(
-        `Failed to launch Godot editor: ${errorMessage}`
-      );
-    }
-  }
-
-  /**
-   * Handle the run_project tool
-   * @param args Tool arguments
-   */
-  private async handleRunProject(args: any) {
-    // Normalize parameters to camelCase
-    args = normalizeParameters(args);
-    
-    if (!args.projectPath) {
-      return createErrorResponse(
-        'Project path is required'
-      );
-    }
-
-    if (!validatePath(args.projectPath)) {
-      return createErrorResponse(
-        'Invalid project path'
-      );
-    }
-
-    if (!isPathWithinAllowedRoots(args.projectPath)) {
-      return createErrorResponse(
-        `Project path is outside the allowed roots (GODOT_MCP_ALLOWED_DIRS): ${args.projectPath}`
-      );
-    }
-
-    try {
-      // Check if the project directory exists and contains a project.godot file
-      const projectFile = join(args.projectPath, 'project.godot');
-      if (!existsSync(projectFile)) {
-        return createErrorResponse(
-          `Not a valid Godot project: ${args.projectPath}`
-        );
-      }
-
-      // Kill any existing process
-      if (this.activeProcess) {
-        this.logDebug('Killing existing Godot process before starting a new one');
-        this.disconnectFromGame();
-        if (this.gameConnection.projectPath) {
-          this.removeInteractionServer(this.gameConnection.projectPath);
-        }
-        this.processManager.stop();
-      }
-
-      // Inject interaction server before launching
-      this.injectInteractionServer(args.projectPath);
-
-      const cmdArgs = ['-d', '--path', args.projectPath];
-      if (args.scene && validatePath(args.scene)) {
-        this.logDebug(`Adding scene parameter: ${args.scene}`);
-        cmdArgs.push(args.scene);
-      }
-
-      this.logDebug(`Running Godot project: ${args.projectPath}`);
-      this.processManager.start({
-        executable: this.godotPath!,
-        args: cmdArgs,
-        onExit: () => {
-          this.disconnectFromGame();
-          if (this.gameConnection.projectPath) {
-            this.removeInteractionServer(this.gameConnection.projectPath);
-            this.gameConnection.projectPath = null;
-          }
-        },
-        onError: err => {
-          console.error('Failed to start Godot process:', err);
-        },
-      });
-
-      // Start async TCP connection to the interaction server (fire-and-forget)
-      this.connectToGame(args.projectPath).catch(err => {
-        this.logDebug(`Failed to connect to game interaction server: ${err}`);
-      });
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Godot project started in debug mode. Use get_debug_output to see output. Game interaction server connecting on port ${this.gameConnection.interactionPort}...`,
-          },
-        ],
-      };
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      return createErrorResponse(
-        `Failed to run Godot project: ${errorMessage}`
-      );
-    }
-  }
-
-  /**
-   * Handle the get_debug_output tool
-   */
-  private async handleGetDebugOutput() {
-    if (!this.activeProcess) {
-      return createErrorResponse(
-        'No active Godot process.'
-      );
-    }
-
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(
-            {
-              output: this.activeProcess.output,
-              errors: this.activeProcess.errors,
-            },
-            null,
-            2
-          ),
-        },
-      ],
-    };
-  }
-
-  /**
-   * Handle the stop_project tool
-   */
-  private async handleStopProject() {
-    if (!this.activeProcess) {
-      return createErrorResponse(
-        'No active Godot process to stop.'
-      );
-    }
-
-    this.logDebug('Stopping active Godot process');
-    this.disconnectFromGame();
-    const stoppedProcess = this.processManager.stop()!;
-    const output = stoppedProcess.output;
-    const errors = stoppedProcess.errors;
-
-    // Remove injected interaction server
-    if (this.gameConnection.projectPath) {
-      this.removeInteractionServer(this.gameConnection.projectPath);
-      this.gameConnection.projectPath = null;
-    }
-
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(
-            {
-              message: 'Godot project stopped',
-              finalOutput: output,
-              finalErrors: errors,
-            },
-            null,
-            2
-          ),
-        },
-      ],
-    };
-  }
-
-  /**
-   * Handle the get_godot_version tool
-   */
-  private async handleGetGodotVersion() {
-    try {
-      // Ensure godotPath is set
-      if (!this.godotPath) {
-        await this.detectGodotPath();
-        if (!this.godotPath) {
-          return createErrorResponse(
-            'Could not find a valid Godot executable path'
-          );
-        }
-      }
-
-      this.logDebug('Getting Godot version');
-      const { stdout } = await execFileAsync(this.godotPath, ['--version']);
-      return {
-        content: [
-          {
-            type: 'text',
-            text: stdout.trim(),
-          },
-        ],
-      };
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      return createErrorResponse(
-        `Failed to get Godot version: ${errorMessage}`
-      );
-    }
-  }
 
   /**
    * Handle the list_projects tool

@@ -4,7 +4,7 @@ The domain-specific tool handlers have been extracted from `GodotServer` into
 dedicated game and project handler modules. The remaining work is focused on
 finishing the separation and improving maintainability.
 
-- [ ] Extract the five lifecycle handlers still in `GodotServer`:
+- [x] Extract the five lifecycle handlers still in `GodotServer`:
   - `launch_editor`
   - `run_project`
   - `get_debug_output`
