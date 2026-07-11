@@ -98,7 +98,7 @@ interface GameConnection {
 /**
  * Main server class for the Godot MCP server
  */
-class GodotServer {
+export class GodotServer {
   private server: Server;
   private activeProcess: GodotProcess | null = null;
   private godotPath: string | null = null;
@@ -7003,9 +7003,11 @@ class GodotServer {
 }
 
 // Create and run the server
-const server = new GodotServer();
-server.run().catch((error: unknown) => {
-  const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-  console.error('Failed to run server:', errorMessage);
-  process.exit(1);
-});
+if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
+  const server = new GodotServer();
+  server.run().catch((error: unknown) => {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Failed to run server:', errorMessage);
+    process.exit(1);
+  });
+}
