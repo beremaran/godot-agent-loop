@@ -48,6 +48,13 @@ describe('composeToolHandlerRegistries', () => {
       .toThrow('Tool handler is registered more than once: launch_editor');
   });
 
+  it('rejects handlers without a corresponding tool definition', () => {
+    const registry = { unknown_tool: handler } as ToolHandlerRegistry;
+
+    expect(() => composeToolHandlerRegistries(registry))
+      .toThrow('Unknown tool handler: unknown_tool');
+  });
+
   it('rejects a composition that does not cover every tool definition', () => {
     expect(() => composeToolHandlerRegistries({}))
       .toThrow('Missing tool handlers: launch_editor');

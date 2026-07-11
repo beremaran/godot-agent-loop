@@ -17,9 +17,13 @@ export function composeToolHandlerRegistries(
   ...registries: readonly ToolHandlerRegistry[]
 ): CompleteToolHandlerRegistry {
   const handlers: ToolHandlerRegistry = {};
+  const toolNames = new Set(toolDefinitions.map(tool => tool.name));
 
   for (const registry of registries) {
     for (const [name, handler] of Object.entries(registry)) {
+      if (!toolNames.has(name as ToolName)) {
+        throw new Error(`Unknown tool handler: ${name}`);
+      }
       if (handlers[name as ToolName]) {
         throw new Error(`Tool handler is registered more than once: ${name}`);
       }
