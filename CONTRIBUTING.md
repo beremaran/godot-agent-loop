@@ -42,9 +42,26 @@ By participating in this project, you agree to maintain a respectful and inclusi
 3. Build the project with `npm run build`
 4. For development with auto-rebuild, use `npm run watch`
 
+### Markdown Documentation
+
+Run the Markdown linter before submitting documentation changes:
+
+```bash
+npm run lint:md
+```
+
+To automatically fix supported formatting issues, run:
+
+```bash
+npm run lint:md:fix
+```
+
+The rules are defined in `.markdownlint-cli2.jsonc` and apply to all Markdown
+files in the repository.
+
 ### Project Structure
 
-```
+```text
 godot-mcp/
 ├── src/             # Source code
 │   └── index.ts     # Main server implementation
@@ -73,9 +90,11 @@ For debugging the MCP server:
 
 1. Set the `DEBUG` environment variable to `true`
 2. Use the MCP Inspector for interactive debugging:
+
    ```bash
    npm run inspector
    ```
+
 3. Check the logs for detailed information about what's happening
 
 ### Adding New Tools
