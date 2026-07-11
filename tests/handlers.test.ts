@@ -26,7 +26,11 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 let sourceCode: string;
 
 beforeAll(() => {
-  sourceCode = readFileSync(join(__dirname, '..', 'src', 'index.ts'), 'utf8');
+  sourceCode = [
+    readFileSync(join(__dirname, '..', 'src', 'index.ts'), 'utf8'),
+    readFileSync(join(__dirname, '..', 'src', 'tool-handlers', 'game-tool-handlers.ts'), 'utf8'),
+    readFileSync(join(__dirname, '..', 'src', 'tool-handlers', 'project-tool-handlers.ts'), 'utf8'),
+  ].join('\n');
 });
 
 // ---------------------------------------------------------------------------

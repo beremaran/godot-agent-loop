@@ -1,0 +1,1740 @@
+import { join, dirname, basename } from 'path';
+import { existsSync, readdirSync, readFileSync, writeFileSync, unlinkSync, mkdirSync, renameSync } from 'fs';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+
+import {
+  normalizeParameters,
+  validatePath,
+  createErrorResponse,
+  isGodot44OrLater,
+  generateGodotProjectFeatures,
+  generateCsprojContent,
+  generateCsharpScriptSource,
+  toDotnetIdentifier,
+  isValidCsharpIdentifier,
+} from '../utils.js';
+import type { OperationParams } from '../utils.js';
+
+const execFileAsync = promisify(execFile);
+
+export interface ProjectToolHandlerContext {
+  getGodotPath: () => string | null;
+  detectGodotPath: () => Promise<void>;
+  logDebug: (message: string) => void;
+  executeOperation: (operation: string, params: OperationParams, projectPath: string) => Promise<{ stdout: string; stderr: string }>;
+  headlessOp: (operation: string, args: any, argsFn: (a: any) => { projectPath: string; params: OperationParams }) => Promise<any>;
+  getProjectStructureAsync: (projectPath: string) => Promise<any>;
+  isDotnetProject: (projectPath: string) => boolean;
+  detectGodotNetSdkVersion: () => Promise<string | null>;
+  keyNameToScancode: (key: string) => number;
+  runGdScriptCheck: (projectPath: string, scriptPath: string) => Promise<any>;
+  listChangedGdFiles: (projectPath: string) => Promise<{ files?: string[]; error?: string }>;
+  listAllGdFiles: (projectPath: string) => string[];
+  findGodotProjects: (directory: string, recursive: boolean) => { path: string; name: string }[];
+}
+
+/** Implements project, scene, file, script, and export tools. */
+export class ProjectToolHandlers {
+  constructor(private readonly context: ProjectToolHandlerContext) {}
+
+  public async handleListProjects(args: any) {
+    // Normalize parameters to camelCase
+    args = normalizeParameters(args);
+    
+    if (!args.directory) {
+      return createErrorResponse(
+        'Directory is required'
+      );
+    }
+
+    if (!validatePath(args.directory)) {
+      return createErrorResponse(
+        'Invalid directory path'
+      );
+    }
+
+    try {
+      this.context.logDebug(`Listing Godot projects in directory: ${args.directory}`);
+      if (!existsSync(args.directory)) {
+        return createErrorResponse(
+          `Directory does not exist: ${args.directory}`
+        );
+      }
+
+      const recursive = args.recursive === true;
+      const projects = this.context.findGodotProjects(args.directory, recursive);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(projects, null, 2),
+          },
+        ],
+      };
+    } catch (error: any) {
+      return createErrorResponse(
+        `Failed to list projects: ${error?.message || 'Unknown error'}`
+      );
+    }
+  }
+
+  /**
+   * Get the structure of a Godot project asynchronously by counting files recursively
+   * @param projectPath Path to the Godot project
+   * @returns Promise resolving to an object with counts of scenes, scripts, assets, and other files
+   */
+
+  public async handleGetProjectInfo(args: any) {
+    // Normalize parameters to camelCase
+    args = normalizeParameters(args);
+    
+    if (!args.projectPath) {
+      return createErrorResponse(
+        'Project path is required'
+      );
+    }
+  
+    if (!validatePath(args.projectPath)) {
+      return createErrorResponse(
+        'Invalid project path'
+      );
+    }
+  
+    try {
+      // Ensure godotPath is set
+      if (!this.context.getGodotPath()) {
+        await this.context.detectGodotPath();
+        if (!this.context.getGodotPath()) {
+          return createErrorResponse(
+            'Could not find a valid Godot executable path'
+          );
+        }
+      }
+  
+      // Check if the project directory exists and contains a project.godot file
+      const projectFile = join(args.projectPath, 'project.godot');
+      if (!existsSync(projectFile)) {
+        return createErrorResponse(
+          `Not a valid Godot project: ${args.projectPath}`
+        );
+      }
+  
+      this.context.logDebug(`Getting project info for: ${args.projectPath}`);
+  
+      // Get Godot version
+      const execOptions = { timeout: 10000 }; // 10 second timeout
+      const { stdout } = await execFileAsync(this.context.getGodotPath()!, ['--version'], execOptions);
+  
+      // Get project structure using the recursive method
+      const projectStructure = await this.context.getProjectStructureAsync(args.projectPath);
+  
+      // Extract project name from project.godot file
+      let projectName = basename(args.projectPath);
+      try {
+        const projectFileContent = readFileSync(projectFile, 'utf8');
+        const configNameMatch = /config\/name="([^"]+)"/.exec(projectFileContent);
+        if (configNameMatch && configNameMatch[1]) {
+          projectName = configNameMatch[1];
+          this.context.logDebug(`Found project name in config: ${projectName}`);
+        }
+      } catch (error) {
+        this.context.logDebug(`Error reading project file: ${error}`);
+        // Continue with default project name if extraction fails
+      }
+  
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(
+              {
+                name: projectName,
+                path: args.projectPath,
+                godotVersion: stdout.trim(),
+                isDotnet: this.context.isDotnetProject(args.projectPath),
+                structure: projectStructure,
+              },
+              null,
+              2
+            ),
+          },
+        ],
+      };
+    } catch (error: any) {
+      return createErrorResponse(
+        `Failed to get project info: ${error?.message || 'Unknown error'}`
+      );
+    }
+  }
+
+  /**
+   * Handle the create_scene tool
+   */
+
+  public async handleCreateScene(args: any) {
+    // Normalize parameters to camelCase
+    args = normalizeParameters(args);
+    
+    if (!args.projectPath || !args.scenePath) {
+      return createErrorResponse(
+        'Project path and scene path are required'
+      );
+    }
+
+    if (!validatePath(args.projectPath) || !validatePath(args.scenePath)) {
+      return createErrorResponse(
+        'Invalid path'
+      );
+    }
+
+    try {
+      // Check if the project directory exists and contains a project.godot file
+      const projectFile = join(args.projectPath, 'project.godot');
+      if (!existsSync(projectFile)) {
+        return createErrorResponse(
+          `Not a valid Godot project: ${args.projectPath}`
+        );
+      }
+
+      // Prepare parameters for the operation (already in camelCase)
+      const params = {
+        scenePath: args.scenePath,
+        rootNodeType: args.rootNodeType || 'Node2D',
+      };
+
+      // Execute the operation
+      const { stdout, stderr } = await this.context.executeOperation('create_scene', params, args.projectPath);
+
+      if (stderr && stderr.includes('Failed to')) {
+        return createErrorResponse(
+          `Failed to create scene: ${stderr}`
+        );
+      }
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Scene created successfully at: ${args.scenePath}\n\nOutput: ${stdout}`,
+          },
+        ],
+      };
+    } catch (error: any) {
+      return createErrorResponse(
+        `Failed to create scene: ${error?.message || 'Unknown error'}`
+      );
+    }
+  }
+
+  /**
+   * Handle the add_node tool
+   */
+
+  public async handleAddNode(args: any) {
+    // Normalize parameters to camelCase
+    args = normalizeParameters(args);
+    
+    if (!args.projectPath || !args.scenePath || !args.nodeType || !args.nodeName) {
+      return createErrorResponse(
+        'Missing required parameters'
+      );
+    }
+
+    if (!validatePath(args.projectPath) || !validatePath(args.scenePath)) {
+      return createErrorResponse(
+        'Invalid path'
+      );
+    }
+
+    try {
+      // Check if the project directory exists and contains a project.godot file
+      const projectFile = join(args.projectPath, 'project.godot');
+      if (!existsSync(projectFile)) {
+        return createErrorResponse(
+          `Not a valid Godot project: ${args.projectPath}`
+        );
+      }
+
+      // Check if the scene file exists
+      const scenePath = join(args.projectPath, args.scenePath);
+      if (!existsSync(scenePath)) {
+        return createErrorResponse(
+          `Scene file does not exist: ${args.scenePath}`
+        );
+      }
+
+      // Prepare parameters for the operation (already in camelCase)
+      const params: any = {
+        scenePath: args.scenePath,
+        nodeType: args.nodeType,
+        nodeName: args.nodeName,
+      };
+
+      // Add optional parameters
+      if (args.parentNodePath) {
+        params.parentNodePath = args.parentNodePath;
+      }
+
+      if (args.properties) {
+        params.properties = args.properties;
+      }
+
+      // Execute the operation
+      const { stdout, stderr } = await this.context.executeOperation('add_node', params, args.projectPath);
+
+      if (stderr && stderr.includes('Failed to')) {
+        return createErrorResponse(
+          `Failed to add node: ${stderr}`
+        );
+      }
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Node '${args.nodeName}' of type '${args.nodeType}' added successfully to '${args.scenePath}'.\n\nOutput: ${stdout}`,
+          },
+        ],
+      };
+    } catch (error: any) {
+      return createErrorResponse(
+        `Failed to add node: ${error?.message || 'Unknown error'}`
+      );
+    }
+  }
+
+  /**
+   * Handle the load_sprite tool
+   */
+
+  public async handleLoadSprite(args: any) {
+    // Normalize parameters to camelCase
+    args = normalizeParameters(args);
+    
+    if (!args.projectPath || !args.scenePath || !args.nodePath || !args.texturePath) {
+      return createErrorResponse(
+        'Missing required parameters'
+      );
+    }
+
+    if (
+      !validatePath(args.projectPath) ||
+      !validatePath(args.scenePath) ||
+      !validatePath(args.nodePath) ||
+      !validatePath(args.texturePath)
+    ) {
+      return createErrorResponse(
+        'Invalid path'
+      );
+    }
+
+    try {
+      // Check if the project directory exists and contains a project.godot file
+      const projectFile = join(args.projectPath, 'project.godot');
+      if (!existsSync(projectFile)) {
+        return createErrorResponse(
+          `Not a valid Godot project: ${args.projectPath}`
+        );
+      }
+
+      // Check if the scene file exists
+      const scenePath = join(args.projectPath, args.scenePath);
+      if (!existsSync(scenePath)) {
+        return createErrorResponse(
+          `Scene file does not exist: ${args.scenePath}`
+        );
+      }
+
+      // Check if the texture file exists
+      const texturePath = join(args.projectPath, args.texturePath);
+      if (!existsSync(texturePath)) {
+        return createErrorResponse(
+          `Texture file does not exist: ${args.texturePath}`
+        );
+      }
+
+      // Prepare parameters for the operation (already in camelCase)
+      const params = {
+        scenePath: args.scenePath,
+        nodePath: args.nodePath,
+        texturePath: args.texturePath,
+      };
+
+      // Execute the operation
+      const { stdout, stderr } = await this.context.executeOperation('load_sprite', params, args.projectPath);
+
+      if (stderr && stderr.includes('Failed to')) {
+        return createErrorResponse(
+          `Failed to load sprite: ${stderr}`
+        );
+      }
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Sprite loaded successfully with texture: ${args.texturePath}\n\nOutput: ${stdout}`,
+          },
+        ],
+      };
+    } catch (error: any) {
+      return createErrorResponse(
+        `Failed to load sprite: ${error?.message || 'Unknown error'}`
+      );
+    }
+  }
+
+  /**
+   * Handle the export_mesh_library tool
+   */
+
+  public async handleExportMeshLibrary(args: any) {
+    // Normalize parameters to camelCase
+    args = normalizeParameters(args);
+    
+    if (!args.projectPath || !args.scenePath || !args.outputPath) {
+      return createErrorResponse(
+        'Missing required parameters'
+      );
+    }
+
+    if (
+      !validatePath(args.projectPath) ||
+      !validatePath(args.scenePath) ||
+      !validatePath(args.outputPath)
+    ) {
+      return createErrorResponse(
+        'Invalid path'
+      );
+    }
+
+    try {
+      // Check if the project directory exists and contains a project.godot file
+      const projectFile = join(args.projectPath, 'project.godot');
+      if (!existsSync(projectFile)) {
+        return createErrorResponse(
+          `Not a valid Godot project: ${args.projectPath}`
+        );
+      }
+
+      // Check if the scene file exists
+      const scenePath = join(args.projectPath, args.scenePath);
+      if (!existsSync(scenePath)) {
+        return createErrorResponse(
+          `Scene file does not exist: ${args.scenePath}`
+        );
+      }
+
+      // Prepare parameters for the operation (already in camelCase)
+      const params: any = {
+        scenePath: args.scenePath,
+        outputPath: args.outputPath,
+      };
+
+      // Add optional parameters
+      if (args.meshItemNames && Array.isArray(args.meshItemNames)) {
+        params.meshItemNames = args.meshItemNames;
+      }
+
+      // Execute the operation
+      const { stdout, stderr } = await this.context.executeOperation('export_mesh_library', params, args.projectPath);
+
+      if (stderr && stderr.includes('Failed to')) {
+        return createErrorResponse(
+          `Failed to export mesh library: ${stderr}`
+        );
+      }
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `MeshLibrary exported successfully to: ${args.outputPath}\n\nOutput: ${stdout}`,
+          },
+        ],
+      };
+    } catch (error: any) {
+      return createErrorResponse(
+        `Failed to export mesh library: ${error?.message || 'Unknown error'}`
+      );
+    }
+  }
+
+  /**
+   * Handle the save_scene tool
+   */
+
+  public async handleSaveScene(args: any) {
+    // Normalize parameters to camelCase
+    args = normalizeParameters(args);
+    
+    if (!args.projectPath || !args.scenePath) {
+      return createErrorResponse(
+        'Missing required parameters'
+      );
+    }
+
+    if (!validatePath(args.projectPath) || !validatePath(args.scenePath)) {
+      return createErrorResponse(
+        'Invalid path'
+      );
+    }
+
+    // If newPath is provided, validate it
+    if (args.newPath && !validatePath(args.newPath)) {
+      return createErrorResponse(
+        'Invalid new path'
+      );
+    }
+
+    try {
+      // Check if the project directory exists and contains a project.godot file
+      const projectFile = join(args.projectPath, 'project.godot');
+      if (!existsSync(projectFile)) {
+        return createErrorResponse(
+          `Not a valid Godot project: ${args.projectPath}`
+        );
+      }
+
+      // Check if the scene file exists
+      const scenePath = join(args.projectPath, args.scenePath);
+      if (!existsSync(scenePath)) {
+        return createErrorResponse(
+          `Scene file does not exist: ${args.scenePath}`
+        );
+      }
+
+      // Prepare parameters for the operation (already in camelCase)
+      const params: any = {
+        scenePath: args.scenePath,
+      };
+
+      // Add optional parameters
+      if (args.newPath) {
+        params.newPath = args.newPath;
+      }
+
+      // Execute the operation
+      const { stdout, stderr } = await this.context.executeOperation('save_scene', params, args.projectPath);
+
+      if (stderr && stderr.includes('Failed to')) {
+        return createErrorResponse(
+          `Failed to save scene: ${stderr}`
+        );
+      }
+
+      const savePath = args.newPath || args.scenePath;
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Scene saved successfully to: ${savePath}\n\nOutput: ${stdout}`,
+          },
+        ],
+      };
+    } catch (error: any) {
+      return createErrorResponse(
+        `Failed to save scene: ${error?.message || 'Unknown error'}`
+      );
+    }
+  }
+
+  /**
+   * Handle the get_uid tool
+   */
+
+  public async handleGetUid(args: any) {
+    // Normalize parameters to camelCase
+    args = normalizeParameters(args);
+    
+    if (!args.projectPath || !args.filePath) {
+      return createErrorResponse(
+        'Missing required parameters'
+      );
+    }
+
+    if (!validatePath(args.projectPath) || !validatePath(args.filePath)) {
+      return createErrorResponse(
+        'Invalid path'
+      );
+    }
+
+    try {
+      // Ensure godotPath is set
+      if (!this.context.getGodotPath()) {
+        await this.context.detectGodotPath();
+        if (!this.context.getGodotPath()) {
+          return createErrorResponse(
+            'Could not find a valid Godot executable path'
+          );
+        }
+      }
+
+      // Check if the project directory exists and contains a project.godot file
+      const projectFile = join(args.projectPath, 'project.godot');
+      if (!existsSync(projectFile)) {
+        return createErrorResponse(
+          `Not a valid Godot project: ${args.projectPath}`
+        );
+      }
+
+      // Check if the file exists
+      const filePath = join(args.projectPath, args.filePath);
+      if (!existsSync(filePath)) {
+        return createErrorResponse(
+          `File does not exist: ${args.filePath}`
+        );
+      }
+
+      // Get Godot version to check if UIDs are supported
+      const { stdout: versionOutput } = await execFileAsync(this.context.getGodotPath()!, ['--version']);
+      const version = versionOutput.trim();
+
+      if (!isGodot44OrLater(version)) {
+        return createErrorResponse(
+          `UIDs are only supported in Godot 4.4 or later. Current version: ${version}`
+        );
+      }
+
+      // Prepare parameters for the operation (already in camelCase)
+      const params = {
+        filePath: args.filePath,
+      };
+
+      // Execute the operation
+      const { stdout, stderr } = await this.context.executeOperation('get_uid', params, args.projectPath);
+
+      if (stderr && stderr.includes('Failed to')) {
+        return createErrorResponse(
+          `Failed to get UID: ${stderr}`
+        );
+      }
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `UID for ${args.filePath}: ${stdout.trim()}`,
+          },
+        ],
+      };
+    } catch (error: any) {
+      return createErrorResponse(
+        `Failed to get UID: ${error?.message || 'Unknown error'}`
+      );
+    }
+  }
+
+
+  /**
+   * Handle the game_screenshot tool
+   */
+
+  public async handleReadScene(args: any) {
+    args = normalizeParameters(args || {});
+    if (!args.projectPath || !args.scenePath) {
+      return createErrorResponse('projectPath and scenePath are required.');
+    }
+
+    if (!validatePath(args.projectPath) || !validatePath(args.scenePath)) {
+      return createErrorResponse('Invalid path.');
+    }
+
+    const projectFile = join(args.projectPath, 'project.godot');
+    if (!existsSync(projectFile)) {
+      return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
+    }
+
+    const scenePath = join(args.projectPath, args.scenePath);
+    if (!existsSync(scenePath)) {
+      return createErrorResponse(`Scene file does not exist: ${args.scenePath}`);
+    }
+
+    try {
+      const { stdout, stderr } = await this.context.executeOperation('read_scene', {
+        scenePath: args.scenePath,
+      }, args.projectPath);
+
+      // Extract JSON from the SCENE_JSON_START/END markers
+      const startMarker = 'SCENE_JSON_START';
+      const endMarker = 'SCENE_JSON_END';
+      const startIdx = stdout.indexOf(startMarker);
+      const endIdx = stdout.indexOf(endMarker);
+
+      if (startIdx !== -1 && endIdx !== -1) {
+        const jsonStr = stdout.substring(startIdx + startMarker.length, endIdx).trim();
+        try {
+          const parsed = JSON.parse(jsonStr);
+          return {
+            content: [{ type: 'text', text: JSON.stringify(parsed, null, 2) }],
+          };
+        } catch {
+          return {
+            content: [{ type: 'text', text: `Raw scene data:\n${jsonStr}` }],
+          };
+        }
+      }
+
+      return {
+        content: [{ type: 'text', text: `Scene read output:\n${stdout}\n${stderr ? 'Errors:\n' + stderr : ''}` }],
+      };
+    } catch (error: any) {
+      return createErrorResponse(`Failed to read scene: ${error?.message || 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Handle the modify_scene_node tool
+   */
+
+  public async handleModifySceneNode(args: any) {
+    args = normalizeParameters(args || {});
+    if (!args.projectPath || !args.scenePath || !args.nodePath || !args.properties)
+      return createErrorResponse('projectPath, scenePath, nodePath, and properties are required.');
+    return this.context.headlessOp('modify_node', args, a => ({
+      projectPath: a.projectPath,
+      params: { scenePath: a.scenePath, nodePath: a.nodePath, properties: a.properties },
+    }));
+  }
+
+  public async handleRemoveSceneNode(args: any) {
+    args = normalizeParameters(args || {});
+    if (!args.projectPath || !args.scenePath || !args.nodePath)
+      return createErrorResponse('projectPath, scenePath, and nodePath are required.');
+    return this.context.headlessOp('remove_node', args, a => ({
+      projectPath: a.projectPath,
+      params: { scenePath: a.scenePath, nodePath: a.nodePath },
+    }));
+  }
+
+
+  /**
+   * Handle the read_project_settings tool - Parse project.godot as JSON
+   */
+
+  public async handleReadProjectSettings(args: any) {
+    args = normalizeParameters(args || {});
+    if (!args.projectPath) {
+      return createErrorResponse('projectPath is required.');
+    }
+
+    if (!validatePath(args.projectPath)) {
+      return createErrorResponse('Invalid path.');
+    }
+
+    const projectFile = join(args.projectPath, 'project.godot');
+    if (!existsSync(projectFile)) {
+      return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
+    }
+
+    try {
+      const content = readFileSync(projectFile, 'utf8');
+      const sections: Record<string, Record<string, string>> = {};
+      let currentSection = '';
+
+      for (const line of content.split('\n')) {
+        const trimmed = line.trim();
+        if (trimmed === '' || trimmed.startsWith(';')) continue;
+
+        // Section header
+        const sectionMatch = /^\[(.+)\]$/.exec(trimmed);
+        if (sectionMatch) {
+          currentSection = sectionMatch[1];
+          if (!sections[currentSection]) {
+            sections[currentSection] = {};
+          }
+          continue;
+        }
+
+        // Key=value pair
+        const kvMatch = /^([^=]+)=(.*)$/.exec(trimmed);
+        if (kvMatch && currentSection) {
+          const key = kvMatch[1].trim();
+          const value = kvMatch[2].trim();
+          sections[currentSection][key] = value;
+        }
+      }
+
+      return {
+        content: [{ type: 'text', text: JSON.stringify(sections, null, 2) }],
+      };
+    } catch (error: any) {
+      return createErrorResponse(`Failed to read project settings: ${error?.message || 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Handle the modify_project_settings tool - Change a project.godot setting
+   */
+
+  public async handleModifyProjectSettings(args: any) {
+    args = normalizeParameters(args || {});
+    if (!args.projectPath || !args.section || !args.key || args.value === undefined) {
+      return createErrorResponse('projectPath, section, key, and value are required.');
+    }
+
+    if (!validatePath(args.projectPath)) {
+      return createErrorResponse('Invalid path.');
+    }
+
+    const projectFile = join(args.projectPath, 'project.godot');
+    if (!existsSync(projectFile)) {
+      return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
+    }
+
+    try {
+      let content = readFileSync(projectFile, 'utf8');
+      const sectionHeader = `[${args.section}]`;
+      const keyLine = `${args.key}=${args.value}`;
+
+      // Check if section exists
+      const sectionIdx = content.indexOf(sectionHeader);
+      if (sectionIdx !== -1) {
+        // Section exists - look for existing key
+        const sectionEnd = content.indexOf('\n[', sectionIdx + sectionHeader.length);
+        const sectionContent = sectionEnd !== -1
+          ? content.substring(sectionIdx, sectionEnd)
+          : content.substring(sectionIdx);
+
+        // Try to find and replace existing key
+        const keyPattern = new RegExp(`^${args.key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*=.*$`, 'm');
+        if (keyPattern.test(sectionContent)) {
+          // Replace existing key
+          const newSectionContent = sectionContent.replace(keyPattern, keyLine);
+          content = content.substring(0, sectionIdx) + newSectionContent +
+            (sectionEnd !== -1 ? content.substring(sectionEnd) : '');
+        } else {
+          // Add key to existing section
+          const insertPos = sectionIdx + sectionHeader.length;
+          content = content.substring(0, insertPos) + '\n' + keyLine + content.substring(insertPos);
+        }
+      } else {
+        // Add new section at end
+        content += `\n\n${sectionHeader}\n\n${keyLine}\n`;
+      }
+
+      writeFileSync(projectFile, content, 'utf8');
+      return {
+        content: [{ type: 'text', text: `Setting updated: [${args.section}] ${args.key}=${args.value}` }],
+      };
+    } catch (error: any) {
+      return createErrorResponse(`Failed to modify project settings: ${error?.message || 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Handle the list_project_files tool - List files with extension filtering
+   */
+
+  public async handleListProjectFiles(args: any) {
+    args = normalizeParameters(args || {});
+    if (!args.projectPath) {
+      return createErrorResponse('projectPath is required.');
+    }
+
+    if (!validatePath(args.projectPath)) {
+      return createErrorResponse('Invalid path.');
+    }
+
+    if (!existsSync(args.projectPath)) {
+      return createErrorResponse(`Directory does not exist: ${args.projectPath}`);
+    }
+
+    try {
+      const baseDir = args.subdirectory
+        ? join(args.projectPath, args.subdirectory)
+        : args.projectPath;
+
+      if (!existsSync(baseDir)) {
+        return createErrorResponse(`Subdirectory does not exist: ${args.subdirectory}`);
+      }
+
+      const files: string[] = [];
+      const extensions: string[] | undefined = args.extensions;
+
+      const scanDir = (dir: string, relativeTo: string) => {
+        const entries = readdirSync(dir, { withFileTypes: true });
+        for (const entry of entries) {
+          if (entry.name.startsWith('.')) continue;
+          const fullPath = join(dir, entry.name);
+          const relativePath = fullPath.substring(relativeTo.length + 1).replace(/\\/g, '/');
+
+          if (entry.isDirectory()) {
+            scanDir(fullPath, relativeTo);
+          } else if (entry.isFile()) {
+            if (extensions && extensions.length > 0) {
+              const ext = '.' + entry.name.split('.').pop();
+              if (extensions.includes(ext)) {
+                files.push(relativePath);
+              }
+            } else {
+              files.push(relativePath);
+            }
+          }
+        }
+      };
+
+      scanDir(baseDir, args.projectPath);
+
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ count: files.length, files }, null, 2) }],
+      };
+    } catch (error: any) {
+      return createErrorResponse(`Failed to list project files: ${error?.message || 'Unknown error'}`);
+    }
+  }
+
+  public async handleAttachScript(args: any) {
+    args = normalizeParameters(args || {});
+    if (!args.projectPath || !args.scenePath || !args.nodePath || !args.scriptPath)
+      return createErrorResponse('projectPath, scenePath, nodePath, and scriptPath are required.');
+    return this.context.headlessOp('attach_script', args, a => ({
+      projectPath: a.projectPath,
+      params: { scenePath: a.scenePath, nodePath: a.nodePath, scriptPath: a.scriptPath },
+    }));
+  }
+
+  public async handleCreateResource(args: any) {
+    args = normalizeParameters(args || {});
+    if (!args.projectPath || !args.resourceType || !args.resourcePath)
+      return createErrorResponse('projectPath, resourceType, and resourcePath are required.');
+    return this.context.headlessOp('create_resource', args, a => ({
+      projectPath: a.projectPath,
+      params: { resourceType: a.resourceType, resourcePath: a.resourcePath, ...(a.properties ? { properties: a.properties } : {}) },
+    }));
+  }
+
+  // --- File I/O handlers ---
+
+  public async handleReadFile(args: any) {
+    args = normalizeParameters(args || {});
+    if (!args.projectPath || !args.filePath)
+      return createErrorResponse('projectPath and filePath are required.');
+    if (!validatePath(args.projectPath) || !validatePath(args.filePath))
+      return createErrorResponse('Invalid path.');
+    const projectFile = join(args.projectPath, 'project.godot');
+    if (!existsSync(projectFile))
+      return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
+    const fullPath = join(args.projectPath, args.filePath);
+    if (!existsSync(fullPath))
+      return createErrorResponse(`File does not exist: ${args.filePath}`);
+    try {
+      const content = readFileSync(fullPath, 'utf8');
+      return { content: [{ type: 'text', text: content }] };
+    } catch (error: any) {
+      return createErrorResponse(`Failed to read file: ${error?.message || 'Unknown error'}`);
+    }
+  }
+
+  public async handleWriteFile(args: any) {
+    args = normalizeParameters(args || {});
+    if (!args.projectPath || !args.filePath || args.content === undefined)
+      return createErrorResponse('projectPath, filePath, and content are required.');
+    if (!validatePath(args.projectPath) || !validatePath(args.filePath))
+      return createErrorResponse('Invalid path.');
+    const projectFile = join(args.projectPath, 'project.godot');
+    if (!existsSync(projectFile))
+      return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
+    try {
+      const fullPath = join(args.projectPath, args.filePath);
+      const parentDir = dirname(fullPath);
+      if (!existsSync(parentDir)) {
+        mkdirSync(parentDir, { recursive: true });
+      }
+      writeFileSync(fullPath, args.content, 'utf8');
+      return { content: [{ type: 'text', text: `File written: ${args.filePath}` }] };
+    } catch (error: any) {
+      return createErrorResponse(`Failed to write file: ${error?.message || 'Unknown error'}`);
+    }
+  }
+
+  public async handleDeleteFile(args: any) {
+    args = normalizeParameters(args || {});
+    if (!args.projectPath || !args.filePath)
+      return createErrorResponse('projectPath and filePath are required.');
+    if (!validatePath(args.projectPath) || !validatePath(args.filePath))
+      return createErrorResponse('Invalid path.');
+    const projectFile = join(args.projectPath, 'project.godot');
+    if (!existsSync(projectFile))
+      return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
+    const fullPath = join(args.projectPath, args.filePath);
+    if (!existsSync(fullPath))
+      return createErrorResponse(`File does not exist: ${args.filePath}`);
+    try {
+      unlinkSync(fullPath);
+      return { content: [{ type: 'text', text: `File deleted: ${args.filePath}` }] };
+    } catch (error: any) {
+      return createErrorResponse(`Failed to delete file: ${error?.message || 'Unknown error'}`);
+    }
+  }
+
+  public async handleCreateDirectory(args: any) {
+    args = normalizeParameters(args || {});
+    if (!args.projectPath || !args.directoryPath)
+      return createErrorResponse('projectPath and directoryPath are required.');
+    if (!validatePath(args.projectPath) || !validatePath(args.directoryPath))
+      return createErrorResponse('Invalid path.');
+    const projectFile = join(args.projectPath, 'project.godot');
+    if (!existsSync(projectFile))
+      return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
+    try {
+      const fullPath = join(args.projectPath, args.directoryPath);
+      mkdirSync(fullPath, { recursive: true });
+      return { content: [{ type: 'text', text: `Directory created: ${args.directoryPath}` }] };
+    } catch (error: any) {
+      return createErrorResponse(`Failed to create directory: ${error?.message || 'Unknown error'}`);
+    }
+  }
+
+  // --- Error/Log capture handlers ---
+
+  public async handleCreateProject(args: any) {
+    args = normalizeParameters(args || {});
+    if (!args.projectPath || !args.projectName)
+      return createErrorResponse('projectPath and projectName are required.');
+    if (!validatePath(args.projectPath))
+      return createErrorResponse('Invalid path.');
+    try {
+      if (!existsSync(args.projectPath)) {
+        mkdirSync(args.projectPath, { recursive: true });
+      }
+      const projectFile = join(args.projectPath, 'project.godot');
+      if (existsSync(projectFile))
+        return createErrorResponse('A project.godot already exists at this path.');
+      const isDotnet = args.dotnet === true;
+      const assemblyName = toDotnetIdentifier(args.projectName);
+      const features = generateGodotProjectFeatures(isDotnet);
+      let content = `; Engine configuration file.\n; Generated by Godot MCP.\n\nconfig_version=5\n\n[application]\n\nconfig/name="${args.projectName}"\nconfig/features=${features}\n`;
+      if (isDotnet) {
+        content += `\n[dotnet]\n\nproject/assembly_name="${assemblyName}"\n`;
+      }
+      writeFileSync(projectFile, content, 'utf8');
+      if (isDotnet) {
+        const sdkVersion = (await this.context.detectGodotNetSdkVersion()) ?? undefined;
+        writeFileSync(join(args.projectPath, `${assemblyName}.csproj`), generateCsprojContent(args.projectName, sdkVersion), 'utf8');
+      }
+      return { content: [{ type: 'text', text: `Project "${args.projectName}" created at ${args.projectPath}${isDotnet ? ' (Godot .NET / C#)' : ''}` }] };
+    } catch (error: any) {
+      return createErrorResponse(`Failed to create project: ${error?.message || 'Unknown error'}`);
+    }
+  }
+
+  public async handleCreateCsharpScript(args: any) {
+    args = normalizeParameters(args || {});
+    if (!args.projectPath || !args.scriptPath) return createErrorResponse('projectPath and scriptPath are required.');
+    if (!validatePath(args.projectPath) || !validatePath(args.scriptPath)) return createErrorResponse('Invalid path.');
+    const projectFile = join(args.projectPath, 'project.godot');
+    if (!existsSync(projectFile)) return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
+    if (!this.context.isDotnetProject(args.projectPath))
+      return createErrorResponse('Not a Godot .NET project (no .csproj found). Use create_project with dotnet: true first.');
+    if (!/\.cs$/i.test(args.scriptPath))
+      return createErrorResponse('scriptPath must end with .cs');
+    const fileBase = basename(args.scriptPath).replace(/\.cs$/i, '');
+    if (!isValidCsharpIdentifier(fileBase))
+      return createErrorResponse(`Invalid C# script file name "${fileBase}.cs": the name must be a valid class name (letters, digits, underscore; not starting with a digit), because Godot requires the class name to match the file name.`);
+    if (args.className && args.className !== fileBase)
+      return createErrorResponse(`className "${args.className}" must match the script file name "${fileBase}" for Godot to attach the script.`);
+    try {
+      const fullPath = join(args.projectPath, args.scriptPath);
+      const dir = dirname(fullPath);
+      if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+      let source = args.source;
+      if (!source) {
+        source = generateCsharpScriptSource({
+          className: fileBase,
+          baseClass: args.baseClass,
+          namespaceName: args.namespaceName,
+          methods: Array.isArray(args.methods) ? args.methods : undefined,
+        });
+      }
+      writeFileSync(fullPath, source, 'utf8');
+      return { content: [{ type: 'text', text: `C# script created at ${args.scriptPath}` }] };
+    } catch (error: any) {
+      return createErrorResponse(`create_csharp_script failed: ${error?.message || 'Unknown error'}`);
+    }
+  }
+
+  public async handleManageAutoloads(args: any) {
+    args = normalizeParameters(args || {});
+    if (!args.projectPath || !args.action)
+      return createErrorResponse('projectPath and action are required.');
+    if (!validatePath(args.projectPath))
+      return createErrorResponse('Invalid path.');
+    const projectFile = join(args.projectPath, 'project.godot');
+    if (!existsSync(projectFile))
+      return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
+    try {
+      let content = readFileSync(projectFile, 'utf8');
+      if (args.action === 'list') {
+        const autoloads: Record<string, string> = {};
+        const autoloadMatch = /\[autoload\]([\s\S]*?)(?=\n\[|$)/.exec(content);
+        if (autoloadMatch) {
+          for (const line of autoloadMatch[1].split('\n')) {
+            const kv = /^([^=]+)=(.*)$/.exec(line.trim());
+            if (kv) autoloads[kv[1].trim()] = kv[2].trim();
+          }
+        }
+        return { content: [{ type: 'text', text: JSON.stringify(autoloads, null, 2) }] };
+      } else if (args.action === 'add') {
+        if (!args.name || !args.path)
+          return createErrorResponse('name and path are required for add action.');
+        const autoloadLine = `${args.name}="*${args.path}"`;
+        if (content.includes('[autoload]')) {
+          content = content.replace('[autoload]', `[autoload]\n\n${autoloadLine}`);
+        } else {
+          content += `\n[autoload]\n\n${autoloadLine}\n`;
+        }
+        writeFileSync(projectFile, content, 'utf8');
+        return { content: [{ type: 'text', text: `Autoload "${args.name}" added: ${args.path}` }] };
+      } else if (args.action === 'remove') {
+        if (!args.name)
+          return createErrorResponse('name is required for remove action.');
+        const pattern = new RegExp(`\\n?${args.name}\\s*=.*\\n?`, 'g');
+        content = content.replace(pattern, '\n');
+        writeFileSync(projectFile, content, 'utf8');
+        return { content: [{ type: 'text', text: `Autoload "${args.name}" removed.` }] };
+      }
+      return createErrorResponse('Invalid action. Use "list", "add", or "remove".');
+    } catch (error: any) {
+      return createErrorResponse(`Failed to manage autoloads: ${error?.message || 'Unknown error'}`);
+    }
+  }
+
+  public async handleManageInputMap(args: any) {
+    args = normalizeParameters(args || {});
+    if (!args.projectPath || !args.action)
+      return createErrorResponse('projectPath and action are required.');
+    if (!validatePath(args.projectPath))
+      return createErrorResponse('Invalid path.');
+    const projectFile = join(args.projectPath, 'project.godot');
+    if (!existsSync(projectFile))
+      return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
+    try {
+      let content = readFileSync(projectFile, 'utf8');
+      if (args.action === 'list') {
+        const actions: Record<string, string> = {};
+        const inputMatch = /\[input\]([\s\S]*?)(?=\n\[|$)/.exec(content);
+        if (inputMatch) {
+          for (const line of inputMatch[1].split('\n')) {
+            const kv = /^([^=]+)=(.*)$/.exec(line.trim());
+            if (kv) actions[kv[1].trim()] = kv[2].trim();
+          }
+        }
+        return { content: [{ type: 'text', text: JSON.stringify(actions, null, 2) }] };
+      } else if (args.action === 'add') {
+        if (!args.actionName)
+          return createErrorResponse('actionName is required for add action.');
+        const deadzone = args.deadzone !== undefined ? args.deadzone : 0.5;
+        let events = '';
+        if (args.key) {
+          events = `, "events": [Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":0,"physical_keycode":${this.context.keyNameToScancode(args.key)},"key_label":0,"unicode":0,"location":0,"echo":false,"script":null)]`;
+        }
+        const inputLine = `${args.actionName}={"deadzone": ${deadzone}${events}}`;
+        if (content.includes('[input]')) {
+          content = content.replace('[input]', `[input]\n\n${inputLine}`);
+        } else {
+          content += `\n[input]\n\n${inputLine}\n`;
+        }
+        writeFileSync(projectFile, content, 'utf8');
+        return { content: [{ type: 'text', text: `Input action "${args.actionName}" added.` }] };
+      } else if (args.action === 'remove') {
+        if (!args.actionName)
+          return createErrorResponse('actionName is required for remove action.');
+        const pattern = new RegExp(`\\n?${args.actionName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*=.*\\n?`, 'g');
+        content = content.replace(pattern, '\n');
+        writeFileSync(projectFile, content, 'utf8');
+        return { content: [{ type: 'text', text: `Input action "${args.actionName}" removed.` }] };
+      }
+      return createErrorResponse('Invalid action. Use "list", "add", or "remove".');
+    } catch (error: any) {
+      return createErrorResponse(`Failed to manage input map: ${error?.message || 'Unknown error'}`);
+    }
+  }
+
+  public async handleManageExportPresets(args: any) {
+    args = normalizeParameters(args || {});
+    if (!args.projectPath || !args.action)
+      return createErrorResponse('projectPath and action are required.');
+    if (!validatePath(args.projectPath))
+      return createErrorResponse('Invalid path.');
+    const projectFile = join(args.projectPath, 'project.godot');
+    if (!existsSync(projectFile))
+      return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
+    const presetsFile = join(args.projectPath, 'export_presets.cfg');
+    try {
+      if (args.action === 'list') {
+        if (!existsSync(presetsFile))
+          return { content: [{ type: 'text', text: JSON.stringify({ presets: [] }, null, 2) }] };
+        const content = readFileSync(presetsFile, 'utf8');
+        const presets: { name: string; platform: string }[] = [];
+        const nameMatches = content.matchAll(/name="([^"]+)"/g);
+        const platformMatches = content.matchAll(/platform="([^"]+)"/g);
+        const names = [...nameMatches].map(m => m[1]);
+        const platforms = [...platformMatches].map(m => m[1]);
+        for (let i = 0; i < names.length; i++) {
+          presets.push({ name: names[i], platform: platforms[i] || 'unknown' });
+        }
+        return { content: [{ type: 'text', text: JSON.stringify({ presets }, null, 2) }] };
+      } else if (args.action === 'add') {
+        if (!args.name || !args.platform)
+          return createErrorResponse('name and platform are required for add action.');
+        const runnable = args.runnable ? 'true' : 'false';
+        const presetBlock = `\n[preset.${Date.now()}]\n\nname="${args.name}"\nplatform="${args.platform}"\nrunnable=${runnable}\n`;
+        let content = existsSync(presetsFile) ? readFileSync(presetsFile, 'utf8') : '';
+        content += presetBlock;
+        writeFileSync(presetsFile, content, 'utf8');
+        return { content: [{ type: 'text', text: `Export preset "${args.name}" added for platform "${args.platform}".` }] };
+      } else if (args.action === 'remove') {
+        if (!args.name)
+          return createErrorResponse('name is required for remove action.');
+        if (!existsSync(presetsFile))
+          return createErrorResponse('No export_presets.cfg file found.');
+        let content = readFileSync(presetsFile, 'utf8');
+        // Remove the preset section containing the given name
+        const pattern = new RegExp(`\\[preset\\.[^\\]]+\\]\\s*\\n[\\s\\S]*?name="${args.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"[\\s\\S]*?(?=\\[preset\\.|$)`, 'g');
+        content = content.replace(pattern, '');
+        writeFileSync(presetsFile, content, 'utf8');
+        return { content: [{ type: 'text', text: `Export preset "${args.name}" removed.` }] };
+      }
+      return createErrorResponse('Invalid action. Use "list", "add", or "remove".');
+    } catch (error: any) {
+      return createErrorResponse(`Failed to manage export presets: ${error?.message || 'Unknown error'}`);
+    }
+  }
+
+  // --- Advanced runtime handlers ---
+
+  public async handleExportProject(args: any) {
+    args = normalizeParameters(args || {});
+    if (!args.projectPath || !args.presetName || !args.outputPath)
+      return createErrorResponse('projectPath, presetName, and outputPath are required.');
+    if (!validatePath(args.projectPath))
+      return createErrorResponse('Invalid project path.');
+    const projectFile = join(args.projectPath, 'project.godot');
+    if (!existsSync(projectFile))
+      return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
+    if (!this.context.getGodotPath()) {
+      await this.context.detectGodotPath();
+      if (!this.context.getGodotPath()) return createErrorResponse('Could not find Godot executable.');
+    }
+    try {
+      const exportFlag = args.debug ? '--export-debug' : '--export-release';
+      const exportArgs = ['--headless', '--path', args.projectPath, exportFlag, args.presetName, args.outputPath];
+      const { stdout, stderr } = await execFileAsync(this.context.getGodotPath()!, exportArgs, { timeout: 120000 });
+      if (stderr && stderr.includes('ERROR'))
+        return createErrorResponse(`Export failed: ${stderr}`);
+      return { content: [{ type: 'text', text: `Export succeeded.\n\nOutput: ${stdout || args.outputPath}` }] };
+    } catch (error: any) {
+      return createErrorResponse(`Export failed: ${error?.message || 'Unknown error'}`);
+    }
+  }
+
+  public async handleRenameFile(args: any) {
+    args = normalizeParameters(args || {});
+    if (!args.projectPath || !args.filePath || !args.newPath) return createErrorResponse('projectPath, filePath, and newPath are required.');
+    if (!validatePath(args.projectPath) || !validatePath(args.filePath) || !validatePath(args.newPath)) return createErrorResponse('Invalid path.');
+    const projectFile = join(args.projectPath, 'project.godot');
+    if (!existsSync(projectFile)) return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
+    const srcFull = join(args.projectPath, args.filePath);
+    const dstFull = join(args.projectPath, args.newPath);
+    if (!existsSync(srcFull)) return createErrorResponse(`File not found: ${args.filePath}`);
+    try {
+      const dstDir = dirname(dstFull);
+      if (!existsSync(dstDir)) mkdirSync(dstDir, { recursive: true });
+      renameSync(srcFull, dstFull);
+      return { content: [{ type: 'text', text: `Renamed ${args.filePath} → ${args.newPath}` }] };
+    } catch (error: any) {
+      return createErrorResponse(`rename_file failed: ${error?.message || 'Unknown error'}`);
+    }
+  }
+
+  public async handleManageResource(args: any) {
+    args = normalizeParameters(args || {});
+    if (!args.projectPath || !args.resourcePath || !args.action) return createErrorResponse('projectPath, resourcePath, and action are required.');
+    return this.context.headlessOp('manage_resource', args, a => ({
+      projectPath: a.projectPath,
+      params: { resourcePath: a.resourcePath, action: a.action, ...(a.properties ? { properties: a.properties } : {}) },
+    }));
+  }
+
+  public async handleValidateScript(args: any) {
+    args = normalizeParameters(args || {});
+    if (!args.projectPath || !args.scriptPath) return createErrorResponse('projectPath and scriptPath are required.');
+    if (!validatePath(args.projectPath) || !validatePath(args.scriptPath)) return createErrorResponse('Invalid path.');
+    if (!/\.gd$/i.test(args.scriptPath)) return createErrorResponse('validate_script only checks GDScript (.gd) files.');
+    const projectFile = join(args.projectPath, 'project.godot');
+    if (!existsSync(projectFile)) return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
+    const scriptFull = join(args.projectPath, args.scriptPath);
+    if (!existsSync(scriptFull)) return createErrorResponse(`Script does not exist: ${args.scriptPath}`);
+    if (!this.context.getGodotPath()) {
+      await this.context.detectGodotPath();
+      if (!this.context.getGodotPath()) return createErrorResponse('Could not find a valid Godot executable path');
+    }
+    const check = await this.context.runGdScriptCheck(args.projectPath, scriptFull);
+    if (!check.completed)
+      return createErrorResponse(`validate_script could not check the script; ${check.error}`);
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({ valid: check.errors.length === 0, scriptPath: args.scriptPath, errorCount: check.errors.length, errors: check.errors }, null, 2),
+        },
+      ],
+    };
+  }
+
+  public async handleValidateScripts(args: any) {
+    args = normalizeParameters(args || {});
+    if (!args.projectPath) return createErrorResponse('projectPath is required.');
+    if (!validatePath(args.projectPath)) return createErrorResponse('Invalid path.');
+    const projectFile = join(args.projectPath, 'project.godot');
+    if (!existsSync(projectFile)) return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
+    if (!this.context.getGodotPath()) {
+      await this.context.detectGodotPath();
+      if (!this.context.getGodotPath()) return createErrorResponse('Could not find a valid Godot executable path');
+    }
+
+    let scope: string;
+    let candidates: string[];
+    const explicit = Array.isArray(args.scriptPaths) && args.scriptPaths.length > 0;
+    if (explicit) {
+      scope = 'explicit';
+      candidates = args.scriptPaths.map((p: any) => String(p));
+    } else if (args.scope === undefined || args.scope === 'changed') {
+      scope = 'changed';
+      const changed = await this.context.listChangedGdFiles(args.projectPath);
+      if (changed.error) return createErrorResponse(changed.error);
+      candidates = changed.files!;
+    } else if (args.scope === 'all') {
+      scope = 'all';
+      candidates = this.context.listAllGdFiles(args.projectPath);
+    } else {
+      return createErrorResponse(`Invalid scope "${args.scope}". Use "changed" or "all", or pass scriptPaths.`);
+    }
+
+    const results: any[] = [];
+    let filesWithErrors = 0;
+    const toCheck: string[] = [];
+    for (const rel of candidates) {
+      if (!/\.gd$/i.test(rel) || !validatePath(rel)) {
+        if (explicit) results.push({ scriptPath: rel, checked: false, error: 'Not a valid .gd path' });
+        continue;
+      }
+      if (!existsSync(join(args.projectPath, rel))) {
+        if (explicit) results.push({ scriptPath: rel, checked: false, error: 'Script does not exist' });
+        continue;
+      }
+      toCheck.push(rel);
+    }
+
+    const MAX_BATCH = 60;
+    if (toCheck.length > MAX_BATCH)
+      return createErrorResponse(`Too many scripts to validate (${toCheck.length} > ${MAX_BATCH}). Narrow the scope or pass an explicit scriptPaths list.`);
+
+    for (const rel of toCheck) {
+      const check = await this.context.runGdScriptCheck(args.projectPath, join(args.projectPath, rel));
+      if (!check.completed) {
+        results.push({ scriptPath: rel, checked: false, error: check.error });
+      } else {
+        if (check.errors.length > 0) filesWithErrors++;
+        results.push({ scriptPath: rel, checked: true, valid: check.errors.length === 0, errorCount: check.errors.length, errors: check.errors });
+      }
+    }
+
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            scope,
+            fileCount: results.length,
+            filesWithErrors,
+            allValid: filesWithErrors === 0 && results.every(r => r.checked !== false),
+            results,
+          }, null, 2),
+        },
+      ],
+    };
+  }
+
+  public async handleCreateScript(args: any) {
+    args = normalizeParameters(args || {});
+    if (!args.projectPath || !args.scriptPath) return createErrorResponse('projectPath and scriptPath are required.');
+    if (!validatePath(args.projectPath) || !validatePath(args.scriptPath)) return createErrorResponse('Invalid path.');
+    const projectFile = join(args.projectPath, 'project.godot');
+    if (!existsSync(projectFile)) return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
+    try {
+      const fullPath = join(args.projectPath, args.scriptPath);
+      const dir = dirname(fullPath);
+      if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+      let source = args.source;
+      if (!source) {
+        const ext = args.extends || 'Node';
+        const lines = [`extends ${ext}`, ''];
+        if (args.className) lines.splice(1, 0, `class_name ${args.className}`);
+        if (args.methods && Array.isArray(args.methods)) {
+          for (const m of args.methods) {
+            lines.push('', `func ${m}():`);
+            lines.push('\tpass');
+          }
+        }
+        source = lines.join('\n') + '\n';
+      }
+      writeFileSync(fullPath, source, 'utf8');
+      return { content: [{ type: 'text', text: `Script created at ${args.scriptPath}` }] };
+    } catch (error: any) {
+      return createErrorResponse(`create_script failed: ${error?.message || 'Unknown error'}`);
+    }
+  }
+
+  public async handleManageSceneSignals(args: any) {
+    args = normalizeParameters(args || {});
+    if (!args.projectPath || !args.scenePath || !args.action) return createErrorResponse('projectPath, scenePath, and action are required.');
+    return this.context.headlessOp('manage_scene_signals', args, a => ({
+      projectPath: a.projectPath,
+      params: {
+        scenePath: a.scenePath, action: a.action,
+        ...(a.signalName ? { signalName: a.signalName } : {}),
+        ...(a.sourcePath ? { sourcePath: a.sourcePath } : {}),
+        ...(a.targetPath ? { targetPath: a.targetPath } : {}),
+        ...(a.method ? { method: a.method } : {}),
+      },
+    }));
+  }
+
+  public async handleManageLayers(args: any) {
+    args = normalizeParameters(args || {});
+    if (!args.projectPath || !args.action) return createErrorResponse('projectPath and action are required.');
+    if (!validatePath(args.projectPath)) return createErrorResponse('Invalid path.');
+    const projectFile = join(args.projectPath, 'project.godot');
+    if (!existsSync(projectFile)) return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
+    try {
+      let content = readFileSync(projectFile, 'utf8');
+      if (args.action === 'list') {
+        const layerRegex = /layer_names\/([\w_]+)\/layer_(\d+)="([^"]+)"/g;
+        const layers: any[] = [];
+        let match;
+        while ((match = layerRegex.exec(content)) !== null) {
+          layers.push({ type: match[1], layer: parseInt(match[2]), name: match[3] });
+        }
+        return { content: [{ type: 'text', text: JSON.stringify({ layers }, null, 2) }] };
+      } else if (args.action === 'set') {
+        if (!args.layerType || !args.layer || !args.name) return createErrorResponse('layerType, layer, and name are required for set.');
+        const key = `layer_names/${args.layerType}/layer_${args.layer}`;
+        const settingLine = `${key}="${args.name}"`;
+        const existingRegex = new RegExp(`${key.replace(/\//g, '\\/')}="[^"]*"`);
+        if (existingRegex.test(content)) {
+          content = content.replace(existingRegex, settingLine);
+        } else {
+          if (!content.includes('[layer_names]')) content += '\n[layer_names]\n';
+          content = content.replace('[layer_names]', `[layer_names]\n${settingLine}`);
+        }
+        writeFileSync(projectFile, content, 'utf8');
+        return { content: [{ type: 'text', text: `Layer set: ${settingLine}` }] };
+      }
+      return createErrorResponse(`Unknown action: ${args.action}`);
+    } catch (error: any) {
+      return createErrorResponse(`manage_layers failed: ${error?.message || 'Unknown error'}`);
+    }
+  }
+
+  public async handleManagePlugins(args: any) {
+    args = normalizeParameters(args || {});
+    if (!args.projectPath || !args.action) return createErrorResponse('projectPath and action are required.');
+    if (!validatePath(args.projectPath)) return createErrorResponse('Invalid path.');
+    const projectFile = join(args.projectPath, 'project.godot');
+    if (!existsSync(projectFile)) return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
+    try {
+      let content = readFileSync(projectFile, 'utf8');
+      if (args.action === 'list') {
+        const pluginRegex = /(\w+)\/enabled=true/g;
+        const plugins: string[] = [];
+        let match;
+        while ((match = pluginRegex.exec(content)) !== null) {
+          plugins.push(match[1]);
+        }
+        const addonsDir = join(args.projectPath, 'addons');
+        const available: string[] = [];
+        if (existsSync(addonsDir)) {
+          const entries = readdirSync(addonsDir, { withFileTypes: true });
+          for (const e of entries) {
+            if (e.isDirectory()) available.push(e.name);
+          }
+        }
+        return { content: [{ type: 'text', text: JSON.stringify({ enabled: plugins, available }, null, 2) }] };
+      } else if (args.action === 'enable' || args.action === 'disable') {
+        if (!args.pluginName) return createErrorResponse('pluginName is required.');
+        const key = `${args.pluginName}/enabled`;
+        const val = args.action === 'enable' ? 'true' : 'false';
+        const existingRegex = new RegExp(`${args.pluginName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\/enabled=\\w+`);
+        if (existingRegex.test(content)) {
+          content = content.replace(existingRegex, `${key}=${val}`);
+        } else {
+          if (!content.includes('[editor_plugins]')) content += '\n[editor_plugins]\n';
+          content = content.replace('[editor_plugins]', `[editor_plugins]\n${key}=${val}`);
+        }
+        writeFileSync(projectFile, content, 'utf8');
+        return { content: [{ type: 'text', text: `Plugin ${args.pluginName} ${args.action}d.` }] };
+      }
+      return createErrorResponse(`Unknown action: ${args.action}`);
+    } catch (error: any) {
+      return createErrorResponse(`manage_plugins failed: ${error?.message || 'Unknown error'}`);
+    }
+  }
+
+  public async handleManageShader(args: any) {
+    args = normalizeParameters(args || {});
+    if (!args.projectPath || !args.shaderPath || !args.action) return createErrorResponse('projectPath, shaderPath, and action are required.');
+    if (!validatePath(args.projectPath) || !validatePath(args.shaderPath)) return createErrorResponse('Invalid path.');
+    const projectFile = join(args.projectPath, 'project.godot');
+    if (!existsSync(projectFile)) return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
+    const fullPath = join(args.projectPath, args.shaderPath);
+    try {
+      if (args.action === 'read') {
+        if (!existsSync(fullPath)) return createErrorResponse(`Shader not found: ${args.shaderPath}`);
+        const source = readFileSync(fullPath, 'utf8');
+        return { content: [{ type: 'text', text: source }] };
+      } else if (args.action === 'create') {
+        const dir = dirname(fullPath);
+        if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+        let source = args.source;
+        if (!source) {
+          const type = args.shaderType || 'spatial';
+          source = `shader_type ${type};\n\nvoid fragment() {\n\t// Called for every pixel the material is visible on.\n}\n`;
+        }
+        writeFileSync(fullPath, source, 'utf8');
+        return { content: [{ type: 'text', text: `Shader created at ${args.shaderPath}` }] };
+      }
+      return createErrorResponse(`Unknown action: ${args.action}`);
+    } catch (error: any) {
+      return createErrorResponse(`manage_shader failed: ${error?.message || 'Unknown error'}`);
+    }
+  }
+
+  public async handleManageThemeResource(args: any) {
+    args = normalizeParameters(args || {});
+    if (!args.projectPath || !args.resourcePath || !args.action) return createErrorResponse('projectPath, resourcePath, and action are required.');
+    return this.context.headlessOp('manage_theme_resource', args, a => ({
+      projectPath: a.projectPath,
+      params: { resourcePath: a.resourcePath, action: a.action, ...(a.properties ? { properties: a.properties } : {}) },
+    }));
+  }
+
+  public async handleSetMainScene(args: any) {
+    args = normalizeParameters(args || {});
+    if (!args.projectPath || !args.scenePath) return createErrorResponse('projectPath and scenePath are required.');
+    if (!validatePath(args.projectPath)) return createErrorResponse('Invalid path.');
+    const projectFile = join(args.projectPath, 'project.godot');
+    if (!existsSync(projectFile)) return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
+    try {
+      let content = readFileSync(projectFile, 'utf8');
+      const resPath = args.scenePath.startsWith('res://') ? args.scenePath : `res://${args.scenePath}`;
+      const settingLine = `run/main_scene="${resPath}"`;
+      const existingRegex = /run\/main_scene="[^"]*"/;
+      if (existingRegex.test(content)) {
+        content = content.replace(existingRegex, settingLine);
+      } else {
+        if (content.includes('[application]')) {
+          content = content.replace('[application]', `[application]\n\n${settingLine}`);
+        } else {
+          content += `\n[application]\n\n${settingLine}\n`;
+        }
+      }
+      writeFileSync(projectFile, content, 'utf8');
+      return { content: [{ type: 'text', text: `Main scene set to ${resPath}` }] };
+    } catch (error: any) {
+      return createErrorResponse(`set_main_scene failed: ${error?.message || 'Unknown error'}`);
+    }
+  }
+
+  public async handleManageSceneStructure(args: any) {
+    args = normalizeParameters(args || {});
+    if (!args.projectPath || !args.scenePath || !args.action || !args.nodePath)
+      return createErrorResponse('projectPath, scenePath, action, and nodePath are required.');
+    return this.context.headlessOp('manage_scene_structure', args, a => ({
+      projectPath: a.projectPath,
+      params: {
+        scenePath: a.scenePath, action: a.action, nodePath: a.nodePath,
+        ...(a.newName ? { newName: a.newName } : {}),
+        ...(a.newParentPath ? { newParentPath: a.newParentPath } : {}),
+      },
+    }));
+  }
+
+  public async handleManageTranslations(args: any) {
+    args = normalizeParameters(args || {});
+    if (!args.projectPath || !args.action) return createErrorResponse('projectPath and action are required.');
+    if (!validatePath(args.projectPath)) return createErrorResponse('Invalid path.');
+    const projectFile = join(args.projectPath, 'project.godot');
+    if (!existsSync(projectFile)) return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
+    try {
+      let content = readFileSync(projectFile, 'utf8');
+      if (args.action === 'list') {
+        const match = /translations=PackedStringArray\(([^)]*)\)/.exec(content);
+        const translations = match ? match[1].split(',').map(s => s.trim().replace(/"/g, '')).filter(Boolean) : [];
+        return { content: [{ type: 'text', text: JSON.stringify({ translations }, null, 2) }] };
+      } else if (args.action === 'add') {
+        if (!args.translationPath) return createErrorResponse('translationPath is required.');
+        const resPath = args.translationPath.startsWith('res://') ? args.translationPath : `res://${args.translationPath}`;
+        const match = /translations=PackedStringArray\(([^)]*)\)/.exec(content);
+        if (match) {
+          const existing = match[1];
+          const newVal = existing ? `${existing}, "${resPath}"` : `"${resPath}"`;
+          content = content.replace(/translations=PackedStringArray\([^)]*\)/, `translations=PackedStringArray(${newVal})`);
+        } else {
+          if (!content.includes('[internationalization]')) content += '\n[internationalization]\n';
+          content = content.replace('[internationalization]', `[internationalization]\n\ntranslations=PackedStringArray("${resPath}")`);
+        }
+        writeFileSync(projectFile, content, 'utf8');
+        return { content: [{ type: 'text', text: `Translation added: ${resPath}` }] };
+      } else if (args.action === 'remove') {
+        if (!args.translationPath) return createErrorResponse('translationPath is required.');
+        const resPath = args.translationPath.startsWith('res://') ? args.translationPath : `res://${args.translationPath}`;
+        content = content.replace(new RegExp(`,?\\s*"${resPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`), '');
+        writeFileSync(projectFile, content, 'utf8');
+        return { content: [{ type: 'text', text: `Translation removed: ${resPath}` }] };
+      }
+      return createErrorResponse(`Unknown action: ${args.action}`);
+    } catch (error: any) {
+      return createErrorResponse(`manage_translations failed: ${error?.message || 'Unknown error'}`);
+    }
+  }
+
+  public async handleManageCiPipeline(args: any) {
+    args = normalizeParameters(args || {});
+    if (!args.projectPath || !args.action) return createErrorResponse('projectPath and action are required.');
+    if (!validatePath(args.projectPath)) return createErrorResponse('Invalid path.');
+    const projectFile = join(args.projectPath, 'project.godot');
+    if (!existsSync(projectFile)) return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
+    const workflowDir = join(args.projectPath, '.github', 'workflows');
+    const workflowPath = join(workflowDir, 'godot-export.yml');
+    try {
+      if (args.action === 'read') {
+        if (!existsSync(workflowPath)) return createErrorResponse('No workflow file found at .github/workflows/godot-export.yml');
+        const content = readFileSync(workflowPath, 'utf8');
+        return { content: [{ type: 'text', text: content }] };
+      } else if (args.action === 'create') {
+        if (!existsSync(workflowDir)) mkdirSync(workflowDir, { recursive: true });
+        const godotVersion = args.godotVersion || '4.3-stable';
+        const platforms = args.platforms || ['linux'];
+        const exportSteps = platforms.map((p: string) => `      - name: Export ${p}\n        run: godot --headless --export-release "${p}" build/${p}/game`).join('\n');
+        const workflow = `name: Godot Export\non:\n  push:\n    branches: [main]\n  pull_request:\n    branches: [main]\njobs:\n  export:\n    runs-on: ubuntu-latest\n    container:\n      image: barichello/godot-ci:${godotVersion}\n    steps:\n      - uses: actions/checkout@v4\n      - name: Setup export templates\n        run: |\n          mkdir -p ~/.local/share/godot/export_templates/${godotVersion}\n          mv /root/.local/share/godot/export_templates/${godotVersion}/* ~/.local/share/godot/export_templates/${godotVersion}/ || true\n${exportSteps}\n      - uses: actions/upload-artifact@v4\n        with:\n          name: game-builds\n          path: build/\n`;
+        writeFileSync(workflowPath, workflow, 'utf8');
+        return { content: [{ type: 'text', text: `CI pipeline created at .github/workflows/godot-export.yml for platforms: ${platforms.join(', ')}` }] };
+      }
+      return createErrorResponse(`Unknown action: ${args.action}`);
+    } catch (error: any) {
+      return createErrorResponse(`manage_ci_pipeline failed: ${error?.message || 'Unknown error'}`);
+    }
+  }
+
+  public async handleManageDockerExport(args: any) {
+    args = normalizeParameters(args || {});
+    if (!args.projectPath || !args.action) return createErrorResponse('projectPath and action are required.');
+    if (!validatePath(args.projectPath)) return createErrorResponse('Invalid path.');
+    const projectFile = join(args.projectPath, 'project.godot');
+    if (!existsSync(projectFile)) return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
+    const dockerfilePath = join(args.projectPath, 'Dockerfile');
+    try {
+      if (args.action === 'read') {
+        if (!existsSync(dockerfilePath)) return createErrorResponse('No Dockerfile found in project root.');
+        const content = readFileSync(dockerfilePath, 'utf8');
+        return { content: [{ type: 'text', text: content }] };
+      } else if (args.action === 'create') {
+        const godotVersion = args.godotVersion || '4.3-stable';
+        const baseImage = args.baseImage || 'ubuntu:22.04';
+        const exportPreset = args.exportPreset || 'Linux/X11';
+        const dockerfile = `FROM ${baseImage}\n\nARG GODOT_VERSION=${godotVersion}\n\nRUN apt-get update && apt-get install -y \\\n    wget unzip ca-certificates \\\n    && rm -rf /var/lib/apt/lists/*\n\nRUN wget -q https://github.com/godotengine/godot/releases/download/\${GODOT_VERSION}/Godot_v\${GODOT_VERSION}_linux.x86_64.zip \\\n    && unzip Godot_v\${GODOT_VERSION}_linux.x86_64.zip \\\n    && mv Godot_v\${GODOT_VERSION}_linux.x86_64 /usr/local/bin/godot \\\n    && rm Godot_v\${GODOT_VERSION}_linux.x86_64.zip\n\nRUN wget -q https://github.com/godotengine/godot/releases/download/\${GODOT_VERSION}/Godot_v\${GODOT_VERSION}_export_templates.tpz \\\n    && mkdir -p /root/.local/share/godot/export_templates/\${GODOT_VERSION} \\\n    && unzip Godot_v\${GODOT_VERSION}_export_templates.tpz \\\n    && mv templates/* /root/.local/share/godot/export_templates/\${GODOT_VERSION}/ \\\n    && rm -rf templates Godot_v\${GODOT_VERSION}_export_templates.tpz\n\nWORKDIR /game\nCOPY . .\n\nRUN mkdir -p build\nCMD ["godot", "--headless", "--export-release", "${exportPreset}", "build/game"]\n`;
+        writeFileSync(dockerfilePath, dockerfile, 'utf8');
+        return { content: [{ type: 'text', text: `Dockerfile created for headless Godot export (preset: ${exportPreset})` }] };
+      }
+      return createErrorResponse(`Unknown action: ${args.action}`);
+    } catch (error: any) {
+      return createErrorResponse(`manage_docker_export failed: ${error?.message || 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Handle the update_project_uids tool
+   */
+
+  public async handleUpdateProjectUids(args: any) {
+    // Normalize parameters to camelCase
+    args = normalizeParameters(args);
+    
+    if (!args.projectPath) {
+      return createErrorResponse(
+        'Project path is required'
+      );
+    }
+
+    if (!validatePath(args.projectPath)) {
+      return createErrorResponse(
+        'Invalid project path'
+      );
+    }
+
+    try {
+      // Ensure godotPath is set
+      if (!this.context.getGodotPath()) {
+        await this.context.detectGodotPath();
+        if (!this.context.getGodotPath()) {
+          return createErrorResponse(
+            'Could not find a valid Godot executable path'
+          );
+        }
+      }
+
+      // Check if the project directory exists and contains a project.godot file
+      const projectFile = join(args.projectPath, 'project.godot');
+      if (!existsSync(projectFile)) {
+        return createErrorResponse(
+          `Not a valid Godot project: ${args.projectPath}`
+        );
+      }
+
+      // Get Godot version to check if UIDs are supported
+      const { stdout: versionOutput } = await execFileAsync(this.context.getGodotPath()!, ['--version']);
+      const version = versionOutput.trim();
+
+      if (!isGodot44OrLater(version)) {
+        return createErrorResponse(
+          `UIDs are only supported in Godot 4.4 or later. Current version: ${version}`
+        );
+      }
+
+      // Prepare parameters for the operation (already in camelCase)
+      const params = {
+        projectPath: args.projectPath,
+      };
+
+      // Execute the operation
+      const { stdout, stderr } = await this.context.executeOperation('resave_resources', params, args.projectPath);
+
+      if (stderr && stderr.includes('Failed to')) {
+        return createErrorResponse(
+          `Failed to update project UIDs: ${stderr}`
+        );
+      }
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Project UIDs updated successfully.\n\nOutput: ${stdout}`,
+          },
+        ],
+      };
+    } catch (error: any) {
+      return createErrorResponse(
+        `Failed to update project UIDs: ${error?.message || 'Unknown error'}`
+      );
+    }
+  }
+
+  /**
+   * Run the MCP server
+   */
+}
