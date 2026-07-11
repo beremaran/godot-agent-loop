@@ -33,6 +33,12 @@ export class GameConnection {
   private readonly retryDelayMs: number;
   private readonly maxAttempts: number;
   private readonly log: (message: string) => void;
+  private connectionGeneration = 0;
+  private connectingSocket: Socket | null = null;
+  private pendingDelay: {
+    timer: ReturnType<typeof setTimeout>;
+    resolve: (active: boolean) => void;
+  } | null = null;
 
   constructor(options: GameConnectionOptions = {}) {
     this.port = options.port ?? 9090;
@@ -48,32 +54,42 @@ export class GameConnection {
   }
 
   async connect(projectPath: string, isProcessActive: () => boolean): Promise<void> {
+    const generation = ++this.connectionGeneration;
+    this.cancelPendingDelay();
+    this.destroySocket();
+    this.connected = false;
+    this.responseBuffer = '';
+    this.rejectAllPending({ error: 'Connection superseded' });
     this.projectPath = projectPath;
-    await new Promise(resolve => setTimeout(resolve, this.initialDelayMs));
+    if (!await this.delay(this.initialDelayMs, generation)) return;
 
     for (let attempt = 1; attempt <= this.maxAttempts; attempt++) {
+      if (!this.isCurrentGeneration(generation)) return;
       if (!isProcessActive()) {
         this.log('Game process no longer running, aborting connection');
         return;
       }
 
       try {
-        await this.connectOnce(attempt);
+        const connected = await this.connectOnce(attempt, generation);
+        if (!connected || !this.isCurrentGeneration(generation)) return;
         return;
       } catch {
+        if (!this.isCurrentGeneration(generation)) return;
         this.log(`Connection attempt ${attempt}/${this.maxAttempts} failed, retrying in ${this.retryDelayMs}ms...`);
-        await new Promise(resolve => setTimeout(resolve, this.retryDelayMs));
+        if (!await this.delay(this.retryDelayMs, generation)) return;
       }
     }
 
-    console.error(`[SERVER] Failed to connect to game interaction server after ${this.maxAttempts} attempts`);
+    if (this.isCurrentGeneration(generation)) {
+      console.error(`[SERVER] Failed to connect to game interaction server after ${this.maxAttempts} attempts`);
+    }
   }
 
   disconnect(): void {
-    if (this.socket) {
-      this.socket.destroy();
-      this.socket = null;
-    }
+    this.connectionGeneration++;
+    this.cancelPendingDelay();
+    this.destroySocket();
     this.connected = false;
     this.responseBuffer = '';
     this.rejectAllPending({ error: 'Disconnected' });
@@ -121,9 +137,16 @@ export class GameConnection {
     });
   }
 
-  private connectOnce(attempt: number): Promise<void> {
+  private connectOnce(attempt: number, generation: number): Promise<boolean> {
     return new Promise((resolve, reject) => {
       const socket = createConnection({ host: this.host, port: this.port }, () => {
+        if (!this.isCurrentGeneration(generation)) {
+          socket.destroy();
+          resolve(false);
+          return;
+        }
+
+        this.connectingSocket = null;
         this.socket = socket;
         this.connected = true;
         this.responseBuffer = '';
@@ -131,18 +154,61 @@ export class GameConnection {
         this.log(`Connected to game interaction server (attempt ${attempt})`);
         console.error(`[SERVER] Connected to game interaction server on port ${this.port}`);
 
-        socket.on('data', data => { this.handleData(data); });
+        socket.on('data', data => {
+          if (this.isCurrentSocket(socket, generation)) this.handleData(data);
+        });
         socket.on('close', () => {
           this.log('Game interaction connection closed');
+          if (!this.isCurrentSocket(socket, generation)) return;
           this.connected = false;
           this.socket = null;
           this.rejectAllPending({ error: 'Connection closed' });
         });
         socket.on('error', err => { this.log(`Game interaction socket error: ${err.message}`); });
-        resolve();
+        resolve(true);
       });
-      socket.on('error', reject);
+      this.connectingSocket = socket;
+      socket.on('error', error => {
+        if (this.isCurrentGeneration(generation)) reject(error);
+        else resolve(false);
+      });
+      socket.on('close', () => {
+        if (!this.isCurrentGeneration(generation)) resolve(false);
+      });
     });
+  }
+
+  private isCurrentGeneration(generation: number): boolean {
+    return generation === this.connectionGeneration;
+  }
+
+  private isCurrentSocket(socket: Socket, generation: number): boolean {
+    return this.isCurrentGeneration(generation) && this.socket === socket;
+  }
+
+  private delay(milliseconds: number, generation: number): Promise<boolean> {
+    return new Promise(resolve => {
+      const timer = setTimeout(() => {
+        this.pendingDelay = null;
+        resolve(this.isCurrentGeneration(generation));
+      }, milliseconds);
+      this.pendingDelay = { timer, resolve };
+    });
+  }
+
+  private cancelPendingDelay(): void {
+    if (this.pendingDelay !== null) {
+      clearTimeout(this.pendingDelay.timer);
+      this.pendingDelay.resolve(false);
+      this.pendingDelay = null;
+    }
+  }
+
+  private destroySocket(): void {
+    const sockets = [this.socket, this.connectingSocket];
+    this.socket = null;
+    this.connectingSocket = null;
+    for (const socket of sockets) socket?.destroy();
   }
 
   private handleData(data: Buffer): void {
