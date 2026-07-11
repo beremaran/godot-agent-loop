@@ -221,7 +221,7 @@ describe('GodotServer class tests', () => {
   let executeOperationSpy: any;
 
   beforeAll(() => {
-    // We allow actual implementations of isValidGodotPath, isDotnetProject, detectGodotNetSdkVersion to run to gain coverage
+    // Keep executable validation real while replacing headless operations.
     executeOperationSpy = vi.spyOn(GodotServer.prototype as any, 'executeOperation').mockResolvedValue({
       stdout: 'mock_stdout_output',
       stderr: ''
@@ -504,14 +504,14 @@ describe('GodotServer class tests', () => {
     });
   });
 
-  it('tests findGodotProjects', () => {
+  it('uses ProjectSupport for project discovery', () => {
     vi.spyOn(fs, 'existsSync').mockReturnValue(true);
     const readdirSpy = vi.spyOn(fs, 'readdirSync').mockReturnValue([
       { name: 'subdir', isDirectory: () => true, isFile: () => false },
       { name: 'project.godot', isDirectory: () => false, isFile: () => true }
     ] as any);
 
-    const projects = (server as any).findGodotProjects('/fake', true);
+    const projects = (server as any).projectSupport.findGodotProjects('/fake', true);
     expect(projects.length).toBeGreaterThan(0);
 
     readdirSpy.mockRestore();

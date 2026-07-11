@@ -10,7 +10,7 @@ finishing the separation and improving maintainability.
   - `get_debug_output`
   - `stop_project`
   - `get_godot_version`
-- [ ] Move remaining project-support helpers out of `GodotServer`:
+- [x] Move remaining project-support helpers out of `GodotServer`:
   - project discovery
   - project structure scanning
   - .NET detection

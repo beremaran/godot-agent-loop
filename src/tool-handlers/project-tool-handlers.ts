@@ -15,6 +15,7 @@ import {
   isValidCsharpIdentifier,
 } from '../utils.js';
 import type { OperationParams } from '../utils.js';
+import type { ProjectSupport } from '../project-support.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -24,14 +25,7 @@ export interface ProjectToolHandlerContext {
   logDebug: (message: string) => void;
   executeOperation: (operation: string, params: OperationParams, projectPath: string) => Promise<{ stdout: string; stderr: string }>;
   headlessOp: (operation: string, args: any, argsFn: (a: any) => { projectPath: string; params: OperationParams }) => Promise<any>;
-  getProjectStructureAsync: (projectPath: string) => Promise<any>;
-  isDotnetProject: (projectPath: string) => boolean;
-  detectGodotNetSdkVersion: () => Promise<string | null>;
-  keyNameToScancode: (key: string) => number;
-  runGdScriptCheck: (projectPath: string, scriptPath: string) => Promise<any>;
-  listChangedGdFiles: (projectPath: string) => Promise<{ files?: string[]; error?: string }>;
-  listAllGdFiles: (projectPath: string) => string[];
-  findGodotProjects: (directory: string, recursive: boolean) => { path: string; name: string }[];
+  projectSupport: ProjectSupport;
 }
 
 /** Implements project, scene, file, script, and export tools. */
@@ -63,7 +57,7 @@ export class ProjectToolHandlers {
       }
 
       const recursive = args.recursive === true;
-      const projects = this.context.findGodotProjects(args.directory, recursive);
+      const projects = this.context.projectSupport.findGodotProjects(args.directory, recursive);
 
       return {
         content: [
@@ -128,7 +122,7 @@ export class ProjectToolHandlers {
       const { stdout } = await execFileAsync(this.context.getGodotPath()!, ['--version'], execOptions);
   
       // Get project structure using the recursive method
-      const projectStructure = await this.context.getProjectStructureAsync(args.projectPath);
+      const projectStructure = await this.context.projectSupport.getProjectStructureAsync(args.projectPath);
   
       // Extract project name from project.godot file
       let projectName = basename(args.projectPath);
@@ -153,7 +147,7 @@ export class ProjectToolHandlers {
                 name: projectName,
                 path: args.projectPath,
                 godotVersion: stdout.trim(),
-                isDotnet: this.context.isDotnetProject(args.projectPath),
+                isDotnet: this.context.projectSupport.isDotnetProject(args.projectPath),
                 structure: projectStructure,
               },
               null,
@@ -1012,7 +1006,7 @@ export class ProjectToolHandlers {
       }
       writeFileSync(projectFile, content, 'utf8');
       if (isDotnet) {
-        const sdkVersion = (await this.context.detectGodotNetSdkVersion()) ?? undefined;
+        const sdkVersion = (await this.context.projectSupport.detectGodotNetSdkVersion()) ?? undefined;
         writeFileSync(join(args.projectPath, `${assemblyName}.csproj`), generateCsprojContent(args.projectName, sdkVersion), 'utf8');
       }
       return { content: [{ type: 'text', text: `Project "${args.projectName}" created at ${args.projectPath}${isDotnet ? ' (Godot .NET / C#)' : ''}` }] };
@@ -1027,7 +1021,7 @@ export class ProjectToolHandlers {
     if (!validatePath(args.projectPath) || !validatePath(args.scriptPath)) return createErrorResponse('Invalid path.');
     const projectFile = join(args.projectPath, 'project.godot');
     if (!existsSync(projectFile)) return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
-    if (!this.context.isDotnetProject(args.projectPath))
+    if (!this.context.projectSupport.isDotnetProject(args.projectPath))
       return createErrorResponse('Not a Godot .NET project (no .csproj found). Use create_project with dotnet: true first.');
     if (!/\.cs$/i.test(args.scriptPath))
       return createErrorResponse('scriptPath must end with .cs');
@@ -1129,7 +1123,7 @@ export class ProjectToolHandlers {
         const deadzone = args.deadzone !== undefined ? args.deadzone : 0.5;
         let events = '';
         if (args.key) {
-          events = `, "events": [Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":0,"physical_keycode":${this.context.keyNameToScancode(args.key)},"key_label":0,"unicode":0,"location":0,"echo":false,"script":null)]`;
+          events = `, "events": [Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":0,"physical_keycode":${this.context.projectSupport.keyNameToScancode(args.key)},"key_label":0,"unicode":0,"location":0,"echo":false,"script":null)]`;
         }
         const inputLine = `${args.actionName}={"deadzone": ${deadzone}${events}}`;
         if (content.includes('[input]')) {
@@ -1272,7 +1266,7 @@ export class ProjectToolHandlers {
       await this.context.detectGodotPath();
       if (!this.context.getGodotPath()) return createErrorResponse('Could not find a valid Godot executable path');
     }
-    const check = await this.context.runGdScriptCheck(args.projectPath, scriptFull);
+    const check = await this.context.projectSupport.runGdScriptCheck(args.projectPath, scriptFull);
     if (!check.completed)
       return createErrorResponse(`validate_script could not check the script; ${check.error}`);
     return {
@@ -1304,12 +1298,12 @@ export class ProjectToolHandlers {
       candidates = args.scriptPaths.map((p: any) => String(p));
     } else if (args.scope === undefined || args.scope === 'changed') {
       scope = 'changed';
-      const changed = await this.context.listChangedGdFiles(args.projectPath);
+      const changed = await this.context.projectSupport.listChangedGdFiles(args.projectPath);
       if (changed.error) return createErrorResponse(changed.error);
       candidates = changed.files!;
     } else if (args.scope === 'all') {
       scope = 'all';
-      candidates = this.context.listAllGdFiles(args.projectPath);
+      candidates = this.context.projectSupport.listAllGdFiles(args.projectPath);
     } else {
       return createErrorResponse(`Invalid scope "${args.scope}". Use "changed" or "all", or pass scriptPaths.`);
     }
@@ -1334,7 +1328,7 @@ export class ProjectToolHandlers {
       return createErrorResponse(`Too many scripts to validate (${toCheck.length} > ${MAX_BATCH}). Narrow the scope or pass an explicit scriptPaths list.`);
 
     for (const rel of toCheck) {
-      const check = await this.context.runGdScriptCheck(args.projectPath, join(args.projectPath, rel));
+      const check = await this.context.projectSupport.runGdScriptCheck(args.projectPath, join(args.projectPath, rel));
       if (!check.completed) {
         results.push({ scriptPath: rel, checked: false, error: check.error });
       } else {
