@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, beforeAll } from 'vitest';
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import {
@@ -53,7 +53,7 @@ function fakeGameCommand(
 function fakeHeadlessOp(
   args: any,
   argsFn: (a: any) => { projectPath: string; params: any },
-  projectExists: boolean = true,
+  projectExists = true,
 ): { error: string | null; operation: { projectPath: string; params: any } | null } {
   args = normalizeParameters(args || {});
   const { projectPath, params } = argsFn(args);
@@ -1102,7 +1102,7 @@ describe('Lifecycle handlers', () => {
   it('handleReadProjectSettings parses INI-style sections', () => {
     expect(sourceCode).toContain('handleReadProjectSettings');
     // It should parse [section] headers and key=value pairs
-    expect(sourceCode).toContain("match(/^\\[(.+)\\]$/");
+    expect(sourceCode).toContain("/^\\[(.+)\\]$/.exec(trimmed)");
   });
 
   it('handleModifyProjectSettings writes to project.godot', () => {

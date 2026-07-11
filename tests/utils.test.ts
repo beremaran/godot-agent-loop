@@ -11,11 +11,11 @@ import {
 
 describe('PARAMETER_MAPPINGS', () => {
   it('maps snake_case to camelCase', () => {
-    expect(PARAMETER_MAPPINGS['project_path']).toBe('projectPath');
-    expect(PARAMETER_MAPPINGS['scene_path']).toBe('scenePath');
-    expect(PARAMETER_MAPPINGS['node_path']).toBe('nodePath');
-    expect(PARAMETER_MAPPINGS['node_type']).toBe('nodeType');
-    expect(PARAMETER_MAPPINGS['node_name']).toBe('nodeName');
+    expect(PARAMETER_MAPPINGS.project_path).toBe('projectPath');
+    expect(PARAMETER_MAPPINGS.scene_path).toBe('scenePath');
+    expect(PARAMETER_MAPPINGS.node_path).toBe('nodePath');
+    expect(PARAMETER_MAPPINGS.node_type).toBe('nodeType');
+    expect(PARAMETER_MAPPINGS.node_name).toBe('nodeName');
   });
 
   it('covers all expected parameter names', () => {

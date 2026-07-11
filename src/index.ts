@@ -41,7 +41,7 @@ import {
 
 // Check if debug mode is enabled
 const DEBUG_MODE: boolean = process.env.DEBUG === 'true';
-const GODOT_DEBUG_MODE: boolean = true; // Always use GODOT DEBUG MODE
+const GODOT_DEBUG_MODE = true; // Always use GODOT DEBUG MODE
 
 const ALLOWED_PROJECT_ROOTS: string[] = (process.env.GODOT_MCP_ALLOWED_DIRS || '')
   .split(process.platform === 'win32' ? /[;,]/ : /[:,]/)
@@ -104,8 +104,8 @@ export class GodotServer {
   private godotPath: string | null = null;
   private operationsScriptPath: string;
   private interactionScriptPath: string;
-  private validatedPaths: Map<string, boolean> = new Map();
-  private strictPathValidation: boolean = false;
+  private validatedPaths = new Map<string, boolean>();
+  private strictPathValidation = false;
   private gameConnection: GameConnection = {
     socket: null,
     connected: false,
@@ -114,9 +114,9 @@ export class GodotServer {
     projectPath: null,
     interactionServerInjectedByUs: false,
   };
-  private nextRequestId: number = 1;
-  private lastErrorIndex: number = 0;
-  private lastLogIndex: number = 0;
+  private nextRequestId = 1;
+  private lastErrorIndex = 0;
+  private lastLogIndex = 0;
   private readonly INTERACTION_PORT = 9090;
   private readonly AUTOLOAD_NAME = 'McpInteractionServer';
 
@@ -168,12 +168,13 @@ export class GodotServer {
     this.setupToolHandlers();
 
     // Error handling
-    this.server.onerror = (error) => console.error('[MCP Error]', error);
+    this.server.onerror = (error) => { console.error('[MCP Error]', error); };
 
     // Cleanup on exit
-    process.on('SIGINT', async () => {
-      await this.cleanup();
-      process.exit(0);
+    process.on('SIGINT', () => {
+      void this.cleanup().then(() => {
+        process.exit(0);
+      });
     });
   }
 
@@ -468,7 +469,7 @@ export class GodotServer {
                   try {
                     const parsed = JSON.parse(line);
                     this.resolveGameResponse(parsed);
-                  } catch (e) {
+                  } catch {
                     this.logDebug(`Failed to parse game response: ${line}`);
                   }
                 }
@@ -496,7 +497,7 @@ export class GodotServer {
 
         // Successfully connected
         return;
-      } catch (err) {
+      } catch {
         this.logDebug(`Connection attempt ${attempt}/${maxAttempts} failed, retrying in ${retryDelay}ms...`);
         await new Promise(resolve => setTimeout(resolve, retryDelay));
       }
@@ -544,7 +545,7 @@ export class GodotServer {
   /**
    * Send a command to the running game and wait for a response
    */
-  private async sendGameCommand(command: string, params: Record<string, any> = {}, timeoutMs: number = 10000): Promise<any> {
+  private async sendGameCommand(command: string, params: Record<string, any> = {}, timeoutMs = 10000): Promise<any> {
     if (!this.gameConnection.connected || !this.gameConnection.socket) {
       throw new Error('Not connected to game interaction server. Is the game running?');
     }
@@ -677,7 +678,7 @@ export class GodotServer {
 
       this.logDebug(`Executing: ${this.godotPath} ${args.join(' ')}`);
 
-      const { stdout, stderr } = await execFileAsync(this.godotPath!, args);
+      const { stdout, stderr } = await execFileAsync(this.godotPath, args);
 
       return { stdout: stdout ?? '', stderr: stderr ?? '' };
     } catch (error: unknown) {
@@ -700,8 +701,8 @@ export class GodotServer {
    * @param recursive Whether to search recursively
    * @returns Array of Godot projects
    */
-  private findGodotProjects(directory: string, recursive: boolean): Array<{ path: string; name: string }> {
-    const projects: Array<{ path: string; name: string }> = [];
+  private findGodotProjects(directory: string, recursive: boolean): { path: string; name: string }[] {
+    const projects: { path: string; name: string }[] = [];
 
     try {
       // Check if the directory itself is a Godot project
@@ -3859,7 +3860,7 @@ export class GodotServer {
       }
 
       this.logDebug('Getting Godot version');
-      const { stdout } = await execFileAsync(this.godotPath!, ['--version']);
+      const { stdout } = await execFileAsync(this.godotPath, ['--version']);
       return {
         content: [
           {
@@ -4025,7 +4026,7 @@ export class GodotServer {
   
       // Get Godot version
       const execOptions = { timeout: 10000 }; // 10 second timeout
-      const { stdout } = await execFileAsync(this.godotPath!, ['--version'], execOptions);
+      const { stdout } = await execFileAsync(this.godotPath, ['--version'], execOptions);
   
       // Get project structure using the recursive method
       const projectStructure = await this.getProjectStructureAsync(args.projectPath);
@@ -4034,7 +4035,7 @@ export class GodotServer {
       let projectName = basename(args.projectPath);
       try {
         const projectFileContent = readFileSync(projectFile, 'utf8');
-        const configNameMatch = projectFileContent.match(/config\/name="([^"]+)"/);
+        const configNameMatch = /config\/name="([^"]+)"/.exec(projectFileContent);
         if (configNameMatch && configNameMatch[1]) {
           projectName = configNameMatch[1];
           this.logDebug(`Found project name in config: ${projectName}`);
@@ -4483,7 +4484,7 @@ export class GodotServer {
       }
 
       // Get Godot version to check if UIDs are supported
-      const { stdout: versionOutput } = await execFileAsync(this.godotPath!, ['--version']);
+      const { stdout: versionOutput } = await execFileAsync(this.godotPath, ['--version']);
       const version = versionOutput.trim();
 
       if (!isGodot44OrLater(version)) {
@@ -4759,7 +4760,7 @@ export class GodotServer {
         if (trimmed === '' || trimmed.startsWith(';')) continue;
 
         // Section header
-        const sectionMatch = trimmed.match(/^\[(.+)\]$/);
+        const sectionMatch = /^\[(.+)\]$/.exec(trimmed);
         if (sectionMatch) {
           currentSection = sectionMatch[1];
           if (!sections[currentSection]) {
@@ -4769,7 +4770,7 @@ export class GodotServer {
         }
 
         // Key=value pair
-        const kvMatch = trimmed.match(/^([^=]+)=(.*)$/);
+        const kvMatch = /^([^=]+)=(.*)$/.exec(trimmed);
         if (kvMatch && currentSection) {
           const key = kvMatch[1].trim();
           const value = kvMatch[2].trim();
@@ -5181,7 +5182,7 @@ export class GodotServer {
       if (!this.godotPath) await this.detectGodotPath();
       if (!this.godotPath) return null;
       const { stdout } = await execFileAsync(this.godotPath, ['--version'], { timeout: 10000 });
-      const match = stdout.trim().match(/^(\d+)\.(\d+)(?:\.\d+)?\.stable\b/);
+      const match = /^(\d+)\.(\d+)(?:\.\d+)?\.stable\b/.exec(stdout.trim());
       if (!match) return null;
       return `${match[1]}.${match[2]}.0`;
     } catch {
@@ -5237,10 +5238,10 @@ export class GodotServer {
       let content = readFileSync(projectFile, 'utf8');
       if (args.action === 'list') {
         const autoloads: Record<string, string> = {};
-        const autoloadMatch = content.match(/\[autoload\]([\s\S]*?)(?=\n\[|$)/);
+        const autoloadMatch = /\[autoload\]([\s\S]*?)(?=\n\[|$)/.exec(content);
         if (autoloadMatch) {
           for (const line of autoloadMatch[1].split('\n')) {
-            const kv = line.trim().match(/^([^=]+)=(.*)$/);
+            const kv = /^([^=]+)=(.*)$/.exec(line.trim());
             if (kv) autoloads[kv[1].trim()] = kv[2].trim();
           }
         }
@@ -5283,10 +5284,10 @@ export class GodotServer {
       let content = readFileSync(projectFile, 'utf8');
       if (args.action === 'list') {
         const actions: Record<string, string> = {};
-        const inputMatch = content.match(/\[input\]([\s\S]*?)(?=\n\[|$)/);
+        const inputMatch = /\[input\]([\s\S]*?)(?=\n\[|$)/.exec(content);
         if (inputMatch) {
           for (const line of inputMatch[1].split('\n')) {
-            const kv = line.trim().match(/^([^=]+)=(.*)$/);
+            const kv = /^([^=]+)=(.*)$/.exec(line.trim());
             if (kv) actions[kv[1].trim()] = kv[2].trim();
           }
         }
@@ -5353,7 +5354,7 @@ export class GodotServer {
         if (!existsSync(presetsFile))
           return { content: [{ type: 'text', text: JSON.stringify({ presets: [] }, null, 2) }] };
         const content = readFileSync(presetsFile, 'utf8');
-        const presets: Array<{ name: string; platform: string }> = [];
+        const presets: { name: string; platform: string }[] = [];
         const nameMatches = content.matchAll(/name="([^"]+)"/g);
         const platformMatches = content.matchAll(/platform="([^"]+)"/g);
         const names = [...nameMatches].map(m => m[1]);
@@ -5593,7 +5594,7 @@ export class GodotServer {
     try {
       const exportFlag = args.debug ? '--export-debug' : '--export-release';
       const exportArgs = ['--headless', '--path', args.projectPath, exportFlag, args.presetName, args.outputPath];
-      const { stdout, stderr } = await execFileAsync(this.godotPath!, exportArgs, { timeout: 120000 });
+      const { stdout, stderr } = await execFileAsync(this.godotPath, exportArgs, { timeout: 120000 });
       if (stderr && stderr.includes('ERROR'))
         return createErrorResponse(`Export failed: ${stderr}`);
       return { content: [{ type: 'text', text: `Export succeeded.\n\nOutput: ${stdout || args.outputPath}` }] };
@@ -6237,7 +6238,7 @@ export class GodotServer {
     projectPath: string,
     scriptFull: string
   ): Promise<{ completed: boolean; errors: ReturnType<typeof parseGodotScriptDiagnostics>; error?: string }> {
-    let output = '';
+    let output: string;
     let failed = false;
     try {
       const { stdout, stderr } = await execFileAsync(
@@ -6618,13 +6619,13 @@ export class GodotServer {
     try {
       let content = readFileSync(projectFile, 'utf8');
       if (args.action === 'list') {
-        const match = content.match(/translations=PackedStringArray\(([^)]*)\)/);
+        const match = /translations=PackedStringArray\(([^)]*)\)/.exec(content);
         const translations = match ? match[1].split(',').map(s => s.trim().replace(/"/g, '')).filter(Boolean) : [];
         return { content: [{ type: 'text', text: JSON.stringify({ translations }, null, 2) }] };
       } else if (args.action === 'add') {
         if (!args.translationPath) return createErrorResponse('translationPath is required.');
         const resPath = args.translationPath.startsWith('res://') ? args.translationPath : `res://${args.translationPath}`;
-        const match = content.match(/translations=PackedStringArray\(([^)]*)\)/);
+        const match = /translations=PackedStringArray\(([^)]*)\)/.exec(content);
         if (match) {
           const existing = match[1];
           const newVal = existing ? `${existing}, "${resPath}"` : `"${resPath}"`;
@@ -6920,7 +6921,7 @@ export class GodotServer {
       }
 
       // Get Godot version to check if UIDs are supported
-      const { stdout: versionOutput } = await execFileAsync(this.godotPath!, ['--version']);
+      const { stdout: versionOutput } = await execFileAsync(this.godotPath, ['--version']);
       const version = versionOutput.trim();
 
       if (!isGodot44OrLater(version)) {

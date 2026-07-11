@@ -3,9 +3,7 @@
  * Pure functions extracted for testability.
  */
 
-export interface OperationParams {
-  [key: string]: any;
-}
+export type OperationParams = Record<string, any>;
 
 export const PARAMETER_MAPPINGS: Record<string, string> = {
   'project_path': 'projectPath',
@@ -225,7 +223,7 @@ export function createErrorResponse(message: string): any {
 }
 
 export function isGodot44OrLater(version: string): boolean {
-  const match = version.match(/^(\d+)\.(\d+)/);
+  const match = /^(\d+)\.(\d+)/.exec(version);
   if (match) {
     const major = parseInt(match[1], 10);
     const minor = parseInt(match[2], 10);
@@ -245,14 +243,14 @@ export function parseGodotScriptDiagnostics(output: string): ScriptDiagnostic[] 
   const diagnostics: ScriptDiagnostic[] = [];
   const locRe = /\((res:\/\/.+):(\d+)\)/;
   for (let i = 0; i < lines.length; i++) {
-    const m = lines[i].match(/SCRIPT ERROR:\s*(.+?)\s*$/);
+    const m = /SCRIPT ERROR:\s*(.+?)\s*$/.exec(lines[i]);
     if (!m) continue;
     const message = m[1].replace(/^Parse Error:\s*/, '');
     let file: string | undefined;
     let line: number | undefined;
     for (const j of [i + 1, i]) {
       if (j >= lines.length) continue;
-      const loc = lines[j].match(locRe);
+      const loc = locRe.exec(lines[j]);
       if (loc) {
         file = loc[1];
         line = parseInt(loc[2], 10);
@@ -300,7 +298,7 @@ export function isValidCsharpIdentifier(name: string): boolean {
   return /^[A-Za-z_][A-Za-z0-9_]*$/.test(name);
 }
 
-export function generateGodotProjectFeatures(isDotnet: boolean, version: string = '4.4'): string {
+export function generateGodotProjectFeatures(isDotnet: boolean, version = '4.4'): string {
   return isDotnet
     ? `PackedStringArray("${version}", "C#")`
     : `PackedStringArray("${version}")`;
@@ -342,7 +340,7 @@ const CSHARP_GODOT_OVERRIDES: Record<string, string> = {
 
 export function generateCsharpScriptSource(opts: CsharpScriptOptions): string {
   const className = toDotnetIdentifier(opts.className);
-  const baseClass = (opts.baseClass && opts.baseClass.trim()) || 'Node';
+  const baseClass = (opts.baseClass?.trim()) || 'Node';
   const indent = opts.namespaceName ? '\t\t' : '\t';
   const bodyIndent = indent + '\t';
 
@@ -355,7 +353,7 @@ export function generateCsharpScriptSource(opts: CsharpScriptOptions): string {
     const signature = CSHARP_GODOT_OVERRIDES[name] || `public void ${toDotnetIdentifier(name)}()`;
     methodBlocks.push(`${indent}${signature}\n${indent}{\n${bodyIndent}\n${indent}}`);
   }
-  const body = methodBlocks.length > 0 ? methodBlocks.join('\n\n') : `${indent}`;
+  const body = methodBlocks.length > 0 ? methodBlocks.join('\n\n') : indent;
 
   const classIndent = opts.namespaceName ? '\t' : '';
   const classBlock =

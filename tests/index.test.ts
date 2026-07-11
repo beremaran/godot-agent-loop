@@ -1,17 +1,15 @@
 process.env.GODOT_MCP_ALLOWED_DIRS = '/fake/project';
 
-import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, vi, beforeAll } from 'vitest';
 import * as fs from 'fs';
 import * as cp from 'child_process';
 import * as net from 'net';
-import { join } from 'path';
 
 const handlers = new Map<any, any>();
 
 vi.mock('@modelcontextprotocol/sdk/server/index.js', () => {
   return {
     Server: class {
-      constructor() {}
       setRequestHandler(schema: any, callback: any) {
         handlers.set(schema, callback);
       }
@@ -24,6 +22,7 @@ vi.mock('@modelcontextprotocol/sdk/server/index.js', () => {
 
 vi.mock('@modelcontextprotocol/sdk/server/stdio.js', () => {
   return {
+    // eslint-disable-next-line @typescript-eslint/no-extraneous-class
     StdioServerTransport: class {}
   };
 });
@@ -31,7 +30,7 @@ vi.mock('@modelcontextprotocol/sdk/server/stdio.js', () => {
 let mockExecFileImpl: any = (file: any, args: any, options: any, callback: any) => {
   const cb = typeof options === 'function' ? options : callback;
   if (cb) {
-    if (args && args.includes('--version')) {
+    if (args?.includes('--version')) {
       cb(null, '4.4.stable', '');
     } else {
       cb(null, 'mock stdout', 'mock stderr');
@@ -70,6 +69,7 @@ vi.mock('child_process', () => {
     mockExecFileImpl(file, args, options, callback);
   });
 
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const util = require('util');
   (execFileMock as any)[util.promisify.custom] = (file: any, args: any, options: any) => {
     return new Promise((resolve, reject) => {
@@ -90,7 +90,7 @@ vi.mock('child_process', () => {
   };
 });
 
-let mockExistsSyncImpl: any = (path: any) => true;
+let mockExistsSyncImpl: any = (_path: any) => true;
 
 vi.mock('fs', () => {
   return {
@@ -103,7 +103,7 @@ vi.mock('fs', () => {
     }),
     writeFileSync: vi.fn(),
     readdirSync: vi.fn((dir, options) => {
-      if (options && (options as any).withFileTypes) {
+      if (options?.withFileTypes) {
         return [
           { name: 'main.tscn', isFile: () => true, isDirectory: () => false },
           { name: 'player.gd', isFile: () => true, isDirectory: () => false },
@@ -130,7 +130,7 @@ vi.mock('net', () => {
         end: vi.fn(),
       };
       if (callback) {
-        setTimeout(callback, 0);
+        setTimeout(() => { callback(); }, 0);
       }
       return socket;
     })
@@ -143,7 +143,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 import { toDotnetNamespace } from '../src/utils.js';
 
 function getFakeArgsForSchema(schema: any, toolName: string): any {
-  if (!schema || !schema.properties) return {};
+  if (!schema?.properties) return {};
   const args: any = {};
   for (const [key, prop] of Object.entries(schema.properties) as any[]) {
     let val: any;
@@ -238,7 +238,9 @@ describe('GodotServer class tests', () => {
               result: { success: true, value: 'mock_value' }
             });
           }, 0);
-        } catch (e) {}
+        } catch {
+          // ignore
+        }
       }),
       on: vi.fn(),
       destroy: vi.fn(),
@@ -252,7 +254,7 @@ describe('GodotServer class tests', () => {
     const errors: string[] = [];
 
     // Mock disconnectFromGame to do nothing during happy paths to prevent disconnecting game connection mid-loop
-    const disconnectSpy = vi.spyOn(server as any, 'disconnectFromGame').mockImplementation(() => {});
+    const disconnectSpy = vi.spyOn(server as any, 'disconnectFromGame').mockImplementation(() => { /* no-op */ });
 
     for (const tool of toolsResult.tools) {
       if (tool.name === 'create_project') {
@@ -263,7 +265,7 @@ describe('GodotServer class tests', () => {
           return true;
         };
       } else {
-        mockExistsSyncImpl = (path: string) => true;
+        mockExistsSyncImpl = (_path: string) => true;
       }
 
       // Re-assign mocked active process and socket before every tool call because some tools like stop_project reset it
@@ -300,7 +302,7 @@ describe('GodotServer class tests', () => {
       }
     }
 
-    mockExistsSyncImpl = (path: string) => true;
+    mockExistsSyncImpl = (_path: string) => true;
     disconnectSpy.mockRestore();
 
     expect(errors).toEqual([]);
@@ -327,7 +329,9 @@ describe('GodotServer class tests', () => {
             arguments: { projectPath: '../../outside/path' }
           }
         });
-      } catch (err) {}
+      } catch {
+        // expected failure
+      }
     }
   });
 
@@ -376,13 +380,11 @@ describe('GodotServer class tests', () => {
   it('tests game connection and event handlers', async () => {
     let dataCallback: any;
     let closeCallback: any;
-    let errorCallback: any;
 
     const mockSocket = {
       on: vi.fn((event, cb) => {
         if (event === 'data') dataCallback = cb;
         if (event === 'close') closeCallback = cb;
-        if (event === 'error') errorCallback = cb;
       }),
       write: vi.fn(),
       destroy: vi.fn(),
@@ -390,7 +392,7 @@ describe('GodotServer class tests', () => {
     };
 
     vi.spyOn(net, 'createConnection').mockImplementation((options: any, callback: any) => {
-      if (callback) setTimeout(callback, 0);
+      if (callback) setTimeout(() => { callback(); }, 0);
       return mockSocket as any;
     });
 
@@ -532,7 +534,9 @@ describe('GodotServer class tests', () => {
             arguments: args
           }
         });
-      } catch (err) {}
+      } catch {
+        // expected failure
+      }
     }
   });
 
@@ -557,10 +561,12 @@ describe('GodotServer class tests', () => {
             arguments: args
           }
         });
-      } catch (err) {}
+      } catch {
+        // expected failure
+      }
     }
 
-    mockExistsSyncImpl = (path: string) => true;
+    mockExistsSyncImpl = (_path: string) => true;
   });
 
   it('handles all registered tools - missing specific scene or script file', async () => {
@@ -584,10 +590,12 @@ describe('GodotServer class tests', () => {
             arguments: args
           }
         });
-      } catch (err) {}
+      } catch {
+        // expected failure
+      }
     }
 
-    mockExistsSyncImpl = (path: string) => true;
+    mockExistsSyncImpl = (_path: string) => true;
   });
 
   it('handles all registered tools - stderr error response', async () => {
@@ -606,7 +614,9 @@ describe('GodotServer class tests', () => {
               error: 'mock game connection error'
             });
           }, 0);
-        } catch (e) {}
+        } catch {
+          // ignore
+        }
       }),
       on: vi.fn(),
       destroy: vi.fn(),
@@ -627,7 +637,9 @@ describe('GodotServer class tests', () => {
             arguments: args
           }
         });
-      } catch (err) {}
+      } catch {
+        // expected failure
+      }
     }
 
     executeOperationSpy = vi.spyOn(GodotServer.prototype as any, 'executeOperation').mockResolvedValue({
@@ -642,11 +654,13 @@ describe('GodotServer class tests', () => {
     const mockSocket = {
       write: vi.fn((data: string) => {
         try {
-          const payload = JSON.parse(data.trim());
+          JSON.parse(data.trim());
           setTimeout(() => {
             (server as any).rejectAllPending(new Error('Socket error'));
           }, 0);
-        } catch (e) {}
+        } catch {
+          // ignore
+        }
       }),
       on: vi.fn(),
       destroy: vi.fn(),
@@ -667,7 +681,9 @@ describe('GodotServer class tests', () => {
             arguments: args
           }
         });
-      } catch (err) {}
+      } catch {
+        // expected failure
+      }
     }
 
     executeOperationSpy = vi.spyOn(GodotServer.prototype as any, 'executeOperation').mockResolvedValue({
@@ -705,7 +721,9 @@ describe('GodotServer class tests', () => {
               }
             }
           });
-        } catch (err) {}
+        } catch {
+          // expected failure
+        }
       }
     }
   });
