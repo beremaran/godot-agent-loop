@@ -78,6 +78,18 @@ function createHandlerDouble() {
   return { handler, methods };
 }
 
+function validRequiredArguments(tool: typeof toolDefinitions[number]): Record<string, unknown> {
+  const args: Record<string, unknown> = {};
+  for (const field of tool.inputSchema.required ?? []) {
+    const property = tool.inputSchema.properties?.[field];
+    if (!property) continue;
+    args[field] = property.enum?.[0] ?? ({
+      string: 'value', number: 1, integer: 1, boolean: true, array: [], object: {},
+    } as Record<string, unknown>)[property.type ?? 'object'];
+  }
+  return args;
+}
+
 const game = createHandlerDouble();
 const lifecycle = createHandlerDouble();
 const project = createHandlerDouble();
@@ -124,7 +136,7 @@ describe('Tool definitions', () => {
 
   it('dispatches every tool through a domain handler', async () => {
     for (const tool of toolDefinitions) {
-      await expect(registry.dispatch(tool.name, {})).resolves.toEqual({ content: [] });
+      await expect(registry.dispatch(tool.name, validRequiredArguments(tool))).resolves.toEqual({ content: [] });
     }
     expect([...game.methods, ...lifecycle.methods, ...project.methods]
       .filter(([, method]) => method.mock.calls.length > 0)).toHaveLength(toolDefinitions.length);

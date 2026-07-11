@@ -7,6 +7,7 @@ import { isAbsolute, relative, resolve } from 'path';
  */
 
 export type OperationParams = Record<string, unknown>;
+/** Parsed tool arguments. Untrusted MCP input must be parsed before this type is used. */
 export type ToolArguments = Record<string, any>;
 export interface ToolResponse {
   content: { type: string; [key: string]: unknown }[];

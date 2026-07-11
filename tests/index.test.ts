@@ -775,12 +775,12 @@ describe('GodotServer class tests', () => {
       }
     });
 
-    await callTool({
+    await expect(callTool({
       params: {
         name: 'validate_scripts',
         arguments: { projectPath: '/fake/project', scope: 'invalid_scope' }
       }
-    });
+    })).rejects.toMatchObject({ code: -32602 });
 
     // create_script variations
     await callTool({

@@ -1,3 +1,18 @@
+export interface ToolPropertySchema {
+  type?: 'array' | 'boolean' | 'integer' | 'number' | 'object' | 'string';
+  description?: string;
+  enum?: readonly string[];
+  items?: ToolPropertySchema;
+  properties?: Record<string, ToolPropertySchema>;
+  required?: readonly string[];
+}
+
+export interface ToolDefinition {
+  name: string;
+  description: string;
+  inputSchema: ToolPropertySchema;
+}
+
 export const toolDefinitions = [
 {
   name: 'launch_editor',
@@ -2476,6 +2491,6 @@ export const toolDefinitions = [
     required: ['projectPath', 'action'],
   },
 },
-] as const;
+] as const satisfies readonly ToolDefinition[];
 
 export type ToolName = (typeof toolDefinitions)[number]['name'];
