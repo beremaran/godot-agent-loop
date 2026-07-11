@@ -4,8 +4,10 @@ import { describe, it, expect, vi, beforeAll } from 'vitest';
 import * as fs from 'fs';
 import * as cp from 'child_process';
 import * as net from 'net';
+import packageMetadata from '../package.json';
 
 const handlers = new Map<any, any>();
+const mcpServerMetadata: { name: string; version: string }[] = [];
 
 vi.mock('@modelcontextprotocol/sdk/server/index.js', () => {
   return {
@@ -32,7 +34,8 @@ vi.mock('@modelcontextprotocol/sdk/server/mcp.js', () => {
       connect = vi.fn().mockResolvedValue(undefined);
       close = vi.fn().mockResolvedValue(undefined);
       onerror = vi.fn();
-      constructor() {
+      constructor(metadata: { name: string; version: string }) {
+        mcpServerMetadata.push(metadata);
         this.server = new InnerServer();
       }
     }
@@ -237,6 +240,13 @@ describe('GodotServer class tests', () => {
     expect(server).toBeDefined();
     expect(handlers.has(ListToolsRequestSchema)).toBe(true);
     expect(handlers.has(CallToolRequestSchema)).toBe(true);
+  });
+
+  it('uses the package version in MCP server metadata', () => {
+    expect(mcpServerMetadata).toContainEqual({
+      name: 'godot-mcp',
+      version: packageMetadata.version,
+    });
   });
 
   it('list_tools returns all tools', async () => {

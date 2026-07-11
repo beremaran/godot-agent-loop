@@ -19,7 +19,7 @@ The current baseline is clean: build, lint, and all 492 tests pass. The items be
 
 ## Lower priority
 
-- [ ] Use package metadata for the MCP server version. The server reports `0.1.0` while `package.json` is `3.0.0` ([src/index.ts:204](src/index.ts:204)). Use one version source during build.
+- [x] Use package metadata for the MCP server version. The server now reads the version from `package.json`, keeping its MCP initialization metadata aligned with the published package.
 - [ ] Replace heuristic Godot result parsing such as `stderr.includes('ERROR')` and `stderr.includes('Failed to')` with structured exit status and machine-readable output where available.
 - [ ] Validate generated CI and Docker inputs. Platform names, Docker base images, versions, and export presets are interpolated into generated files ([src/tool-handlers/project-tool-handlers.ts:1644](src/tool-handlers/project-tool-handlers.ts:1644)). Validate allowed values and escape YAML/Dockerfile values.
 - [ ] Expand tests for non-zero Godot exits with empty stderr, subprocess timeouts, stale connection callbacks, disconnect during retries, symlink path escapes, allowed-root enforcement, malformed arguments, unknown fields, and bounded process output.

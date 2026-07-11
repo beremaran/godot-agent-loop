@@ -8,6 +8,7 @@
  */
 
 import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
 import { join, dirname, normalize } from 'path';
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -42,6 +43,9 @@ const pathSecurity = new PathSecurity();
 // Derive __filename and __dirname in ESM
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+const require = createRequire(import.meta.url);
+const packageMetadata = require('../package.json') as { version: string };
+const SERVER_VERSION = packageMetadata.version;
 
 /**
  * Interface representing a running Godot process
@@ -189,7 +193,7 @@ export class GodotServer {
     this.server = new McpServer(
       {
         name: 'godot-mcp',
-        version: '0.1.0',
+        version: SERVER_VERSION,
       },
       {
         capabilities: {
