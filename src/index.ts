@@ -79,8 +79,7 @@ interface GodotProcess {
 interface GodotServerConfig {
   godotPath?: string;
   debugMode?: boolean;
-  godotDebugMode?: boolean;
-  strictPathValidation?: boolean; // New option to control path validation behavior
+  strictPathValidation?: boolean;
 }
 
 /**
@@ -596,7 +595,7 @@ export class GodotServer {
     if (!this.gameConnection.connected) return createErrorResponse('Not connected to game interaction server.');
     args = normalizeParameters(args || {});
     try {
-      const response = await this.sendGameCommand(name, argsFn(args), timeoutMs);
+      const response = await this.sendGameCommand(name, convertCamelToSnakeCase(argsFn(args)), timeoutMs);
       if (response.error) return createErrorResponse(`${name} failed: ${response.error}`);
       return { content: [{ type: 'text', text: JSON.stringify(response, null, 2) }] };
     } catch (error: any) {

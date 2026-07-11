@@ -10,29 +10,10 @@ import {
 } from '../src/utils.js';
 
 describe('PARAMETER_MAPPINGS', () => {
-  it('maps snake_case to camelCase', () => {
-    expect(PARAMETER_MAPPINGS.project_path).toBe('projectPath');
-    expect(PARAMETER_MAPPINGS.scene_path).toBe('scenePath');
-    expect(PARAMETER_MAPPINGS.node_path).toBe('nodePath');
-    expect(PARAMETER_MAPPINGS.node_type).toBe('nodeType');
-    expect(PARAMETER_MAPPINGS.node_name).toBe('nodeName');
-  });
-
-  it('covers all expected parameter names', () => {
-    const expectedKeys = [
-      'project_path', 'scene_path', 'root_node_type', 'parent_node_path',
-      'node_type', 'node_name', 'texture_path', 'node_path', 'output_path',
-      'mesh_item_names', 'new_path', 'file_path', 'signal_name', 'target_path',
-      'class_name', 'root_path', 'new_parent_path', 'keep_global_transform',
-      'script_path', 'resource_type', 'resource_path', 'final_value',
-      'trans_type', 'ease_type', 'type_hint', 'parent_path',
-      // New mappings
-      'directory_path', 'from_x', 'from_y', 'to_x', 'to_y',
-      'project_name', 'action_name',
-    ];
-    for (const key of expectedKeys) {
-      expect(PARAMETER_MAPPINGS).toHaveProperty(key);
-    }
+  it('contains only names generic conversion cannot reproduce', () => {
+    expect(PARAMETER_MAPPINGS).toEqual({
+      msaa_2d: 'msaa2d', msaa_3d: 'msaa3d', relative_x: 'relative_x', relative_y: 'relative_y',
+    });
   });
 });
 
@@ -61,9 +42,9 @@ describe('normalizeParameters', () => {
     expect(result).toEqual({ projectPath: '/foo', scenePath: 'bar.tscn' });
   });
 
-  it('preserves unknown keys as-is', () => {
+  it('converts any snake_case key', () => {
     const result = normalizeParameters({ custom_key: 'value', another: 42 });
-    expect(result).toEqual({ custom_key: 'value', another: 42 });
+    expect(result).toEqual({ customKey: 'value', another: 42 });
   });
 
   it('handles nested objects', () => {
@@ -77,9 +58,9 @@ describe('normalizeParameters', () => {
     });
   });
 
-  it('preserves arrays without modification', () => {
-    const result = normalizeParameters({ items: [1, 2, 3] });
-    expect(result).toEqual({ items: [1, 2, 3] });
+  it('recurses through arrays', () => {
+    const result = normalizeParameters({ items: [{ node_path: '/root' }, 2] });
+    expect(result).toEqual({ items: [{ nodePath: '/root' }, 2] });
   });
 
   it('returns falsy inputs as-is', () => {
@@ -139,9 +120,9 @@ describe('convertCamelToSnakeCase', () => {
     });
   });
 
-  it('preserves arrays', () => {
-    const result = convertCamelToSnakeCase({ items: [1, 2] });
-    expect(result).toEqual({ items: [1, 2] });
+  it('recurses through arrays', () => {
+    const result = convertCamelToSnakeCase({ items: [{ nodePath: '/root' }, 2] });
+    expect(result).toEqual({ items: [{ node_path: '/root' }, 2] });
   });
 
   it('handles empty object', () => {
