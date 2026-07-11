@@ -20,6 +20,25 @@ vi.mock('@modelcontextprotocol/sdk/server/index.js', () => {
   };
 });
 
+vi.mock('@modelcontextprotocol/sdk/server/mcp.js', () => {
+  const InnerServer = class {
+    setRequestHandler(schema: any, callback: any) {
+      handlers.set(schema, callback);
+    }
+  };
+  return {
+    McpServer: class {
+      server: any;
+      connect = vi.fn().mockResolvedValue(undefined);
+      close = vi.fn().mockResolvedValue(undefined);
+      onerror = vi.fn();
+      constructor() {
+        this.server = new InnerServer();
+      }
+    }
+  };
+});
+
 vi.mock('@modelcontextprotocol/sdk/server/stdio.js', () => {
   return {
     // eslint-disable-next-line @typescript-eslint/no-extraneous-class

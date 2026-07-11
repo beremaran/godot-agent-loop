@@ -30,7 +30,7 @@ export default tseslint.config(
       '@typescript-eslint/use-unknown-in-catch-callback-variable': 'off',
       '@typescript-eslint/restrict-plus-operands': 'off',
       '@typescript-eslint/no-unnecessary-type-conversion': 'off',
-      '@typescript-eslint/no-deprecated': 'off',
+      '@typescript-eslint/no-deprecated': 'error',
       '@typescript-eslint/no-unused-vars': ['error', { "argsIgnorePattern": "^_" }],
     },
   },

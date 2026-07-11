@@ -14,7 +14,7 @@ import { spawn, execFile } from 'child_process';
 import { promisify } from 'util';
 import { createConnection, Socket } from 'net';
 
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
   CallToolRequestSchema,
@@ -99,7 +99,7 @@ interface GameConnection {
  * Main server class for the Godot MCP server
  */
 export class GodotServer {
-  private server: Server;
+  private server: McpServer;
   private activeProcess: GodotProcess | null = null;
   private godotPath: string | null = null;
   private operationsScriptPath: string;
@@ -152,7 +152,7 @@ export class GodotServer {
     if (debugMode) console.error(`[DEBUG] Operations script path: ${this.operationsScriptPath}`);
 
     // Initialize the MCP server
-    this.server = new Server(
+    this.server = new McpServer(
       {
         name: 'godot-mcp',
         version: '0.1.0',
@@ -168,7 +168,7 @@ export class GodotServer {
     this.setupToolHandlers();
 
     // Error handling
-    this.server.onerror = (error) => { console.error('[MCP Error]', error); };
+    this.server.server.onerror = (error) => { console.error('[MCP Error]', error); };
 
     // Cleanup on exit
     process.on('SIGINT', () => {
@@ -766,7 +766,7 @@ export class GodotServer {
    */
   private setupToolHandlers() {
     // Define available tools
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
+    this.server.server.setRequestHandler(ListToolsRequestSchema, async () => ({
       tools: [
         {
           name: 'launch_editor',
@@ -3249,7 +3249,7 @@ export class GodotServer {
     }));
 
     // Handle tool calls
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    this.server.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       this.logDebug(`Handling tool request: ${request.params.name}`);
       switch (request.params.name) {
         case 'launch_editor':
