@@ -1,9 +1,11 @@
-import { describe, it, expect, beforeAll } from 'vitest';
-import { readFileSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
+import { describe, it, expect, vi } from 'vitest';
+import { toolDefinitions } from '../src/tool-definitions.js';
+import {
+  createToolHandlers,
+  type DomainToolHandlers,
+} from '../src/domain-tool-registries.js';
+import { ToolRegistry } from '../src/tool-registry.js';
+import type { ToolName } from '../src/tool-definitions.js';
 
 const ALL_TOOL_NAMES = [
   'launch_editor', 'run_project', 'get_debug_output', 'stop_project',
@@ -64,19 +66,31 @@ const ALL_TOOL_NAMES = [
   'game_visual_shader', 'game_terrain', 'game_video', 'manage_ci_pipeline', 'manage_docker_export',
 ];
 
-let sourceCode: string;
+function createHandlerDouble() {
+  const methods = new Map<string, ReturnType<typeof vi.fn>>();
+  const handler = new Proxy({}, {
+    get: (_target, property: string) => {
+      const method = methods.get(property) ?? vi.fn(async () => ({ content: [] }));
+      methods.set(property, method);
+      return method;
+    },
+  });
+  return { handler, methods };
+}
 
-beforeAll(() => {
-  sourceCode = [
-    readFileSync(join(__dirname, '..', 'src', 'index.ts'), 'utf8'),
-    readFileSync(join(__dirname, '..', 'src', 'tool-definitions.ts'), 'utf8'),
-    readFileSync(join(__dirname, '..', 'src', 'domain-tool-registries.ts'), 'utf8'),
-  ].join('\n');
-});
+const game = createHandlerDouble();
+const lifecycle = createHandlerDouble();
+const project = createHandlerDouble();
+const registry = new ToolRegistry(createToolHandlers({
+  game: game.handler as unknown as DomainToolHandlers['game'],
+  lifecycle: lifecycle.handler as unknown as DomainToolHandlers['lifecycle'],
+  project: project.handler as unknown as DomainToolHandlers['project'],
+}));
 
 describe('Tool definitions', () => {
   it('defines exactly 157 tools', () => {
-    expect(ALL_TOOL_NAMES).toHaveLength(157);
+    expect(toolDefinitions).toHaveLength(157);
+    expect(ALL_TOOL_NAMES).toHaveLength(toolDefinitions.length);
   });
 
   it('all tool names are unique', () => {
@@ -85,8 +99,8 @@ describe('Tool definitions', () => {
   });
 
   for (const toolName of ALL_TOOL_NAMES) {
-    it(`defines tool "${toolName}" in source`, () => {
-      expect(sourceCode).toContain(`name: '${toolName}'`);
+    it(`defines tool "${toolName}"`, () => {
+      expect(toolDefinitions.map(tool => tool.name)).toContain(toolName);
     });
   }
 
@@ -97,53 +111,42 @@ describe('Tool definitions', () => {
   });
 
   it('each tool has a description', () => {
-    const toolBlockRegex = /name:\s*'([^']+)',\s*\n\s*description:\s*'([^']+)'/g;
-    const matches = [...sourceCode.matchAll(toolBlockRegex)];
-    const toolsWithDesc = matches.map(m => m[1]);
-    for (const name of ALL_TOOL_NAMES) {
-      expect(toolsWithDesc).toContain(name);
+    for (const tool of toolDefinitions) {
+      expect(tool.description.trim()).not.toBe('');
     }
   });
 
   it('each tool has an inputSchema with type "object"', () => {
-    const schemaRegex = /name:\s*'([^']+)'[\s\S]*?inputSchema:\s*\{[\s\S]*?type:\s*'object'/g;
-    const matches = [...sourceCode.matchAll(schemaRegex)];
-    expect(matches.length).toBeGreaterThanOrEqual(ALL_TOOL_NAMES.length);
-  });
-
-  it('has a convention-based handler for every tool name', () => {
-    for (const name of ALL_TOOL_NAMES) {
-      const handlerName = `handle${name
-        .split('_')
-        .map(part => part.charAt(0).toUpperCase() + part.slice(1))
-        .join('')}`;
-      expect(sourceCode).toContain(handlerName);
+    for (const tool of toolDefinitions) {
+      expect(tool.inputSchema.type).toBe('object');
     }
   });
 
+  it('dispatches every tool through a domain handler', async () => {
+    for (const tool of toolDefinitions) {
+      await expect(registry.dispatch(tool.name, {})).resolves.toEqual({ content: [] });
+    }
+    expect([...game.methods, ...lifecycle.methods, ...project.methods]
+      .filter(([, method]) => method.mock.calls.length > 0)).toHaveLength(toolDefinitions.length);
+  });
+
   it('no tool description exceeds 80 characters', () => {
-    const descRegex = /description:\s*'([^']+)'/g;
-    const matches = [...sourceCode.matchAll(descRegex)];
-    for (const match of matches) {
-      const desc = match[1];
-      if (desc.length > 80) {
-        expect.fail(`Description too long (${desc.length} chars): "${desc}"`);
-      }
+    for (const tool of toolDefinitions) {
+      expect(tool.description.length, tool.name).toBeLessThanOrEqual(80);
     }
   });
 
   it('required fields reference valid properties', () => {
-    // Extract tool definitions and check each required field exists in properties
-    const toolRegex = /properties:\s*\{([\s\S]*?)\},\s*\n\s*required:\s*\[([^\]]*)\]/g;
-    const matches = [...sourceCode.matchAll(toolRegex)];
-    for (const match of matches) {
-      const propsBlock = match[1];
-      const requiredStr = match[2];
-      if (!requiredStr.trim()) continue;
-      const required = requiredStr.match(/'([^']+)'/g)?.map(s => s.replace(/'/g, '')) || [];
-      for (const field of required) {
-        expect(propsBlock).toContain(field);
+    for (const tool of toolDefinitions) {
+      for (const field of tool.inputSchema.required ?? []) {
+        expect(tool.inputSchema.properties).toHaveProperty(field);
       }
     }
+  });
+
+  it('uses snake_case names and keeps names unique', () => {
+    const names = toolDefinitions.map(tool => tool.name);
+    expect(new Set(names).size).toBe(names.length);
+    expect(names.every((name: ToolName) => /^[a-z][a-z0-9_]*$/.test(name))).toBe(true);
   });
 });

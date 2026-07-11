@@ -20,6 +20,6 @@ finishing the separation and improving maintainability.
   especially around `gameCommand`, `headlessOp`, and executable access.
 - [x] Split the large manual tool registry into composable domain registries.
 - [x] Add direct unit tests for the extracted handler modules.
-- [ ] Replace brittle source-structure tests with behavior-focused tests where
+- [x] Replace brittle source-structure tests with behavior-focused tests where
   practical.
 - [ ] Introduce stronger argument types and reduce remaining `any` usage.
