@@ -14,7 +14,7 @@ export class GameCommandService {
   }
 
   public isConnected(): boolean {
-    return this.connection.connected;
+    return this.connection.isConnected;
   }
 
   public readNewErrors(): string[] {

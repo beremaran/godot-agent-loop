@@ -35,6 +35,21 @@ afterEach(async () => {
 });
 
 describe('GameConnection lifecycle', () => {
+  it('exposes project and interaction-server state through lifecycle methods', async () => {
+    const connection = new GameConnection({ initialDelayMs: 1000 });
+    const connecting = connection.connect('/project', () => true);
+
+    expect(connection.connectedProjectPath).toBe('/project');
+    connection.recordInteractionServerInstallation(true);
+    expect(connection.consumeInteractionServerOwnership()).toBe(true);
+    expect(connection.consumeInteractionServerOwnership()).toBe(false);
+
+    connection.clearConnectedProject();
+    expect(connection.connectedProjectPath).toBeNull();
+    connection.disconnect();
+    await connecting;
+  });
+
   it('cancels an in-progress initial delay when disconnected', async () => {
     const connection = new GameConnection({ initialDelayMs: 1000 });
     const connecting = connection.connect('/project', () => true);
@@ -42,8 +57,7 @@ describe('GameConnection lifecycle', () => {
     connection.disconnect();
     await connecting;
 
-    expect(connection.connected).toBe(false);
-    expect(connection.socket).toBeNull();
+    expect(connection.isConnected).toBe(false);
   });
 
   it('ignores close callbacks from a superseded socket', async () => {
@@ -51,11 +65,11 @@ describe('GameConnection lifecycle', () => {
     const connection = new GameConnection({ port, initialDelayMs: 0, retryDelayMs: 1 });
 
     await connection.connect('/project', () => true);
-    expect(connection.connected).toBe(true);
+    expect(connection.isConnected).toBe(true);
 
     const reconnecting = connection.connect('/project', () => true);
     await new Promise(resolve => setTimeout(resolve, 10));
-    expect(connection.connected).toBe(true);
+    expect(connection.isConnected).toBe(true);
 
     await reconnecting;
     connection.disconnect();

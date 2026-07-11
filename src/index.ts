@@ -95,10 +95,6 @@ export class GodotServer {
   private get gameConnection(): GameConnection {
     return this.tcpGameConnection;
   }
-  private set gameConnection(state: Partial<GameConnection>) {
-    // Compatibility for callers/tests that seed connection state directly.
-    Object.assign(this.tcpGameConnection, state);
-  }
 
   constructor(config?: GodotServerConfig) {
     // Apply configuration if provided
@@ -184,8 +180,8 @@ export class GodotServer {
       disconnectFromGame: () => { this.disconnectFromGame(); },
       injectInteractionServer: projectPath => { this.injectInteractionServer(projectPath); },
       removeInteractionServer: projectPath => { this.removeInteractionServer(projectPath); },
-      getConnectedProjectPath: () => this.gameConnection.projectPath,
-      clearConnectedProjectPath: () => { this.gameConnection.projectPath = null; },
+      getConnectedProjectPath: () => this.gameConnection.connectedProjectPath,
+      clearConnectedProjectPath: () => { this.gameConnection.clearConnectedProject(); },
       getInteractionPort: () => this.gameConnection.interactionPort,
     });
 
@@ -276,15 +272,14 @@ export class GodotServer {
    * Inject the interaction server script into the Godot project
    */
   private injectInteractionServer(projectPath: string): void {
-    this.gameConnection.interactionServerInjectedByUs = this.interactionServerInstaller.install(projectPath);
+    this.gameConnection.recordInteractionServerInstallation(this.interactionServerInstaller.install(projectPath));
   }
 
   /**
    * Remove the interaction server script and autoload from the project
    */
   private removeInteractionServer(projectPath: string): void {
-    const ownedByMcp = this.gameConnection.interactionServerInjectedByUs;
-    this.gameConnection.interactionServerInjectedByUs = false;
+    const ownedByMcp = this.gameConnection.consumeInteractionServerOwnership();
     this.interactionServerInstaller.remove(projectPath, ownedByMcp);
   }
 
@@ -316,9 +311,9 @@ export class GodotServer {
   private async cleanup() {
     this.logDebug('Cleaning up resources');
     this.disconnectFromGame();
-    if (this.gameConnection.projectPath) {
-      this.removeInteractionServer(this.gameConnection.projectPath);
-      this.gameConnection.projectPath = null;
+    if (this.gameConnection.connectedProjectPath) {
+      this.removeInteractionServer(this.gameConnection.connectedProjectPath);
+      this.gameConnection.clearConnectedProject();
     }
     if (this.activeProcess) {
       this.logDebug('Killing active Godot process');

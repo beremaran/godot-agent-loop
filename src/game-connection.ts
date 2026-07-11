@@ -10,12 +10,12 @@ type ResponseResolver = (value: GameResponse) => void;
 
 /** Owns the newline-delimited JSON-RPC 2.0 request lifecycle for a running Godot game. */
 export class GameConnection {
-  public socket: Socket | null = null;
-  public connected = false;
-  public responseBuffer = '';
-  public pendingRequests = new Map<number, ResponseResolver>();
-  public projectPath: string | null = null;
-  public interactionServerInjectedByUs = false;
+  private socket: Socket | null = null;
+  private connected = false;
+  private responseBuffer = '';
+  private pendingRequests = new Map<number, ResponseResolver>();
+  private projectPath: string | null = null;
+  private interactionServerInjectedByUs = false;
 
   private nextRequestId = 1;
   private readonly port: number;
@@ -38,6 +38,25 @@ export class GameConnection {
   }
 
   get interactionPort(): number { return this.port; }
+  get isConnected(): boolean { return this.connected; }
+  get connectedProjectPath(): string | null { return this.projectPath; }
+
+  /** Records whether this server added the interaction autoload for the active project. */
+  public recordInteractionServerInstallation(installed: boolean): void {
+    this.interactionServerInjectedByUs = installed;
+  }
+
+  /** Returns and clears ownership so removal is performed at most once. */
+  public consumeInteractionServerOwnership(): boolean {
+    const ownedByMcp = this.interactionServerInjectedByUs;
+    this.interactionServerInjectedByUs = false;
+    return ownedByMcp;
+  }
+
+  /** Clears the project association after its interaction server has been removed. */
+  public clearConnectedProject(): void {
+    this.projectPath = null;
+  }
 
   async connect(projectPath: string, isProcessActive: () => boolean): Promise<void> {
     const generation = ++this.connectionGeneration;

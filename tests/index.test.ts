@@ -294,14 +294,14 @@ describe('GodotServer class tests', () => {
         output: ['mock log line'],
         errors: ['mock error line']
       };
-      (server as any).gameConnection = {
+      Object.assign((server as any).gameConnection, {
         socket: mockSocket,
         connected: true,
         responseBuffer: '',
         pendingRequests: new Map(),
         projectPath: '/fake/project',
         interactionServerInjectedByUs: true,
-      };
+      });
       (server as any).godotPath = '/fake/godot';
 
       const args = getFakeArgsForSchema(tool.inputSchema, tool.name);
@@ -424,7 +424,7 @@ describe('GodotServer class tests', () => {
     (server as any).activeProcess = { process: { kill: vi.fn() } };
     await (server as any).connectToGame('/fake/project');
 
-    expect((server as any).gameConnection.connected).toBe(true);
+    expect((server as any).gameConnection.isConnected).toBe(true);
 
     // Trigger data event with a response
     if (dataCallback) {
@@ -435,7 +435,7 @@ describe('GodotServer class tests', () => {
     if (closeCallback) {
       closeCallback();
     }
-    expect((server as any).gameConnection.connected).toBe(false);
+    expect((server as any).gameConnection.isConnected).toBe(false);
   });
 
   it('tests detectGodotPath across platforms', async () => {

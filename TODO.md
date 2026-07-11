@@ -14,7 +14,7 @@ The current baseline is clean: build, lint, and all 492 tests pass. The items be
 
 - [x] Add runtime argument validation. Tool definitions now provide the shared typed schema contract used by both `list_tools` and dispatch; arguments are parsed before handlers run, rejecting missing required fields, invalid types/enums/array items, and unknown top-level fields.
 - [x] Split the large project-handler class into focused services: project file I/O, project configuration, script validation, export, and scene operations. This will reduce repeated normalization, path checks, and inconsistent error handling.
-- [ ] Encapsulate mutable connection state. Connection fields are publicly mutable ([src/game-connection.ts:22](src/game-connection.ts:22)). Make state private and expose read-only getters and intentional state-transition methods.
+- [x] Encapsulate mutable connection state. Connection fields are private; callers use read-only state getters and explicit project/interaction-server lifecycle methods.
 - [ ] Make registry validation bidirectional. `composeToolHandlerRegistries()` checks duplicate and missing handlers ([src/domain-tool-registries.ts:14](src/domain-tool-registries.ts:14)) but does not reject extra handlers. Add an unknown-handler check to prevent definition/implementation drift.
 
 ## Lower priority
