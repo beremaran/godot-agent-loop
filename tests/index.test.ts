@@ -489,6 +489,7 @@ describe('GodotServer class tests', () => {
     mockExecFileImpl = (file: any, args: any, options: any, callback: any) => {
       const cb = typeof options === 'function' ? options : callback;
       const err: any = new Error('exec error');
+      err.code = 1;
       err.stdout = 'stdout error';
       err.stderr = 'stderr error';
       cb(err, 'stdout error', 'stderr error');
@@ -497,6 +498,8 @@ describe('GodotServer class tests', () => {
     const result = await (server as any).executeOperation('some_op', {}, '/fake/project');
     expect(result.stdout).toBe('stdout error');
     expect(result.stderr).toBe('stderr error');
+    expect(result.exitCode).toBe(1);
+    expect(result.signal).toBeNull();
 
     executeOperationSpy = vi.spyOn(GodotServer.prototype as any, 'executeOperation').mockResolvedValue({
       stdout: 'mock_stdout_output',

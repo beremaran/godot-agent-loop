@@ -2,13 +2,13 @@ import { existsSync } from 'fs';
 import { join } from 'path';
 
 import { createErrorResponse, errorMessage, validatePath, PathSecurity, type OperationParams, type ToolResponse } from './utils.js';
-import type { HeadlessOperationRunner } from './headless-operation-runner.js';
+import type { HeadlessOperationResult, HeadlessOperationRunner } from './headless-operation-runner.js';
 
 /** Coordinates validated tool operations that execute Godot headlessly. */
 export class HeadlessOperationService {
   constructor(private readonly runner: HeadlessOperationRunner, private readonly pathSecurity = new PathSecurity()) {}
 
-  public execute(operation: string, params: OperationParams, projectPath: string): Promise<{ stdout: string; stderr: string }> {
+  public execute(operation: string, params: OperationParams, projectPath: string): Promise<HeadlessOperationResult> {
     return this.runner.execute(operation, params, projectPath);
   }
 
@@ -21,7 +21,12 @@ export class HeadlessOperationService {
     if (!this.pathsAreSafe(projectPath, params)) return createErrorResponse('A project-relative path escapes the project root.');
 
     try {
-      const { stdout, stderr } = await this.execute(operation, params, projectPath);
+      const { stdout, stderr, exitCode, signal } = await this.execute(operation, params, projectPath);
+      if (exitCode !== 0 || signal !== null) {
+        const details = signal ? `terminated by signal ${signal}` : `exited with code ${exitCode}`;
+        const output = stderr || stdout;
+        return createErrorResponse(`${operation} failed (${details})${output ? `: ${output}` : '.'}`);
+      }
       if (stderr && stderr.includes('Failed to')) return createErrorResponse(`${operation} failed: ${stderr}`);
       return { content: [{ type: 'text', text: `${operation} succeeded.\n\nOutput: ${stdout}` }] };
     } catch (error: unknown) {

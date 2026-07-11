@@ -12,10 +12,17 @@ export interface HeadlessOperationRunnerOptions {
   debugGodot?: boolean;
 }
 
+export interface HeadlessOperationResult {
+  stdout: string;
+  stderr: string;
+  exitCode: number | null;
+  signal: NodeJS.Signals | null;
+}
+
 export class HeadlessOperationRunner {
   constructor(private readonly options: HeadlessOperationRunnerOptions) {}
 
-  async execute(operation: string, params: OperationParams, projectPath: string): Promise<{ stdout: string; stderr: string }> {
+  async execute(operation: string, params: OperationParams, projectPath: string): Promise<HeadlessOperationResult> {
     const logDebug = this.options.logDebug ?? (() => undefined);
     logDebug(`Executing operation: ${operation} in project: ${projectPath}`);
     logDebug(`Original operation params: ${JSON.stringify(params)}`);
@@ -28,11 +35,23 @@ export class HeadlessOperationRunner {
 
     try {
       const { stdout, stderr } = await execFileAsync(godotPath, args);
-      return { stdout: stdout ?? '', stderr: stderr ?? '' };
+      return { stdout: stdout ?? '', stderr: stderr ?? '', exitCode: 0, signal: null };
     } catch (error: unknown) {
-      if (error instanceof Error && 'stdout' in error && 'stderr' in error) {
-        const execError = error as Error & { stdout: string; stderr: string };
-        return { stdout: execError.stdout ?? '', stderr: execError.stderr ?? '' };
+      if (error instanceof Error && 'stdout' in error && 'stderr' in error && 'code' in error) {
+        const execError = error as Error & {
+          stdout?: string;
+          stderr?: string;
+          code?: string | number;
+          signal?: NodeJS.Signals | null;
+        };
+        if (typeof execError.code === 'number' || execError.signal) {
+          return {
+            stdout: execError.stdout ?? '',
+            stderr: execError.stderr ?? '',
+            exitCode: typeof execError.code === 'number' ? execError.code : null,
+            signal: execError.signal ?? null,
+          };
+        }
       }
       throw error;
     }
