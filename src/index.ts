@@ -8,7 +8,7 @@
  */
 
 import { fileURLToPath } from 'url';
-import { join, dirname, normalize, resolve, relative, isAbsolute } from 'path';
+import { join, dirname, normalize } from 'path';
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
@@ -18,7 +18,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import type { GameResponse } from './game-connection.js';
 
-import type { OperationParams } from './utils.js';
+import { PathSecurity, type OperationParams } from './utils.js';
 import { toolDefinitions } from './tool-definitions.js';
 import { GodotExecutableService, GodotExecutableValidator } from './godot-executable.js';
 import { HeadlessOperationRunner } from './headless-operation-runner.js';
@@ -37,20 +37,7 @@ import { ProjectSupport } from './project-support.js';
 // Check if debug mode is enabled
 const DEBUG_MODE: boolean = process.env.DEBUG === 'true';
 
-const ALLOWED_PROJECT_ROOTS: string[] = (process.env.GODOT_MCP_ALLOWED_DIRS || '')
-  .split(process.platform === 'win32' ? /[;,]/ : /[:,]/)
-  .map(p => p.trim())
-  .filter(p => p.length > 0)
-  .map(p => resolve(p));
-
-function isPathWithinAllowedRoots(target: string): boolean {
-  if (ALLOWED_PROJECT_ROOTS.length === 0) return true;
-  const resolvedTarget = resolve(target);
-  return ALLOWED_PROJECT_ROOTS.some(root => {
-    const rel = relative(root, resolvedTarget);
-    return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
-  });
-}
+const pathSecurity = new PathSecurity();
 
 // Derive __filename and __dirname in ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -160,7 +147,7 @@ export class GodotServer {
       },
       logDebug: message => { this.logDebug(message); },
     });
-    this.headlessOperations = new HeadlessOperationService(this.operationRunner);
+    this.headlessOperations = new HeadlessOperationService(this.operationRunner, pathSecurity);
     this.gameCommands = new GameCommandService(this.processManager, this.gameConnection);
     if (debugMode) console.error(`[DEBUG] Operations script path: ${this.operationsScriptPath}`);
     this.projectSupport = new ProjectSupport({
@@ -176,11 +163,13 @@ export class GodotServer {
       logDebug: message => { this.logDebug(message); },
       operations: this.headlessOperations,
       projectSupport: this.projectSupport,
+      pathSecurity,
     });
     this.lifecycleToolHandlers = new LifecycleToolHandlers({
       executable: this.executable,
       getActiveProcess: () => this.activeProcess,
-      isPathAllowed: projectPath => isPathWithinAllowedRoots(projectPath),
+      isPathAllowed: projectPath => pathSecurity.isProjectPathAllowed(projectPath),
+      isRelativePathAllowed: (projectPath, relativePath) => pathSecurity.isRelativePathAllowed(projectPath, relativePath),
       logDebug: message => { this.logDebug(message); },
       startProjectProcess: (executable, args, onExit) => {
         this.processManager.start({

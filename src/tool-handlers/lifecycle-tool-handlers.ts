@@ -14,6 +14,7 @@ export interface LifecycleToolHandlerContext {
   executable: GodotExecutableService;
   getActiveProcess: () => GodotProcess | null;
   isPathAllowed: (projectPath: string) => boolean;
+  isRelativePathAllowed?: (projectPath: string, relativePath: string) => boolean;
   logDebug: (message: string) => void;
   startProjectProcess: (executable: string, args: string[], onExit: () => void) => void;
   stopProjectProcess: () => GodotProcess | null;
@@ -34,6 +35,7 @@ export class LifecycleToolHandlers {
     args = normalizeParameters(args);
     if (!args.projectPath) return createErrorResponse('Project path is required');
     if (!validatePath(args.projectPath)) return createErrorResponse('Invalid project path');
+    if (!this.context.isPathAllowed(args.projectPath)) return createErrorResponse('Project path is outside the allowed roots');
 
     try {
       const godotPath = await this.requireGodotPath();
@@ -77,7 +79,7 @@ export class LifecycleToolHandlers {
 
       this.context.injectInteractionServer(args.projectPath);
       const commandArgs = ['-d', '--path', args.projectPath];
-      if (args.scene && validatePath(args.scene)) commandArgs.push(args.scene);
+      if (args.scene && (!this.context.isRelativePathAllowed || this.context.isRelativePathAllowed(args.projectPath, args.scene))) commandArgs.push(args.scene);
 
       this.context.logDebug(`Running Godot project: ${args.projectPath}`);
       this.context.startProjectProcess(godotPath, commandArgs, () => { this.handleProjectExit(); });

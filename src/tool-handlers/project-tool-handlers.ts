@@ -14,6 +14,7 @@ import {
   generateCsharpScriptSource,
   toDotnetIdentifier,
   isValidCsharpIdentifier,
+  PathSecurity,
 } from '../utils.js';
 import { type OperationParams, type ToolArguments, type ToolResponse } from '../utils.js';
 import type { ProjectSupport } from '../project-support.js';
@@ -27,6 +28,7 @@ export interface ProjectToolHandlerContext {
   logDebug: (message: string) => void;
   operations: HeadlessOperationService;
   projectSupport: ProjectSupport;
+  pathSecurity?: PathSecurity;
 }
 
 interface ProjectOperationApi {
@@ -47,11 +49,13 @@ interface ValidationResult {
 
 /** Implements project, scene, file, script, and export tools. */
 export class ProjectToolHandlers {
-  private readonly context: ProjectToolHandlerContext & ProjectOperationApi;
+  private readonly context: Omit<ProjectToolHandlerContext, 'pathSecurity'> & { pathSecurity: PathSecurity } & ProjectOperationApi;
 
   constructor(context: ProjectToolHandlerContext) {
+    const pathSecurity = context.pathSecurity ?? new PathSecurity();
     this.context = {
       ...context,
+      pathSecurity,
       getGodotPath: () => context.executable.path,
       detectGodotPath: async () => { await context.executable.detect(); },
       executeOperation: (operation, params, projectPath) => context.operations.execute(operation, params, projectPath),
@@ -60,6 +64,12 @@ export class ProjectToolHandlers {
         return context.operations.run(operation, projectPath, params);
       },
     };
+  }
+
+  private projectRelativePath(projectPath: string, relativePath: string): string {
+    const resolved = this.context.pathSecurity.resolveProjectPath(projectPath, relativePath);
+    if (!resolved) throw new Error(`Path is outside the project: ${relativePath}`);
+    return resolved;
   }
 
   public async handleListProjects(args: ToolArguments) {
@@ -72,7 +82,7 @@ export class ProjectToolHandlers {
       );
     }
 
-    if (!validatePath(args.directory)) {
+    if (!this.context.pathSecurity.isProjectPathAllowed(args.directory)) {
       return createErrorResponse(
         'Invalid directory path'
       );
@@ -120,7 +130,7 @@ export class ProjectToolHandlers {
       );
     }
   
-    if (!validatePath(args.projectPath)) {
+    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath)) {
       return createErrorResponse(
         'Invalid project path'
       );
@@ -207,7 +217,7 @@ export class ProjectToolHandlers {
       );
     }
 
-    if (!validatePath(args.projectPath) || !validatePath(args.scenePath)) {
+    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath) || !validatePath(args.scenePath)) {
       return createErrorResponse(
         'Invalid path'
       );
@@ -266,7 +276,7 @@ export class ProjectToolHandlers {
       );
     }
 
-    if (!validatePath(args.projectPath) || !validatePath(args.scenePath)) {
+    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath) || !validatePath(args.scenePath)) {
       return createErrorResponse(
         'Invalid path'
       );
@@ -282,7 +292,7 @@ export class ProjectToolHandlers {
       }
 
       // Check if the scene file exists
-      const scenePath = join(args.projectPath, args.scenePath);
+      const scenePath = this.projectRelativePath(args.projectPath, args.scenePath);
       if (!existsSync(scenePath)) {
         return createErrorResponse(
           `Scene file does not exist: ${args.scenePath}`
@@ -344,7 +354,7 @@ export class ProjectToolHandlers {
     }
 
     if (
-      !validatePath(args.projectPath) ||
+      !this.context.pathSecurity.isProjectPathAllowed(args.projectPath) ||
       !validatePath(args.scenePath) ||
       !validatePath(args.nodePath) ||
       !validatePath(args.texturePath)
@@ -364,7 +374,7 @@ export class ProjectToolHandlers {
       }
 
       // Check if the scene file exists
-      const scenePath = join(args.projectPath, args.scenePath);
+      const scenePath = this.projectRelativePath(args.projectPath, args.scenePath);
       if (!existsSync(scenePath)) {
         return createErrorResponse(
           `Scene file does not exist: ${args.scenePath}`
@@ -372,7 +382,7 @@ export class ProjectToolHandlers {
       }
 
       // Check if the texture file exists
-      const texturePath = join(args.projectPath, args.texturePath);
+      const texturePath = this.projectRelativePath(args.projectPath, args.texturePath);
       if (!existsSync(texturePath)) {
         return createErrorResponse(
           `Texture file does not exist: ${args.texturePath}`
@@ -425,7 +435,7 @@ export class ProjectToolHandlers {
     }
 
     if (
-      !validatePath(args.projectPath) ||
+      !this.context.pathSecurity.isProjectPathAllowed(args.projectPath) ||
       !validatePath(args.scenePath) ||
       !validatePath(args.outputPath)
     ) {
@@ -444,7 +454,7 @@ export class ProjectToolHandlers {
       }
 
       // Check if the scene file exists
-      const scenePath = join(args.projectPath, args.scenePath);
+      const scenePath = this.projectRelativePath(args.projectPath, args.scenePath);
       if (!existsSync(scenePath)) {
         return createErrorResponse(
           `Scene file does not exist: ${args.scenePath}`
@@ -500,7 +510,7 @@ export class ProjectToolHandlers {
       );
     }
 
-    if (!validatePath(args.projectPath) || !validatePath(args.scenePath)) {
+    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath) || !validatePath(args.scenePath)) {
       return createErrorResponse(
         'Invalid path'
       );
@@ -523,7 +533,7 @@ export class ProjectToolHandlers {
       }
 
       // Check if the scene file exists
-      const scenePath = join(args.projectPath, args.scenePath);
+      const scenePath = this.projectRelativePath(args.projectPath, args.scenePath);
       if (!existsSync(scenePath)) {
         return createErrorResponse(
           `Scene file does not exist: ${args.scenePath}`
@@ -579,7 +589,7 @@ export class ProjectToolHandlers {
       );
     }
 
-    if (!validatePath(args.projectPath) || !validatePath(args.filePath)) {
+    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath) || !validatePath(args.filePath)) {
       return createErrorResponse(
         'Invalid path'
       );
@@ -605,7 +615,7 @@ export class ProjectToolHandlers {
       }
 
       // Check if the file exists
-      const filePath = join(args.projectPath, args.filePath);
+      const filePath = this.projectRelativePath(args.projectPath, args.filePath);
       if (!existsSync(filePath)) {
         return createErrorResponse(
           `File does not exist: ${args.filePath}`
@@ -662,7 +672,7 @@ export class ProjectToolHandlers {
       return createErrorResponse('projectPath and scenePath are required.');
     }
 
-    if (!validatePath(args.projectPath) || !validatePath(args.scenePath)) {
+    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath) || !validatePath(args.scenePath)) {
       return createErrorResponse('Invalid path.');
     }
 
@@ -671,7 +681,7 @@ export class ProjectToolHandlers {
       return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
     }
 
-    const scenePath = join(args.projectPath, args.scenePath);
+    const scenePath = this.projectRelativePath(args.projectPath, args.scenePath);
     if (!existsSync(scenePath)) {
       return createErrorResponse(`Scene file does not exist: ${args.scenePath}`);
     }
@@ -744,7 +754,7 @@ export class ProjectToolHandlers {
       return createErrorResponse('projectPath is required.');
     }
 
-    if (!validatePath(args.projectPath)) {
+    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath)) {
       return createErrorResponse('Invalid path.');
     }
 
@@ -799,7 +809,7 @@ export class ProjectToolHandlers {
       return createErrorResponse('projectPath, section, key, and value are required.');
     }
 
-    if (!validatePath(args.projectPath)) {
+    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath)) {
       return createErrorResponse('Invalid path.');
     }
 
@@ -858,7 +868,7 @@ export class ProjectToolHandlers {
       return createErrorResponse('projectPath is required.');
     }
 
-    if (!validatePath(args.projectPath)) {
+    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath)) {
       return createErrorResponse('Invalid path.');
     }
 
@@ -868,7 +878,7 @@ export class ProjectToolHandlers {
 
     try {
       const baseDir = args.subdirectory
-        ? join(args.projectPath, args.subdirectory)
+        ? this.projectRelativePath(args.projectPath, args.subdirectory)
         : args.projectPath;
 
       if (!existsSync(baseDir)) {
@@ -936,12 +946,12 @@ export class ProjectToolHandlers {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.filePath)
       return createErrorResponse('projectPath and filePath are required.');
-    if (!validatePath(args.projectPath) || !validatePath(args.filePath))
+    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath) || !validatePath(args.filePath))
       return createErrorResponse('Invalid path.');
     const projectFile = join(args.projectPath, 'project.godot');
     if (!existsSync(projectFile))
       return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
-    const fullPath = join(args.projectPath, args.filePath);
+    const fullPath = this.projectRelativePath(args.projectPath, args.filePath);
     if (!existsSync(fullPath))
       return createErrorResponse(`File does not exist: ${args.filePath}`);
     try {
@@ -956,13 +966,13 @@ export class ProjectToolHandlers {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.filePath || args.content === undefined)
       return createErrorResponse('projectPath, filePath, and content are required.');
-    if (!validatePath(args.projectPath) || !validatePath(args.filePath))
+    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath) || !validatePath(args.filePath))
       return createErrorResponse('Invalid path.');
     const projectFile = join(args.projectPath, 'project.godot');
     if (!existsSync(projectFile))
       return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
     try {
-      const fullPath = join(args.projectPath, args.filePath);
+      const fullPath = this.projectRelativePath(args.projectPath, args.filePath);
       const parentDir = dirname(fullPath);
       if (!existsSync(parentDir)) {
         mkdirSync(parentDir, { recursive: true });
@@ -978,12 +988,12 @@ export class ProjectToolHandlers {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.filePath)
       return createErrorResponse('projectPath and filePath are required.');
-    if (!validatePath(args.projectPath) || !validatePath(args.filePath))
+    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath) || !validatePath(args.filePath))
       return createErrorResponse('Invalid path.');
     const projectFile = join(args.projectPath, 'project.godot');
     if (!existsSync(projectFile))
       return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
-    const fullPath = join(args.projectPath, args.filePath);
+    const fullPath = this.projectRelativePath(args.projectPath, args.filePath);
     if (!existsSync(fullPath))
       return createErrorResponse(`File does not exist: ${args.filePath}`);
     try {
@@ -998,13 +1008,13 @@ export class ProjectToolHandlers {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.directoryPath)
       return createErrorResponse('projectPath and directoryPath are required.');
-    if (!validatePath(args.projectPath) || !validatePath(args.directoryPath))
+    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath) || !validatePath(args.directoryPath))
       return createErrorResponse('Invalid path.');
     const projectFile = join(args.projectPath, 'project.godot');
     if (!existsSync(projectFile))
       return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
     try {
-      const fullPath = join(args.projectPath, args.directoryPath);
+      const fullPath = this.projectRelativePath(args.projectPath, args.directoryPath);
       mkdirSync(fullPath, { recursive: true });
       return { content: [{ type: 'text', text: `Directory created: ${args.directoryPath}` }] };
     } catch (error: unknown) {
@@ -1018,7 +1028,7 @@ export class ProjectToolHandlers {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.projectName)
       return createErrorResponse('projectPath and projectName are required.');
-    if (!validatePath(args.projectPath))
+    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath, true))
       return createErrorResponse('Invalid path.');
     try {
       if (!existsSync(args.projectPath)) {
@@ -1037,7 +1047,7 @@ export class ProjectToolHandlers {
       writeFileSync(projectFile, content, 'utf8');
       if (isDotnet) {
         const sdkVersion = (await this.context.projectSupport.detectGodotNetSdkVersion()) ?? undefined;
-        writeFileSync(join(args.projectPath, `${assemblyName}.csproj`), generateCsprojContent(args.projectName, sdkVersion), 'utf8');
+        writeFileSync(this.projectRelativePath(args.projectPath, `${assemblyName}.csproj`), generateCsprojContent(args.projectName, sdkVersion), 'utf8');
       }
       return { content: [{ type: 'text', text: `Project "${args.projectName}" created at ${args.projectPath}${isDotnet ? ' (Godot .NET / C#)' : ''}` }] };
     } catch (error: unknown) {
@@ -1048,7 +1058,7 @@ export class ProjectToolHandlers {
   public async handleCreateCsharpScript(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.scriptPath) return createErrorResponse('projectPath and scriptPath are required.');
-    if (!validatePath(args.projectPath) || !validatePath(args.scriptPath)) return createErrorResponse('Invalid path.');
+    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath) || !validatePath(args.scriptPath)) return createErrorResponse('Invalid path.');
     const projectFile = join(args.projectPath, 'project.godot');
     if (!existsSync(projectFile)) return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
     if (!this.context.projectSupport.isDotnetProject(args.projectPath))
@@ -1061,7 +1071,7 @@ export class ProjectToolHandlers {
     if (args.className && args.className !== fileBase)
       return createErrorResponse(`className "${args.className}" must match the script file name "${fileBase}" for Godot to attach the script.`);
     try {
-      const fullPath = join(args.projectPath, args.scriptPath);
+      const fullPath = this.projectRelativePath(args.projectPath, args.scriptPath);
       const dir = dirname(fullPath);
       if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
       let source = args.source;
@@ -1084,7 +1094,7 @@ export class ProjectToolHandlers {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.action)
       return createErrorResponse('projectPath and action are required.');
-    if (!validatePath(args.projectPath))
+    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath))
       return createErrorResponse('Invalid path.');
     const projectFile = join(args.projectPath, 'project.godot');
     if (!existsSync(projectFile))
@@ -1130,7 +1140,7 @@ export class ProjectToolHandlers {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.action)
       return createErrorResponse('projectPath and action are required.');
-    if (!validatePath(args.projectPath))
+    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath))
       return createErrorResponse('Invalid path.');
     const projectFile = join(args.projectPath, 'project.godot');
     if (!existsSync(projectFile))
@@ -1181,7 +1191,7 @@ export class ProjectToolHandlers {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.action)
       return createErrorResponse('projectPath and action are required.');
-    if (!validatePath(args.projectPath))
+    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath))
       return createErrorResponse('Invalid path.');
     const projectFile = join(args.projectPath, 'project.godot');
     if (!existsSync(projectFile))
@@ -1234,7 +1244,7 @@ export class ProjectToolHandlers {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.presetName || !args.outputPath)
       return createErrorResponse('projectPath, presetName, and outputPath are required.');
-    if (!validatePath(args.projectPath))
+    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath))
       return createErrorResponse('Invalid project path.');
     const projectFile = join(args.projectPath, 'project.godot');
     if (!existsSync(projectFile))
@@ -1258,11 +1268,11 @@ export class ProjectToolHandlers {
   public async handleRenameFile(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.filePath || !args.newPath) return createErrorResponse('projectPath, filePath, and newPath are required.');
-    if (!validatePath(args.projectPath) || !validatePath(args.filePath) || !validatePath(args.newPath)) return createErrorResponse('Invalid path.');
+    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath) || !validatePath(args.filePath) || !validatePath(args.newPath)) return createErrorResponse('Invalid path.');
     const projectFile = join(args.projectPath, 'project.godot');
     if (!existsSync(projectFile)) return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
-    const srcFull = join(args.projectPath, args.filePath);
-    const dstFull = join(args.projectPath, args.newPath);
+    const srcFull = this.projectRelativePath(args.projectPath, args.filePath);
+    const dstFull = this.projectRelativePath(args.projectPath, args.newPath);
     if (!existsSync(srcFull)) return createErrorResponse(`File not found: ${args.filePath}`);
     try {
       const dstDir = dirname(dstFull);
@@ -1286,11 +1296,11 @@ export class ProjectToolHandlers {
   public async handleValidateScript(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.scriptPath) return createErrorResponse('projectPath and scriptPath are required.');
-    if (!validatePath(args.projectPath) || !validatePath(args.scriptPath)) return createErrorResponse('Invalid path.');
+    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath) || !validatePath(args.scriptPath)) return createErrorResponse('Invalid path.');
     if (!/\.gd$/i.test(args.scriptPath)) return createErrorResponse('validate_script only checks GDScript (.gd) files.');
     const projectFile = join(args.projectPath, 'project.godot');
     if (!existsSync(projectFile)) return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
-    const scriptFull = join(args.projectPath, args.scriptPath);
+    const scriptFull = this.projectRelativePath(args.projectPath, args.scriptPath);
     if (!existsSync(scriptFull)) return createErrorResponse(`Script does not exist: ${args.scriptPath}`);
     if (!this.context.getGodotPath()) {
       await this.context.detectGodotPath();
@@ -1312,7 +1322,7 @@ export class ProjectToolHandlers {
   public async handleValidateScripts(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath) return createErrorResponse('projectPath is required.');
-    if (!validatePath(args.projectPath)) return createErrorResponse('Invalid path.');
+    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath)) return createErrorResponse('Invalid path.');
     const projectFile = join(args.projectPath, 'project.godot');
     if (!existsSync(projectFile)) return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
     if (!this.context.getGodotPath()) {
@@ -1386,11 +1396,11 @@ export class ProjectToolHandlers {
   public async handleCreateScript(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.scriptPath) return createErrorResponse('projectPath and scriptPath are required.');
-    if (!validatePath(args.projectPath) || !validatePath(args.scriptPath)) return createErrorResponse('Invalid path.');
+    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath) || !validatePath(args.scriptPath)) return createErrorResponse('Invalid path.');
     const projectFile = join(args.projectPath, 'project.godot');
     if (!existsSync(projectFile)) return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
     try {
-      const fullPath = join(args.projectPath, args.scriptPath);
+      const fullPath = this.projectRelativePath(args.projectPath, args.scriptPath);
       const dir = dirname(fullPath);
       if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
       let source = args.source;
@@ -1431,7 +1441,7 @@ export class ProjectToolHandlers {
   public async handleManageLayers(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.action) return createErrorResponse('projectPath and action are required.');
-    if (!validatePath(args.projectPath)) return createErrorResponse('Invalid path.');
+    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath)) return createErrorResponse('Invalid path.');
     const projectFile = join(args.projectPath, 'project.godot');
     if (!existsSync(projectFile)) return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
     try {
@@ -1467,7 +1477,7 @@ export class ProjectToolHandlers {
   public async handleManagePlugins(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.action) return createErrorResponse('projectPath and action are required.');
-    if (!validatePath(args.projectPath)) return createErrorResponse('Invalid path.');
+    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath)) return createErrorResponse('Invalid path.');
     const projectFile = join(args.projectPath, 'project.godot');
     if (!existsSync(projectFile)) return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
     try {
@@ -1511,10 +1521,10 @@ export class ProjectToolHandlers {
   public async handleManageShader(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.shaderPath || !args.action) return createErrorResponse('projectPath, shaderPath, and action are required.');
-    if (!validatePath(args.projectPath) || !validatePath(args.shaderPath)) return createErrorResponse('Invalid path.');
+    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath) || !validatePath(args.shaderPath)) return createErrorResponse('Invalid path.');
     const projectFile = join(args.projectPath, 'project.godot');
     if (!existsSync(projectFile)) return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
-    const fullPath = join(args.projectPath, args.shaderPath);
+    const fullPath = this.projectRelativePath(args.projectPath, args.shaderPath);
     try {
       if (args.action === 'read') {
         if (!existsSync(fullPath)) return createErrorResponse(`Shader not found: ${args.shaderPath}`);
@@ -1549,7 +1559,7 @@ export class ProjectToolHandlers {
   public async handleSetMainScene(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.scenePath) return createErrorResponse('projectPath and scenePath are required.');
-    if (!validatePath(args.projectPath)) return createErrorResponse('Invalid path.');
+    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath)) return createErrorResponse('Invalid path.');
     const projectFile = join(args.projectPath, 'project.godot');
     if (!existsSync(projectFile)) return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
     try {
@@ -1590,7 +1600,7 @@ export class ProjectToolHandlers {
   public async handleManageTranslations(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.action) return createErrorResponse('projectPath and action are required.');
-    if (!validatePath(args.projectPath)) return createErrorResponse('Invalid path.');
+    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath)) return createErrorResponse('Invalid path.');
     const projectFile = join(args.projectPath, 'project.godot');
     if (!existsSync(projectFile)) return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
     try {
@@ -1629,7 +1639,7 @@ export class ProjectToolHandlers {
   public async handleManageCiPipeline(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.action) return createErrorResponse('projectPath and action are required.');
-    if (!validatePath(args.projectPath)) return createErrorResponse('Invalid path.');
+    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath)) return createErrorResponse('Invalid path.');
     const projectFile = join(args.projectPath, 'project.godot');
     if (!existsSync(projectFile)) return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
     const workflowDir = join(args.projectPath, '.github', 'workflows');
@@ -1657,7 +1667,7 @@ export class ProjectToolHandlers {
   public async handleManageDockerExport(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.action) return createErrorResponse('projectPath and action are required.');
-    if (!validatePath(args.projectPath)) return createErrorResponse('Invalid path.');
+    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath)) return createErrorResponse('Invalid path.');
     const projectFile = join(args.projectPath, 'project.godot');
     if (!existsSync(projectFile)) return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
     const dockerfilePath = join(args.projectPath, 'Dockerfile');
@@ -1694,7 +1704,7 @@ export class ProjectToolHandlers {
       );
     }
 
-    if (!validatePath(args.projectPath)) {
+    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath)) {
       return createErrorResponse(
         'Invalid project path'
       );

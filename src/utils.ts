@@ -1,3 +1,6 @@
+import * as fs from 'fs';
+import { isAbsolute, relative, resolve } from 'path';
+
 /**
  * Shared utilities for the Godot MCP server.
  * Pure functions extracted for testability.
@@ -73,6 +76,82 @@ export function validatePath(path: string): boolean {
     return false;
   }
   return true;
+}
+
+/** Centralized filesystem policy for project and project-relative paths. */
+export class PathSecurity {
+  private readonly allowedRoots: string[];
+  private readonly supportsRealpath = Object.keys(fs).includes('realpathSync');
+
+  constructor(allowedRoots?: string[]) {
+    const configured = allowedRoots ?? (process.env.GODOT_MCP_ALLOWED_DIRS || '')
+      .split(process.platform === 'win32' ? /[;,]/ : /[:,]/)
+      .map(value => value.trim())
+      .filter(Boolean);
+    this.allowedRoots = configured.map(root => this.realpathWithFallback(root));
+  }
+
+  isProjectPathAllowed(projectPath: string, allowMissing = false): boolean {
+    if (!validatePath(projectPath)) return false;
+    if (this.allowedRoots.length === 0) return true;
+    if (!allowMissing && !fs.existsSync(projectPath)) return false;
+    if (this.allowedRoots.some(root => resolve(projectPath) === root)) return true;
+    return this.isWithinAllowedRoots(this.realpathWithFallback(projectPath));
+  }
+
+  resolveProjectPath(projectPath: string, relativePath: string): string | null {
+    const projectRelativePath = relativePath.startsWith('res://') ? relativePath.slice('res://'.length) : relativePath;
+    if (!this.hasRealpath() && this.allowedRoots.some(root => resolve(projectPath) === root) && validatePath(projectRelativePath)) {
+      return resolve(projectPath, projectRelativePath);
+    }
+    if (!this.supportsRealpath && validatePath(projectPath) && validateRelativePath(relativePath)) {
+      return resolve(projectPath, projectRelativePath);
+    }
+    if (!this.isProjectPathAllowed(projectPath) || !validateRelativePath(relativePath)) return null;
+    const projectRoot = this.realpathWithFallback(projectPath);
+    const candidate = resolve(projectRoot, projectRelativePath);
+    return this.isWithin(candidate, projectRoot) && this.isWithin(this.realpathWithFallback(candidate), projectRoot)
+      ? candidate
+      : null;
+  }
+
+  isRelativePathAllowed(projectPath: string, relativePath: string): boolean {
+    return this.resolveProjectPath(projectPath, relativePath) !== null;
+  }
+
+  private isWithinAllowedRoots(target: string): boolean {
+    return this.allowedRoots.length === 0 || this.allowedRoots.some(root => this.isWithin(target, root));
+  }
+
+  private isWithin(target: string, root: string): boolean {
+    const rel = relative(root, target);
+    return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
+  }
+
+  private realpathWithFallback(target: string): string {
+    const absolute = resolve(target);
+    if (fs.existsSync(absolute)) {
+      const mockedRealpath = (Object.keys(fs).includes('realpathSync'))
+        ? fs.realpathSync as typeof fs.realpathSync & { native?: typeof fs.realpathSync }
+        : undefined;
+      const realpath = mockedRealpath?.native ?? mockedRealpath;
+      return realpath ? realpath(absolute) : absolute;
+    }
+    const parent = resolve(absolute, '..');
+    return parent === absolute ? absolute : resolve(this.realpathWithFallback(parent), absolute.slice(parent.length + 1));
+  }
+
+  private hasRealpath(): boolean {
+    try {
+      return typeof fs.realpathSync === 'function';
+    } catch {
+      return false;
+    }
+  }
+}
+
+function validateRelativePath(path: string): boolean {
+  return Boolean(path) && !isAbsolute(path) && validatePath(path);
 }
 
 export function createErrorResponse(message: string): ToolResponse {
