@@ -43,9 +43,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.26.0",
-    "axios": "^1.16.0",
-    "fs-extra": "^11.2.0"
+    "@modelcontextprotocol/sdk": "1.26.0"
   },
   "devDependencies": {
     "@types/node": "^20.11.24",

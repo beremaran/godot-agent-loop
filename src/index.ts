@@ -24,8 +24,6 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 
 import {
-  PARAMETER_MAPPINGS,
-  REVERSE_PARAMETER_MAPPINGS,
   normalizeParameters,
   convertCamelToSnakeCase,
   validatePath,
@@ -125,14 +123,10 @@ class GodotServer {
   constructor(config?: GodotServerConfig) {
     // Apply configuration if provided
     let debugMode = DEBUG_MODE;
-    let godotDebugMode = GODOT_DEBUG_MODE;
 
     if (config) {
       if (config.debugMode !== undefined) {
         debugMode = config.debugMode;
-      }
-      if (config.godotDebugMode !== undefined) {
-        godotDebugMode = config.godotDebugMode;
       }
       if (config.strictPathValidation !== undefined) {
         this.strictPathValidation = config.strictPathValidation;
@@ -697,58 +691,6 @@ class GodotServer {
       }
 
       throw error;
-    }
-  }
-
-  /**
-   * Get the structure of a Godot project
-   * @param projectPath Path to the Godot project
-   * @returns Object representing the project structure
-   */
-  private async getProjectStructure(projectPath: string): Promise<any> {
-    try {
-      // Get top-level directories in the project
-      const entries = readdirSync(projectPath, { withFileTypes: true });
-
-      const structure: any = {
-        scenes: [],
-        scripts: [],
-        assets: [],
-        other: [],
-      };
-
-      for (const entry of entries) {
-        if (entry.isDirectory()) {
-          const dirName = entry.name.toLowerCase();
-
-          // Skip hidden directories
-          if (dirName.startsWith('.')) {
-            continue;
-          }
-
-          // Count files in common directories
-          if (dirName === 'scenes' || dirName.includes('scene')) {
-            structure.scenes.push(entry.name);
-          } else if (dirName === 'scripts' || dirName.includes('script')) {
-            structure.scripts.push(entry.name);
-          } else if (
-            dirName === 'assets' ||
-            dirName === 'textures' ||
-            dirName === 'models' ||
-            dirName === 'sounds' ||
-            dirName === 'music'
-          ) {
-            structure.assets.push(entry.name);
-          } else {
-            structure.other.push(entry.name);
-          }
-        }
-      }
-
-      return structure;
-    } catch (error) {
-      this.logDebug(`Error getting project structure: ${error}`);
-      return { error: 'Failed to get project structure' };
     }
   }
 
