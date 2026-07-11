@@ -19,7 +19,7 @@ finishing the separation and improving maintainability.
 - [x] Replace callback-heavy handler contexts with clearer service interfaces,
   especially around `gameCommand`, `headlessOp`, and executable access.
 - [x] Split the large manual tool registry into composable domain registries.
-- [ ] Add direct unit tests for the extracted handler modules.
+- [x] Add direct unit tests for the extracted handler modules.
 - [ ] Replace brittle source-structure tests with behavior-focused tests where
   practical.
 - [ ] Introduce stronger argument types and reduce remaining `any` usage.
