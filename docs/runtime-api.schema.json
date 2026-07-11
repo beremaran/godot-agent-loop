@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/tugcantopaloglu/godot-mcp/runtime-api-1.0.schema.json",
+  "title": "Godot MCP Runtime API",
+  "description": "Version 1.0 JSON-RPC 2.0 API. Messages are one JSON value per newline over TCP.",
+  "type": "object",
+  "oneOf": [{ "$ref": "#/$defs/request" }, { "$ref": "#/$defs/successResponse" }, { "$ref": "#/$defs/errorResponse" }],
+  "$defs": {
+    "id": { "type": ["string", "integer"] },
+    "godotValue": { "description": "Godot values are JSON primitives, arrays, dictionaries, or objects produced by _variant_to_json.", "type": ["null", "boolean", "number", "string", "array", "object"] },
+    "request": { "type": "object", "required": ["jsonrpc", "id", "method"], "properties": { "jsonrpc": { "const": "2.0" }, "id": { "$ref": "#/$defs/id" }, "method": { "type": "string", "pattern": "^godot\\.runtime\\.(handshake|[a-z0-9_]+)$" }, "params": { "type": "object" } }, "additionalProperties": false },
+    "successResponse": { "type": "object", "required": ["jsonrpc", "id", "result"], "properties": { "jsonrpc": { "const": "2.0" }, "id": { "$ref": "#/$defs/id" }, "result": { "$ref": "#/$defs/godotValue" } }, "additionalProperties": false },
+    "errorResponse": { "type": "object", "required": ["jsonrpc", "id", "error"], "properties": { "jsonrpc": { "const": "2.0" }, "id": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] }, "error": { "type": "object", "required": ["code", "message"], "properties": { "code": { "type": "integer" }, "message": { "type": "string" }, "data": { "$ref": "#/$defs/godotValue" } }, "additionalProperties": false } }, "additionalProperties": false }
+  },
+  "x-runtime-contract": {
+    "protocolVersion": "1.0", "capabilities": ["runtime-commands", "godot-json-values"],
+    "concurrency": "One command is processed at a time; concurrent commands receive -32001.",
+    "timeout": "Clients set per-request timeouts; the runtime clears a stuck busy state after 120 seconds.",
+    "errorCodes": { "-32700": "Parse error", "-32600": "Invalid request", "-32601": "Method not found", "-32602": "Invalid params", "-32001": "Server busy", "-32002": "Protocol version mismatch", "-32000": "Runtime command failed" }
+  }
+}

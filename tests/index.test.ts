@@ -253,6 +253,7 @@ describe('GodotServer class tests', () => {
           const payload = JSON.parse(data.trim());
           setTimeout(() => {
             (server as any).resolveGameResponse({
+              jsonrpc: '2.0',
               id: payload.id,
               result: { success: true, value: 'mock_value' }
             });
@@ -405,7 +406,12 @@ describe('GodotServer class tests', () => {
         if (event === 'data') dataCallback = cb;
         if (event === 'close') closeCallback = cb;
       }),
-      write: vi.fn(),
+      write: vi.fn((data: string) => {
+        const request = JSON.parse(data.trim());
+        if (request.method === 'godot.runtime.handshake') {
+          setTimeout(() => dataCallback(Buffer.from(`${JSON.stringify({ jsonrpc: '2.0', id: request.id, result: { protocolVersion: '1.0', capabilities: ['runtime-commands', 'godot-json-values'] } })}\n`)), 0);
+        }
+      }),
       destroy: vi.fn(),
       end: vi.fn(),
     };
@@ -422,7 +428,7 @@ describe('GodotServer class tests', () => {
 
     // Trigger data event with a response
     if (dataCallback) {
-      dataCallback(Buffer.from('{"id": 999, "result": "hello"}\n'));
+      dataCallback(Buffer.from('{"jsonrpc":"2.0","id":999,"result":"hello"}\n'));
     }
 
     // Trigger close event
@@ -632,8 +638,9 @@ describe('GodotServer class tests', () => {
           const payload = JSON.parse(data.trim());
           setTimeout(() => {
             (server as any).resolveGameResponse({
+              jsonrpc: '2.0',
               id: payload.id,
-              error: 'mock game connection error'
+              error: { code: -32000, message: 'mock game connection error' }
             });
           }, 0);
         } catch {

@@ -5,7 +5,22 @@ import { GameConnection } from '../src/game-connection.js';
 const servers: Server[] = [];
 
 async function startServer(): Promise<{ server: Server; port: number }> {
-  const server = createServer();
+  const server = createServer(socket => {
+    let buffer = '';
+    socket.on('data', data => {
+      buffer += data.toString();
+      while (buffer.includes('\n')) {
+        const newline = buffer.indexOf('\n');
+        const request = JSON.parse(buffer.slice(0, newline));
+        buffer = buffer.slice(newline + 1);
+        if (request.method === 'godot.runtime.handshake') {
+          socket.write(`${JSON.stringify({ jsonrpc: '2.0', id: request.id, result: { protocolVersion: '1.0', capabilities: ['runtime-commands', 'godot-json-values'] } })}\n`);
+        } else {
+          socket.write(`${JSON.stringify({ jsonrpc: '2.0', id: request.id, result: { success: true } })}\n`);
+        }
+      }
+    });
+  });
   servers.push(server);
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
@@ -43,6 +58,17 @@ describe('GameConnection lifecycle', () => {
     expect(connection.connected).toBe(true);
 
     await reconnecting;
+    connection.disconnect();
+  });
+
+  it('negotiates the versioned protocol and sends JSON-RPC command requests', async () => {
+    const { port } = await startServer();
+    const connection = new GameConnection({ port, initialDelayMs: 0 });
+
+    await connection.connect('/project', () => true);
+    const response = await connection.send('click', { x: 10, y: 20 });
+
+    expect(response).toEqual({ jsonrpc: '2.0', id: 2, result: { success: true } });
     connection.disconnect();
   });
 });

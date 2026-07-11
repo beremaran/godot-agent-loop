@@ -1,6 +1,6 @@
 import { createErrorResponse, convertCamelToSnakeCase, errorMessage, normalizeParameters, type OperationParams, type ToolArguments, type ToolResponse } from './utils.js';
 import type { GodotProcessManager } from './godot-process-manager.js';
-import type { GameConnection } from './game-connection.js';
+import type { GameConnection, GameResponse } from './game-connection.js';
 
 /** Shared runtime command boundary for tools that control a running game. */
 export class GameCommandService {
@@ -46,16 +46,10 @@ export class GameCommandService {
     const normalizedArgs = normalizeParameters((args || {}) as OperationParams);
     try {
       const response = await this.send(name, convertCamelToSnakeCase(buildParams(normalizedArgs)), timeoutMs);
-      if (response.error) return createErrorResponse(`${name} failed: ${response.error}`);
-      return { content: [{ type: 'text', text: JSON.stringify(response, null, 2) }] };
+      if ('error' in response) return createErrorResponse(`${name} failed: ${response.error.message}`);
+      return { content: [{ type: 'text', text: JSON.stringify(response.result, null, 2) }] };
     } catch (error: unknown) {
       return createErrorResponse(`${name} failed: ${errorMessage(error)}`);
     }
   }
-}
-
-export interface GameResponse {
-  id?: number;
-  error?: string;
-  [key: string]: unknown;
 }

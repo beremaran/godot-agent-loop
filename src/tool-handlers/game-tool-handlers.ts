@@ -38,19 +38,20 @@ export class GameToolHandlers {
 
     try {
       const response = await this.context.commands.send('screenshot');
-      if (response.error) {
-        return createErrorResponse(`Screenshot failed: ${response.error}`);
+      if ('error' in response) {
+        return createErrorResponse(`Screenshot failed: ${response.error.message}`);
       }
+      const result = response.result as { data?: string; width?: number; height?: number };
       return {
         content: [
           {
             type: 'image',
-            data: response.data,
+            data: result.data,
             mimeType: 'image/png',
           },
           {
             type: 'text',
-            text: `Screenshot captured: ${response.width}x${response.height}`,
+            text: `Screenshot captured: ${result.width}x${result.height}`,
           },
         ],
       };

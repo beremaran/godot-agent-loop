@@ -1,7 +1,6 @@
 extends Node
 
-# MCP Interaction Server - TCP server for game interaction
-# Runs as an autoload inside the Godot game, accepting JSON commands over TCP.
+# MCP Interaction Server - newline-delimited JSON-RPC 2.0 server for game interaction.
 # No class_name to avoid autoload conflict.
 
 var _server: TCPServer
@@ -12,6 +11,9 @@ var _busy_since: float = 0.0
 var _current_id: Variant = null
 const PORT: int = 9090
 const BUSY_TIMEOUT: float = 120.0
+const PROTOCOL_VERSION: String = "1.0"
+const CAPABILITIES: Array[String] = ["runtime-commands", "godot-json-values"]
+const METHOD_PREFIX: String = "godot.runtime."
 var _key_map: Dictionary
 var _held_keys: Dictionary = {}
 
@@ -88,25 +90,39 @@ func _handle_command(json_str: String) -> void:
 	var json: JSON = JSON.new()
 	var parse_err: int = json.parse(json_str)
 	if parse_err != OK:
-		_send_response_raw({"error": "Invalid JSON: %s" % json.get_error_message()})
+		_send_error(null, -32700, "Invalid JSON: %s" % json.get_error_message())
 		return
 
 	var data: Variant = json.data
 	if not data is Dictionary:
-		_send_response_raw({"error": "Expected JSON object"})
+		_send_error(null, -32600, "Expected JSON-RPC request object")
 		return
 
 	var req_id: Variant = data.get("id", null)
+	if data.get("jsonrpc", "") != "2.0" or req_id == null or not data.has("method"):
+		_send_error(req_id, -32600, "Expected a JSON-RPC 2.0 request with id and method")
+		return
+	var method: String = str(data.get("method", ""))
+	var raw_params: Variant = data.get("params", {})
+	if not raw_params is Dictionary:
+		_send_error(req_id, -32602, "params must be an object")
+		return
+	var params: Dictionary = raw_params
+	if method == "godot.runtime.handshake":
+		_handle_handshake(req_id, params)
+		return
+	if not method.begins_with(METHOD_PREFIX):
+		_send_error(req_id, -32601, "Unknown method: %s" % method)
+		return
 
 	if _busy:
-		_send_response_raw({"error": "Server busy processing another command. Try again.", "id": req_id})
+		_send_error(req_id, -32001, "Server busy processing another command. Try again.")
 		return
 	_busy = true
 	_busy_since = Time.get_ticks_msec() / 1000.0
 	_current_id = req_id
 
-	var command: String = data.get("command", "")
-	var params: Dictionary = data.get("params", {})
+	var command: String = method.trim_prefix(METHOD_PREFIX)
 
 	match command:
 		# Async commands (use await)
@@ -336,14 +352,26 @@ func _handle_command(json_str: String) -> void:
 			_send_response({"error": "Unknown command: %s" % command})
 
 
+func _handle_handshake(req_id: Variant, params: Dictionary) -> void:
+	if params.get("protocolVersion", "") != PROTOCOL_VERSION:
+		_send_error(req_id, -32002, "Unsupported protocol version", {"supported": PROTOCOL_VERSION})
+		return
+	_send_response_raw({"jsonrpc": "2.0", "id": req_id, "result": {
+		"protocolVersion": PROTOCOL_VERSION,
+		"capabilities": CAPABILITIES,
+	}})
+
+
 # Send response and clear busy flag
 func _send_response(data: Dictionary) -> void:
 	_busy = false
 	_busy_since = 0.0
-	if _current_id != null and not data.has("id"):
-		data["id"] = _current_id
+	var id: Variant = _current_id
 	_current_id = null
-	_send_response_raw(data)
+	if data.has("error"):
+		_send_error(id, -32000, str(data["error"]))
+		return
+	_send_response_raw({"jsonrpc": "2.0", "id": id, "result": data})
 
 
 # Send response without clearing busy flag (used when rejecting during busy state)
@@ -353,6 +381,13 @@ func _send_response_raw(data: Dictionary) -> void:
 	var json_str: String = JSON.stringify(data) + "\n"
 	var bytes: PackedByteArray = json_str.to_utf8_buffer()
 	_client.put_data(bytes)
+
+
+func _send_error(id: Variant, code: int, message: String, details: Variant = null) -> void:
+	var error: Dictionary = {"code": code, "message": message}
+	if details != null:
+		error["data"] = details
+	_send_response_raw({"jsonrpc": "2.0", "id": id, "error": error})
 
 
 # --- Screenshot ---
