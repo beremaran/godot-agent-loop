@@ -1,0 +1,66 @@
+# GDScript Refactoring Audit
+
+## Audit baseline
+
+- Scope: [godot_operations.gd](src/scripts/godot_operations.gd) (1,905 lines, 29 functions) and [mcp_interaction_server.gd](src/scripts/mcp_interaction_server.gd) (4,896 lines, 138 functions).
+- The TypeScript refactor provides the useful precedent: first introduce contract tests and service seams, then split the god class by domain, compose registries, make mutable state private, and finally add reliability tests. See `cadf8d0`, `d7a221c`, `feb0694`, `ca4f1dd`, `d42b436`, and `c5ad28b`.
+- This is a refactoring plan, not a request to change the public MCP tool surface. Preserve the JSON-RPC 2.0 protocol, the newline-delimited framing, the current headless operations, and the Godot 4.4+ compatibility floor while moving code.
+- Current automated coverage is TypeScript-side: it checks the published runtime contract and diagnostic parsing, but does not execute either shipped GDScript file in Godot. Godot is not installed in this audit environment, so runtime syntax and end-to-end behavior remain unverified here.
+
+## P0 — preserve request isolation and bound the runtime transport
+
+- [x] Replace the global `_client`, `_busy`, and `_current_id` request state in [mcp_interaction_server.gd:6](src/scripts/mcp_interaction_server.gd:6) with a typed connection/session object. Give every accepted socket a monotonically increasing session ID; retain that ID and peer for each in-flight request; send or discard the eventual response only for that same live session. Do not let a new connection inherit a previous request ID or receive its response.
+  - Evidence: `_process()` replaces `_client` whenever a new connection is available ([line 46](src/scripts/mcp_interaction_server.gd:46)), while async handlers resume later and `_send_response()` writes through the mutable global client ([lines 366–383](src/scripts/mcp_interaction_server.gd:366)). A disconnect also clears the global ID while an awaited handler can still resume ([lines 61–68](src/scripts/mcp_interaction_server.gd:61)).
+  - Acceptance: a second client cannot receive a first client's delayed response; disconnect/reconnect during `wait`, `eval`, screenshot, HTTP, or signal wait produces no malformed/null-ID response; all pending work is explicitly cancelled or safely ignored.
+- [ ] Define explicit concurrency and cancellation semantics in `docs/runtime-api.schema.json` and both bindings. Choose and document one behavior for a second request while work is active (bounded queue or `-32001` busy); define the timeout/cancellation response and which commands are cancellable. Model the lifecycle as `received → running → responded | cancelled | timed_out` rather than resetting a boolean after an arbitrary interval.
+  - Evidence: the server currently rejects while `_busy` ([lines 118–123](src/scripts/mcp_interaction_server.gd:118)) and force-resets it after 120 seconds ([lines 36–43](src/scripts/mcp_interaction_server.gd:36)); the prior 30-second safeguard was introduced by `30eaf32` and later changed without a protocol-level outcome.
+  - Acceptance: no request can create more than one response, leave the server permanently busy, or have its response correlated to a different request.
+- [ ] Put hard, configurable limits on request line size, receive-buffer size, JSON nesting/collection sizes where practical, response size, and work that returns binary data. On overflow, send a structured JSON-RPC error and close/reset only the offending session.
+  - Evidence: each frame is appended to `_buffer` until a newline appears ([lines 73–86](src/scripts/mcp_interaction_server.gd:73)); no cap exists. Screenshot responses base64-encode the entire viewport in memory ([lines 394–408](src/scripts/mcp_interaction_server.gd:394)).
+  - Acceptance: oversized partial frames, oversized complete frames, invalid UTF-8, and oversized screenshot payloads cannot cause unbounded growth or block future valid requests.
+- [ ] Add Godot integration tests that drive real loopback TCP sessions: malformed frames, oversized frames, two clients, disconnect/reconnect during awaits, timeout, cancellation, and response-ID correlation. Run these against the minimum supported Godot release in CI.
+
+## P1 — establish typed, domain-owned runtime command boundaries
+
+- [ ] Introduce a small typed transport layer: JSON-RPC request validation, session-aware response/error writers, framing, handshake, command execution lifecycle, and common error codes. Keep it independent of Godot subsystem commands.
+  - Extract the 266-line `_handle_command()` dispatcher ([line 89](src/scripts/mcp_interaction_server.gd:89)) into a registry that maps a command name to a typed handler descriptor (`params` validator, async/sync execution, capability, result serializer).
+  - Reject unknown commands with JSON-RPC `-32601`, not a successful transport envelope containing an application `error`; the current fallback routes through `_send_response({"error": ...})` ([lines 351–352](src/scripts/mcp_interaction_server.gd:351)).
+- [ ] Make the published runtime schema authoritative for command names and request/result/error shapes. Generate or verify the TypeScript command names, GDScript registry entries, capabilities, and schema from one manifest; extend the present string-containment test in [runtime-protocol-contract.test.ts](tests/runtime-protocol-contract.test.ts) to reject missing, extra, and incorrectly shaped commands.
+  - This applies the TypeScript refactor's bidirectional registry validation (`feb0694` and `0ed6623`) to the cross-language runtime boundary.
+- [ ] Add shared GDScript helpers for validated parameter access (`required_string`, bounded number, enum, node path, resource path, array/dictionary) and standardized command failures. Convert handlers away from ad hoc `params.get()`, `str()`, and dynamic property access incrementally by domain.
+  - Acceptance: invalid parameter types, missing required fields, unknown action values, missing nodes, and Godot `Error` values have consistent structured errors and do not continue after failure.
+- [ ] Split command handlers into domain scripts/resources, initially: core scene/property/signal commands; input; UI; 2D; 3D/physics/navigation; rendering/environment; audio/animation; networking/multiplayer; and system/project state. Keep a thin autoload composition root that owns socket lifecycle and registers domains.
+  - Preserve stateful features behind dedicated services: held keys, debug-draw objects, canvas-draw objects, and WebSocket/HTTP objects currently live beside unrelated handlers ([lines 17–18](src/scripts/mcp_interaction_server.gd:17), [2680](src/scripts/mcp_interaction_server.gd:2680), [2798](src/scripts/mcp_interaction_server.gd:2798), and [3743](src/scripts/mcp_interaction_server.gd:3743)).
+  - Move a domain only after contract and behavior tests cover it; do not perform a single 4,896-line rewrite.
+
+## P1 — make serialization and dynamic execution deliberate boundaries
+
+- [ ] Extract and type the JSON/Variant codec, including `_variant_to_json()` ([line 845](src/scripts/mcp_interaction_server.gd:845)), `_json_to_variant()` ([line 944](src/scripts/mcp_interaction_server.gd:944)), and property-aware conversion. Define supported Variant types, tagged representations, precision rules, resource/node handling, recursion and collection limits, and errors for unsupported values in the runtime schema.
+- [ ] Add round-trip and negative tests in Godot for every supported Variant category, nested resources/arrays/dictionaries, unsupported objects, cycles, malformed type hints, and serialization depth limits. Cross-check a fixture corpus from TypeScript so the two sides cannot drift.
+- [ ] Isolate `eval`, arbitrary property/method invocation, RPC, script control, and HTTP/WebSocket operations behind an explicit privileged-command policy. Keep their powerful behavior only if it is intentional for a localhost developer tool; document the trust boundary, add opt-in configuration/capabilities if needed, and ensure errors cannot expose arbitrary project secrets in logs or responses.
+
+## P1 — refactor the headless operations runner into typed services
+
+- [ ] Replace the global `@warning_ignore_start` in [godot_operations.gd:3](src/scripts/godot_operations.gd:3) with incremental static typing: typed `debug_mode`, `_init() -> void`, logging helpers, operation parameters, return types, dictionaries/arrays, and checked casts. Retain narrowly scoped suppressions only where engine APIs necessarily expose `Variant`.
+  - The current project-wide suppression masks `untyped_declaration`, inference, unsafe property/method access, casts, call arguments, ignored return values, and enum conversions, preventing Godot's strict-warning mode from finding regressions.
+- [ ] Extract a typed CLI/parser and operation registry from `_init()` ([lines 8–97](src/scripts/godot_operations.gd:8)). Validate operation name and JSON object before dispatch; give every operation a single `Result`-style outcome so only the entry point logs and calls `quit(exit_code)`.
+  - Replace scattered `printerr()`/`quit(1)` branches with typed errors returned to the runner. Add an explicit `return` after terminal failures until the shared runner is in place.
+- [ ] Extract shared project/path, scene loading/packing/saving, directory creation, class/resource resolution, and property conversion helpers. Reuse them across the 16 operations so each operation only validates its request and performs domain work.
+  - `create_scene()` currently combines argument handling, path normalization, environment diagnostics, temporary-file probes, directory creation, packing, saving, and verification; it is the first extraction candidate ([line 195](src/scripts/godot_operations.gd:195)).
+- [ ] Treat debug diagnostics as a separate, opt-in service. Do not write probe files in normal operation paths; guarantee cleanup on every branch and ensure debug logs redact parameter values that may contain file paths, tokens, or source.
+
+## P2 — verification, rollout, and maintainability gates
+
+- [ ] Add an isolated fixture Godot project and a CI job using the documented minimum Godot 4.4 release plus the current supported release. Parse/type-check both shipped scripts with warnings promoted to errors, run every headless operation against fixtures, and exercise runtime commands over TCP.
+- [ ] Add behavior-focused tests before each domain move: scene save/reload invariants, resource persistence, signal connection/disconnection, frame/physics awaits, node ownership, draw-object cleanup, input release on exit, and structured error/exit status. Preserve the end-to-end cases added in `29bf0b2` as permanent regression fixtures.
+- [ ] Add lightweight source guardrails: no broad warning suppression, every public handler has typed parameters and `-> void`/result type, no direct `quit()` outside the CLI entry point, no direct socket writes outside transport, and every runtime command exists exactly once in the registry/schema/tests.
+- [ ] Migrate in small, reversible commits matching the successful TypeScript sequence: contract tests and seams; transport/session state; codec; one handler domain at a time; headless shared services; then delete compatibility shims. After each commit run `npm test`, `npm run lint`, Markdown lint, and the Godot fixture suite.
+
+## Proposed implementation order
+
+1. Add the Godot fixture harness and protocol/session regression tests without changing behavior.
+2. Extract the runtime transport/session layer and fix replacement/disconnect/buffer-limit behavior.
+3. Make registry/schema validation bidirectional, then split the runtime handlers one domain at a time.
+4. Extract the codec and apply typed parameter/result boundaries.
+5. Refactor the headless CLI, shared scene/path services, and strict typing.
+6. Enable the static guardrails and remove obsolete compatibility code only after full fixture coverage is green.

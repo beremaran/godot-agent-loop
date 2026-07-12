@@ -3,14 +3,28 @@ extends Node
 # MCP Interaction Server - newline-delimited JSON-RPC 2.0 server for game interaction.
 # No class_name to avoid autoload conflict.
 
+class RuntimeSession:
+	extends RefCounted
+
+	var id: int
+	var peer: StreamPeerTCP
+	var buffer: String = ""
+	var connected: bool = true
+	var request_running: bool = false
+	var request_id: Variant = null
+
+	func _init(session_id: int, session_peer: StreamPeerTCP) -> void:
+		id = session_id
+		peer = session_peer
+
+
 var _server: TCPServer
-var _client: StreamPeerTCP
-var _buffer: String = ""
-var _busy: bool = false
-var _busy_since: float = 0.0
-var _current_id: Variant = null
+var _sessions: Dictionary = {}
+var _next_session_id: int = 1
+# Exactly one runtime command executes at a time. Its session owns the request ID
+# and peer until it responds, or disconnects and its eventual response is discarded.
+var _active_session: RuntimeSession = null
 const PORT: int = 9090
-const BUSY_TIMEOUT: float = 120.0
 const PROTOCOL_VERSION: String = "1.0"
 const CAPABILITIES: Array[String] = ["runtime-commands", "godot-json-values"]
 const METHOD_PREFIX: String = "godot.runtime."
@@ -33,94 +47,91 @@ func _process(_delta: float) -> void:
 	if _server == null:
 		return
 
-	# Safety timeout: force-reset _busy if it's been stuck too long
-	if _busy and _busy_since > 0.0:
-		var elapsed: float = Time.get_ticks_msec() / 1000.0 - _busy_since
-		if elapsed > BUSY_TIMEOUT:
-			push_warning("McpInteractionServer: _busy flag stuck for %.1fs, force-resetting" % elapsed)
-			_busy = false
-			_busy_since = 0.0
-			_current_id = null
-
-	# Accept new connections
-	if _server.is_connection_available():
+	# Accept all pending connections. A newly connected client must never replace a
+	# peer retained by an awaited command from an earlier session.
+	while _server.is_connection_available():
 		var new_client: StreamPeerTCP = _server.take_connection()
 		if new_client != null:
-			if _client != null:
-				_client.disconnect_from_host()
-			_client = new_client
-			_buffer = ""
-			print("McpInteractionServer: Client connected")
+			var session: RuntimeSession = RuntimeSession.new(_next_session_id, new_client)
+			_sessions[session.id] = session
+			_next_session_id += 1
+			print("McpInteractionServer: Client connected (session %d)" % session.id)
 
-	# Read data from client
-	if _client == null:
+	for session_id: Variant in _sessions.keys():
+		var session: RuntimeSession = _sessions.get(session_id) as RuntimeSession
+		if session == null:
+			continue
+		_poll_session(session)
+		if not session.connected and session != _active_session:
+			_sessions.erase(session.id)
+
+
+func _poll_session(session: RuntimeSession) -> void:
+	if not session.connected or session.peer == null:
 		return
 
-	_client.poll()
-	var status: int = _client.get_status()
+	session.peer.poll()
+	var status: int = session.peer.get_status()
 	if status == StreamPeerTCP.STATUS_ERROR or status == StreamPeerTCP.STATUS_NONE:
-		print("McpInteractionServer: Client disconnected")
-		_client = null
-		_buffer = ""
-		_busy = false
-		_busy_since = 0.0
-		_current_id = null
+		session.connected = false
+		session.buffer = ""
+		print("McpInteractionServer: Client disconnected (session %d)" % session.id)
 		return
 
 	if status != StreamPeerTCP.STATUS_CONNECTED:
 		return
 
-	var available: int = _client.get_available_bytes()
+	var available: int = session.peer.get_available_bytes()
 	if available > 0:
-		var data: Array = _client.get_data(available)
+		var data: Array = session.peer.get_data(available)
 		if data[0] == OK:
 			var bytes: PackedByteArray = data[1]
-			_buffer += bytes.get_string_from_utf8()
+			session.buffer += bytes.get_string_from_utf8()
 
 			# Process complete lines (newline-delimited JSON)
-			while _buffer.find("\n") >= 0:
-				var newline_pos: int = _buffer.find("\n")
-				var line: String = _buffer.substr(0, newline_pos).strip_edges()
-				_buffer = _buffer.substr(newline_pos + 1)
+			while session.buffer.find("\n") >= 0:
+				var newline_pos: int = session.buffer.find("\n")
+				var line: String = session.buffer.substr(0, newline_pos).strip_edges()
+				session.buffer = session.buffer.substr(newline_pos + 1)
 				if line.length() > 0:
-					_handle_command(line)
+					_handle_command(session, line)
 
 
-func _handle_command(json_str: String) -> void:
+func _handle_command(session: RuntimeSession, json_str: String) -> void:
 	var json: JSON = JSON.new()
 	var parse_err: int = json.parse(json_str)
 	if parse_err != OK:
-		_send_error(null, -32700, "Invalid JSON: %s" % json.get_error_message())
+		_send_error(session, null, -32700, "Invalid JSON: %s" % json.get_error_message())
 		return
 
 	var data: Variant = json.data
 	if not data is Dictionary:
-		_send_error(null, -32600, "Expected JSON-RPC request object")
+		_send_error(session, null, -32600, "Expected JSON-RPC request object")
 		return
 
 	var req_id: Variant = data.get("id", null)
 	if data.get("jsonrpc", "") != "2.0" or req_id == null or not data.has("method"):
-		_send_error(req_id, -32600, "Expected a JSON-RPC 2.0 request with id and method")
+		_send_error(session, req_id, -32600, "Expected a JSON-RPC 2.0 request with id and method")
 		return
 	var method: String = str(data.get("method", ""))
 	var raw_params: Variant = data.get("params", {})
 	if not raw_params is Dictionary:
-		_send_error(req_id, -32602, "params must be an object")
+		_send_error(session, req_id, -32602, "params must be an object")
 		return
 	var params: Dictionary = raw_params
 	if method == "godot.runtime.handshake":
-		_handle_handshake(req_id, params)
+		_handle_handshake(session, req_id, params)
 		return
 	if not method.begins_with(METHOD_PREFIX):
-		_send_error(req_id, -32601, "Unknown method: %s" % method)
+		_send_error(session, req_id, -32601, "Unknown method: %s" % method)
 		return
 
-	if _busy:
-		_send_error(req_id, -32001, "Server busy processing another command. Try again.")
+	if _active_session != null:
+		_send_error(session, req_id, -32001, "Server busy processing another command. Try again.")
 		return
-	_busy = true
-	_busy_since = Time.get_ticks_msec() / 1000.0
-	_current_id = req_id
+	session.request_running = true
+	session.request_id = req_id
+	_active_session = session
 
 	var command: String = method.trim_prefix(METHOD_PREFIX)
 
@@ -352,42 +363,49 @@ func _handle_command(json_str: String) -> void:
 			_send_response({"error": "Unknown command: %s" % command})
 
 
-func _handle_handshake(req_id: Variant, params: Dictionary) -> void:
+func _handle_handshake(session: RuntimeSession, req_id: Variant, params: Dictionary) -> void:
 	if params.get("protocolVersion", "") != PROTOCOL_VERSION:
-		_send_error(req_id, -32002, "Unsupported protocol version", {"supported": PROTOCOL_VERSION})
+		_send_error(session, req_id, -32002, "Unsupported protocol version", {"supported": PROTOCOL_VERSION})
 		return
-	_send_response_raw({"jsonrpc": "2.0", "id": req_id, "result": {
+	_send_response_raw(session, {"jsonrpc": "2.0", "id": req_id, "result": {
 		"protocolVersion": PROTOCOL_VERSION,
 		"capabilities": CAPABILITIES,
 	}})
 
 
-# Send response and clear busy flag
+# Send the active request's response only through the session that received it.
+# Disconnected sessions retain their request state until this point, then their
+# response is intentionally discarded rather than sent to a later connection.
 func _send_response(data: Dictionary) -> void:
-	_busy = false
-	_busy_since = 0.0
-	var id: Variant = _current_id
-	_current_id = null
-	if data.has("error"):
-		_send_error(id, -32000, str(data["error"]))
+	var session: RuntimeSession = _active_session
+	if session == null:
 		return
-	_send_response_raw({"jsonrpc": "2.0", "id": id, "result": data})
+	_active_session = null
+	session.request_running = false
+	var id: Variant = session.request_id
+	session.request_id = null
+	if data.has("error"):
+		_send_error(session, id, -32000, str(data["error"]))
+	else:
+		_send_response_raw(session, {"jsonrpc": "2.0", "id": id, "result": data})
+	if not session.connected:
+		_sessions.erase(session.id)
 
 
 # Send response without clearing busy flag (used when rejecting during busy state)
-func _send_response_raw(data: Dictionary) -> void:
-	if _client == null:
+func _send_response_raw(session: RuntimeSession, data: Dictionary) -> void:
+	if not session.connected or session.peer == null:
 		return
 	var json_str: String = JSON.stringify(data) + "\n"
 	var bytes: PackedByteArray = json_str.to_utf8_buffer()
-	_client.put_data(bytes)
+	session.peer.put_data(bytes)
 
 
-func _send_error(id: Variant, code: int, message: String, details: Variant = null) -> void:
+func _send_error(session: RuntimeSession, id: Variant, code: int, message: String, details: Variant = null) -> void:
 	var error: Dictionary = {"code": code, "message": message}
 	if details != null:
 		error["data"] = details
-	_send_response_raw({"jsonrpc": "2.0", "id": id, "error": error})
+	_send_response_raw(session, {"jsonrpc": "2.0", "id": id, "error": error})
 
 
 # --- Screenshot ---
@@ -4887,9 +4905,11 @@ func _exit_tree() -> void:
 	if _websocket != null:
 		_websocket.close()
 		_websocket = null
-	if _client != null:
-		_client.disconnect_from_host()
-		_client = null
+	for session: RuntimeSession in _sessions.values():
+		if session.peer != null:
+			session.peer.disconnect_from_host()
+	_sessions.clear()
+	_active_session = null
 	if _server != null:
 		_server.stop()
 		_server = null

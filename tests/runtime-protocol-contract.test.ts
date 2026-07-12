@@ -22,4 +22,16 @@ describe('runtime protocol contract', () => {
   it('uses the contract namespace for every runtime command method', () => {
     expect(commandMethod('get_scene_tree')).toBe('godot.runtime.get_scene_tree');
   });
+
+  it('keeps request state on a typed connection session', () => {
+    const gdscript = readFileSync(join(root, 'src/scripts/mcp_interaction_server.gd'), 'utf8');
+
+    expect(gdscript).toContain('class RuntimeSession:');
+    expect(gdscript).toContain('var _sessions: Dictionary = {}');
+    expect(gdscript).toContain('var _next_session_id: int = 1');
+    expect(gdscript).toContain('_send_response_raw(session,');
+    expect(gdscript).not.toContain('var _client: StreamPeerTCP');
+    expect(gdscript).not.toContain('var _busy: bool');
+    expect(gdscript).not.toContain('var _current_id: Variant');
+  });
 });
