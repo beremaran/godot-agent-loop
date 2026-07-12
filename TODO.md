@@ -1,122 +1,707 @@
-# GDScript Refactoring Audit
+# Godot MCP Verification and Capability Audit
 
-## Audit baseline
+## Technical summary
 
-- Scope: [godot_operations.gd](src/scripts/godot_operations.gd) (1,905 lines, 29 functions) and [mcp_interaction_server.gd](src/scripts/mcp_interaction_server.gd) (4,896 lines, 138 functions).
-- The TypeScript refactor provides the useful precedent: first introduce contract tests and service seams, then split the god class by domain, compose registries, make mutable state private, and finally add reliability tests. See `cadf8d0`, `d7a221c`, `feb0694`, `ca4f1dd`, `d42b436`, and `c5ad28b`.
-- This is a refactoring plan, not a request to change the public MCP tool surface. Preserve the JSON-RPC 2.0 protocol, the newline-delimited framing, the current headless operations, and the Godot 4.4+ compatibility floor while moving code.
-- Current automated coverage is TypeScript-side: it checks the published runtime contract and diagnostic parsing, but does not execute either shipped GDScript file in Godot. Godot is not installed in this audit environment, so runtime syntax and end-to-end behavior remain unverified here.
+Godot MCP has a substantial real-engine integration suite, but it cannot yet
+support the claim that all 157 advertised tools work end to end. The current
+tests prove four narrower things:
 
-## P0 — preserve request isolation and bound the runtime transport
+- 543 TypeScript tests cover schemas, registries, validation, handlers, services,
+  process management, and transport behavior.
+- Godot parses all 16 shipped GDScript files with selected warnings promoted to
+  errors.
+- 16 headless operations are invoked directly through Godot and pass 70 checks.
+- The runtime GDScript server is driven over loopback inside Godot and passes 315
+  checks.
 
-- [x] Replace the global `_client`, `_busy`, and `_current_id` request state in [mcp_interaction_server.gd:6](src/scripts/mcp_interaction_server.gd:6) with a typed connection/session object. Give every accepted socket a monotonically increasing session ID; retain that ID and peer for each in-flight request; send or discard the eventual response only for that same live session. Do not let a new connection inherit a previous request ID or receive its response.
-  - Evidence: `_process()` replaces `_client` whenever a new connection is available ([line 46](src/scripts/mcp_interaction_server.gd:46)), while async handlers resume later and `_send_response()` writes through the mutable global client ([lines 366–383](src/scripts/mcp_interaction_server.gd:366)). A disconnect also clears the global ID while an awaited handler can still resume ([lines 61–68](src/scripts/mcp_interaction_server.gd:61)).
-  - Acceptance: a second client cannot receive a first client's delayed response; disconnect/reconnect during `wait`, `eval`, screenshot, HTTP, or signal wait produces no malformed/null-ID response; all pending work is explicitly cancelled or safely ignored.
-- [x] Define explicit concurrency and cancellation semantics in `docs/runtime-api.schema.json` and both bindings. Choose and document one behavior for a second request while work is active (bounded queue or `-32001` busy); define the timeout/cancellation response and which commands are cancellable. Model the lifecycle as `received → running → responded | cancelled | timed_out` rather than resetting a boolean after an arbitrary interval.
-  - Evidence: the server currently rejects while `_busy` ([lines 118–123](src/scripts/mcp_interaction_server.gd:118)) and force-resets it after 120 seconds ([lines 36–43](src/scripts/mcp_interaction_server.gd:36)); the prior 30-second safeguard was introduced by `30eaf32` and later changed without a protocol-level outcome.
-  - Acceptance: no request can create more than one response, leave the server permanently busy, or have its response correlated to a different request.
-- [x] Put hard, configurable limits on request line size, receive-buffer size, JSON nesting/collection sizes where practical, response size, and work that returns binary data. On overflow, send a structured JSON-RPC error and close/reset only the offending session.
-  - Evidence: each frame is appended to `_buffer` until a newline appears ([lines 73–86](src/scripts/mcp_interaction_server.gd:73)); no cap exists. Screenshot responses base64-encode the entire viewport in memory ([lines 394–408](src/scripts/mcp_interaction_server.gd:394)).
-  - Implemented configurable Godot exports for framing, receive chunks/buffers, decoded JSON depth and collection size, response bytes, and screenshot pixels/PNG bytes. Frames are now buffered as raw bytes so invalid UTF-8 is rejected before JSON parsing; limit errors use JSON-RPC `-32006` and close only that session. Oversized responses fall back to the same structured error, while screenshots are rejected before base64 encoding.
-  - Acceptance: oversized partial frames, oversized complete frames, invalid UTF-8, and oversized screenshot payloads cannot cause unbounded growth or block future valid requests.
-- [x] Add Godot integration tests that drive real loopback TCP sessions: malformed frames, oversized frames, two clients, disconnect/reconnect during awaits, timeout, cancellation, and response-ID correlation. Run these against the minimum supported Godot release in CI.
-  - Implemented as a fixture project in `tests/godot/fixture/` whose `test_runner.gd` loads the shipped server and drives real `StreamPeerTCP` loopback clients: handshake and ID correlation (string and numeric IDs), `-32700`/`-32600` malformed frames, invalid UTF-8, oversized complete and partial frames, JSON depth/collection limits, `-32001` busy rejection across two clients, disconnect during `wait` with discarded orphan response, cross-session cancel rejection plus cooperative `-32003` cancellation, `await_signal` timeout (`-32004`), and the oversized-response `-32006` fallback. Run locally with `npm run test:godot` (resolves `GODOT_BIN`, then `godot4`/`godot`, then `GODOT_PATH`); CI runs it on Godot 4.4-stable via `.github/workflows/godot-integration.yml`.
-  - The tests exposed a transport bug, fixed in the same change: `_reject_and_close_session()` closed the socket while unread request bytes were still queued, producing a TCP RST that discarded the structured `-32006` error before the client could read it. The server now drains pending input (bounded by the receive-buffer limit) before disconnecting.
+The missing proof is the product boundary:
 
-## P1 — establish typed, domain-owned runtime command boundaries
+```text
+MCP client
+  -> built build/index.js server
+  -> MCP tool discovery and argument validation
+  -> real TypeScript handler and service
+  -> real subprocess or TCP transport
+  -> real Godot engine
+  -> observable engine or filesystem result
+  -> MCP response
+```
 
-- [x] Introduce a small typed transport layer: JSON-RPC request validation, session-aware response/error writers, framing, handshake, command execution lifecycle, and common error codes. Keep it independent of Godot subsystem commands.
-  - Extract the 266-line `_handle_command()` dispatcher ([line 89](src/scripts/mcp_interaction_server.gd:89)) into a registry that maps a command name to a typed handler descriptor (`params` validator, async/sync execution, capability, result serializer).
-  - Reject unknown commands with JSON-RPC `-32601`, not a successful transport envelope containing an application `error`; the current fallback routes through `_send_response({"error": ...})` ([lines 351–352](src/scripts/mcp_interaction_server.gd:351)).
-  - Implemented: the 270-line `match` is replaced by a typed `CommandDescriptor` registry (`command`, `handler: Callable`, `cancellable`) built in `_register_commands()`, grouped by domain to prepare the later domain split. All handlers now share the uniform `(params: Dictionary)` signature and one awaited execution path, so the transport layer never names subsystem commands. Unknown `godot.runtime.*` commands get `-32601` before any busy/lifecycle state is touched (documented as `routing` in the schema); `_handle_cancel` reads cancellability from the descriptor, with `CANCELLABLE_COMMANDS` remaining the declarative source that feeds registration. Per-command params validators/result serializers land with the validated-parameter-helpers item below; making the registry schema-authoritative is the next item.
-- [x] Make the published runtime schema authoritative for command names and request/result/error shapes. Generate or verify the TypeScript command names, GDScript registry entries, capabilities, and schema from one manifest; extend the present string-containment test in [runtime-protocol-contract.test.ts](tests/runtime-protocol-contract.test.ts) to reject missing, extra, and incorrectly shaped commands.
-  - This applies the TypeScript refactor's bidirectional registry validation (`feb0694` and `0ed6623`) to the cross-language runtime boundary.
-  - Implemented: `x-runtime-contract.commands` in `docs/runtime-api.schema.json` is now the authoritative manifest of all 108 runtime commands. `RUNTIME_COMMANDS` in [runtime-protocol.ts](src/runtime-protocol.ts) mirrors it and `GameConnection.send()` rejects non-manifest commands before they reach the wire. The contract test verifies exact set equality in all three directions (schema ↔ TypeScript constant ↔ GDScript `_register_command` entries ↔ commands sent by the TS tool handlers), plus manifest well-formedness: sorted, unique, method-pattern conformance, cancellable ⊆ commands, and no duplicate GDScript registrations.
-  - The bidirectional check immediately exposed real drift: the `game_visual_shader` MCP tool (added in `80d15a6`) sent a `visual_shader` runtime command that was never implemented in the GDScript server, so the tool had been broken since introduction. Implemented `_cmd_visual_shader` (create/add_node/connect/disconnect/get_nodes/apply against fragment graphs, with a shader-id service for multiple graphs) and covered it with loopback integration checks in the Godot fixture suite.
-- [x] Add shared GDScript helpers for validated parameter access (`required_string`, bounded number, enum, node path, resource path, array/dictionary) and standardized command failures. Convert handlers away from ad hoc `params.get()`, `str()`, and dynamic property access incrementally by domain.
-  - Acceptance: invalid parameter types, missing required fields, unknown action values, missing nodes, and Godot `Error` values have consistent structured errors and do not continue after failure.
-  - Implemented: a `CommandParams` reader records the first validation failure as a message plus structured `{param, reason, ...}` details (`missing`, `invalid_type`, `invalid_value` with `allowed`, `out_of_range` with `min`/`max`/`value`, `node_not_found`, `method_not_found`, `resource_not_found`, `godot_error` with `error_string`); `_params_invalid()` sends the standardized `-32000` failure and stops the handler, `_require_node()`/`required_resource_path()` cover node and resource lookups, and `_send_response` now forwards `error_data` as JSON-RPC `error.data` (documented as `commandFailureData` in the schema — additive, clients key on `error.code`). The full input domain (click, key_press/hold/release, scroll, mouse_move, mouse_drag, gamepad, touch, input_state, input_action) plus core exemplars (get_property, set_property, call_method, list_signals, instantiate_scene, change_scene) are converted and covered by loopback fixture tests; the remaining handlers convert domain-by-domain as each moves in the domain-split item below, using these helpers as the required pattern.
-- [x] Split command handlers into domain scripts/resources, initially: core scene/property/signal commands; input; UI; 2D; 3D/physics/navigation; rendering/environment; audio/animation; networking/multiplayer; and system/project state. Keep a thin autoload composition root that owns socket lifecycle and registers domains.
-  - Preserve stateful features behind dedicated services: held keys, debug-draw objects, canvas-draw objects, and WebSocket/HTTP objects currently live beside unrelated handlers ([lines 17–18](src/scripts/mcp_interaction_server.gd:17), [2680](src/scripts/mcp_interaction_server.gd:2680), [2798](src/scripts/mcp_interaction_server.gd:2798), and [3743](src/scripts/mcp_interaction_server.gd:3743)).
-  - Move a domain only after contract and behavior tests cover it; do not perform a single 4,896-line rewrite.
-  - Seam established: `src/scripts/mcp_runtime/` holds the shared `CommandParams` reader and a `RuntimeDomain` base class. Domains are `Node` children of the server, so `get_tree()`/`get_viewport()` resolve as before, and they reach the transport only through `RuntimeDomain` (`respond`, `params_invalid`, `require_node`, `godot_error_data`, `register_command`) — never through sessions, sockets, or the registry. `mcp_interaction_server.gd` is now the composition root: `_register_domains()` loads each script in `DOMAIN_SCRIPTS`, and `_register_command` still assigns cancellability from `CANCELLABLE_COMMANDS`, so one registry stays authoritative.
-  - Deployment follows the split: the server preloads `res://mcp_runtime/*.gd`, so a missing copy fails the autoload at parse time. `InteractionServerInstaller` now syncs the directory whenever the script is installed (and restores it when an existing install lost it), removes it with an MCP-owned install, and `scripts/build.js` plus the Godot fixture copy it alongside the server. Covered by `tests/interaction-server-installer.test.ts`, and the contract test now asserts every `res://mcp_runtime/...` path resolves on disk.
-  - Domains moved so far (server: 5,356 → 1,808 lines):
-    - [x] Input — 11 commands (click, key_press/hold/release, scroll, mouse_move, mouse_drag, gamepad, touch, input_state, input_action) plus the key map and the held-keys state that used to sit beside unrelated handlers. Chosen first because it was already converted to the validated-parameter helpers and covered by fixture tests. Behavior tests added before the move: awaited click responds on its own session, multi-frame `mouse_drag` responds exactly once, held actions persist across requests, and domain handlers still fail with standardized `-32000` errors.
-    - [x] UI — 9 commands (ui_theme, ui_control, ui_text, ui_popup, ui_tree, ui_item_list, ui_tabs, ui_menu, ui_range) plus the `_resolve_anchor_preset` and `_collect_tree_items` helpers. All handlers converted to the validated-parameter helpers during the move (typed node/class checks, enum-validated `action` values with `allowed` lists in error details, bounded indices); `RuntimeDomain` gained a `variant_to_json` forwarder so domains reach the codec without touching the server internals. Fixture behavior tests cover text/set-get, item-list mutation and selection, control configure/get_info, range values, theme overrides, and the standardized `-32000` failures for missing paths, wrong node classes, and unknown actions. The contract test's ownership guardrail is now table-driven per moved domain.
-    - [x] 2D — 7 commands (tilemap, canvas, canvas_draw, light_2d, parallax, shape_2d, path_2d) in `scene_2d_domain.gd`, which owns the canvas-draw node and its command list (the stateful service called out at the old [line 2798](src/scripts/mcp_interaction_server.gd:2798)). All handlers converted to the validated-parameter helpers during the move: enum-validated actions with `allowed` lists, typed class checks for TileMapLayer/Line2D/Polygon2D/Path2D/parallax nodes (previously `shape_2d` silently succeeded on wrong classes), per-item object validation for `cells`/`points` arrays, and validate-before-mutate ordering so a failed read never partially configures a node. Fixture behavior tests cover canvas layer create/configure, draw-command accumulation and clear across requests, light/parallax/path creation, Line2D point round-trips, tilemap reads, and the standardized `-32000` failures (wrong class, unknown action, missing node_path, missing parent). `physics_2d` stays for the physics/navigation domain move.
-    - [x] Physics/navigation — 8 commands (raycast, navigate_path, add_collision, physics_body, create_joint, navigation_3d, physics_3d, physics_2d) in `physics_domain.gd`, taking the deferred `physics_2d` from the 2D move. All handlers converted to the validated-parameter helpers: dimension-aware `shape_type` enums with `allowed` lists (previously unknown shapes were plain error strings), enum-validated joint types and actions, typed class checks for PhysicsBody/Area/NavigationRegion3D targets, and validate-before-await ordering so parameter failures respond without waiting on physics frames. `shape_query` now rejects unknown shape types instead of silently treating them as circles. Fixture behavior tests cover 2D/3D collision shape creation, physics_body property application, joint creation, navigation region setup, path queries, awaited ray/point/shape queries responding on their own session, and the standardized `-32000` failures. The 3D geometry commands (csg, multimesh, procedural_mesh, light_3d, mesh_instance, gridmap, 3d_effects, path_3d, terrain) stay for the rendering/3D-scene move.
-    - [x] Core scene/property/signal — 18 commands (scene-tree inspection; property get/set and method calls; node information, instantiation, removal, scene changes, spawning and reparenting; group queries/mutation; signal connect/disconnect/emit/list/await) in `core_domain.gd`. Property conversion and cancellable signal waits use narrow `RuntimeDomain` codec/cancellation/timeout helpers, leaving sessions and request IDs in the composition root. Existing loopback tests cover property access, node/resource failures, scene-change Godot errors, signal timeouts and cancellation; the fixture now asserts the domain is attached, and the ownership guardrail requires every moved command/helper to leave the server.
-    - [x] 3D scene/geometry — 9 commands (csg, multimesh, procedural_mesh, light_3d, mesh_instance, gridmap, 3d_effects, path_3d, terrain) in `scene_3d_domain.gd`, including the terrain mesh rebuild service and its persistent height/color metadata. The composition root no longer names these commands or owns their helpers. CSG routing now uses the validated-parameter helpers for enum actions/types/operations, parent lookup, and typed configure targets, yielding standardized `-32000` failures. Fixture behavior tests cover primitive mesh sizing, Path3D state across requests, terrain height generation/readback, wrong-class and unknown-action failures, and continued request handling; the ownership guardrail requires all nine commands and `_terrain_rebuild` to remain out of the server.
-    - [x] Rendering/environment — 13 commands (get_camera, set_camera, camera_attributes, set_shader_param, visual_shader, environment, set_particles, viewport, debug_draw, render_settings, sky, gi, video) in `rendering_domain.gd`. The domain owns the persistent visual-shader graph registry and debug-draw objects, including cleanup when the domain leaves the tree; the composition root no longer names these commands or owns their helpers/state. Action and GI-type routing plus shader target lookup use the validated-parameter helpers, producing standardized `-32000` failures with allowed-value details. Fixture behavior tests cover domain attachment, environment state across requests, debug-draw accumulation/clear, invalid actions, and continued request handling. The move also fixed an existing environment lookup bug that treated a `WorldEnvironment` node returned by `find_children()` as a dictionary.
-    - [x] Audio/animation — 11 commands (get_audio, audio_play, audio_bus, audio_effect, audio_bus_layout, audio_spatial, create_animation, animation_tree, animation_control, skeleton_ik, bone_pose) in `audio_animation_domain.gd`, including the audio-player discovery and bone-index helpers. The composition root no longer names these commands or owns their helpers. Node/class lookups and action routing now use the validated-parameter helpers, including allowed-value details for invalid actions. Fixture behavior tests cover domain attachment, animation-library discovery, audio-bus state, standardized invalid-action failures, and continued request handling; the ownership guardrail requires all 11 commands and both helpers to remain out of the server.
-    - [x] Networking/multiplayer — 4 commands (http_request, websocket, multiplayer, rpc) in `networking_domain.gd`, which owns and closes the persistent WebSocket peer and releases the multiplayer peer on teardown. URL/method/header inputs, actions, ports, peer counts, RPC targets, and RPC configuration now use the validated-parameter helpers, producing standardized `-32000` failures before network work. Fixture behavior tests cover domain attachment, disconnected WebSocket and multiplayer state, invalid actions, bounded ports, and continued request handling.
-    - [x] System/project state — 7 commands (window, os_info, time_scale, process_mode, world_settings, locale, resource) in `system_domain.gd`. Window/engine settings, node process modes, localization actions, and resource paths now use the validated-parameter helpers, including allowed-value and resource-path details. Fixture behavior tests cover domain attachment, OS and project-resource state, invalid locale/process-mode values, and continued request handling. With these moves, every subsystem group named in this split is domain-owned and the composition root retains only cross-cutting runtime commands pending later codec and privileged-command policy work.
-  - The contract test scans the server and every domain script, so the schema ↔ TypeScript ↔ GDScript registry equality still holds across the split, and a guardrail test asserts domain-owned commands and their state have left the composition root.
+No automated test currently traverses that entire path. The real-Godot tests
+enter at the GDScript CLI or runtime TCP protocol, while many TypeScript handler
+tests simulate handler patterns. Consequently, this audit treats a tool as fully
+verified only after its complete MCP path, every public action, important option
+family, failure behavior, and cleanup invariant have engine-backed coverage.
 
-## P1 — make serialization and dynamic execution deliberate boundaries
+At the audited baseline:
 
-- [x] Extract and type the JSON/Variant codec, including `_variant_to_json()` ([line 845](src/scripts/mcp_interaction_server.gd:845)), `_json_to_variant()` ([line 944](src/scripts/mcp_interaction_server.gd:944)), and property-aware conversion. Define supported Variant types, tagged representations, precision rules, resource/node handling, recursion and collection limits, and errors for unsupported values in the runtime schema.
-  - Implemented as the typed `mcp_runtime/variant_codec.gd` service shared by the composition root and every runtime domain. It owns JSON-safe encoding, explicit and property-aware decoding, supported type hints and object tags; the server retains only narrow forwarding helpers for its remaining cross-cutting commands. Encoding rejects unsupported Variants, cycles, excess depth, and excess collection size with structured `-32000` codec reasons, and decoding rejects unknown type hints. The schema documents every representation, tagged Node/Resource/Object behavior, non-rehydratable object tags, limits, error reasons, and JSON/JavaScript's interoperable integer precision boundary. Existing loopback integration coverage remains green on Godot 4.7 (284 checks), including the exhaustive round-trip/negative fixture corpus.
-- [x] Add round-trip and negative tests in Godot for every supported Variant category, nested resources/arrays/dictionaries, unsupported objects, cycles, malformed type hints, and serialization depth limits. Cross-check a fixture corpus from TypeScript so the two sides cannot drift.
-  - Implemented: `tests/variant-codec-corpus.json` is the shared wire corpus consumed by the TypeScript contract test and copied into the Godot fixture. The Godot suite covers primitives, all documented math types, NodePath/StringName, packed arrays, nested resources/arrays/dictionaries, Node/Resource/Object tags, unsupported Callable/Signal/RID values, array/dictionary cycles, malformed type hints, depth limits, collection limits, and typed decode round-trips. Nested codec failures now propagate as a failed encode, and each encode/decode starts with a clean structured-error slot. Coverage is 284 Godot checks plus 532 TypeScript tests.
-- [x] Isolate `eval`, arbitrary property/method invocation, RPC, script control, and HTTP/WebSocket operations behind an explicit privileged-command policy. Keep their powerful behavior only if it is intentional for a localhost developer tool; document the trust boundary, add opt-in configuration/capabilities if needed, and ensure errors cannot expose arbitrary project secrets in logs or responses.
-  - Implemented `mcp_runtime/privileged_command_policy.gd` and a typed command-descriptor flag. `eval`, `get_property`, `set_property`, `call_method`, `rpc`, `script`, `http_request`, and `websocket` now return `-32007` before validation or execution unless the server's `allow_privileged_commands` export or inherited `GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS=true` opt-in is active. Denial data contains only the command/capability policy metadata; request params, source, property values, URLs, headers, and engine error text are not echoed.
-  - The handshake advertises `privileged-commands` only when enabled. `GameConnection` requests and requires that optional capability when its matching opt-in is enabled, and otherwise rejects privileged sends locally. The schema, README trust-boundary/configuration docs, TypeScript contract tests, connection tests, and loopback Godot fixture cover disabled, enabled, capability, response-redaction, and continued-service behavior.
+| Coverage class | Tools | Meaning |
+| --- | ---: | --- |
+| Full MCP-to-Godot E2E | 0 | Complete public path is exercised against Godot |
+| Direct real-Godot headless | 16 | GDScript CLI operation is exercised against Godot |
+| Direct real-Godot runtime, positive behavior | 45 | At least one successful runtime behavior is exercised |
+| Direct real-Godot runtime, negative behavior only | 14 | Only denial, validation, timeout, or failure behavior is exercised |
+| TypeScript/contract only | 82 | No direct successful real-Godot behavior was found |
+| **Advertised tools** | **157** | Unique names in `src/tool-definitions.ts` |
 
-## P1 — refactor the headless operations runner into typed services
+These classes describe minimum observed coverage, not completeness. A `G+` tool
+may expose many actions while only one action is tested.
 
-- [x] Replace the global `@warning_ignore_start` in [godot_operations.gd:3](src/scripts/godot_operations.gd:3) with incremental static typing: typed `debug_mode`, `_init() -> void`, logging helpers, operation parameters, return types, dictionaries/arrays, and checked casts. Retain narrowly scoped suppressions only where engine APIs necessarily expose `Variant`.
-  - The current project-wide suppression masks `untyped_declaration`, inference, unsafe property/method access, casts, call arguments, ignored return values, and enum conversions, preventing Godot's strict-warning mode from finding regressions.
-  - Implemented: the blanket suppression is gone. `debug_mode: bool`, `_init() -> void`, the logging helpers, all 16 operations (`params: Dictionary` → `-> void`), and every local, collection, and `Error` value are typed; scene/resource loads use checked casts (`load(path) as PackedScene`, `instantiate_class() as Node` via `instantiate_node`). JSON's `Variant` boundary is confined to `_param_string`/`_param_dictionary`/`_param_array` (which replace ad hoc `params.foo` dynamic access) and the `_variant_to_float`/`_variant_to_int`/`_variant_to_bool` narrowers behind `_convert_property_value`, so the only remaining suppressions are per-line `@warning_ignore` for those conversions and for discarded engine return values (`store_string`, `list_dir_begin`, packed-array `append`).
-  - Verified against Godot 4.7 with `untyped_declaration`, `unsafe_property_access`, `unsafe_method_access`, `unsafe_cast`, `unsafe_call_argument`, `return_value_discarded`, `narrowing_conversion`, `int_as_enum_without_cast`, and `inference_on_variant` promoted to errors: the file parses clean (the pre-refactor file reports 872 such warnings). All 16 operations were run against a throwaway project before and after; success output is byte-identical apart from backtrace line numbers.
-  - Typing exposed three latent bugs, fixed here. Failure branches now `return` after `quit(1)` (which only requests a quit), so `load_sprite` no longer prints "Sprite loaded successfully" after failing to load the texture, and `modify_node`/`create_scene` no longer crash on a null instance after reporting a missing node or an uninstantiable root type. `export_mesh_library` passed a `Mesh` to `MeshLibrary.set_item_preview()`, which takes a `Texture2D`; the call never had any effect and is removed. The `quit(exit_code)`-versus-`quit()` interaction (every failure still exits 0) belongs to the CLI/registry item below.
-- [x] Extract a typed CLI/parser and operation registry from `_init()` ([lines 8–97](src/scripts/godot_operations.gd:8)). Validate operation name and JSON object before dispatch; give every operation a single `Result`-style outcome so only the entry point logs and calls `quit(exit_code)`.
-  - Replace scattered `printerr()`/`quit(1)` branches with typed errors returned to the runner. Add an explicit `return` after terminal failures until the shared runner is in place.
-  - Implemented: `_operations: Dictionary[String, Callable]` is the single registry of the 16 operations, and the 36-line `match` in `_init()` is gone. A typed `_parse_cli()` returns a `CliInvocation` (operation, params, errors) and validates the whole command line — `--script` position, argument count, a registered operation name (unknown names list the known ones), JSON that parses, and JSON that is an *object* — before anything dispatches. Every operation now returns `OperationResult` (`ok` plus error lines) built with `_ok()`/`_fail()`; `resave_resources` accumulates its per-file failures into one result instead of printing as it goes. `_init()` is the only place that reports errors (via `log_error`) and the only place that calls `quit()`, satisfying the later "no direct `quit()` outside the CLI entry point" guardrail. Operation success/progress output on stdout is unchanged, so the TypeScript-side `SCENE_JSON_START`/`RESOURCE_JSON_START`/`THEME_JSON_START`/`SIGNALS_JSON_START` payloads and messages still parse.
-  - This closes the `quit(exit_code)`-versus-`quit()` bug deferred from the static-typing item: the trailing `quit()` used to reset every failure's exit status, so **every** operation exited 0 and `HeadlessOperationService.run()` reported failures as successes. Failures now exit 1 and surface as MCP error responses.
-  - Validating before dispatch fixed two more latent bugs. Empty params (`{}`) were falsy under the old `if not params:` check, so `resave_resources {}` and `get_uid {}` logged a bogus "Failed to parse JSON parameters" error. And because the old unknown-operation/parse-failure branches only called `quit(1)` without returning, execution fell through into the `match`: `create_scene "not json"` and `create_scene [1,2,3]` ran the operation with empty params and tried to save a scene at an empty path. Both now stop at the parser.
-  - Verified against Godot 4.7 with the same strict-warning promotions as the typing item (the file parses clean), and by running all 16 operations plus 30 failure and CLI-error cases against a throwaway project on the pre- and post-refactor scripts. Success output is byte-identical apart from temp paths, object IDs, and backtrace line numbers; failure output differs only by the `[ERROR]` prefix (errors now route through `log_error`), the added allowed-action detail lines, and exit 0 → 1. `npm test` (534), `npm run lint`, Markdown lint, and the Godot fixture suite (298 checks) are green.
-- [x] Extract shared project/path, scene loading/packing/saving, directory creation, class/resource resolution, and property conversion helpers. Reuse them across the 16 operations so each operation only validates its request and performs domain work.
-  - `create_scene()` currently combines argument handling, path normalization, environment diagnostics, temporary-file probes, directory creation, packing, saving, and verification; it is the first extraction candidate ([line 195](src/scripts/godot_operations.gd:195)).
-  - Implemented (2,018 → 1,384 lines). The services are `_res_path`/`_res_relative` (path normalization), `_ensure_directory` (one implementation of the four copies, with the absolute-path fallback the others lacked), `_open_scene` → `OpenScene` (exists check, load, instantiate), `_resolve_scene_node` (the tool's `""`/`root`/`.`/`root/...` addressing, now shared instead of re-derived in five operations), `_save_scene_root` (pack) and `_save_resource` (ensure directory, save, verify, decode the save `Error`), `_open_resource` → `OpenResource`, and `_apply_properties` over the existing `_convert_property_value`. `export_mesh_library` also gained `_find_mesh_instance`/`_find_collision_shape`. Class/resource resolution was already isolated in `instantiate_class`/`get_script_by_name` and is reused as-is. `create_scene` is now 30 lines; the 293-line original is gone, and every operation reads as request validation plus domain work.
-  - `read_scene` deliberately keeps its own load path: it falls back to the scene's raw text when a `PackedScene` cannot be loaded, so it cannot use `_open_scene`. `manage_scene_signals` edits `.tscn` text directly and shares only the path normalization.
-  - Behavior verified against Godot 4.7 by running all 16 operations plus 40 failure and CLI-error cases against a throwaway project on the pre- and post-refactor scripts. Exit codes, `SCENE_JSON_START`/`RESOURCE_JSON_START`/`THEME_JSON_START`/`SIGNALS_JSON_START` payloads, the written file set, and the saved scene/resource contents match. Four intentional differences: log lines now print the normalized `res://` path; the engine's "Node not found" error and backtrace no longer appear, because node lookups moved from `get_node()` to `get_node_or_null()`; property assignments log at debug level (`add_node`'s level) instead of info; and `remove_node` on `root` now fails with "Cannot remove the root node of a scene" rather than "Node not found: root", since the shared resolver understands root addressing. The file still parses clean with the strict-warning promotions from the typing item.
-  - Sharing the save path exposed one latent inconsistency: `_save_resource` verifies the file exists after `ResourceSaver.save()`, which `resave_resources` previously did only in debug mode. Requiring the `.uid` sidecar to appear would have failed every project, since the engine does not write one for every resource type, so the UID counter treats a still-missing sidecar as "not generated" rather than an error.
-- [x] Treat debug diagnostics as a separate, opt-in service. Do not write probe files in normal operation paths; guarantee cleanup on every branch and ensure debug logs redact parameter values that may contain file paths, tokens, or source.
-  - Implemented as the `DebugDiagnostics` service in [godot_operations.gd](src/scripts/godot_operations.gd), constructed only under `--debug-godot`. It owns debug logging, the project-environment dump, the write-access probe, and redaction; `_diagnostics == null` is now the single "diagnostics off" check, replacing the ad hoc `if debug_mode: print(...)` blocks scattered through `get_script_by_name`, `instantiate_class`, `create_scene`, and `resave_resources`.
-  - Diagnostics were not actually opt-in: [headless-operation-runner.ts](src/headless-operation-runner.ts) defaulted `debugGodot` to `true`, so **every** production operation ran with `--debug-godot`. Each `create_scene` therefore wrote `godot_mcp_test_write.tmp` into the user's project (twice, on a save failure) and printed the full params JSON. The flag now defaults to `false` and the composition root passes the server's own `debugMode`, so `DEBUG=true` is the single switch.
-  - Probes are now safe when they do run: each probe file gets a unique name (`godot_mcp_write_probe_<usec>.tmp`), an existing file at that path is never overwritten, and removal is attempted on every branch that created one. Verified against a read-only directory: the failed-save probe reports the permission error and leaves no file behind.
-  - Redaction covers both bindings. The GDScript diagnostics and the TypeScript runner's debug logs summarize each parameter as `key: <string, N chars>` / `<object, N keys>` / `<array, N items>` (numbers and booleans, which cannot carry a secret, are still printed), the raw params JSON is no longer logged on either side, the logged Godot command line replaces the params argument with `<params>`, and the environment dump lists which variables are set instead of their values (`PATH`, `HOME`, and `GODOT_PATH` are paths).
-  - Verified against Godot 4.7: the script still parses clean with the strict-warning promotions from the typing item, and all 16 operations plus failure and CLI-error cases were run against a throwaway project on the pre- and post-refactor scripts — output, exit codes, and the produced file set are identical apart from backtrace line numbers, and a normal run now leaves no probe file. `npm test` (537, including new `tests/headless-operation-runner.test.ts` cases that pin the default-off flag and the redaction), `npm run lint`, Markdown lint, and the Godot fixture suite (298 checks) are green.
+The immediate priority is therefore not adding more tools. It is building a
+traceable MCP E2E harness, closing every row in the inventory below, and making
+coverage completeness mechanically enforceable.
 
-## P2 — verification, rollout, and maintainability gates
+## Scope and definitions
 
-- [x] Add an isolated fixture Godot project and a CI job using the documented minimum Godot 4.4 release plus the current supported release. Parse/type-check both shipped scripts with warnings promoted to errors, run every headless operation against fixtures, and exercise runtime commands over TCP.
-  - The CI job (`.github/workflows/godot-integration.yml`) is now a matrix over Godot 4.4-stable (the documented minimum) and 4.7-stable (the current release), running three suites on each: the type check, the headless operations, and the existing TCP runtime tests. `npm run test:godot` runs all three locally, and `test:godot:typecheck`/`test:godot:operations`/`test:godot:runtime` run them individually; all three resolve the engine through the shared `tests/godot/godot-bin.sh`. Verified locally against both 4.4-stable and 4.7-stable: 16 scripts type-checked, 53 operation checks, 298 runtime checks.
-  - Type check: `tests/godot/run-typecheck.sh` parses `godot_operations.gd`, `mcp_interaction_server.gd`, and all 13 `mcp_runtime/*.gd` scripts with `--check-only` in a project whose `project.godot` promotes GDScript warnings to errors. It is two tiers, because the two shipped scripts are not at the same typing bar. `tests/godot/typecheck/headless/` promotes everything `godot_operations.gd` satisfies after its typing pass, including the full unsafe-access/untyped-declaration family. `tests/godot/typecheck/runtime/` promotes everything the runtime side satisfies today — dead code, unused parameters, shadowing, narrowing, enum, and standalone-expression warnings — and leaves the type-strictness family at warn level. Each tier's `project.godot` names the warnings it does not satisfy, so weakening the gate cannot pass unnoticed.
-  - The runtime server never had the static-typing pass `godot_operations.gd` got, so promoting `untyped_declaration`, `unsafe_property_access`, `unsafe_method_access`, `unsafe_cast`, `unsafe_call_argument`, `return_value_discarded`, and `int_as_enum_without_cast` fails 13 of its 14 files. `shadowed_variable_base_class` fails both scripts (locals named `root` shadow `SceneTree.root`; handler parameters named `name` shadow `Node.name`). Both are folded into the source-guardrails item below rather than silently dropped.
-  - Headless operations: `tests/godot/run-headless-operations.sh` copies `tests/godot/operations-fixture/` to a scratch directory (the operations write into the project they target) and invokes the script exactly as [headless-operation-runner.ts](src/headless-operation-runner.ts) does — absolute script path, operation name, one JSON params object. All 16 operations are covered end to end, asserting exit status, the `SCENE_JSON_START`/`RESOURCE_JSON_START`/`THEME_JSON_START`/`SIGNALS_JSON_START` payloads, and the scene/resource files each one writes, plus failure cases (uninstantiable type, missing scene, missing node, unknown action, unknown operation, malformed and non-object params JSON) that pin the non-zero exit status `HeadlessOperationService` depends on, and a check that no diagnostics probe file is left behind.
-  - The operations suite exposed a spurious engine error, fixed here: `create_scene` assigned the scene root as its own owner, which `Node.set_owner()` rejects outright (`Condition "p_owner == this" is true`), so every `create_scene` call printed an engine error and a GDScript backtrace into its output. The assignment was always a no-op — `PackedScene.pack()` stores the root regardless — and is removed.
-- [x] Add behavior-focused tests before each domain move: scene save/reload invariants, resource persistence, signal connection/disconnection, frame/physics awaits, node ownership, draw-object cleanup, input release on exit, and structured error/exit status. Preserve the end-to-end cases added in `29bf0b2` as permanent regression fixtures.
-  - Each domain move above landed with its behavior tests first, and the earlier items list them. This closes the remaining categories that no move happened to cover. Runtime (`tests/godot/fixture/test_runner.gd`, 298 → 315 checks): the full signal lifecycle (connect invokes the target method, `list_signals` reports the live connection, `emit_signal` passes args, a disconnected signal stops firing, an unknown signal fails instead of hanging); render and physics frame awaits, asserted against `Engine.get_process_frames()`/`get_physics_frames()` and against a second queued response; and teardown of the state the domains leave outside themselves. Headless (`tests/godot/run-headless-operations.sh`, 53 → 70 checks): the `29bf0b2` cases as permanent fixtures — a `res://` path on an Object-typed property persists as an `ext_resource`, `duplicate` yields the addressable `Enemy2` rather than `@Enemy@2` and keeps the original's children, `move` carries descendants (`parent="Enemies/Enemy"`), the edited scene still reloads as a valid tree through `read_scene`, and a rejected edit (unknown action, missing node) leaves the `.tscn` byte-for-byte unchanged. Resource persistence, structured errors, and exit status were already covered by the operations suite.
-  - The teardown tests exposed two real leaks, fixed here. `key_hold` deliberately leaves a key or action pressed, and `Input` state is global and outlives the server, so a held key stayed pressed forever once the server went away; `input_domain.gd` now releases everything in `_held_keys` on `_exit_tree()`. The canvas-draw node is parented into the *scene*, not under the domain, so it survived the server it belongs to; `scene_2d_domain.gd` now frees it and clears the command list on `_exit_tree()`. The rendering and networking domains already had this cleanup.
-- [x] Add lightweight source guardrails: no broad warning suppression, every public handler has typed parameters and `-> void`/result type, no direct `quit()` outside the CLI entry point, no direct socket writes outside transport, and every runtime command exists exactly once in the registry/schema/tests.
-  - The runtime side has had the static-typing pass `godot_operations.gd` already had, so both tiers of `tests/godot/run-typecheck.sh` now promote the same 40 warnings. The runtime tier's deferred set is gone: `untyped_declaration`, `unsafe_property_access`, `unsafe_method_access`, `unsafe_cast`, `unsafe_call_argument`, `return_value_discarded`, `int_as_enum_without_cast`, `shadowed_variable_base_class`, and `confusable_local_declaration` are errors, and `shadowed_variable_base_class`/`confusable_local_declaration` are promoted in the headless tier too. Only `inferred_declaration` stays at warn, in both tiers, and its project.godot says why: `:=` is used throughout and is a style preference, not a safety warning, since `untyped_declaration` already rejects an untyped `var`. All 16 shipped scripts parse clean.
-  - The pass cleared 407 warnings across the server and its 13 runtime scripts. The bulk (201) was the untyped JSON boundary: `float()`/`int()`/`bool()` fed a `Variant` from a params dictionary. `CommandParams` now owns that boundary as static narrowers (`to_float`/`to_int`/`to_bool`, the `json_*` object-member readers, and `as_dictionary`/`as_array`), so the 271 rewritten call sites need no suppression at all and the engine's `Variant` constructors are reached from exactly two functions (`to_float` and `to_int`). The rest was typed locals in place of `as` casts from `Variant`, typed `for` iterators, and typed sub-objects. `RuntimeDomain` now names the server's script (`preload` is acyclic: the composition root loads domains by path, not by preload), so all ten transport helpers are typed.
-  - The narrowers also close a latent hang. The engine's `float()`/`int()` raise a script error on a type they cannot convert, and `bool()` rejects even a `String`; inside a handler that error abandoned the request with no response, so a client that sent `{"position": {"x": null}}` waited for a reply that never came. The narrowers fall back to the caller's default instead.
-  - Only the genuinely dynamic seams keep a suppression, each a per-line `@warning_ignore` naming its warning: loading a domain script by path, calling into the script `eval` compiles at request time, and discarding an engine return value (`erase`, `poll`, `put_data`, `connect`, packed-array `append`). The runtime side carries 47 per-line suppressions in total: 40 discarded engine returns, 3 dynamic calls, and the 2 narrowers. `params_invalid()` is no longer discarded either: `_send_params_error()` is the void sibling for the 23 handlers that fail the reader themselves and stop.
-  - The guardrails Godot's warnings cannot express are `tests/source-guardrails.test.ts` (6 checks): no `@warning_ignore_start`/`_restore` anywhere, every `@warning_ignore` names its warning, every `_cmd_*` handler takes `(params: Dictionary)` and returns `-> void` (108 handlers), `quit()` only inside the headless `_init()`, socket writes only in the transport layer, and no domain touching `_sessions`, `_active_session`, or a request id. Each check was verified to fail against a planted violation. Command-registry uniqueness across schema, TypeScript, and GDScript was already enforced by the contract test.
-  - Verified on Godot 4.7: type check 16 scripts, 70 headless operation checks, 315 runtime loopback checks, 543 TypeScript tests, ESLint, and Markdown lint all green. Godot 4.4 (the documented minimum) is covered by the CI matrix rather than locally; the pass adds no API newer than the typed `Dictionary[K, V]` the headless script already used.
-- [x] Migrate in small, reversible commits matching the successful TypeScript sequence: contract tests and seams; transport/session state; codec; one handler domain at a time; headless shared services; then delete compatibility shims. After each commit run `npm test`, `npm run lint`, Markdown lint, and the Godot fixture suite.
-  - The history follows the planned reversible sequence: session isolation and lifecycle (`455c4ac`, `c1310f2`), transport limits and loopback fixtures (`1eb0ec5`, `965b71e`), command registry/schema/parameter seams (`25eb667`, `1c60c3f`, `ab913d3`), ten incremental domain moves (`d5a2e67` through `3aec2fc`), codec extraction and corpus tests (`29304fc`, `5861075`), headless typing/CLI/shared services/diagnostics (`a5cfb8e` through `a45c073`), then the fixture and source gates (`373db84`, `b85c7f5`, `1dde90a`). Each step is independently revertible and preserved the public runtime command manifest.
-  - The final compatibility-shim audit found no duplicate moved handlers or legacy registry path: domain commands register only through `RuntimeDomain`, while the composition root retains only transport and cross-cutting commands. Removed the stale in-progress migration comments and empty domain markers that remained after the split. Fresh verification: `npm test`, `npm run lint`, `npm run lint:md`, and `npm run test:godot` are green.
+### Audit scope
 
-## Proposed implementation order
+This report audits the repository's current advertised surface and the major
+Godot workflows users would reasonably expect from a project claiming full
+engine control. It covers:
 
-1. Add the Godot fixture harness and protocol/session regression tests without changing behavior.
-2. Extract the runtime transport/session layer and fix replacement/disconnect/buffer-limit behavior.
-3. Make registry/schema validation bidirectional, then split the runtime handlers one domain at a time.
-4. Extract the codec and apply typed parameter/result boundaries.
-5. Refactor the headless CLI, shared scene/path services, and strict typing.
-6. Enable the static guardrails and remove obsolete compatibility code only after full fixture coverage is green.
+- all 157 MCP tool definitions;
+- all 96 runtime commands in `docs/runtime-api.schema.json`;
+- all 16 operations exposed by `godot_operations.gd`;
+- TypeScript validation, routing, service, process, and connection layers;
+- Godot 4.4 compatibility-floor and 4.7 primary-target CI;
+- GDScript, .NET, editor, runtime, import, export, debugging, profiling,
+  networking, rendering, and platform concerns.
+
+It does not claim to enumerate every API in the Godot class reference. New
+capabilities must be justified by an agent workflow or a documented product
+promise, rather than by pursuing one MCP wrapper per engine method.
+
+### Coverage levels
+
+- **E2E**: an MCP client calls the built server and verifies the final Godot
+  result through an independent observation.
+- **H**: a headless GDScript operation is called directly through the Godot
+  executable and its result is checked.
+- **G+**: a runtime command reaches a real Godot instance and at least one
+  successful behavior is checked.
+- **G-**: a runtime command reaches real Godot, but only a negative path is
+  checked.
+- **T**: only TypeScript, source-contract, schema, or mocked-transport coverage
+  was found.
+
+An independent observation must not merely repeat the command response. Examples
+include reloading a saved scene, reading a property in a subsequent request,
+observing a signal callback, inspecting an exported artifact, or checking a
+rendered pixel.
+
+### Required test dimensions
+
+Every public tool/action must be assessed against these dimensions. “Not
+applicable” must be recorded explicitly rather than silently skipped.
+
+- happy path and independently observed result;
+- required, optional, defaulted, enum, range, union, and structured parameters;
+- invalid type/value, missing target, engine error, timeout, and cancellation;
+- repeatability, idempotency where promised, and partial-failure atomicity;
+- cleanup of nodes, resources, sockets, input state, temporary files, and child
+  processes;
+- scene reload/resource persistence for authoring operations;
+- paused-tree, render-frame, and physics-frame behavior where relevant;
+- project paths containing spaces and non-ASCII characters;
+- large but permitted requests/responses and protocol limits;
+- compatibility on Godot 4.4 and 4.7;
+- Linux headless plus every additional platform or display mode claimed;
+- standard and .NET Godot builds where the tool is language-sensitive;
+- security policy and secret-redaction behavior for privileged operations.
+
+## Evidence and methodology
+
+The baseline is derived from the repository rather than README claims:
+
+- `src/tool-definitions.ts` is the denominator for the 157 MCP tools.
+- `docs/runtime-api.schema.json` is the denominator for 96 runtime commands.
+- `tests/godot/run-typecheck.sh` parses the shipped GDScript in Godot.
+- `tests/godot/run-headless-operations.sh` invokes the 16 headless operations.
+- `tests/godot/fixture/test_runner.gd` drives the runtime server over TCP.
+- `tests/**/*.test.ts` supplies TypeScript, contract, and mocked-boundary tests.
+- `.github/workflows/godot-integration.yml` runs the Godot suites on 4.4 and 4.7.
+
+Local verification on Godot 4.7 produced 543/543 TypeScript tests, 16/16 strict
+script parses, 70/70 headless checks, and 315/315 runtime checks. The runtime
+process also reported one leaked `ObjectDB` instance at exit. That warning is a
+release-gate gap even though the test process returned success.
+
+Classification is intentionally conservative:
+
+- dispatch alone is not successful behavior coverage;
+- policy denial is not privileged-command functionality coverage;
+- one action does not cover other actions exposed by the same tool;
+- source inspection and mocked connections are not Godot integration;
+- a response assertion without an independent effect assertion is insufficient
+  for mutation tools.
+
+## Exhaustive advertised-tool traceability checklist
+
+Each tool appears exactly once below. Replace its baseline label with `[x] E2E`
+only after the definition of done is satisfied for all its public actions. Track
+action-level cases in test names or a generated manifest; this inventory is the
+release-level rollup.
+
+### Project lifecycle and discovery
+
+- [ ] **T** `launch_editor`
+- [ ] **T** `run_project`
+- [ ] **T** `get_debug_output`
+- [ ] **T** `stop_project`
+- [ ] **T** `get_godot_version`
+- [ ] **T** `list_projects`
+- [ ] **T** `get_project_info`
+
+Required E2E additions: launch/stop process ownership, repeated launches,
+crashes, startup timeout, output ordering, paths with spaces, missing binaries,
+editor versus game processes, and cleanup after MCP server termination.
+
+### Scene authoring and headless operations
+
+- [ ] **H** `create_scene`
+- [ ] **H** `add_node`
+- [ ] **H** `load_sprite`
+- [ ] **H** `export_mesh_library`
+- [ ] **H** `save_scene`
+- [ ] **H** `get_uid`
+- [ ] **H** `update_project_uids`
+- [ ] **H** `read_scene`
+- [ ] **H** `modify_scene_node`
+- [ ] **H** `remove_scene_node`
+- [ ] **H** `attach_script`
+- [ ] **H** `create_resource`
+- [ ] **H** `manage_resource`
+- [ ] **H** `manage_scene_signals`
+- [ ] **H** `manage_theme_resource`
+- [ ] **H** `manage_scene_structure`
+
+Required E2E additions: traverse the MCP server, cover every action, use inherited
+and instantiated scenes, editable children, unique names, external/subresources,
+resource-typed properties, script classes, cyclic dependencies, corrupt scenes,
+and verify save/reload invariants independently.
+
+### Project settings, files, scripts, and editor configuration
+
+- [ ] **T** `read_project_settings`
+- [ ] **T** `modify_project_settings`
+- [ ] **T** `list_project_files`
+- [ ] **T** `read_file`
+- [ ] **T** `write_file`
+- [ ] **T** `delete_file`
+- [ ] **T** `create_directory`
+- [ ] **T** `rename_file`
+- [ ] **T** `validate_script`
+- [ ] **T** `validate_scripts`
+- [ ] **T** `create_script`
+- [ ] **T** `manage_autoloads`
+- [ ] **T** `manage_input_map`
+- [ ] **T** `manage_export_presets`
+- [ ] **T** `manage_layers`
+- [ ] **T** `manage_plugins`
+- [ ] **T** `manage_shader`
+- [ ] **T** `set_main_scene`
+- [ ] **T** `manage_translations`
+
+Required E2E additions: validate resulting configuration by reopening it through
+Godot, test import-triggering file changes, UID/reference preservation, encoding
+and line endings, symlink and traversal rejection, read-only files, atomic
+writes, plugin lifecycle, autoload order, real shader compilation, and
+translation loading.
+
+### Project creation, .NET, export, and delivery automation
+
+- [ ] **T** `create_project`
+- [ ] **T** `create_csharp_script`
+- [ ] **T** `export_project`
+- [ ] **T** `manage_ci_pipeline`
+- [ ] **T** `manage_docker_export`
+
+Required E2E additions: create both GDScript and .NET projects, import and run
+them, compile generated C# with the matching Godot.NET.Sdk, validate diagnostics,
+build real exports with installed templates, inspect artifacts, smoke-run a
+supported exported target, and syntax/build-test generated CI and container
+files.
+
+### Runtime inspection, mutation, state, and lifecycle
+
+- [ ] **T** `game_screenshot`
+- [ ] **T** `game_get_ui`
+- [ ] **G+** `game_get_scene_tree`
+- [ ] **G+** `game_eval`
+- [ ] **G+** `game_get_property`
+- [ ] **G-** `game_set_property`
+- [ ] **G-** `game_call_method`
+- [ ] **T** `game_get_node_info`
+- [ ] **G-** `game_instantiate_scene`
+- [ ] **T** `game_remove_node`
+- [ ] **G-** `game_change_scene`
+- [ ] **T** `game_pause`
+- [ ] **T** `game_performance`
+- [ ] **G+** `game_wait`
+- [ ] **T** `game_get_nodes_in_group`
+- [ ] **T** `game_find_nodes_by_class`
+- [ ] **T** `game_reparent_node`
+- [ ] **T** `game_get_errors`
+- [ ] **T** `game_get_logs`
+- [ ] **T** `game_spawn_node`
+- [ ] **T** `game_manage_group`
+- [ ] **T** `game_create_timer`
+- [ ] **T** `game_serialize_state`
+- [ ] **G-** `game_script`
+- [ ] **T** `game_time_scale`
+- [ ] **G-** `game_process_mode`
+- [ ] **T** `game_world_settings`
+- [ ] **G+** `game_os_info`
+- [ ] **T** `game_window`
+- [ ] **T** `game_locale`
+
+Required E2E additions: successful privileged mutations, typed values across the
+codec corpus, absolute and scene-relative paths, scene transitions, freed-node
+races, pause/time-scale behavior, log/error cursors, state save/load fidelity,
+window/display limitations in headless mode, and screenshots checked by decoded
+dimensions plus deterministic pixel fixtures.
+
+### Signals and input
+
+- [ ] **G+** `game_connect_signal`
+- [ ] **G+** `game_disconnect_signal`
+- [ ] **G+** `game_emit_signal`
+- [ ] **G+** `game_list_signals`
+- [ ] **G-** `game_await_signal`
+- [ ] **G+** `game_click`
+- [ ] **G-** `game_key_press`
+- [ ] **T** `game_mouse_move`
+- [ ] **G+** `game_key_hold`
+- [ ] **G+** `game_key_release`
+- [ ] **G-** `game_scroll`
+- [ ] **G+** `game_mouse_drag`
+- [ ] **T** `game_gamepad`
+- [ ] **G-** `game_touch`
+- [ ] **G+** `game_input_state`
+- [ ] **G+** `game_input_action`
+
+Required E2E additions: successful await with arguments, one-shot and duplicate
+connections, bound callables, node deletion while awaiting, physical key versus
+InputMap semantics, modifiers, Unicode text input, mouse buttons and capture,
+scroll direction, joypad axes/deadzones, multi-touch gestures, and guaranteed
+release of all injected state on timeout, disconnect, stop, and crash.
+
+### Camera, rendering, shaders, environment, and video
+
+- [ ] **T** `game_get_camera`
+- [ ] **T** `game_set_camera`
+- [ ] **T** `game_set_shader_param`
+- [ ] **G+** `game_environment`
+- [ ] **T** `game_set_particles`
+- [ ] **T** `game_viewport`
+- [ ] **G+** `game_debug_draw`
+- [ ] **T** `game_render_settings`
+- [ ] **G+** `game_visual_shader`
+- [ ] **T** `game_video`
+- [ ] **T** `game_sky`
+- [ ] **T** `game_gi`
+- [ ] **T** `game_camera_attributes`
+
+Required E2E additions: Compatibility and Forward+ renderers, headless limitations,
+2D/3D active-camera selection, shader type conversion and compile failures,
+material ownership, viewport textures, render-setting readback, deterministic
+image comparisons with tolerances, particle lifecycle, supported video codecs,
+and GI features that may be unavailable on CI hardware.
+
+### Physics, navigation, and collision
+
+- [ ] **G+** `game_raycast`
+- [ ] **G+** `game_navigate_path`
+- [ ] **G+** `game_add_collision`
+- [ ] **G+** `game_physics_body`
+- [ ] **G+** `game_create_joint`
+- [ ] **G+** `game_navigation_3d`
+- [ ] **G+** `game_physics_2d`
+- [ ] **T** `game_physics_3d`
+
+Required E2E additions: positive hit/query cases rather than only empty-space
+misses, collision layers/masks and exclusions, every supported shape/joint type,
+body-mode-specific fields, physics-frame synchronization, navigation map sync,
+region baking, unreachable targets, 2D/3D parity, and resource cleanup.
+
+### 2D scene systems
+
+- [ ] **G+** `game_tilemap`
+- [ ] **G+** `game_canvas`
+- [ ] **G+** `game_canvas_draw`
+- [ ] **G+** `game_light_2d`
+- [ ] **G+** `game_parallax`
+- [ ] **G+** `game_shape_2d`
+- [ ] **G+** `game_path_2d`
+
+Required E2E additions: every public action, TileMapLayer source/atlas/alternative
+coordinates, terrain connections, texture-backed lights, occluders, polygon and
+text drawing, curve edits/removals, AnimatedSprite2D behavior, visual persistence,
+and cleanup after server removal.
+
+### 3D scene systems
+
+- [ ] **G-** `game_csg`
+- [ ] **T** `game_multimesh`
+- [ ] **T** `game_procedural_mesh`
+- [ ] **T** `game_light_3d`
+- [ ] **G+** `game_mesh_instance`
+- [ ] **T** `game_gridmap`
+- [ ] **T** `game_3d_effects`
+- [ ] **G+** `game_path_3d`
+- [ ] **G+** `game_terrain`
+
+Required E2E additions: successful CSG operations, all primitive types, mesh
+surface validation, normals/UVs/indices, MultiMesh transforms/colors/custom data,
+GridMap mesh libraries and orientations, light types and shadows, decals/probes/
+fog volumes, curve actions, terrain mutation/readback, and rendered or geometry-
+level independent assertions.
+
+### Animation, skeletons, and tweening
+
+- [ ] **T** `game_play_animation`
+- [ ] **T** `game_tween_property`
+- [ ] **T** `game_create_animation`
+- [ ] **T** `game_bone_pose`
+- [ ] **T** `game_animation_tree`
+- [ ] **G+** `game_animation_control`
+- [ ] **T** `game_skeleton_ik`
+
+Required E2E additions: create/play/seek/queue/stop flows, each track type,
+keyframe interpolation, AnimationTree parameters and state transitions, tween
+completion/cancellation, bone local/global pose round trips, IK lifecycle, frame
+advancement, and invalid animation/resource cases.
+
+### Audio
+
+- [ ] **T** `game_get_audio`
+- [ ] **T** `game_audio_play`
+- [ ] **T** `game_audio_bus`
+- [ ] **T** `game_audio_effect`
+- [ ] **G+** `game_audio_bus_layout`
+- [ ] **T** `game_audio_spatial`
+
+Required E2E additions: real imported audio fixtures, playback state across
+frames, stream completion, bus add/remove/reorder/send, every supported effect
+type and parameter, spatial attenuation, listener behavior, missing audio-device
+behavior, and cleanup. Signal/state assertions should supplement—not depend on—
+audible output in CI.
+
+### UI controls and themes
+
+- [ ] **G+** `game_ui_theme`
+- [ ] **G+** `game_ui_control`
+- [ ] **G+** `game_ui_text`
+- [ ] **T** `game_ui_popup`
+- [ ] **T** `game_ui_tree`
+- [ ] **G+** `game_ui_item_list`
+- [ ] **T** `game_ui_tabs`
+- [ ] **G-** `game_ui_menu`
+- [ ] **G+** `game_ui_range`
+
+Required E2E additions: each supported Control subclass and action, anchors and
+offsets, focus traversal, mouse filters, text selection/editing, RichTextLabel
+markup, popup/window behavior, recursive Tree operations, menus and shortcuts,
+tab switching, ranges and ColorPicker values, theme inheritance, and screenshot
+or layout assertions at multiple viewport sizes.
+
+### Runtime resources
+
+- [ ] **G+** `game_resource`
+
+Required E2E additions: load/preload/save actions, cache behavior, typed resource
+round trips, subresources, binary and text formats, missing/corrupt resources,
+external-reference preservation, and safe project-bound paths.
+
+### Networking and remote I/O
+
+- [ ] **G-** `game_http_request`
+- [ ] **G+** `game_websocket`
+- [ ] **G+** `game_multiplayer`
+- [ ] **G-** `game_rpc`
+
+Required E2E additions: local deterministic HTTP and WebSocket fixtures, request
+methods/headers/bodies/status/errors/timeouts, WebSocket connect/send/receive/
+close, two real ENet peers, authentication and disconnects, RPC success and
+authority rules, port conflicts, cleanup, cancellation, payload bounds, and
+privileged-policy redaction. CI must not depend on public internet services.
+
+## Capability gaps beyond the current 157 tools
+
+The following catalogue is exhaustive at the workflow-family level for the
+current product claim. Individual Godot APIs should be added only when they
+enable one of these workflows.
+
+### P1: capabilities required for trustworthy agent-driven development
+
+- [ ] **Editor state and control:** expose open scenes, current edited scene,
+  selection, Inspector values, filesystem dock state, editor errors, play state,
+  scene tabs, save/reload, and editor restart through an EditorPlugin using
+  `EditorInterface`.
+- [ ] **Undo/redo-aware authoring:** editor mutations must participate in
+  `EditorUndoRedoManager`, preserve scene ownership, mark resources edited, and
+  be reversible from the editor.
+- [ ] **Debugger control:** set/remove breakpoints, pause/continue, step in/over/
+  out, enumerate stack frames, inspect locals/members, and evaluate in the
+  selected paused frame.
+- [ ] **Test orchestration:** discover and run project-native tests, initially
+  Godot scripts plus optional GUT/GdUnit4 adapters, returning structured cases,
+  failures, logs, durations, and artifacts.
+- [ ] **Verification workflows:** provide compound tools for run -> interact ->
+  assert -> capture -> teardown so agents can prove a change without manually
+  composing fragile low-level calls.
+- [ ] **Import pipeline:** inspect/change import settings, force reimport, await
+  completion, return importer warnings/errors, and query source/imported-file
+  dependencies.
+- [ ] **Dependency and integrity analysis:** resource dependency graph, broken
+  references, UID conflicts, cyclic dependencies, orphan resources/nodes, and
+  safe rename/move impact previews.
+- [ ] **Real .NET workflow:** detect the .NET editor build and SDK, restore,
+  compile, surface C# diagnostics, run generated projects, and test the supported
+  Godot.NET.Sdk matrix.
+- [ ] **Export readiness:** detect templates, validate preset requirements,
+  perform exports, classify engine/export errors, inspect artifacts, and smoke-
+  run locally executable outputs.
+
+### P2: capabilities needed for broad engine workflow coverage
+
+- [ ] **Profiler sessions:** start/stop CPU, script, rendering, memory, physics,
+  and network profiling; return time-series and per-function/resource breakdowns.
+- [ ] **Leak and orphan diagnostics:** expose orphan nodes, ObjectDB/resource
+  leaks, retained RIDs, unfreed sockets, and teardown deltas as structured data.
+- [ ] **Render capture and visual regression:** deterministic viewport capture,
+  renderer metadata, image diff with tolerances, masks, baselines, and artifact
+  retention.
+- [ ] **Physics/navigation debugging:** collision-shape inspection, contact data,
+  navigation map status, avoidance agents, bake progress, and debug captures.
+- [ ] **Asset workflows:** first-class model, texture, animation, audio, font,
+  sprite-sheet, atlas, and TileSet import/configuration with provenance.
+- [ ] **Add-on management:** install/update/remove pinned add-ons, inspect plugin
+  metadata and compatibility, enable safely, and validate project reload.
+- [ ] **GDExtension workflow:** scaffold, configure, build, load, diagnose, and
+  test native extensions without pretending arbitrary toolchains are portable.
+- [ ] **Localization workflow:** import CSV/PO, inspect keys and locale coverage,
+  detect missing/unused translations, pseudo-localize, and run layout checks.
+- [ ] **Accessibility and UI validation:** keyboard traversal, focus visibility,
+  minimum target size, contrast metadata, localization overflow, and responsive
+  layout checks.
+
+### P3: portability, scale, and operational hardening
+
+- [ ] **Cross-platform runners:** add Windows and macOS coverage for process,
+  path, editor, input, window, and export behavior; document truly Linux-only
+  capabilities.
+- [ ] **Display/render matrix:** cover headless, virtual display, Compatibility,
+  Forward+, and supported GPU-dependent feature gates.
+- [ ] **Engine-version policy automation:** test every claimed floor/target,
+  detect API drift, and require an explicit compatibility decision for new APIs.
+- [ ] **Large-project behavior:** bounded scene trees, file lists, logs,
+  screenshots, resources, imports, and responses; pagination or streaming where
+  necessary.
+- [ ] **Session recovery:** reconnect after game/editor restart, re-install or
+  update the runtime server safely, restore capabilities, and clearly invalidate
+  stale node/resource handles.
+- [ ] **Multi-project isolation:** simultaneous projects, unique runtime ports,
+  explicit target identity, no cross-project commands, and deterministic process
+  ownership.
+- [ ] **Authentication and authorization:** retain loopback binding but add a
+  per-session secret, capability negotiation, least-privilege command groups,
+  audit events, and secret-safe errors.
+- [ ] **Observability:** structured MCP/server/Godot logs with request correlation,
+  bounded retention, redaction, lifecycle events, and actionable error classes.
+
+## Roadmap
+
+### Phase 0: make the audit enforceable
+
+- [ ] Create a machine-readable manifest containing every MCP tool, mapped
+  TypeScript handler, downstream operation/runtime command, public actions,
+  privilege class, applicable dimensions, and test IDs.
+- [ ] Generate the 157-tool and 96-command denominators from source; fail CI on
+  missing, duplicate, stale, or unmapped entries.
+- [ ] Add action extraction or explicit action declarations so multipurpose
+  commands cannot appear covered after testing only one action.
+- [ ] Add test metadata for `unit`, `contract`, `integration`, and `e2e`; prohibit
+  ambiguous use of “integration” in coverage reports.
+- [ ] Publish a generated coverage report in CI and preserve failing Godot logs
+  and fixture artifacts.
+- [ ] Treat unexpected Godot `ERROR`, `SCRIPT ERROR`, `WARNING`, crash text, and
+  leak reports as failures, with a narrow allowlist requiring a reason and issue.
+- [ ] Find and remove the current one-instance ObjectDB leak.
+
+Exit criteria: CI proves the manifest is complete, reports coverage by tool and
+action, and fails when a new public action has no declared tests.
+
+### Phase 1: establish the full MCP-to-Godot path
+
+- [ ] Build the package before E2E tests and start `build/index.js` over stdio.
+- [ ] Use an MCP SDK client to perform initialization, list tools, and invoke
+  tools exactly as a consumer does.
+- [ ] Give each test a temporary project, isolated runtime port, process group,
+  user-data directory, and deterministic teardown.
+- [ ] Add independent observers for filesystem, scene/resource reload, runtime
+  state, signals, logs, screenshots, processes, and exports.
+- [ ] Cover one representative lifecycle tool, headless tool, runtime query,
+  runtime mutation, async command, privileged command, and failure through the
+  complete path before scaling horizontally.
+- [ ] Test server shutdown during active Godot work and Godot shutdown during an
+  active MCP request.
+
+Exit criteria: at least one test crosses every architectural seam, detects a
+planted defect at each seam, and leaves no process, socket, file, input, node, or
+ObjectDB leak.
+
+### Phase 2: close the current 157-tool inventory
+
+- [ ] Convert all 16 `H` tools to E2E while retaining their focused Godot tests.
+- [ ] Convert all 45 `G+` tools to E2E and expand them to every public action.
+- [ ] Add successful engine behavior for all 14 `G-` tools, then convert to E2E.
+- [ ] Add direct engine behavior and E2E coverage for all 82 `T` tools.
+- [ ] Cover every declared parameter family and required failure class.
+- [ ] Add persistent-effect and cleanup assertions appropriate to each tool.
+- [ ] Run the completed suite on Godot 4.4 and 4.7.
+
+Exit criteria: 157/157 tools and every declared action meet the tool definition
+of done; no result depends solely on a mock, schema assertion, or response echo.
+
+### Phase 3: cover real environments
+
+- [ ] Add a Godot .NET CI job and compile/run generated C# projects.
+- [ ] Add export-template jobs for a bounded supported target set.
+- [ ] Add deterministic local HTTP, WebSocket, and two-peer ENet fixtures.
+- [ ] Add virtual-display rendering and screenshot comparisons.
+- [ ] Add Windows and macOS jobs for platform-sensitive capabilities.
+- [ ] Add Compatibility/Forward+ coverage and explicit GPU feature skips.
+- [ ] Add paths with spaces, Unicode paths, read-only paths, and large-project
+  fixtures.
+
+Exit criteria: every environment claimed in README has a passing job or an
+explicitly documented and tested limitation.
+
+### Phase 4: fill workflow capability gaps
+
+- [ ] Implement editor integration and undo/redo-aware authoring.
+- [ ] Implement debugger and structured test-runner workflows.
+- [ ] Implement import/dependency/integrity analysis.
+- [ ] Implement profiler, leak, and visual-regression workflows.
+- [ ] Complete .NET, export, add-on, and GDExtension workflows.
+- [ ] Add cross-platform recovery, isolation, authorization, and observability.
+
+Exit criteria: each capability is documented, threat-modeled where relevant,
+represented in the manifest, and covered by its own full-path acceptance suite.
+
+### Phase 5: make and maintain a defensible product claim
+
+- [ ] Replace “full control” with a bounded capability statement until Phases
+  0-3 are complete.
+- [ ] Generate README tool counts and coverage badges from the manifest.
+- [ ] Require capability documentation, E2E tests, failure tests, cleanup tests,
+  and compatibility declarations in the PR template for every public addition.
+- [ ] Schedule periodic latest-stable and compatibility-floor verification.
+- [ ] Track flaky tests, duration, quarantines, and allowed warnings; a quarantine
+  must have an owner, issue, and expiry.
+
+Exit criteria: published claims match generated evidence and cannot drift when
+tools, actions, or supported environments change.
+
+## Definition of done
+
+### Per tool
+
+A tool may be marked `[x] E2E` only when all applicable items pass:
+
+- [ ] The tool is discoverable through MCP with the expected schema.
+- [ ] A real MCP client calls the built server.
+- [ ] The real handler and downstream service execute without monkeypatching.
+- [ ] The expected Godot process/server receives the operation.
+- [ ] Every public action has a successful real-engine case.
+- [ ] Every parameter family has boundary and default coverage.
+- [ ] The final effect is verified independently of the response.
+- [ ] Expected engine, validation, permission, timeout, and cancellation failures
+  return stable structured errors.
+- [ ] Partial failures do not corrupt scenes, resources, settings, or files.
+- [ ] Repetition and concurrency behave according to the documented contract.
+- [ ] Teardown leaves no process, socket, held input, node, temporary artifact,
+  ObjectDB instance, resource, or RID leak.
+- [ ] Applicable Godot versions, build flavors, renderers, and platforms pass.
+- [ ] Documentation states prerequisites, privilege level, side effects,
+  limitations, and recovery behavior.
+
+### Per capability family
+
+- [ ] The user workflow and non-goals are documented.
+- [ ] The minimal tool composition is usable without arbitrary `game_eval`.
+- [ ] The trust boundary and destructive effects are explicit.
+- [ ] At least one realistic fixture completes the entire workflow.
+- [ ] Failure recovery is tested at each external boundary.
+- [ ] Performance and response sizes are bounded on a representative large case.
+- [ ] Platform/version limitations are detected and returned, not silently
+  ignored.
+- [ ] The workflow emits sufficient structured evidence for an agent to decide
+  whether its intended result actually occurred.
+
+### Release gate
+
+- [ ] Build, lint, TypeScript tests, and all Godot suites pass.
+- [ ] The generated manifest has no coverage or routing drift.
+- [ ] No unexpected engine warning, error, crash, sanitizer finding, or leak is
+  present.
+- [ ] No required E2E test is skipped or quarantined.
+- [ ] Compatibility floor and primary target pass.
+- [ ] Required .NET, renderer, export, and platform jobs pass for the release's
+  stated support matrix.
+- [ ] Security-sensitive tests confirm default denial, explicit opt-in,
+  authorization, bounds, and redaction.
+- [ ] README counts, support statements, and limitations are generated or checked
+  against the same manifest.
+
+## Implementation checklist for every new tool or action
+
+- [ ] Add or update the public tool schema.
+- [ ] Add strict runtime/headless parameter declarations.
+- [ ] Map the MCP tool to exactly one downstream operation or command.
+- [ ] Declare privilege, cancellation, timeout, mutation, and cleanup semantics.
+- [ ] Add unit tests for pure transformations and validation.
+- [ ] Add protocol/contract tests for routing and serialization.
+- [ ] Add focused direct-Godot behavior tests.
+- [ ] Add full MCP-to-Godot E2E happy-path and failure tests.
+- [ ] Add an independent effect assertion.
+- [ ] Add teardown/leak assertions.
+- [ ] Add version/platform/build-flavor cases or explicit non-applicability.
+- [ ] Update the traceability manifest and generated report.
+- [ ] Document examples, prerequisites, side effects, and limitations.
+
+## Limitations and robustness notes
+
+- Counts are at tool/command granularity. Several commands expose many actions,
+  node classes, resource types, and mutually exclusive modes; the Phase 0
+  manifest must establish the larger action-level denominator.
+- A passing headless test does not establish editor behavior, rendering fidelity,
+  OS input behavior, audio output, or export portability.
+- CI currently spans Godot versions but not operating systems, renderers, .NET
+  builds, export templates, or GPU capabilities.
+- Some advanced engine features are intrinsically hardware-, platform-, codec-,
+  or template-dependent. Tests should report capability-based skips only when
+  the product also detects and explains that limitation to users.
+- Visual and audio tests require deterministic state/assertion strategies; exact
+  pixels or samples are inappropriate where renderer/device variance is expected.
+- Security verification must assume another local process may connect. Loopback
+  binding alone is not authentication.
+
+## Further questions to resolve before Phase 3
+
+- Which operating systems are product-supported versus best effort?
+- Which renderers and GPU-dependent features are promised in CI?
+- Is Godot .NET a first-class supported build or an optional scaffold generator?
+- Which export targets and templates are supported and smoke-runnable?
+- Is editor automation a core product direction, or is the supported boundary
+  intentionally project files plus running games?
+- Which third-party test frameworks, add-on sources, and native toolchains may be
+  integrated without expanding the trust boundary unexpectedly?
+- What latency and project-size budgets define acceptable behavior for tree,
+  file, log, screenshot, import, and resource operations?
+- Should privileged runtime access remain an environment-wide switch, or move to
+  authenticated per-session capabilities?
+
+Until those decisions are made, documentation should distinguish verified
+support, experimental support, and intentionally unsupported workflows.
