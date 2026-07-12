@@ -31,12 +31,14 @@ func _require_class(reader: CommandParams, node: Node, type_name: String) -> voi
 		{"param": "node_path", "reason": "invalid_value", "expected": type_name, "value": node.get_class()})
 
 
-func _vector2_from(value: Dictionary) -> Vector2:
-	return Vector2(float(value.get("x", 0)), float(value.get("y", 0)))
+func _vector2_from(value: Variant) -> Vector2:
+	var source: Dictionary = CommandParams.as_dictionary(value)
+	return Vector2(CommandParams.json_float(source, "x"), CommandParams.json_float(source, "y"))
 
 
-func _vector3_from(value: Dictionary) -> Vector3:
-	return Vector3(float(value.get("x", 0)), float(value.get("y", 0)), float(value.get("z", 0)))
+func _vector3_from(value: Variant) -> Vector3:
+	var source: Dictionary = CommandParams.as_dictionary(value)
+	return Vector3(CommandParams.json_float(source, "x"), CommandParams.json_float(source, "y"), CommandParams.json_float(source, "z"))
 
 
 func _apply_optional_name(reader: CommandParams, node: Node) -> void:
@@ -76,9 +78,26 @@ func _respond_ray_hit(mode: String, result: Dictionary) -> void:
 		"success": true, "hit": true, "mode": mode,
 		"position": variant_to_json(result["position"]),
 		"normal": variant_to_json(result["normal"]),
-		"collider_path": str(result["collider"].get_path()) if result.has("collider") and result["collider"] is Node else "",
-		"collider_class": result["collider"].get_class() if result.has("collider") else "",
+		"collider_path": _collider_path(result),
+		"collider_class": _collider_class(result),
 	})
+
+
+func _collider(result: Dictionary) -> Node:
+	var collider: Variant = result.get("collider")
+	if collider is Node:
+		return collider
+	return null
+
+
+func _collider_path(result: Dictionary) -> String:
+	var collider: Node = _collider(result)
+	return str(collider.get_path()) if collider != null else ""
+
+
+func _collider_class(result: Dictionary) -> String:
+	var collider: Node = _collider(result)
+	return collider.get_class() if collider != null else ""
 
 
 # --- Navigation path query via NavigationServer ---
@@ -156,25 +175,25 @@ func _shape_3d(shape_type: String, shape_params: Dictionary) -> Shape3D:
 	match shape_type:
 		"box":
 			var s: BoxShape3D = BoxShape3D.new()
-			s.size = Vector3(float(shape_params.get("size_x", 1)), float(shape_params.get("size_y", 1)), float(shape_params.get("size_z", 1)))
+			s.size = Vector3(CommandParams.json_float(shape_params, "size_x", 1), CommandParams.json_float(shape_params, "size_y", 1), CommandParams.json_float(shape_params, "size_z", 1))
 			return s
 		"sphere":
 			var s: SphereShape3D = SphereShape3D.new()
-			s.radius = float(shape_params.get("radius", 0.5))
+			s.radius = CommandParams.json_float(shape_params, "radius", 0.5)
 			return s
 		"capsule":
 			var s: CapsuleShape3D = CapsuleShape3D.new()
-			s.radius = float(shape_params.get("radius", 0.5))
-			s.height = float(shape_params.get("height", 2.0))
+			s.radius = CommandParams.json_float(shape_params, "radius", 0.5)
+			s.height = CommandParams.json_float(shape_params, "height", 2.0)
 			return s
 		"cylinder":
 			var s: CylinderShape3D = CylinderShape3D.new()
-			s.radius = float(shape_params.get("radius", 0.5))
-			s.height = float(shape_params.get("height", 2.0))
+			s.radius = CommandParams.json_float(shape_params, "radius", 0.5)
+			s.height = CommandParams.json_float(shape_params, "height", 2.0)
 			return s
 		"ray":
 			var s: SeparationRayShape3D = SeparationRayShape3D.new()
-			s.length = float(shape_params.get("length", 1.0))
+			s.length = CommandParams.json_float(shape_params, "length", 1.0)
 			return s
 	return null
 
@@ -183,21 +202,21 @@ func _shape_2d(shape_type: String, shape_params: Dictionary) -> Shape2D:
 	match shape_type:
 		"box":
 			var s: RectangleShape2D = RectangleShape2D.new()
-			s.size = Vector2(float(shape_params.get("size_x", 1)), float(shape_params.get("size_y", 1)))
+			s.size = Vector2(CommandParams.json_float(shape_params, "size_x", 1), CommandParams.json_float(shape_params, "size_y", 1))
 			return s
 		"circle":
 			var s: CircleShape2D = CircleShape2D.new()
-			s.radius = float(shape_params.get("radius", 0.5))
+			s.radius = CommandParams.json_float(shape_params, "radius", 0.5)
 			return s
 		"capsule":
 			var s: CapsuleShape2D = CapsuleShape2D.new()
-			s.radius = float(shape_params.get("radius", 0.5))
-			s.height = float(shape_params.get("height", 2.0))
+			s.radius = CommandParams.json_float(shape_params, "radius", 0.5)
+			s.height = CommandParams.json_float(shape_params, "height", 2.0)
 			return s
 		"segment":
 			var s: SegmentShape2D = SegmentShape2D.new()
-			s.a = Vector2(float(shape_params.get("a_x", 0)), float(shape_params.get("a_y", 0)))
-			s.b = Vector2(float(shape_params.get("b_x", 1)), float(shape_params.get("b_y", 0)))
+			s.a = Vector2(CommandParams.json_float(shape_params, "a_x", 0), CommandParams.json_float(shape_params, "a_y", 0))
+			s.b = Vector2(CommandParams.json_float(shape_params, "b_x", 1), CommandParams.json_float(shape_params, "b_y", 0))
 			return s
 	return null
 
@@ -247,11 +266,14 @@ func _cmd_physics_body(params: Dictionary) -> void:
 		if node is PhysicsBody3D and angular_velocity is Dictionary:
 			node.set("angular_velocity", _vector3_from(angular_velocity))
 		else:
-			node.set("angular_velocity", float(angular_velocity))
+			node.set("angular_velocity", CommandParams.to_float(angular_velocity))
 
 	# Physics material (friction, bounce)
 	if reader.has_param("friction") or reader.has_param("bounce"):
-		var phys_mat: PhysicsMaterial = node.get("physics_material_override") as PhysicsMaterial
+		var material_value: Variant = node.get("physics_material_override")
+		var phys_mat: PhysicsMaterial = null
+		if material_value is PhysicsMaterial:
+			phys_mat = material_value
 		if phys_mat == null:
 			phys_mat = PhysicsMaterial.new()
 			node.set("physics_material_override", phys_mat)
@@ -475,7 +497,7 @@ func _cmd_physics_2d(params: Dictionary) -> void:
 			var shape: Shape2D
 			if shape_type == "rectangle":
 				var rect: RectangleShape2D = RectangleShape2D.new()
-				rect.size = Vector2(float(size.get("x", 10)), float(size.get("y", 10)))
+				rect.size = Vector2(CommandParams.json_float(size, "x", 10), CommandParams.json_float(size, "y", 10))
 				shape = rect
 			else:
 				var circle: CircleShape2D = CircleShape2D.new()

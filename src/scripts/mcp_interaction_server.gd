@@ -130,11 +130,13 @@ func _process(_delta: float) -> void:
 			print("McpInteractionServer: Client connected (session %d)" % session.id)
 
 	for session_id: Variant in _sessions.keys():
-		var session: RuntimeSession = _sessions.get(session_id) as RuntimeSession
-		if session == null:
+		var session_value: Variant = _sessions.get(session_id)
+		if not session_value is RuntimeSession:
 			continue
+		var session: RuntimeSession = session_value
 		_poll_session(session)
 		if not session.connected and session != _active_session:
+			@warning_ignore("return_value_discarded")
 			_sessions.erase(session.id)
 
 
@@ -142,6 +144,7 @@ func _poll_session(session: RuntimeSession) -> void:
 	if not session.connected or session.peer == null:
 		return
 
+	@warning_ignore("return_value_discarded")
 	session.peer.poll()
 	var status: int = session.peer.get_status()
 	if status == StreamPeerTCP.STATUS_ERROR or status == StreamPeerTCP.STATUS_NONE:
@@ -201,16 +204,20 @@ func _reject_and_close_session(session: RuntimeSession, message: String, details
 		# the client can read it. Drain is bounded so a flooding peer cannot
 		# keep this loop alive.
 		var drained: int = 0
+		@warning_ignore("return_value_discarded")
 		session.peer.poll()
 		var pending: int = session.peer.get_available_bytes()
 		while pending > 0 and drained < max_receive_buffer_bytes:
 			var chunk: int = min(pending, max_receive_chunk_bytes)
+			@warning_ignore("return_value_discarded")
 			session.peer.get_data(chunk)
 			drained += chunk
+			@warning_ignore("return_value_discarded")
 			session.peer.poll()
 			pending = session.peer.get_available_bytes()
 		session.peer.disconnect_from_host()
 	if session != _active_session:
+		@warning_ignore("return_value_discarded")
 		_sessions.erase(session.id)
 
 
@@ -252,12 +259,13 @@ func _handle_command(session: RuntimeSession, json_str: String) -> void:
 		_reject_and_close_session(session, limits_error, {"max_depth": max_json_nesting_depth, "max_collection_items": max_json_collection_items})
 		return
 
-	var req_id: Variant = data.get("id", null)
-	if data.get("jsonrpc", "") != "2.0" or req_id == null or not data.has("method"):
+	var request: Dictionary = data
+	var req_id: Variant = request.get("id", null)
+	if request.get("jsonrpc", "") != "2.0" or req_id == null or not request.has("method"):
 		_send_error(session, req_id, -32600, "Expected a JSON-RPC 2.0 request with id and method")
 		return
-	var method: String = str(data.get("method", ""))
-	var raw_params: Variant = data.get("params", {})
+	var method: String = str(request.get("method", ""))
+	var raw_params: Variant = request.get("params", {})
 	if not raw_params is Dictionary:
 		_send_error(session, req_id, -32602, "params must be an object")
 		return
@@ -321,7 +329,12 @@ func _register_domains() -> void:
 		domain.name = script_path.get_file().get_basename()
 		_domains.append(domain)
 		add_child(domain)
+		# Domains are loaded by path rather than preloaded, because RuntimeDomain
+		# preloads this script to type its transport helpers. These two calls are
+		# the one dynamic seam that direction leaves in the composition root.
+		@warning_ignore("unsafe_method_access")
 		domain.setup(self, _register_command)
+		@warning_ignore("unsafe_method_access")
 		domain.register_commands()
 
 
@@ -400,6 +413,7 @@ func _send_response(data: Dictionary) -> void:
 	session.request_command = ""
 	session.cancellation_requested = false
 	if not session.connected:
+		@warning_ignore("return_value_discarded")
 		_sessions.erase(session.id)
 
 
@@ -420,6 +434,7 @@ func _send_timeout_response(message: String, details: Dictionary = {}) -> void:
 	session.cancellation_requested = false
 	_send_error(session, id, -32004, message, details)
 	if not session.connected:
+		@warning_ignore("return_value_discarded")
 		_sessions.erase(session.id)
 
 
@@ -436,6 +451,7 @@ func _send_limit_response(message: String, details: Dictionary = {}) -> void:
 	session.cancellation_requested = false
 	_send_error(session, id, ERROR_LIMIT_EXCEEDED, message, details)
 	if not session.connected:
+		@warning_ignore("return_value_discarded")
 		_sessions.erase(session.id)
 
 
@@ -460,6 +476,7 @@ func _send_response_raw(session: RuntimeSession, data: Dictionary) -> void:
 			session.connected = false
 			session.peer.disconnect_from_host()
 			return
+	@warning_ignore("return_value_discarded")
 	session.peer.put_data(bytes)
 
 
@@ -476,19 +493,27 @@ func _send_error(session: RuntimeSession, id: Variant, code: int, message: Strin
 # with structured details and the handler returns without doing any work.
 func _params_invalid(reader: CommandParams) -> bool:
 	if reader.failed():
-		_send_response({"error": reader.error_message, "error_data": reader.error_details})
+		_send_params_error(reader)
 		return true
 	return false
 
 
+# The same failure without the question: for a handler that failed the reader on
+# a rule the accessors cannot express and is about to stop.
+func _send_params_error(reader: CommandParams) -> void:
+	if not reader.failed():
+		return
+	_send_response({"error": reader.error_message, "error_data": reader.error_details})
+
+
 # Resolves a node parameter relative to the tree root. With a default_path the
 # parameter is optional; either way a missing node records a structured failure.
-func _require_node(reader: CommandParams, name: String = "node_path", default_path: String = "") -> Node:
+func _require_node(reader: CommandParams, param_name: String = "node_path", default_path: String = "") -> Node:
 	var path: String
 	if default_path.is_empty():
-		path = reader.required_node_path(name)
+		path = reader.required_node_path(param_name)
 	else:
-		path = reader.optional_string(name, default_path)
+		path = reader.optional_string(param_name, default_path)
 	if reader.failed():
 		return null
 	var node: Node = get_tree().root.get_node_or_null(NodePath(path))
@@ -596,6 +621,9 @@ func _run():
 
 	var result: Variant = null
 	if temp_node.has_method("execute"):
+		# The eval source is compiled at request time, so this call is dynamic by
+		# definition. It is gated by the privileged-command policy.
+		@warning_ignore("unsafe_method_access")
 		result = await temp_node.execute()
 
 	temp_node.queue_free()
@@ -636,10 +664,10 @@ func _cmd_get_performance(_params: Dictionary) -> void:
 
 # --- Wait N Frames ---
 func _cmd_wait(params: Dictionary) -> void:
-	var frames: int = int(params.get("frames", 1))
+	var frames: int = CommandParams.to_int(params.get("frames"), 1)
 	var frame_type: String = str(params.get("frame_type", "render")).to_lower()
-	var use_physics: bool = frame_type == "physics" or bool(params.get("physics", false))
-	for i in frames:
+	var use_physics: bool = frame_type == "physics" or CommandParams.to_bool(params.get("physics"), false)
+	for i: int in frames:
 		if use_physics:
 			await get_tree().physics_frame
 		else:
@@ -725,9 +753,9 @@ func _cmd_tween_property(params: Dictionary) -> void:
 		return
 
 	var final_value: Variant = _json_to_variant_for_property(node, property, params.get("final_value", null))
-	var duration: float = float(params.get("duration", 1.0))
-	var trans_type: int = int(params.get("trans_type", 0))  # Tween.TRANS_LINEAR
-	var ease_type: int = int(params.get("ease_type", 2))  # Tween.EASE_IN_OUT
+	var duration: float = CommandParams.to_float(params.get("duration"), 1.0)
+	var trans_type: int = CommandParams.to_int(params.get("trans_type"), 0)  # Tween.TRANS_LINEAR
+	var ease_type: int = CommandParams.to_int(params.get("ease_type"), 2)  # Tween.EASE_IN_OUT
 
 	var tween: Tween = create_tween()
 	var tweener: PropertyTweener = tween.tween_property(node, property, final_value, duration)
@@ -735,6 +763,7 @@ func _cmd_tween_property(params: Dictionary) -> void:
 		tween.kill()
 		_send_response({"error": "tween_property failed: value type does not match property '%s' on %s" % [property, node.get_class()]})
 		return
+	@warning_ignore("return_value_discarded")
 	tweener.set_trans(trans_type).set_ease(ease_type)
 	_send_response({"success": true, "node": node_path, "property": property, "duration": duration})
 
@@ -744,7 +773,7 @@ func _cmd_tween_property(params: Dictionary) -> void:
 
 func _cmd_create_timer(params: Dictionary) -> void:
 	var parent_path: String = params.get("parent_path", "/root")
-	var wait_time: float = float(params.get("wait_time", 1.0))
+	var wait_time: float = CommandParams.to_float(params.get("wait_time"), 1.0)
 	var one_shot: bool = params.get("one_shot", false)
 	var autostart: bool = params.get("autostart", false)
 
@@ -757,8 +786,9 @@ func _cmd_create_timer(params: Dictionary) -> void:
 	timer.wait_time = wait_time
 	timer.one_shot = one_shot
 	timer.autostart = autostart
-	if params.has("name") and params["name"] is String and not (params["name"] as String).is_empty():
-		timer.name = params["name"]
+	var timer_name: String = CommandParams.json_string(params, "name")
+	if not timer_name.is_empty():
+		timer.name = timer_name
 	parent.add_child(timer)
 	if autostart:
 		timer.start()
@@ -769,7 +799,7 @@ func _cmd_create_timer(params: Dictionary) -> void:
 func _cmd_serialize_state(params: Dictionary) -> void:
 	var node_path: String = params.get("node_path", "/root")
 	var action: String = params.get("action", "save")
-	var max_depth: int = int(params.get("max_depth", 5))
+	var max_depth: int = CommandParams.to_int(params.get("max_depth"), 5)
 
 	var node: Node = get_tree().root.get_node_or_null(node_path)
 	if node == null:
@@ -823,23 +853,27 @@ func _serialize_node(node: Node, max_depth: int, depth: int) -> Dictionary:
 func _deserialize_node(node: Node, data: Dictionary) -> int:
 	var count: int = 0
 	# Restore properties
-	var props: Dictionary = data.get("properties", {})
-	for prop_name in props:
-		var value: Variant = _json_to_variant_for_property(node, prop_name, props[prop_name])
-		node.set(prop_name, value)
+	var props: Dictionary = CommandParams.json_dictionary(data, "properties")
+	for prop_name: Variant in props:
+		var property: String = str(prop_name)
+		var value: Variant = _json_to_variant_for_property(node, property, props[prop_name])
+		node.set(property, value)
 	count += 1
 
 	# Restore children
-	var children_data: Array = data.get("children", [])
-	for child_data in children_data:
-		var child_name: String = child_data.get("name", "")
+	var children_data: Array = CommandParams.json_array(data, "children")
+	for child_data: Variant in children_data:
+		if not child_data is Dictionary:
+			continue
+		var child_state: Dictionary = child_data
+		var child_name: String = CommandParams.json_string(child_state, "name")
 		var child: Node = null
-		for c in node.get_children():
+		for c: Node in node.get_children():
 			if c.name == child_name:
 				child = c
 				break
 		if child != null:
-			count += _deserialize_node(child, child_data)
+			count += _deserialize_node(child, child_state)
 	return count
 
 
@@ -856,11 +890,16 @@ func _cmd_script(params: Dictionary) -> void:
 	var action: String = params.get("action", "get_source")
 	match action:
 		"get_source":
-			var s = node.get_script()
-			if s == null:
+			var attached: Variant = node.get_script()
+			if attached == null:
 				_send_response({"success": true, "has_script": false})
 				return
-			_send_response({"success": true, "has_script": true, "source": s.source_code if s is GDScript else "", "path": s.resource_path})
+			var script_resource: Script = attached
+			var source_code: String = ""
+			if script_resource is GDScript:
+				var gdscript: GDScript = script_resource
+				source_code = gdscript.source_code
+			_send_response({"success": true, "has_script": true, "source": source_code, "path": script_resource.resource_path})
 		"attach":
 			var source: String = params.get("source", "")
 			if source.is_empty():

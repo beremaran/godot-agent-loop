@@ -367,12 +367,12 @@ func _open_scene(res_scene_path: String) -> OpenScene:
     if scene == null:
         return _scene_not_opened("Failed to load scene: " + res_scene_path)
 
-    var root := scene.instantiate()
-    if root == null:
+    var scene_root := scene.instantiate()
+    if scene_root == null:
         return _scene_not_opened("Failed to instantiate scene: " + res_scene_path)
 
     log_debug("Scene instantiated: " + res_scene_path)
-    return OpenScene.new(root, PackedStringArray())
+    return OpenScene.new(scene_root, PackedStringArray())
 
 func _scene_not_opened(message: String, details: PackedStringArray = PackedStringArray()) -> OpenScene:
     return OpenScene.new(null, _error_lines(message, details))
@@ -380,18 +380,18 @@ func _scene_not_opened(message: String, details: PackedStringArray = PackedStrin
 # Resolve a tool-supplied node path against a scene root. Callers address the
 # root as "", "root" or ".", and its descendants with or without a "root/"
 # prefix.
-func _resolve_scene_node(root: Node, tool_path: String) -> Node:
+func _resolve_scene_node(scene_root: Node, tool_path: String) -> Node:
     if tool_path == "" or tool_path == "root" or tool_path == ".":
-        return root
+        return scene_root
     var p: String = tool_path
     if p.begins_with("root/"):
         p = p.substr(5)
-    return root.get_node_or_null(p)
+    return scene_root.get_node_or_null(p)
 
 # Pack an edited scene root and write it back to a res:// path.
-func _save_scene_root(root: Node, res_scene_path: String) -> OperationResult:
+func _save_scene_root(scene_root: Node, res_scene_path: String) -> OperationResult:
     var packed := PackedScene.new()
-    var pack_error: Error = packed.pack(root)
+    var pack_error: Error = packed.pack(scene_root)
     if pack_error != OK:
         return _fail("Failed to pack scene: " + res_scene_path, PackedStringArray([
             "Error code: " + str(pack_error),
@@ -1332,11 +1332,11 @@ func manage_theme_resource(params: Dictionary) -> OperationResult:
     var properties: Dictionary = _param_dictionary(params, "properties")
 
     if action == "create":
-        var theme := Theme.new()
+        var new_theme := Theme.new()
         for key: String in properties:
-            theme.set(key, properties[key])
+            new_theme.set(key, properties[key])
 
-        var create_result := _save_resource(theme, full_path, "theme")
+        var create_result := _save_resource(new_theme, full_path, "theme")
         if not create_result.ok:
             return create_result
 
@@ -1378,9 +1378,9 @@ func manage_scene_structure(params: Dictionary) -> OperationResult:
     var opened := _open_scene(full_path)
     if not opened.is_valid():
         return _failed(opened.errors)
-    var root: Node = opened.root
+    var scene_root: Node = opened.root
 
-    var target := _resolve_scene_node(root, node_path_str)
+    var target := _resolve_scene_node(scene_root, node_path_str)
     if target == null:
         return _fail("Node not found: " + node_path_str)
 
@@ -1391,33 +1391,33 @@ func manage_scene_structure(params: Dictionary) -> OperationResult:
         target.name = new_name
         print("Node renamed to '%s'" % target.name)
     elif action == "duplicate":
-        if target == root:
+        if target == scene_root:
             return _fail("Cannot duplicate the root node")
         var dup := target.duplicate()
         target.get_parent().add_child(dup, true)
-        _set_owner_recursive(dup, root)
+        _set_owner_recursive(dup, scene_root)
         print("Node duplicated: %s (as '%s')" % [node_path_str, dup.name])
     elif action == "move":
         var new_parent_path: String = _param_string(params, "new_parent_path")
         if new_parent_path.is_empty():
             return _fail("new_parent_path is required for move")
-        if target == root:
+        if target == scene_root:
             return _fail("Cannot move the root node")
-        var new_parent := _resolve_scene_node(root, new_parent_path)
+        var new_parent := _resolve_scene_node(scene_root, new_parent_path)
         if new_parent == null:
             return _fail("New parent not found: " + new_parent_path)
         if new_parent == target or _is_ancestor(target, new_parent):
             return _fail("Cannot move a node into itself or one of its descendants")
         target.get_parent().remove_child(target)
         new_parent.add_child(target, true)
-        _set_owner_recursive(target, root)
+        _set_owner_recursive(target, scene_root)
         print("Node moved: %s -> parent %s (as '%s')" % [node_path_str, new_parent_path, target.name])
     else:
         return _fail("Unknown manage_scene_structure action: " + action, PackedStringArray([
             "Allowed actions: rename, duplicate, move",
         ]))
 
-    var save_result := _save_scene_root(root, full_path)
+    var save_result := _save_scene_root(scene_root, full_path)
     if not save_result.ok:
         return save_result
 

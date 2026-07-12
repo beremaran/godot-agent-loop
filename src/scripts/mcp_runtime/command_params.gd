@@ -89,9 +89,9 @@ func _int_value(name: String, default_value: int, min_value: float, max_value: f
 	var number: int
 	if value is int:
 		number = value
-	elif value is float and value == floorf(value):
+	elif value is float and _is_integral(value):
 		# JSON parsing yields floats for every number; accept integral ones.
-		number = int(value)
+		number = to_int(value)
 	else:
 		_fail_param(name, "invalid_type", "%s must be an integer" % name)
 		return default_value
@@ -178,3 +178,148 @@ func required_resource_path(name: String) -> String:
 		_fail_param(name, "invalid_value", "%s must be a res:// or user:// path" % name, {"value": value})
 		return ""
 	return value
+
+
+# --- Variant narrowing at the JSON boundary ---
+# The accessors above cover a command's own params. Handlers also read nested
+# JSON objects (a position's `x`, a color's `r`), whose members are Variant
+# because JSON is untyped. These narrowers are the only place that boundary is
+# crossed, so the type-strictness suppressions stay confined to three functions
+# instead of spreading through every handler.
+#
+# The engine's float()/int()/bool() constructors raise a script error on a type
+# they cannot convert -- and bool() rejects even a String. Inside a handler that
+# error abandoned the request without a response, so the narrowers fall back to
+# the caller's default instead.
+
+static func _is_integral(value: Variant) -> bool:
+	if not value is float:
+		return false
+	var number: float = value
+	return number == floorf(number)
+
+
+static func to_float(value: Variant, default_value: float = 0.0) -> float:
+	if value is float or value is int or value is bool:
+		@warning_ignore("unsafe_call_argument")
+		return float(value)
+	if value is String:
+		var text: String = value
+		return text.to_float()
+	return default_value
+
+
+static func to_int(value: Variant, default_value: int = 0) -> int:
+	if value is float or value is int or value is bool:
+		@warning_ignore("unsafe_call_argument", "narrowing_conversion")
+		return int(value)
+	if value is String:
+		var text: String = value
+		return text.to_int()
+	return default_value
+
+
+static func to_bool(value: Variant, default_value: bool = false) -> bool:
+	if value is bool:
+		return value
+	if value is float or value is int:
+		return not is_zero_approx(to_float(value))
+	if value is String:
+		var text: String = value
+		return text.to_lower() == "true"
+	return default_value
+
+
+# Members of a nested JSON object.
+static func json_float(source: Dictionary, key: String, default_value: float = 0.0) -> float:
+	return to_float(source.get(key), default_value)
+
+
+static func json_int(source: Dictionary, key: String, default_value: int = 0) -> int:
+	return to_int(source.get(key), default_value)
+
+
+static func json_bool(source: Dictionary, key: String, default_value: bool = false) -> bool:
+	return to_bool(source.get(key), default_value)
+
+
+static func json_string(source: Dictionary, key: String, default_value: String = "") -> String:
+	var value: Variant = source.get(key)
+	if value is String:
+		return value
+	return default_value
+
+
+static func as_dictionary(value: Variant) -> Dictionary:
+	if value is Dictionary:
+		return value
+	return {}
+
+
+static func as_array(value: Variant) -> Array:
+	if value is Array:
+		return value
+	return []
+
+
+static func json_dictionary(source: Dictionary, key: String) -> Dictionary:
+	var value: Variant = source.get(key)
+	if value is Dictionary:
+		return value
+	return {}
+
+
+static func json_array(source: Dictionary, key: String) -> Array:
+	var value: Variant = source.get(key)
+	if value is Array:
+		return value
+	return []
+
+
+# Nested JSON vectors and colors, which every geometry-facing domain reads.
+static func json_vector2(source: Dictionary, key: String, default_value: Vector2 = Vector2.ZERO) -> Vector2:
+	var value: Dictionary = json_dictionary(source, key)
+	if value.is_empty():
+		return default_value
+	return Vector2(json_float(value, "x", default_value.x), json_float(value, "y", default_value.y))
+
+
+static func json_vector3(source: Dictionary, key: String, default_value: Vector3 = Vector3.ZERO) -> Vector3:
+	var value: Dictionary = json_dictionary(source, key)
+	if value.is_empty():
+		return default_value
+	return Vector3(
+		json_float(value, "x", default_value.x),
+		json_float(value, "y", default_value.y),
+		json_float(value, "z", default_value.z),
+	)
+
+
+static func to_vector2(value: Variant, default_value: Vector2 = Vector2.ZERO) -> Vector2:
+	if not value is Dictionary:
+		return default_value
+	var source: Dictionary = value
+	return Vector2(json_float(source, "x", default_value.x), json_float(source, "y", default_value.y))
+
+
+static func to_vector3(value: Variant, default_value: Vector3 = Vector3.ZERO) -> Vector3:
+	if not value is Dictionary:
+		return default_value
+	var source: Dictionary = value
+	return Vector3(
+		json_float(source, "x", default_value.x),
+		json_float(source, "y", default_value.y),
+		json_float(source, "z", default_value.z),
+	)
+
+
+static func to_color(value: Variant, default_value: Color = Color.WHITE) -> Color:
+	if not value is Dictionary:
+		return default_value
+	var source: Dictionary = value
+	return Color(
+		json_float(source, "r", default_value.r),
+		json_float(source, "g", default_value.g),
+		json_float(source, "b", default_value.b),
+		json_float(source, "a", default_value.a),
+	)

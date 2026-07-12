@@ -23,10 +23,17 @@ func _exit_tree() -> void:
 	_clear_debug_draw()
 
 
+func _as_environment(value: Variant) -> Environment:
+	if value is Environment:
+		return value
+	return null
+
+
 func _clear_debug_draw() -> void:
 	for entry: Dictionary in _debug_meshes:
-		var node: Node = entry.get("node") as Node
-		if is_instance_valid(node):
+		var drawn: Variant = entry.get("node")
+		if drawn is Node and is_instance_valid(drawn):
+			var node: Node = drawn
 			node.queue_free()
 	_debug_meshes.clear()
 	if _debug_draw_node != null and is_instance_valid(_debug_draw_node):
@@ -73,25 +80,25 @@ func _cmd_set_camera(params: Dictionary) -> void:
 	if cam2d != null:
 		if params.has("position"):
 			var pos: Dictionary = params["position"]
-			cam2d.global_position = Vector2(float(pos.get("x", cam2d.global_position.x)), float(pos.get("y", cam2d.global_position.y)))
+			cam2d.global_position = Vector2(CommandParams.json_float(pos, "x", cam2d.global_position.x), CommandParams.json_float(pos, "y", cam2d.global_position.y))
 		if params.has("rotation"):
 			var rot: Dictionary = params["rotation"]
-			cam2d.global_rotation = deg_to_rad(float(rot.get("z", rad_to_deg(cam2d.global_rotation))))
+			cam2d.global_rotation = deg_to_rad(CommandParams.json_float(rot, "z", rad_to_deg(cam2d.global_rotation)))
 		if params.has("zoom"):
 			var z: Dictionary = params["zoom"]
-			cam2d.zoom = Vector2(float(z.get("x", cam2d.zoom.x)), float(z.get("y", cam2d.zoom.y)))
+			cam2d.zoom = Vector2(CommandParams.json_float(z, "x", cam2d.zoom.x), CommandParams.json_float(z, "y", cam2d.zoom.y))
 		respond({"success": true, "camera": "2d", "position": variant_to_json(cam2d.global_position), "zoom": variant_to_json(cam2d.zoom)})
 		return
 
 	if cam3d != null:
 		if params.has("position"):
 			var pos: Dictionary = params["position"]
-			cam3d.global_position = Vector3(float(pos.get("x", cam3d.global_position.x)), float(pos.get("y", cam3d.global_position.y)), float(pos.get("z", cam3d.global_position.z)))
+			cam3d.global_position = Vector3(CommandParams.json_float(pos, "x", cam3d.global_position.x), CommandParams.json_float(pos, "y", cam3d.global_position.y), CommandParams.json_float(pos, "z", cam3d.global_position.z))
 		if params.has("rotation"):
 			var rot: Dictionary = params["rotation"]
-			cam3d.global_rotation = Vector3(deg_to_rad(float(rot.get("x", rad_to_deg(cam3d.global_rotation.x)))), deg_to_rad(float(rot.get("y", rad_to_deg(cam3d.global_rotation.y)))), deg_to_rad(float(rot.get("z", rad_to_deg(cam3d.global_rotation.z)))))
+			cam3d.global_rotation = Vector3(deg_to_rad(CommandParams.json_float(rot, "x", rad_to_deg(cam3d.global_rotation.x))), deg_to_rad(CommandParams.json_float(rot, "y", rad_to_deg(cam3d.global_rotation.y))), deg_to_rad(CommandParams.json_float(rot, "z", rad_to_deg(cam3d.global_rotation.z))))
 		if params.has("fov"):
-			cam3d.fov = float(params["fov"])
+			cam3d.fov = CommandParams.to_float(params["fov"])
 		respond({"success": true, "camera": "3d", "position": variant_to_json(cam3d.global_position), "rotation": variant_to_json(cam3d.global_rotation)})
 		return
 
@@ -110,8 +117,9 @@ func _cmd_set_shader_param(params: Dictionary) -> void:
 	if node.get("material_override") != null:
 		material = node.get("material_override")
 	# Try surface override material (MeshInstance3D)
-	elif node.has_method("get_surface_override_material"):
-		material = node.get_surface_override_material(0)
+	elif node is MeshInstance3D:
+		var mesh_instance: MeshInstance3D = node
+		material = mesh_instance.get_surface_override_material(0)
 	# Try material property (CanvasItem, e.g. Sprite2D)
 	elif node.get("material") != null:
 		material = node.get("material")
@@ -154,17 +162,18 @@ func _cmd_visual_shader(params: Dictionary) -> void:
 		if not VISUAL_SHADER_MODES.has(shader_type):
 			respond({"error": "Unknown shader_type: %s" % shader_type})
 			return
-		var shader: VisualShader = VisualShader.new()
-		shader.set_mode(VISUAL_SHADER_MODES[shader_type])
+		var created: VisualShader = VisualShader.new()
+		var mode: Shader.Mode = VISUAL_SHADER_MODES[shader_type]
+		created.set_mode(mode)
 		var shader_id: int = _next_visual_shader_id
 		_next_visual_shader_id += 1
-		_visual_shaders[shader_id] = shader
+		_visual_shaders[shader_id] = created
 		respond({"success": true, "shader_id": shader_id, "shader_type": shader_type})
 		return
 
 	# Every other action edits an existing graph: the one named by shader_id,
 	# or the most recently created one.
-	var target_id: int = int(params.get("shader_id", _next_visual_shader_id - 1))
+	var target_id: int = CommandParams.json_int(params, "shader_id", _next_visual_shader_id - 1)
 	var shader: VisualShader = _visual_shaders.get(target_id)
 	if shader == null:
 		respond({"error": "No visual shader with id %s; use action create first" % target_id})
@@ -179,22 +188,23 @@ func _cmd_visual_shader(params: Dictionary) -> void:
 			if not ClassDB.class_exists(node_class) or not ClassDB.is_parent_class(node_class, "VisualShaderNode"):
 				respond({"error": "Class '%s' is not a VisualShaderNode type" % node_class})
 				return
-			var graph_node: VisualShaderNode = ClassDB.instantiate(node_class) as VisualShaderNode
-			if graph_node == null:
+			var instantiated: Variant = ClassDB.instantiate(node_class)
+			if not instantiated is VisualShaderNode:
 				respond({"error": "Failed to instantiate: %s" % node_class})
 				return
-			var position: Dictionary = params.get("position", {})
+			var graph_node: VisualShaderNode = instantiated
+			var position: Dictionary = CommandParams.json_dictionary(params, "position")
 			var node_id: int = shader.get_valid_node_id(VisualShader.TYPE_FRAGMENT)
-			shader.add_node(VisualShader.TYPE_FRAGMENT, graph_node, Vector2(position.get("x", 0.0), position.get("y", 0.0)), node_id)
+			shader.add_node(VisualShader.TYPE_FRAGMENT, graph_node, CommandParams.to_vector2(position), node_id)
 			respond({"success": true, "shader_id": target_id, "node_id": node_id, "node_class": node_class})
 		"connect":
-			var err: int = shader.connect_nodes(VisualShader.TYPE_FRAGMENT, int(params.get("from_node", -1)), int(params.get("from_port", 0)), int(params.get("to_node", -1)), int(params.get("to_port", 0)))
+			var err: int = shader.connect_nodes(VisualShader.TYPE_FRAGMENT, CommandParams.json_int(params, "from_node", -1), CommandParams.json_int(params, "from_port", 0), CommandParams.json_int(params, "to_node", -1), CommandParams.json_int(params, "to_port", 0))
 			if err != OK:
 				respond({"error": "Failed to connect nodes (error %d)" % err})
 				return
 			respond({"success": true, "shader_id": target_id})
 		"disconnect":
-			shader.disconnect_nodes(VisualShader.TYPE_FRAGMENT, int(params.get("from_node", -1)), int(params.get("from_port", 0)), int(params.get("to_node", -1)), int(params.get("to_port", 0)))
+			shader.disconnect_nodes(VisualShader.TYPE_FRAGMENT, CommandParams.json_int(params, "from_node", -1), CommandParams.json_int(params, "from_port", 0), CommandParams.json_int(params, "to_node", -1), CommandParams.json_int(params, "to_port", 0))
 			respond({"success": true, "shader_id": target_id})
 		"get_nodes":
 			var nodes: Array = []
@@ -242,13 +252,13 @@ func _cmd_environment(params: Dictionary) -> void:
 	if found.size() > 0:
 		world_env = found[0]
 		if world_env != null:
-			env = world_env.get("environment") as Environment
+			env = _as_environment(world_env.get("environment"))
 
 	# Fallback: check Camera3D
 	if env == null:
 		var cam3d: Camera3D = get_viewport().get_camera_3d()
-		if cam3d != null and cam3d.get("environment") != null:
-			env = cam3d.get("environment") as Environment
+		if cam3d != null:
+			env = _as_environment(cam3d.get("environment"))
 
 	if action == "get":
 		if env == null:
@@ -267,47 +277,47 @@ func _cmd_environment(params: Dictionary) -> void:
 
 	# Apply settings
 	if params.has("background_mode"):
-		env.background_mode = int(params["background_mode"]) as Environment.BGMode
+		env.background_mode = CommandParams.to_int(params["background_mode"]) as Environment.BGMode
 	if params.has("background_color"):
 		var c: Dictionary = params["background_color"]
-		env.background_color = Color(float(c.get("r", 0)), float(c.get("g", 0)), float(c.get("b", 0)), float(c.get("a", 1)))
+		env.background_color = Color(CommandParams.json_float(c, "r", 0), CommandParams.json_float(c, "g", 0), CommandParams.json_float(c, "b", 0), CommandParams.json_float(c, "a", 1))
 	if params.has("ambient_light_color"):
 		var c: Dictionary = params["ambient_light_color"]
-		env.ambient_light_color = Color(float(c.get("r", 0)), float(c.get("g", 0)), float(c.get("b", 0)), float(c.get("a", 1)))
+		env.ambient_light_color = Color(CommandParams.json_float(c, "r", 0), CommandParams.json_float(c, "g", 0), CommandParams.json_float(c, "b", 0), CommandParams.json_float(c, "a", 1))
 	if params.has("ambient_light_energy"):
-		env.ambient_light_energy = float(params["ambient_light_energy"])
+		env.ambient_light_energy = CommandParams.to_float(params["ambient_light_energy"])
 	if params.has("fog_enabled"):
-		env.fog_enabled = bool(params["fog_enabled"])
+		env.fog_enabled = CommandParams.to_bool(params["fog_enabled"])
 	if params.has("fog_density"):
-		env.fog_density = float(params["fog_density"])
+		env.fog_density = CommandParams.to_float(params["fog_density"])
 	if params.has("fog_light_color"):
 		var c: Dictionary = params["fog_light_color"]
-		env.fog_light_color = Color(float(c.get("r", 0)), float(c.get("g", 0)), float(c.get("b", 0)), float(c.get("a", 1)))
+		env.fog_light_color = Color(CommandParams.json_float(c, "r", 0), CommandParams.json_float(c, "g", 0), CommandParams.json_float(c, "b", 0), CommandParams.json_float(c, "a", 1))
 	if params.has("glow_enabled"):
-		env.glow_enabled = bool(params["glow_enabled"])
+		env.glow_enabled = CommandParams.to_bool(params["glow_enabled"])
 	if params.has("glow_intensity"):
-		env.glow_intensity = float(params["glow_intensity"])
+		env.glow_intensity = CommandParams.to_float(params["glow_intensity"])
 	if params.has("glow_bloom"):
-		env.glow_bloom = float(params["glow_bloom"])
+		env.glow_bloom = CommandParams.to_float(params["glow_bloom"])
 	if params.has("tonemap_mode"):
-		env.tonemap_mode = int(params["tonemap_mode"]) as Environment.ToneMapper
+		env.tonemap_mode = CommandParams.to_int(params["tonemap_mode"]) as Environment.ToneMapper
 	if params.has("ssao_enabled"):
-		env.ssao_enabled = bool(params["ssao_enabled"])
+		env.ssao_enabled = CommandParams.to_bool(params["ssao_enabled"])
 	if params.has("ssao_radius"):
-		env.ssao_radius = float(params["ssao_radius"])
+		env.ssao_radius = CommandParams.to_float(params["ssao_radius"])
 	if params.has("ssao_intensity"):
-		env.ssao_intensity = float(params["ssao_intensity"])
+		env.ssao_intensity = CommandParams.to_float(params["ssao_intensity"])
 	if params.has("ssr_enabled"):
-		env.ssr_enabled = bool(params["ssr_enabled"])
+		env.ssr_enabled = CommandParams.to_bool(params["ssr_enabled"])
 	if params.has("brightness"):
 		env.adjustment_enabled = true
-		env.adjustment_brightness = float(params["brightness"])
+		env.adjustment_brightness = CommandParams.to_float(params["brightness"])
 	if params.has("contrast"):
 		env.adjustment_enabled = true
-		env.adjustment_contrast = float(params["contrast"])
+		env.adjustment_contrast = CommandParams.to_float(params["contrast"])
 	if params.has("saturation"):
 		env.adjustment_enabled = true
-		env.adjustment_saturation = float(params["saturation"])
+		env.adjustment_saturation = CommandParams.to_float(params["saturation"])
 
 	respond(_get_environment_state(env))
 
@@ -354,46 +364,49 @@ func _cmd_set_particles(params: Dictionary) -> void:
 
 	# Set direct particle properties
 	if params.has("emitting"):
-		node.set("emitting", bool(params["emitting"]))
+		node.set("emitting", CommandParams.to_bool(params["emitting"]))
 	if params.has("amount"):
-		node.set("amount", int(params["amount"]))
+		node.set("amount", CommandParams.to_int(params["amount"]))
 	if params.has("lifetime"):
-		node.set("lifetime", float(params["lifetime"]))
+		node.set("lifetime", CommandParams.to_float(params["lifetime"]))
 	if params.has("one_shot"):
-		node.set("one_shot", bool(params["one_shot"]))
+		node.set("one_shot", CommandParams.to_bool(params["one_shot"]))
 	if params.has("speed_scale"):
-		node.set("speed_scale", float(params["speed_scale"]))
+		node.set("speed_scale", CommandParams.to_float(params["speed_scale"]))
 	if params.has("explosiveness"):
-		node.set("explosiveness", float(params["explosiveness"]))
+		node.set("explosiveness", CommandParams.to_float(params["explosiveness"]))
 	if params.has("randomness"):
-		node.set("randomness", float(params["randomness"]))
+		node.set("randomness", CommandParams.to_float(params["randomness"]))
 
 	# Configure process material
 	if params.has("process_material"):
 		var mat_params: Dictionary = params["process_material"]
-		var mat: ParticleProcessMaterial = node.get("process_material") as ParticleProcessMaterial
+		var process_material: Variant = node.get("process_material")
+		var mat: ParticleProcessMaterial = null
+		if process_material is ParticleProcessMaterial:
+			mat = process_material
 		if mat == null:
 			mat = ParticleProcessMaterial.new()
 			node.set("process_material", mat)
 		if mat_params.has("direction"):
 			var d: Dictionary = mat_params["direction"]
-			mat.direction = Vector3(float(d.get("x", 0)), float(d.get("y", -1)), float(d.get("z", 0)))
+			mat.direction = Vector3(CommandParams.json_float(d, "x", 0), CommandParams.json_float(d, "y", -1), CommandParams.json_float(d, "z", 0))
 		if mat_params.has("spread"):
-			mat.spread = float(mat_params["spread"])
+			mat.spread = CommandParams.to_float(mat_params["spread"])
 		if mat_params.has("gravity"):
 			var g: Dictionary = mat_params["gravity"]
-			mat.gravity = Vector3(float(g.get("x", 0)), float(g.get("y", -9.8)), float(g.get("z", 0)))
+			mat.gravity = Vector3(CommandParams.json_float(g, "x", 0), CommandParams.json_float(g, "y", -9.8), CommandParams.json_float(g, "z", 0))
 		if mat_params.has("initial_velocity_min"):
-			mat.initial_velocity_min = float(mat_params["initial_velocity_min"])
+			mat.initial_velocity_min = CommandParams.to_float(mat_params["initial_velocity_min"])
 		if mat_params.has("initial_velocity_max"):
-			mat.initial_velocity_max = float(mat_params["initial_velocity_max"])
+			mat.initial_velocity_max = CommandParams.to_float(mat_params["initial_velocity_max"])
 		if mat_params.has("color"):
 			var c: Dictionary = mat_params["color"]
-			mat.color = Color(float(c.get("r", 1)), float(c.get("g", 1)), float(c.get("b", 1)), float(c.get("a", 1)))
+			mat.color = Color(CommandParams.json_float(c, "r", 1), CommandParams.json_float(c, "g", 1), CommandParams.json_float(c, "b", 1), CommandParams.json_float(c, "a", 1))
 		if mat_params.has("scale_min"):
-			mat.scale_min = float(mat_params["scale_min"])
+			mat.scale_min = CommandParams.to_float(mat_params["scale_min"])
 		if mat_params.has("scale_max"):
-			mat.scale_max = float(mat_params["scale_max"])
+			mat.scale_max = CommandParams.to_float(mat_params["scale_max"])
 
 	respond({
 		"success": true, "node_path": node_path,
@@ -419,14 +432,15 @@ func _cmd_viewport(params: Dictionary) -> void:
 				return
 			var viewport: SubViewport = SubViewport.new()
 			if params.has("width") and params.has("height"):
-				viewport.size = Vector2i(int(params["width"]), int(params["height"]))
+				viewport.size = Vector2i(CommandParams.to_int(params["width"]), CommandParams.to_int(params["height"]))
 			if params.has("transparent_bg"):
-				viewport.transparent_bg = bool(params["transparent_bg"])
+				viewport.transparent_bg = CommandParams.to_bool(params["transparent_bg"])
 			if params.has("msaa"):
-				viewport.msaa_2d = int(params["msaa"]) as Viewport.MSAA
-				viewport.msaa_3d = int(params["msaa"]) as Viewport.MSAA
-			if params.has("name") and params["name"] is String and not (params["name"] as String).is_empty():
-				viewport.name = params["name"]
+				viewport.msaa_2d = CommandParams.to_int(params["msaa"]) as Viewport.MSAA
+				viewport.msaa_3d = CommandParams.to_int(params["msaa"]) as Viewport.MSAA
+			var custom_name: String = CommandParams.json_string(params, "name")
+			if not custom_name.is_empty():
+				viewport.name = custom_name
 			var container: SubViewportContainer = SubViewportContainer.new()
 			container.add_child(viewport)
 			parent.add_child(container)
@@ -442,12 +456,12 @@ func _cmd_viewport(params: Dictionary) -> void:
 				return
 			var sv: SubViewport = vp as SubViewport
 			if params.has("width") and params.has("height"):
-				sv.size = Vector2i(int(params["width"]), int(params["height"]))
+				sv.size = Vector2i(CommandParams.to_int(params["width"]), CommandParams.to_int(params["height"]))
 			if params.has("transparent_bg"):
-				sv.transparent_bg = bool(params["transparent_bg"])
+				sv.transparent_bg = CommandParams.to_bool(params["transparent_bg"])
 			if params.has("msaa"):
-				sv.msaa_2d = int(params["msaa"]) as Viewport.MSAA
-				sv.msaa_3d = int(params["msaa"]) as Viewport.MSAA
+				sv.msaa_2d = CommandParams.to_int(params["msaa"]) as Viewport.MSAA
+				sv.msaa_3d = CommandParams.to_int(params["msaa"]) as Viewport.MSAA
 			respond({"success": true, "action": "configure", "size": variant_to_json(sv.size), "transparent_bg": sv.transparent_bg})
 		"get":
 			var node_path: String = params.get("node_path", "")
@@ -474,8 +488,8 @@ func _cmd_debug_draw(params: Dictionary) -> void:
 	if params_invalid(reader):
 		return
 	var color_dict: Dictionary = params.get("color", {"r": 1.0, "g": 0.0, "b": 0.0})
-	var color: Color = Color(float(color_dict.get("r", 1)), float(color_dict.get("g", 0)), float(color_dict.get("b", 0)), float(color_dict.get("a", 1)))
-	var duration: int = int(params.get("duration", 0))
+	var color: Color = Color(CommandParams.json_float(color_dict, "r", 1), CommandParams.json_float(color_dict, "g", 0), CommandParams.json_float(color_dict, "b", 0), CommandParams.json_float(color_dict, "a", 1))
+	var duration: int = CommandParams.json_int(params, "duration", 0)
 
 	if action == "clear":
 		_clear_debug_draw()
@@ -498,8 +512,8 @@ func _cmd_debug_draw(params: Dictionary) -> void:
 		"line":
 			var from_dict: Dictionary = params.get("from", {})
 			var to_dict: Dictionary = params.get("to", {})
-			var from_pos: Vector3 = Vector3(float(from_dict.get("x", 0)), float(from_dict.get("y", 0)), float(from_dict.get("z", 0)))
-			var to_pos: Vector3 = Vector3(float(to_dict.get("x", 0)), float(to_dict.get("y", 0)), float(to_dict.get("z", 0)))
+			var from_pos: Vector3 = Vector3(CommandParams.json_float(from_dict, "x", 0), CommandParams.json_float(from_dict, "y", 0), CommandParams.json_float(from_dict, "z", 0))
+			var to_pos: Vector3 = Vector3(CommandParams.json_float(to_dict, "x", 0), CommandParams.json_float(to_dict, "y", 0), CommandParams.json_float(to_dict, "z", 0))
 			var im: ImmediateMesh = ImmediateMesh.new()
 			im.surface_begin(Mesh.PRIMITIVE_LINES, mat)
 			im.surface_add_vertex(from_pos)
@@ -512,8 +526,8 @@ func _cmd_debug_draw(params: Dictionary) -> void:
 			respond({"success": true, "action": "line"})
 		"sphere":
 			var center_dict: Dictionary = params.get("center", {})
-			var center: Vector3 = Vector3(float(center_dict.get("x", 0)), float(center_dict.get("y", 0)), float(center_dict.get("z", 0)))
-			var radius: float = float(params.get("radius", 0.5))
+			var center: Vector3 = Vector3(CommandParams.json_float(center_dict, "x", 0), CommandParams.json_float(center_dict, "y", 0), CommandParams.json_float(center_dict, "z", 0))
+			var radius: float = CommandParams.json_float(params, "radius", 0.5)
 			var sphere_mesh: SphereMesh = SphereMesh.new()
 			sphere_mesh.radius = radius
 			sphere_mesh.height = radius * 2.0
@@ -526,9 +540,9 @@ func _cmd_debug_draw(params: Dictionary) -> void:
 			respond({"success": true, "action": "sphere"})
 		"box":
 			var center_dict: Dictionary = params.get("center", {})
-			var center: Vector3 = Vector3(float(center_dict.get("x", 0)), float(center_dict.get("y", 0)), float(center_dict.get("z", 0)))
+			var center: Vector3 = Vector3(CommandParams.json_float(center_dict, "x", 0), CommandParams.json_float(center_dict, "y", 0), CommandParams.json_float(center_dict, "z", 0))
 			var size_dict: Dictionary = params.get("size", {"x": 1, "y": 1, "z": 1})
-			var box_size: Vector3 = Vector3(float(size_dict.get("x", 1)), float(size_dict.get("y", 1)), float(size_dict.get("z", 1)))
+			var box_size: Vector3 = Vector3(CommandParams.json_float(size_dict, "x", 1), CommandParams.json_float(size_dict, "y", 1), CommandParams.json_float(size_dict, "z", 1))
 			var box_mesh: BoxMesh = BoxMesh.new()
 			box_mesh.size = box_size
 			box_mesh.material = mat
@@ -557,9 +571,10 @@ func _cmd_gi(params: Dictionary) -> void:
 			return
 	if params.has("size") and node is VoxelGI:
 		var s: Dictionary = params["size"]
-		(node as VoxelGI).size = Vector3(float(s.get("x", 10)), float(s.get("y", 10)), float(s.get("z", 10)))
-	if params.has("name") and not (params["name"] as String).is_empty():
-		node.name = params["name"]
+		(node as VoxelGI).size = Vector3(CommandParams.json_float(s, "x", 10), CommandParams.json_float(s, "y", 10), CommandParams.json_float(s, "z", 10))
+	var custom_name: String = CommandParams.json_string(params, "name")
+	if not custom_name.is_empty():
+		node.name = custom_name
 	parent.add_child(node)
 	respond({"success": true, "path": str(node.get_path()), "gi_type": gi_type})
 
@@ -579,15 +594,15 @@ func _cmd_sky(params: Dictionary) -> void:
 		sky_mat = ProceduralSkyMaterial.new()
 	if params.has("top_color"):
 		var c: Dictionary = params["top_color"]
-		sky_mat.sky_top_color = Color(float(c.get("r", 0.4)), float(c.get("g", 0.6)), float(c.get("b", 1.0)))
+		sky_mat.sky_top_color = Color(CommandParams.json_float(c, "r", 0.4), CommandParams.json_float(c, "g", 0.6), CommandParams.json_float(c, "b", 1.0))
 	if params.has("bottom_color"):
 		var c: Dictionary = params["bottom_color"]
-		sky_mat.sky_horizon_color = Color(float(c.get("r", 0.7)), float(c.get("g", 0.8)), float(c.get("b", 0.9)))
+		sky_mat.sky_horizon_color = Color(CommandParams.json_float(c, "r", 0.7), CommandParams.json_float(c, "g", 0.8), CommandParams.json_float(c, "b", 0.9))
 	if params.has("ground_color"):
 		var c: Dictionary = params["ground_color"]
-		sky_mat.ground_bottom_color = Color(float(c.get("r", 0.1)), float(c.get("g", 0.1)), float(c.get("b", 0.1)))
+		sky_mat.ground_bottom_color = Color(CommandParams.json_float(c, "r", 0.1), CommandParams.json_float(c, "g", 0.1), CommandParams.json_float(c, "b", 0.1))
 	if params.has("sun_energy"):
-		sky_mat.sun_curve = float(params["sun_energy"])
+		sky_mat.sun_curve = CommandParams.to_float(params["sun_energy"])
 	env.sky.sky_material = sky_mat
 	respond({"success": true, "action": action, "sky_type": sky_type})
 
@@ -636,14 +651,14 @@ func _cmd_camera_attributes(params: Dictionary) -> void:
 		return
 	if params.has("dof_blur_far"):
 		attr.dof_blur_far_enabled = true
-		attr.dof_blur_far_distance = float(params["dof_blur_far"])
+		attr.dof_blur_far_distance = CommandParams.to_float(params["dof_blur_far"])
 	if params.has("dof_blur_near"):
 		attr.dof_blur_near_enabled = true
-		attr.dof_blur_near_distance = float(params["dof_blur_near"])
+		attr.dof_blur_near_distance = CommandParams.to_float(params["dof_blur_near"])
 	if params.has("dof_blur_amount"):
-		attr.dof_blur_amount = float(params["dof_blur_amount"])
+		attr.dof_blur_amount = CommandParams.to_float(params["dof_blur_amount"])
 	if params.has("auto_exposure"):
-		attr.auto_exposure_enabled = bool(params["auto_exposure"])
+		attr.auto_exposure_enabled = CommandParams.to_bool(params["auto_exposure"])
 	respond({"success": true, "action": "set"})
 
 
@@ -661,17 +676,17 @@ func _cmd_render_settings(params: Dictionary) -> void:
 		respond({"success": true, "msaa_2d": vp.msaa_2d, "msaa_3d": vp.msaa_3d, "screen_space_aa": vp.screen_space_aa, "use_taa": vp.use_taa, "scaling_3d_mode": vp.scaling_3d_mode, "scaling_3d_scale": vp.scaling_3d_scale})
 		return
 	if params.has("msaa_2d"):
-		vp.msaa_2d = int(params["msaa_2d"]) as Viewport.MSAA
+		vp.msaa_2d = CommandParams.to_int(params["msaa_2d"]) as Viewport.MSAA
 	if params.has("msaa_3d"):
-		vp.msaa_3d = int(params["msaa_3d"]) as Viewport.MSAA
+		vp.msaa_3d = CommandParams.to_int(params["msaa_3d"]) as Viewport.MSAA
 	if params.has("fxaa"):
-		vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA if bool(params["fxaa"]) else Viewport.SCREEN_SPACE_AA_DISABLED
+		vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA if CommandParams.to_bool(params["fxaa"]) else Viewport.SCREEN_SPACE_AA_DISABLED
 	if params.has("taa"):
-		vp.use_taa = bool(params["taa"])
+		vp.use_taa = CommandParams.to_bool(params["taa"])
 	if params.has("scaling_mode"):
-		vp.scaling_3d_mode = int(params["scaling_mode"]) as Viewport.Scaling3DMode
+		vp.scaling_3d_mode = CommandParams.to_int(params["scaling_mode"]) as Viewport.Scaling3DMode
 	if params.has("scaling_scale"):
-		vp.scaling_3d_scale = float(params["scaling_scale"])
+		vp.scaling_3d_scale = CommandParams.to_float(params["scaling_scale"])
 	respond({"success": true, "action": "set"})
 
 
@@ -698,13 +713,14 @@ func _cmd_video(params: Dictionary) -> void:
 				return
 			vp.stream = stream
 		if params.has("volume"):
-			vp.volume = float(params["volume"])
+			vp.volume = CommandParams.to_float(params["volume"])
 		if params.has("autoplay"):
-			vp.autoplay = bool(params["autoplay"])
+			vp.autoplay = CommandParams.to_bool(params["autoplay"])
 		if params.has("loop") and "loop" in vp:
-			vp.set("loop", bool(params["loop"]))
-		if params.has("name") and not (params["name"] as String).is_empty():
-			vp.name = params["name"]
+			vp.set("loop", CommandParams.to_bool(params["loop"]))
+		var custom_name: String = CommandParams.json_string(params, "name")
+		if not custom_name.is_empty():
+			vp.name = custom_name
 		parent.add_child(vp)
 		if vp.autoplay:
 			vp.play()
@@ -730,7 +746,7 @@ func _cmd_video(params: Dictionary) -> void:
 			player.stop()
 			respond({"success": true, "action": "stop"})
 		"seek":
-			player.stream_position = float(params.get("position", 0.0))
+			player.stream_position = CommandParams.json_float(params, "position", 0.0)
 			respond({"success": true, "action": "seek", "position": player.stream_position})
 		"get_status":
 			respond({"success": true, "action": "get_status", "is_playing": player.is_playing(), "paused": player.paused, "position": player.stream_position, "length": player.get_stream_length()})

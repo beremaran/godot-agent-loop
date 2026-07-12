@@ -44,8 +44,14 @@ func _require_class(reader: CommandParams, node: Node, type_name: String) -> voi
 		{"param": "node_path", "reason": "invalid_value", "expected": type_name, "value": node.get_class()})
 
 
-func _color_from(value: Dictionary) -> Color:
-	return Color(float(value.get("r", 0)), float(value.get("g", 0)), float(value.get("b", 0)), float(value.get("a", 1)))
+func _color_from(value: Variant) -> Color:
+	var source: Dictionary = CommandParams.as_dictionary(value)
+	return Color(
+		CommandParams.json_float(source, "r"),
+		CommandParams.json_float(source, "g"),
+		CommandParams.json_float(source, "b"),
+		CommandParams.json_float(source, "a", 1.0),
+	)
 
 
 # --- Theme overrides ---
@@ -61,20 +67,23 @@ func _cmd_ui_theme(params: Dictionary) -> void:
 	var ctrl: Control = node as Control
 	var applied: Array = []
 
-	var colors: Dictionary = overrides.get("colors", {})
-	for name in colors:
-		ctrl.add_theme_color_override(name, _color_from(colors[name]))
-		applied.append("color:" + name)
+	var colors: Dictionary = CommandParams.json_dictionary(overrides, "colors")
+	for color_name: Variant in colors:
+		var override: StringName = StringName(str(color_name))
+		ctrl.add_theme_color_override(override, _color_from(colors[color_name]))
+		applied.append("color:" + str(color_name))
 
-	var constants: Dictionary = overrides.get("constants", {})
-	for name in constants:
-		ctrl.add_theme_constant_override(name, int(constants[name]))
-		applied.append("constant:" + name)
+	var constants: Dictionary = CommandParams.json_dictionary(overrides, "constants")
+	for constant_name: Variant in constants:
+		var override: StringName = StringName(str(constant_name))
+		ctrl.add_theme_constant_override(override, CommandParams.to_int(constants[constant_name]))
+		applied.append("constant:" + str(constant_name))
 
-	var font_sizes: Dictionary = overrides.get("fontSizes", overrides.get("font_sizes", {}))
-	for name in font_sizes:
-		ctrl.add_theme_font_size_override(name, int(font_sizes[name]))
-		applied.append("font_size:" + name)
+	var font_sizes: Dictionary = CommandParams.as_dictionary(overrides.get("fontSizes", overrides.get("font_sizes", {})))
+	for font_name: Variant in font_sizes:
+		var override: StringName = StringName(str(font_name))
+		ctrl.add_theme_font_size_override(override, CommandParams.to_int(font_sizes[font_name]))
+		applied.append("font_size:" + str(font_name))
 
 	respond({"success": true, "node_path": str(params.get("node_path", "")), "applied": applied})
 
@@ -115,7 +124,7 @@ func _cmd_ui_control(params: Dictionary) -> void:
 				var min_size: Dictionary = reader.required_dictionary("min_size")
 				if params_invalid(reader):
 					return
-				ctrl.custom_minimum_size = Vector2(float(min_size.get("x", 0)), float(min_size.get("y", 0)))
+				ctrl.custom_minimum_size = Vector2(CommandParams.json_float(min_size, "x", 0), CommandParams.json_float(min_size, "y", 0))
 				applied.append("min_size")
 			if reader.has_param("anchor_preset"):
 				var preset: int = _resolve_anchor_preset(reader.raw("anchor_preset"))
@@ -133,9 +142,10 @@ func _cmd_ui_control(params: Dictionary) -> void:
 
 func _resolve_anchor_preset(value: Variant) -> int:
 	if value is int or value is float:
-		return int(value)
+		return CommandParams.to_int(value)
 	if value is String:
-		var key: String = (value as String).to_lower()
+		var text: String = value
+		var key: String = text.to_lower()
 		if ANCHOR_PRESETS.has(key):
 			return ANCHOR_PRESETS[key]
 	return -1
@@ -152,7 +162,7 @@ func _cmd_ui_text(params: Dictionary) -> void:
 	if action == "bbcode":
 		if not node is RichTextLabel:
 			_require_class(reader, node, "RichTextLabel")
-			params_invalid(reader)
+			send_params_error(reader)
 			return
 		var rtl: RichTextLabel = node as RichTextLabel
 		rtl.bbcode_enabled = true
@@ -162,7 +172,7 @@ func _cmd_ui_text(params: Dictionary) -> void:
 
 	if not (node is LineEdit or node is TextEdit or node is RichTextLabel):
 		_require_class(reader, node, "text control (LineEdit/TextEdit/RichTextLabel)")
-		params_invalid(reader)
+		send_params_error(reader)
 		return
 
 	match action:
@@ -208,7 +218,7 @@ func _cmd_ui_popup(params: Dictionary) -> void:
 				var size: Dictionary = reader.required_dictionary("size")
 				if params_invalid(reader):
 					return
-				win.popup_centered(Vector2i(int(size.get("x", 200)), int(size.get("y", 100))))
+				win.popup_centered(Vector2i(CommandParams.json_int(size, "x", 200), CommandParams.json_int(size, "y", 100)))
 			else:
 				win.popup_centered()
 			respond({"success": true, "action": "popup_centered"})
@@ -286,6 +296,7 @@ func _cmd_ui_item_list(params: Dictionary) -> void:
 					return
 				respond({"success": true, "action": "select"})
 			"add":
+				@warning_ignore("return_value_discarded")
 				item_list.add_item(reader.optional_string("text", "Item"))
 				if params_invalid(reader):
 					return
@@ -321,7 +332,7 @@ func _cmd_ui_item_list(params: Dictionary) -> void:
 				respond({"success": true, "action": "add"})
 	else:
 		_require_class(reader, node, "ItemList or OptionButton")
-		params_invalid(reader)
+		send_params_error(reader)
 
 
 # --- Tabs ---
@@ -370,7 +381,7 @@ func _cmd_ui_tabs(params: Dictionary) -> void:
 				respond({"success": true, "action": "set_current"})
 	else:
 		_require_class(reader, node, "TabContainer or TabBar")
-		params_invalid(reader)
+		send_params_error(reader)
 
 
 # --- Popup menus ---
@@ -446,4 +457,4 @@ func _cmd_ui_range(params: Dictionary) -> void:
 		respond({"success": true, "action": "set"})
 	else:
 		_require_class(reader, node, "Range or ColorPicker")
-		params_invalid(reader)
+		send_params_error(reader)

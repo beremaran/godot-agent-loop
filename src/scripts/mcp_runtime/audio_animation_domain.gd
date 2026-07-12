@@ -58,7 +58,7 @@ func _cmd_audio_play(params: Dictionary) -> void:
 	var node_path: String = str(node.get_path())
 	if not (node is AudioStreamPlayer or node is AudioStreamPlayer2D or node is AudioStreamPlayer3D):
 		reader.fail("node_path must reference an AudioStreamPlayer", {"param": "node_path", "reason": "invalid_value", "value": node_path, "class": node.get_class()})
-		params_invalid(reader)
+		send_params_error(reader)
 		return
 
 	# Optionally load a new stream
@@ -72,16 +72,16 @@ func _cmd_audio_play(params: Dictionary) -> void:
 
 	# Set optional properties
 	if params.has("volume"):
-		var linear_vol: float = float(params["volume"])
+		var linear_vol: float = CommandParams.to_float(params["volume"])
 		node.set("volume_db", linear_to_db(clampf(linear_vol, 0.0, 1.0)))
 	if params.has("pitch"):
-		node.set("pitch_scale", float(params["pitch"]))
+		node.set("pitch_scale", CommandParams.to_float(params["pitch"]))
 	if params.has("bus"):
 		node.set("bus", params["bus"])
 
 	match action:
 		"play":
-			var from_pos: float = float(params.get("from_position", 0.0))
+			var from_pos: float = CommandParams.json_float(params, "from_position", 0.0)
 			node.call("play", from_pos)
 			respond({"success": true, "action": "play", "node_path": node_path})
 		"stop":
@@ -108,12 +108,12 @@ func _cmd_audio_bus(params: Dictionary) -> void:
 		return
 
 	if params.has("volume"):
-		var linear_vol: float = float(params["volume"])
+		var linear_vol: float = CommandParams.to_float(params["volume"])
 		AudioServer.set_bus_volume_db(bus_idx, linear_to_db(clampf(linear_vol, 0.0, 1.0)))
 	if params.has("mute"):
-		AudioServer.set_bus_mute(bus_idx, bool(params["mute"]))
+		AudioServer.set_bus_mute(bus_idx, CommandParams.to_bool(params["mute"]))
 	if params.has("solo"):
-		AudioServer.set_bus_solo(bus_idx, bool(params["solo"]))
+		AudioServer.set_bus_solo(bus_idx, CommandParams.to_bool(params["solo"]))
 
 	respond({
 		"success": true,
@@ -145,15 +145,16 @@ func _cmd_create_animation(params: Dictionary) -> void:
 
 	var anim_player: AnimationPlayer = node as AnimationPlayer
 	var anim: Animation = Animation.new()
-	anim.length = float(params.get("length", 1.0))
-	var loop_mode: int = int(params.get("loop_mode", 0))
+	anim.length = CommandParams.json_float(params, "length", 1.0)
+	var loop_mode: int = CommandParams.json_int(params, "loop_mode", 0)
 	anim.loop_mode = loop_mode as Animation.LoopMode
 
-	var tracks: Array = params.get("tracks", [])
+	var tracks: Array = CommandParams.json_array(params, "tracks")
 	var track_count: int = 0
-	for track_data in tracks:
-		var track_type_str: String = track_data.get("type", "value")
-		var track_path: String = track_data.get("path", "")
+	for track_entry: Variant in tracks:
+		var track_data: Dictionary = CommandParams.as_dictionary(track_entry)
+		var track_type_str: String = CommandParams.json_string(track_data, "type", "value")
+		var track_path: String = CommandParams.json_string(track_data, "path")
 		if track_path.is_empty():
 			continue
 
@@ -171,40 +172,47 @@ func _cmd_create_animation(params: Dictionary) -> void:
 		var idx: int = anim.add_track(track_type)
 		anim.track_set_path(idx, NodePath(track_path))
 
-		var keys: Array = track_data.get("keys", [])
-		for key_data in keys:
-			var time: float = float(key_data.get("time", 0.0))
+		var keys: Array = CommandParams.json_array(track_data, "keys")
+		for key_entry: Variant in keys:
+			var key_data: Dictionary = CommandParams.as_dictionary(key_entry)
+			var time: float = CommandParams.json_float(key_data, "time", 0.0)
 			match track_type:
 				Animation.TYPE_VALUE:
-					var value: Variant = json_to_variant(key_data.get("value", null), key_data.get("type_hint", ""))
+					var value: Variant = json_to_variant(key_data.get("value"), CommandParams.json_string(key_data, "type_hint"))
+					@warning_ignore("return_value_discarded")
 					anim.track_insert_key(idx, time, value)
 					if key_data.has("transition"):
 						var key_idx: int = anim.track_find_key(idx, time, Animation.FIND_MODE_APPROX)
 						if key_idx >= 0:
-							anim.track_set_key_transition(idx, key_idx, float(key_data["transition"]))
+							anim.track_set_key_transition(idx, key_idx, CommandParams.to_float(key_data["transition"]))
 				Animation.TYPE_METHOD:
-					var method_name: String = key_data.get("method", "")
-					var args: Array = key_data.get("args", [])
+					var method_name: String = CommandParams.json_string(key_data, "method")
+					var args: Array = CommandParams.json_array(key_data, "args")
+					@warning_ignore("return_value_discarded")
 					anim.track_insert_key(idx, time, {"method": method_name, "args": args})
 				Animation.TYPE_BEZIER:
-					var value: float = float(key_data.get("value", 0.0))
+					var value: float = CommandParams.json_float(key_data, "value", 0.0)
+					@warning_ignore("return_value_discarded")
 					anim.bezier_track_insert_key(idx, time, value)
 				Animation.TYPE_AUDIO:
-					var stream_path: String = key_data.get("stream", "")
+					var stream_path: String = CommandParams.json_string(key_data, "stream")
 					if not stream_path.is_empty():
 						var stream: AudioStream = load(stream_path) as AudioStream
 						if stream != null:
+							@warning_ignore("return_value_discarded")
 							anim.audio_track_insert_key(idx, time, stream)
 		track_count += 1
 
 	# Add to library (use default "" library if it exists, otherwise create it)
-	var lib_name: String = params.get("library", "")
+	var lib_name: String = CommandParams.json_string(params, "library")
 	var lib: AnimationLibrary = null
 	if anim_player.has_animation_library(lib_name):
 		lib = anim_player.get_animation_library(lib_name)
 	else:
 		lib = AnimationLibrary.new()
+		@warning_ignore("return_value_discarded")
 		anim_player.add_animation_library(lib_name, lib)
+	@warning_ignore("return_value_discarded")
 	lib.add_animation(anim_name, anim)
 
 	respond({"success": true, "animation_name": anim_name, "length": anim.length, "loop_mode": loop_mode, "track_count": track_count})
@@ -222,7 +230,7 @@ func _cmd_bone_pose(params: Dictionary) -> void:
 	var node_path: String = str(node.get_path())
 	if not node is Skeleton3D:
 		reader.fail("node_path must reference a Skeleton3D", {"param": "node_path", "reason": "invalid_value", "value": node_path, "class": node.get_class()})
-		params_invalid(reader)
+		send_params_error(reader)
 		return
 
 	var skel: Skeleton3D = node as Skeleton3D
@@ -252,23 +260,32 @@ func _cmd_bone_pose(params: Dictionary) -> void:
 				return
 			if params.has("position"):
 				var p: Dictionary = params["position"]
-				skel.set_bone_pose_position(bone_idx, Vector3(float(p.get("x", 0)), float(p.get("y", 0)), float(p.get("z", 0))))
+				skel.set_bone_pose_position(bone_idx, Vector3(CommandParams.json_float(p, "x", 0), CommandParams.json_float(p, "y", 0), CommandParams.json_float(p, "z", 0)))
 			if params.has("rotation"):
 				var r: Dictionary = params["rotation"]
-				skel.set_bone_pose_rotation(bone_idx, Quaternion(float(r.get("x", 0)), float(r.get("y", 0)), float(r.get("z", 0)), float(r.get("w", 1))))
+				skel.set_bone_pose_rotation(bone_idx, Quaternion(CommandParams.json_float(r, "x", 0), CommandParams.json_float(r, "y", 0), CommandParams.json_float(r, "z", 0), CommandParams.json_float(r, "w", 1)))
 			if params.has("scale"):
 				var s: Dictionary = params["scale"]
-				skel.set_bone_pose_scale(bone_idx, Vector3(float(s.get("x", 1)), float(s.get("y", 1)), float(s.get("z", 1))))
+				skel.set_bone_pose_scale(bone_idx, Vector3(CommandParams.json_float(s, "x", 1), CommandParams.json_float(s, "y", 1), CommandParams.json_float(s, "z", 1)))
 			respond({"success": true, "action": "set", "bone_index": bone_idx, "bone_name": skel.get_bone_name(bone_idx)})
 		_:
 			respond({"error": "Unknown bone action: %s. Use list, get, or set" % action})
 
 
+# An AnimationTree only exposes a playback object when its root is a state
+# machine; every other root reports the parameter as null.
+func _state_machine_playback(tree: AnimationTree) -> AnimationNodeStateMachinePlayback:
+	var playback: Variant = tree.get("parameters/playback")
+	if playback is AnimationNodeStateMachinePlayback:
+		return playback
+	return null
+
+
 func _resolve_bone_index(skel: Skeleton3D, params: Dictionary) -> int:
 	if params.has("bone_index"):
-		return int(params["bone_index"])
+		return CommandParams.to_int(params["bone_index"])
 	if params.has("bone_name"):
-		return skel.find_bone(params["bone_name"])
+		return skel.find_bone(CommandParams.json_string(params, "bone_name"))
 	return -1
 
 
@@ -286,23 +303,23 @@ func _cmd_animation_tree(params: Dictionary) -> void:
 		return
 	if not node is AnimationTree:
 		reader.fail("node_path must reference an AnimationTree", {"param": "node_path", "reason": "invalid_value", "class": node.get_class()})
-		params_invalid(reader)
+		send_params_error(reader)
 		return
 	var tree: AnimationTree = node as AnimationTree
 	match action:
 		"travel":
-			var state_name: String = params.get("state_name", "")
-			var playback = tree.get("parameters/playback")
+			var state_name: String = CommandParams.json_string(params, "state_name")
+			var playback: AnimationNodeStateMachinePlayback = _state_machine_playback(tree)
 			if playback != null:
 				playback.travel(state_name)
 			respond({"success": true, "action": "travel", "state": state_name})
 		"set_param":
-			var param_name: String = params.get("param_name", "")
-			var param_value = params.get("param_value", 0)
+			var param_name: String = CommandParams.json_string(params, "param_name")
+			var param_value: Variant = params.get("param_value", 0)
 			tree.set("parameters/" + param_name, param_value)
 			respond({"success": true, "action": "set_param", "param": param_name})
 		"get_state":
-			var playback = tree.get("parameters/playback")
+			var playback: AnimationNodeStateMachinePlayback = _state_machine_playback(tree)
 			var current: String = ""
 			if playback != null:
 				current = playback.get_current_node()
@@ -319,12 +336,12 @@ func _cmd_animation_control(params: Dictionary) -> void:
 		return
 	if not node is AnimationPlayer:
 		reader.fail("node_path must reference an AnimationPlayer", {"param": "node_path", "reason": "invalid_value", "class": node.get_class()})
-		params_invalid(reader)
+		send_params_error(reader)
 		return
 	var player: AnimationPlayer = node as AnimationPlayer
 	match action:
 		"seek":
-			var pos: float = float(params.get("position", 0))
+			var pos: float = CommandParams.json_float(params, "position", 0)
 			player.seek(pos)
 			respond({"success": true, "action": "seek", "position": pos})
 		"queue":
@@ -332,7 +349,7 @@ func _cmd_animation_control(params: Dictionary) -> void:
 			player.queue(anim)
 			respond({"success": true, "action": "queue", "animation": anim})
 		"set_speed":
-			player.speed_scale = float(params.get("speed", 1.0))
+			player.speed_scale = CommandParams.json_float(params, "speed", 1.0)
 			respond({"success": true, "action": "set_speed", "speed": player.speed_scale})
 		"stop":
 			player.stop()
@@ -352,7 +369,7 @@ func _cmd_skeleton_ik(params: Dictionary) -> void:
 		return
 	if not node is SkeletonIK3D:
 		reader.fail("node_path must reference a SkeletonIK3D", {"param": "node_path", "reason": "invalid_value", "class": node.get_class()})
-		params_invalid(reader)
+		send_params_error(reader)
 		return
 	var ik: SkeletonIK3D = node as SkeletonIK3D
 	match action:
@@ -365,7 +382,7 @@ func _cmd_skeleton_ik(params: Dictionary) -> void:
 		"set_target":
 			var t: Dictionary = params.get("target", {})
 			var target_tf: Transform3D = Transform3D.IDENTITY
-			target_tf.origin = Vector3(float(t.get("x", 0)), float(t.get("y", 0)), float(t.get("z", 0)))
+			target_tf.origin = Vector3(CommandParams.json_float(t, "x", 0), CommandParams.json_float(t, "y", 0), CommandParams.json_float(t, "z", 0))
 			ik.target = target_tf
 			respond({"success": true, "action": "set_target"})
 		_:
@@ -405,22 +422,22 @@ func _cmd_audio_effect(params: Dictionary) -> void:
 			AudioServer.add_bus_effect(bus_idx, effect)
 			respond({"success": true, "action": "add", "effect_type": effect_type, "index": AudioServer.get_bus_effect_count(bus_idx) - 1})
 		"remove":
-			var idx: int = int(params.get("index", 0))
+			var idx: int = CommandParams.json_int(params, "index", 0)
 			AudioServer.remove_bus_effect(bus_idx, idx)
 			respond({"success": true, "action": "remove", "index": idx})
 		"configure":
-			var idx: int = int(params.get("index", 0))
+			var idx: int = CommandParams.json_int(params, "index", 0)
 			if idx < 0 or idx >= AudioServer.get_bus_effect_count(bus_idx):
 				respond({"error": "Effect index out of range: %d" % idx})
 				return
 			var eff: AudioEffect = AudioServer.get_bus_effect(bus_idx, idx)
 			var applied: Array = []
-			var props: Dictionary = params.get("properties", {})
-			for key in props:
-				eff.set(key, props[key])
+			var props: Dictionary = CommandParams.json_dictionary(params, "properties")
+			for key: Variant in props:
+				eff.set(StringName(str(key)), props[key])
 				applied.append(str(key))
 			if params.has("enabled"):
-				AudioServer.set_bus_effect_enabled(bus_idx, idx, bool(params["enabled"]))
+				AudioServer.set_bus_effect_enabled(bus_idx, idx, CommandParams.to_bool(params["enabled"]))
 				applied.append("enabled")
 			respond({"success": true, "action": "configure", "index": idx, "applied": applied})
 		_:
@@ -473,18 +490,18 @@ func _cmd_audio_spatial(params: Dictionary) -> void:
 		return
 	if not node is AudioStreamPlayer3D:
 		reader.fail("node_path must reference an AudioStreamPlayer3D", {"param": "node_path", "reason": "invalid_value", "class": node.get_class()})
-		params_invalid(reader)
+		send_params_error(reader)
 		return
 	var player: AudioStreamPlayer3D = node as AudioStreamPlayer3D
 	if action == "get_info":
 		respond({"success": true, "max_distance": player.max_distance, "unit_size": player.unit_size, "max_db": player.max_db, "playing": player.playing})
 		return
 	if params.has("max_distance"):
-		player.max_distance = float(params["max_distance"])
+		player.max_distance = CommandParams.to_float(params["max_distance"])
 	if params.has("unit_size"):
-		player.unit_size = float(params["unit_size"])
+		player.unit_size = CommandParams.to_float(params["unit_size"])
 	if params.has("max_db"):
-		player.max_db = float(params["max_db"])
+		player.max_db = CommandParams.to_float(params["max_db"])
 	respond({"success": true, "action": "configure"})
 
 

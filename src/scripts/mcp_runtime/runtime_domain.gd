@@ -14,16 +14,21 @@ extends Node
 # lets a domain move without changing the protocol implementation.
 
 const CommandParams = preload("res://mcp_runtime/command_params.gd")
+const VariantCodec = preload("res://mcp_runtime/variant_codec.gd")
+# The composition root is always the autoload at res://mcp_interaction_server.gd.
+# It loads its domains by path at runtime rather than preloading them, so naming
+# its script here types every transport helper below without a preload cycle.
+const InteractionServer = preload("res://mcp_interaction_server.gd")
 
-var _server: Node
+var _server: InteractionServer
 var _registrar: Callable
-var _codec: RefCounted
+var _codec: VariantCodec
 
 
 # Called by the composition root before register_commands(). `registrar` is the
 # server's _register_command(command, handler) callable, which is what decides
 # cancellability from the transport's declarative CANCELLABLE_COMMANDS list.
-func setup(server: Node, registrar: Callable) -> void:
+func setup(server: InteractionServer, registrar: Callable) -> void:
 	_server = server
 	_registrar = registrar
 	_codec = server._codec
@@ -55,8 +60,14 @@ func params_invalid(reader: CommandParams) -> bool:
 	return invalid
 
 
-func require_node(reader: CommandParams, name: String = "node_path", default_path: String = "") -> Node:
-	var node: Node = _server._require_node(reader, name, default_path)
+# The same failure for a handler that failed the reader itself, on a rule the
+# accessors cannot express, and is about to stop.
+func send_params_error(reader: CommandParams) -> void:
+	_server._send_params_error(reader)
+
+
+func require_node(reader: CommandParams, param_name: String = "node_path", default_path: String = "") -> Node:
+	var node: Node = _server._require_node(reader, param_name, default_path)
 	return node
 
 

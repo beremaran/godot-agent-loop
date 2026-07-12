@@ -25,7 +25,7 @@ func _cmd_http_request(params: Dictionary) -> void:
 		return
 	if url.is_empty():
 		reader.fail("url must be non-empty", {"param": "url", "reason": "invalid_value"})
-		params_invalid(reader)
+		send_params_error(reader)
 		return
 
 	var http := HTTPRequest.new()
@@ -33,6 +33,7 @@ func _cmd_http_request(params: Dictionary) -> void:
 	add_child(http)
 	var headers := PackedStringArray()
 	for key: Variant in header_values:
+		@warning_ignore("return_value_discarded")
 		headers.append("%s: %s" % [key, str(header_values[key])])
 	var method_enum: int = {
 		"GET": HTTPClient.METHOD_GET,
@@ -44,11 +45,12 @@ func _cmd_http_request(params: Dictionary) -> void:
 	if err != OK:
 		http.queue_free()
 		reader.fail("HTTP request failed to start", godot_error_data(err))
-		params_invalid(reader)
+		send_params_error(reader)
 		return
 	var result: Array = await http.request_completed
 	http.queue_free()
-	respond({"success": true, "status_code": result[1], "body": (result[3] as PackedByteArray).get_string_from_utf8()})
+	var body_bytes: PackedByteArray = result[3]
+	respond({"success": true, "status_code": result[1], "body": body_bytes.get_string_from_utf8()})
 
 
 func _cmd_websocket(params: Dictionary) -> void:
@@ -60,7 +62,7 @@ func _cmd_websocket(params: Dictionary) -> void:
 		return
 	if action == "connect" and url.is_empty():
 		reader.fail("url is required for connect", {"param": "url", "reason": "missing"})
-		params_invalid(reader)
+		send_params_error(reader)
 		return
 
 	match action:
@@ -70,7 +72,7 @@ func _cmd_websocket(params: Dictionary) -> void:
 			if err != OK:
 				_websocket = null
 				reader.fail("WebSocket connection failed", godot_error_data(err))
-				params_invalid(reader)
+				send_params_error(reader)
 				return
 			respond({"success": true, "action": action, "url": url})
 		"disconnect":
@@ -84,7 +86,7 @@ func _cmd_websocket(params: Dictionary) -> void:
 			var err: int = _websocket.send_text(message)
 			if err != OK:
 				reader.fail("WebSocket send failed", godot_error_data(err))
-				params_invalid(reader)
+				send_params_error(reader)
 				return
 			respond({"success": true, "action": action})
 		"status":
@@ -110,7 +112,7 @@ func _cmd_multiplayer(params: Dictionary) -> void:
 			var err: int = peer.create_server(port, max_clients)
 			if err != OK:
 				reader.fail("Failed to create multiplayer server", godot_error_data(err))
-				params_invalid(reader)
+				send_params_error(reader)
 				return
 			multiplayer.multiplayer_peer = peer
 			respond({"success": true, "action": action, "port": port})
@@ -119,7 +121,7 @@ func _cmd_multiplayer(params: Dictionary) -> void:
 			var err: int = peer.create_client(address, port)
 			if err != OK:
 				reader.fail("Failed to create multiplayer client", godot_error_data(err))
-				params_invalid(reader)
+				send_params_error(reader)
 				return
 			multiplayer.multiplayer_peer = peer
 			respond({"success": true, "action": action, "address": address, "port": port})
@@ -144,10 +146,11 @@ func _cmd_rpc(params: Dictionary) -> void:
 		return
 	if method.is_empty():
 		reader.fail("method must be non-empty", {"param": "method", "reason": "invalid_value"})
-		params_invalid(reader)
+		send_params_error(reader)
 		return
 
 	if action == "call":
+		@warning_ignore("return_value_discarded")
 		node.rpc(method, args)
 		respond({"success": true, "action": action, "method": method})
 		return
@@ -156,19 +159,21 @@ func _cmd_rpc(params: Dictionary) -> void:
 	if reader.has_param("mode"):
 		var mode: Variant = reader.raw("mode")
 		if mode is String:
-			var mode_name: String = (mode as String).to_lower()
+			var mode_text: String = mode
+			var mode_name: String = mode_text.to_lower()
 			if not ["any_peer", "authority"].has(mode_name):
 				reader.fail("mode must be one of: any_peer, authority", {"param": "mode", "reason": "invalid_value", "allowed": ["any_peer", "authority"], "value": mode})
 			else:
 				config["rpc_mode"] = MultiplayerAPI.RPC_MODE_ANY_PEER if mode_name == "any_peer" else MultiplayerAPI.RPC_MODE_AUTHORITY
 		elif mode is int or mode is float:
-			config["rpc_mode"] = int(mode)
+			config["rpc_mode"] = CommandParams.to_int(mode)
 		else:
 			reader.fail("mode must be a string or integer", {"param": "mode", "reason": "invalid_type"})
 	if reader.has_param("sync"):
 		var sync: Variant = reader.raw("sync")
 		if sync is String:
-			config["call_local"] = (sync as String).to_lower() == "call_local"
+			var sync_text: String = sync
+			config["call_local"] = sync_text.to_lower() == "call_local"
 		elif sync is bool:
 			config["call_local"] = sync
 		else:

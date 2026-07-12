@@ -38,19 +38,20 @@ func _cmd_csg(params: Dictionary) -> void:
 				"union": node.operation = CSGShape3D.OPERATION_UNION
 				"intersection": node.operation = CSGShape3D.OPERATION_INTERSECTION
 				"subtraction": node.operation = CSGShape3D.OPERATION_SUBTRACTION
-		if params.has("name") and not (params["name"] as String).is_empty():
-			node.name = params["name"]
+		var custom_name: String = CommandParams.json_string(params, "name")
+		if not custom_name.is_empty():
+			node.name = custom_name
 		if node is CSGBox3D and params.has("size"):
 			var box_size: Variant = json_to_variant(params["size"], "Vector3")
 			if box_size is Vector3:
 				(node as CSGBox3D).size = box_size
 		if node is CSGSphere3D and params.has("radius"):
-			(node as CSGSphere3D).radius = float(params["radius"])
+			(node as CSGSphere3D).radius = CommandParams.to_float(params["radius"])
 		if node is CSGCylinder3D:
 			if params.has("radius"):
-				(node as CSGCylinder3D).radius = float(params["radius"])
+				(node as CSGCylinder3D).radius = CommandParams.to_float(params["radius"])
 			if params.has("height"):
-				(node as CSGCylinder3D).height = float(params["height"])
+				(node as CSGCylinder3D).height = CommandParams.to_float(params["height"])
 		parent.add_child(node)
 		node.owner = get_tree().edited_scene_root if get_tree().edited_scene_root else get_tree().root
 		respond({"success": true, "action": "create", "path": str(node.get_path()), "type": csg_type})
@@ -81,7 +82,7 @@ func _cmd_multimesh(params: Dictionary) -> void:
 			var mmi: MultiMeshInstance3D = MultiMeshInstance3D.new()
 			var mm: MultiMesh = MultiMesh.new()
 			mm.transform_format = MultiMesh.TRANSFORM_3D
-			mm.instance_count = int(params.get("count", 1))
+			mm.instance_count = CommandParams.json_int(params, "count", 1)
 			var mesh_type: String = params.get("mesh_type", "box")
 			match mesh_type:
 				"box": mm.mesh = BoxMesh.new()
@@ -89,8 +90,9 @@ func _cmd_multimesh(params: Dictionary) -> void:
 				"cylinder": mm.mesh = CylinderMesh.new()
 				_: mm.mesh = BoxMesh.new()
 			mmi.multimesh = mm
-			if params.has("name") and not (params["name"] as String).is_empty():
-				mmi.name = params["name"]
+			var custom_name: String = CommandParams.json_string(params, "name")
+			if not custom_name.is_empty():
+				mmi.name = custom_name
 			parent.add_child(mmi)
 			respond({"success": true, "action": "create", "path": str(mmi.get_path()), "count": mm.instance_count})
 		"set_instance":
@@ -99,11 +101,11 @@ func _cmd_multimesh(params: Dictionary) -> void:
 			if node == null or not node is MultiMeshInstance3D:
 				respond({"error": "MultiMeshInstance3D not found: %s" % node_path})
 				return
-			var idx: int = int(params.get("index", 0))
+			var idx: int = CommandParams.json_int(params, "index", 0)
 			var tf: Dictionary = params.get("transform", {})
 			var origin: Dictionary = tf.get("origin", {})
 			var xform: Transform3D = Transform3D.IDENTITY
-			xform.origin = Vector3(float(origin.get("x", 0)), float(origin.get("y", 0)), float(origin.get("z", 0)))
+			xform.origin = Vector3(CommandParams.json_float(origin, "x", 0), CommandParams.json_float(origin, "y", 0), CommandParams.json_float(origin, "z", 0))
 			(node as MultiMeshInstance3D).multimesh.set_instance_transform(idx, xform)
 			respond({"success": true, "action": "set_instance", "index": idx})
 		"get_info":
@@ -112,10 +114,25 @@ func _cmd_multimesh(params: Dictionary) -> void:
 			if node == null or not node is MultiMeshInstance3D:
 				respond({"error": "MultiMeshInstance3D not found: %s" % node_path})
 				return
-			var mm = (node as MultiMeshInstance3D).multimesh
+			var mm: MultiMesh = (node as MultiMeshInstance3D).multimesh
 			respond({"success": true, "count": mm.instance_count if mm else 0, "visible_count": mm.visible_instance_count if mm else 0})
 		_:
 			respond({"error": "Unknown multimesh action: %s" % action})
+
+
+# Mesh buffers arrive as [x, y, z] triples; curve points arrive as {x, y, z}.
+func _vec3_from_triple(value: Variant) -> Vector3:
+	var triple: Array = CommandParams.as_array(value)
+	return Vector3(
+		CommandParams.to_float(triple[0] if triple.size() > 0 else 0.0),
+		CommandParams.to_float(triple[1] if triple.size() > 1 else 0.0),
+		CommandParams.to_float(triple[2] if triple.size() > 2 else 0.0),
+	)
+
+
+func _vec3_from_object(value: Variant) -> Vector3:
+	var point: Dictionary = CommandParams.as_dictionary(value)
+	return Vector3(CommandParams.json_float(point, "x"), CommandParams.json_float(point, "y"), CommandParams.json_float(point, "z"))
 
 
 func _cmd_procedural_mesh(params: Dictionary) -> void:
@@ -124,34 +141,40 @@ func _cmd_procedural_mesh(params: Dictionary) -> void:
 	if parent == null:
 		respond({"error": "Parent not found: %s" % parent_path})
 		return
-	var verts_arr: Array = params.get("vertices", [])
 	var verts: PackedVector3Array = PackedVector3Array()
-	for v in verts_arr:
-		verts.append(Vector3(float(v[0]), float(v[1]), float(v[2])))
+	for v: Variant in CommandParams.json_array(params, "vertices"):
+		@warning_ignore("return_value_discarded")
+		verts.append(_vec3_from_triple(v))
 	var arrays: Array = []
+	@warning_ignore("return_value_discarded")
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = verts
 	if params.has("normals"):
 		var norms: PackedVector3Array = PackedVector3Array()
-		for n in params["normals"]:
-			norms.append(Vector3(float(n[0]), float(n[1]), float(n[2])))
+		for n: Variant in CommandParams.json_array(params, "normals"):
+			@warning_ignore("return_value_discarded")
+			norms.append(_vec3_from_triple(n))
 		arrays[Mesh.ARRAY_NORMAL] = norms
 	if params.has("uvs"):
 		var uvs: PackedVector2Array = PackedVector2Array()
-		for uv in params["uvs"]:
-			uvs.append(Vector2(float(uv[0]), float(uv[1])))
+		for uv: Variant in CommandParams.json_array(params, "uvs"):
+			var pair: Array = CommandParams.as_array(uv)
+			@warning_ignore("return_value_discarded")
+			uvs.append(Vector2(CommandParams.to_float(pair[0] if pair.size() > 0 else 0.0), CommandParams.to_float(pair[1] if pair.size() > 1 else 0.0)))
 		arrays[Mesh.ARRAY_TEX_UV] = uvs
 	if params.has("indices"):
 		var indices: PackedInt32Array = PackedInt32Array()
-		for idx in params["indices"]:
-			indices.append(int(idx))
+		for idx: Variant in CommandParams.json_array(params, "indices"):
+			@warning_ignore("return_value_discarded")
+			indices.append(CommandParams.to_int(idx))
 		arrays[Mesh.ARRAY_INDEX] = indices
 	var mesh: ArrayMesh = ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	var mi: MeshInstance3D = MeshInstance3D.new()
 	mi.mesh = mesh
-	if params.has("name") and not (params["name"] as String).is_empty():
-		mi.name = params["name"]
+	var custom_name: String = CommandParams.json_string(params, "name")
+	if not custom_name.is_empty():
+		mi.name = custom_name
 	parent.add_child(mi)
 	respond({"success": true, "path": str(mi.get_path()), "vertex_count": verts.size()})
 
@@ -175,20 +198,21 @@ func _cmd_light_3d(params: Dictionary) -> void:
 				return
 		if params.has("color"):
 			var c: Dictionary = params["color"]
-			light.light_color = Color(float(c.get("r", 1)), float(c.get("g", 1)), float(c.get("b", 1)))
+			light.light_color = Color(CommandParams.json_float(c, "r", 1), CommandParams.json_float(c, "g", 1), CommandParams.json_float(c, "b", 1))
 		if params.has("energy"):
-			light.light_energy = float(params["energy"])
+			light.light_energy = CommandParams.to_float(params["energy"])
 		if params.has("shadows"):
-			light.shadow_enabled = bool(params["shadows"])
+			light.shadow_enabled = CommandParams.to_bool(params["shadows"])
 		if light is OmniLight3D and params.has("range"):
-			(light as OmniLight3D).omni_range = float(params["range"])
+			(light as OmniLight3D).omni_range = CommandParams.to_float(params["range"])
 		if light is SpotLight3D:
 			if params.has("range"):
-				(light as SpotLight3D).spot_range = float(params["range"])
+				(light as SpotLight3D).spot_range = CommandParams.to_float(params["range"])
 			if params.has("spot_angle"):
-				(light as SpotLight3D).spot_angle = float(params["spot_angle"])
-		if params.has("name") and not (params["name"] as String).is_empty():
-			light.name = params["name"]
+				(light as SpotLight3D).spot_angle = CommandParams.to_float(params["spot_angle"])
+		var custom_name: String = CommandParams.json_string(params, "name")
+		if not custom_name.is_empty():
+			light.name = custom_name
 		parent.add_child(light)
 		respond({"success": true, "action": "create", "path": str(light.get_path()), "type": light_type})
 	elif action == "configure":
@@ -200,11 +224,11 @@ func _cmd_light_3d(params: Dictionary) -> void:
 		var light: Light3D = node as Light3D
 		if params.has("color"):
 			var c: Dictionary = params["color"]
-			light.light_color = Color(float(c.get("r", 1)), float(c.get("g", 1)), float(c.get("b", 1)))
+			light.light_color = Color(CommandParams.json_float(c, "r", 1), CommandParams.json_float(c, "g", 1), CommandParams.json_float(c, "b", 1))
 		if params.has("energy"):
-			light.light_energy = float(params["energy"])
+			light.light_energy = CommandParams.to_float(params["energy"])
 		if params.has("shadows"):
-			light.shadow_enabled = bool(params["shadows"])
+			light.shadow_enabled = CommandParams.to_bool(params["shadows"])
 		respond({"success": true, "action": "configure", "path": str(node.get_path())})
 	else:
 		respond({"error": "Unknown light_3d action: %s" % action})
@@ -230,15 +254,15 @@ func _cmd_mesh_instance(params: Dictionary) -> void:
 			return
 	if params.has("size") and mesh is BoxMesh:
 		var s: Dictionary = params["size"]
-		(mesh as BoxMesh).size = Vector3(float(s.get("x", 1)), float(s.get("y", 1)), float(s.get("z", 1)))
+		(mesh as BoxMesh).size = Vector3(CommandParams.json_float(s, "x", 1), CommandParams.json_float(s, "y", 1), CommandParams.json_float(s, "z", 1))
 	if params.has("radius"):
-		if mesh is SphereMesh: (mesh as SphereMesh).radius = float(params["radius"])
-		elif mesh is CylinderMesh: (mesh as CylinderMesh).top_radius = float(params["radius"])
-		elif mesh is CapsuleMesh: (mesh as CapsuleMesh).radius = float(params["radius"])
+		if mesh is SphereMesh: (mesh as SphereMesh).radius = CommandParams.to_float(params["radius"])
+		elif mesh is CylinderMesh: (mesh as CylinderMesh).top_radius = CommandParams.to_float(params["radius"])
+		elif mesh is CapsuleMesh: (mesh as CapsuleMesh).radius = CommandParams.to_float(params["radius"])
 	if params.has("height"):
-		if mesh is CylinderMesh: (mesh as CylinderMesh).height = float(params["height"])
-		elif mesh is CapsuleMesh: (mesh as CapsuleMesh).height = float(params["height"])
-		elif mesh is SphereMesh: (mesh as SphereMesh).height = float(params["height"])
+		if mesh is CylinderMesh: (mesh as CylinderMesh).height = CommandParams.to_float(params["height"])
+		elif mesh is CapsuleMesh: (mesh as CapsuleMesh).height = CommandParams.to_float(params["height"])
+		elif mesh is SphereMesh: (mesh as SphereMesh).height = CommandParams.to_float(params["height"])
 	var mi: MeshInstance3D = MeshInstance3D.new()
 	mi.mesh = mesh
 	if params.has("material") and params["material"] is String:
@@ -247,8 +271,9 @@ func _cmd_mesh_instance(params: Dictionary) -> void:
 		if hex.begins_with("#") or hex.length() == 6 or hex.length() == 8:
 			mat.albedo_color = Color.from_string(hex, Color.WHITE)
 		mi.material_override = mat
-	if params.has("name") and not (params["name"] as String).is_empty():
-		mi.name = params["name"]
+	var custom_name: String = CommandParams.json_string(params, "name")
+	if not custom_name.is_empty():
+		mi.name = custom_name
 	parent.add_child(mi)
 	respond({"success": true, "path": str(mi.get_path()), "mesh_type": mesh_type})
 
@@ -263,10 +288,10 @@ func _cmd_gridmap(params: Dictionary) -> void:
 	var action: String = params.get("action", "get_used")
 	match action:
 		"set_cell":
-			gm.set_cell_item(Vector3i(int(params.get("x", 0)), int(params.get("y", 0)), int(params.get("z", 0))), int(params.get("item", 0)), int(params.get("orientation", 0)))
+			gm.set_cell_item(Vector3i(CommandParams.json_int(params, "x", 0), CommandParams.json_int(params, "y", 0), CommandParams.json_int(params, "z", 0)), CommandParams.json_int(params, "item", 0), CommandParams.json_int(params, "orientation", 0))
 			respond({"success": true, "action": "set_cell"})
 		"get_cell":
-			var item: int = gm.get_cell_item(Vector3i(int(params.get("x", 0)), int(params.get("y", 0)), int(params.get("z", 0))))
+			var item: int = gm.get_cell_item(Vector3i(CommandParams.json_int(params, "x", 0), CommandParams.json_int(params, "y", 0), CommandParams.json_int(params, "z", 0)))
 			respond({"success": true, "action": "get_cell", "item": item})
 		"clear":
 			gm.clear()
@@ -274,7 +299,7 @@ func _cmd_gridmap(params: Dictionary) -> void:
 		"get_used":
 			var cells: Array = gm.get_used_cells()
 			var result: Array = []
-			for c in cells.slice(0, 100):
+			for c: Vector3i in cells.slice(0, 100):
 				result.append({"x": c.x, "y": c.y, "z": c.z})
 			respond({"success": true, "action": "get_used", "cells": result, "total": cells.size()})
 		_:
@@ -298,12 +323,13 @@ func _cmd_3d_effects(params: Dictionary) -> void:
 			return
 	if params.has("size"):
 		var s: Dictionary = params["size"]
-		var size_v: Vector3 = Vector3(float(s.get("x", 1)), float(s.get("y", 1)), float(s.get("z", 1)))
+		var size_v: Vector3 = Vector3(CommandParams.json_float(s, "x", 1), CommandParams.json_float(s, "y", 1), CommandParams.json_float(s, "z", 1))
 		if node is ReflectionProbe: (node as ReflectionProbe).size = size_v
 		elif node is Decal: (node as Decal).size = size_v
 		elif node is FogVolume: (node as FogVolume).size = size_v
-	if params.has("name") and not (params["name"] as String).is_empty():
-		node.name = params["name"]
+	var custom_name: String = CommandParams.json_string(params, "name")
+	if not custom_name.is_empty():
+		node.name = custom_name
 	parent.add_child(node)
 	respond({"success": true, "path": str(node.get_path()), "effect_type": effect_type})
 
@@ -319,11 +345,12 @@ func _cmd_path_3d(params: Dictionary) -> void:
 				return
 			var path_node: Path3D = Path3D.new()
 			path_node.curve = Curve3D.new()
-			if params.has("name") and not (params["name"] as String).is_empty():
-				path_node.name = params["name"]
+			var custom_name: String = CommandParams.json_string(params, "name")
+			if not custom_name.is_empty():
+				path_node.name = custom_name
 			if params.has("points"):
-				for p in params["points"]:
-					path_node.curve.add_point(Vector3(float(p.get("x", 0)), float(p.get("y", 0)), float(p.get("z", 0))))
+				for p: Variant in CommandParams.json_array(params, "points"):
+					path_node.curve.add_point(_vec3_from_object(p))
 			parent.add_child(path_node)
 			respond({"success": true, "action": "create", "path": str(path_node.get_path()), "point_count": path_node.curve.point_count})
 		"add_point":
@@ -333,7 +360,7 @@ func _cmd_path_3d(params: Dictionary) -> void:
 				respond({"error": "Path3D not found: %s" % node_path})
 				return
 			var p: Dictionary = params.get("point", {})
-			(node as Path3D).curve.add_point(Vector3(float(p.get("x", 0)), float(p.get("y", 0)), float(p.get("z", 0))))
+			(node as Path3D).curve.add_point(Vector3(CommandParams.json_float(p, "x", 0), CommandParams.json_float(p, "y", 0), CommandParams.json_float(p, "z", 0)))
 			respond({"success": true, "action": "add_point", "point_count": (node as Path3D).curve.point_count})
 		"get_points":
 			var node_path: String = params.get("node_path", "")
@@ -357,8 +384,8 @@ func _cmd_path_3d(params: Dictionary) -> void:
 				curve = Curve3D.new()
 				(node as Path3D).curve = curve
 			curve.clear_points()
-			for p in params.get("points", []):
-				curve.add_point(Vector3(float(p.get("x", 0)), float(p.get("y", 0)), float(p.get("z", 0))))
+			for p: Variant in CommandParams.json_array(params, "points"):
+				curve.add_point(_vec3_from_object(p))
 			respond({"success": true, "action": "set_points", "point_count": curve.point_count})
 		_:
 			respond({"error": "Unknown path_3d action: %s" % action})
@@ -372,20 +399,21 @@ func _cmd_terrain(params: Dictionary) -> void:
 		if parent == null:
 			respond({"error": "Parent not found: %s" % parent_path})
 			return
-		var width: int = max(2, int(params.get("width", 16)))
-		var depth: int = max(2, int(params.get("depth", 16)))
-		var max_height: float = float(params.get("max_height", 1.0))
+		var width: int = max(2, CommandParams.json_int(params, "width", 16))
+		var depth: int = max(2, CommandParams.json_int(params, "depth", 16))
+		var max_height: float = CommandParams.json_float(params, "max_height", 1.0)
 		var height_data: Array = params.get("height_data", [])
 		var heights: Array = []
 		for i in range(width * depth):
-			var h: float = float(height_data[i]) * max_height if i < height_data.size() else 0.0
+			var h: float = CommandParams.to_float(height_data[i]) * max_height if i < height_data.size() else 0.0
 			heights.append(h)
 		var colors: Array = []
 		for i in range(width * depth):
 			colors.append(Color.WHITE)
 		var mi: MeshInstance3D = MeshInstance3D.new()
-		if params.has("name") and not (params["name"] as String).is_empty():
-			mi.name = params["name"]
+		var custom_name: String = CommandParams.json_string(params, "name")
+		if not custom_name.is_empty():
+			mi.name = custom_name
 		mi.set_meta("terrain_width", width)
 		mi.set_meta("terrain_depth", depth)
 		mi.set_meta("terrain_heights", heights)
@@ -406,17 +434,17 @@ func _cmd_terrain(params: Dictionary) -> void:
 	var t_colors: Array = mesh_node.get_meta("terrain_colors")
 	match action:
 		"get_height":
-			var gx: int = int(params.get("x", 0))
-			var gz: int = int(params.get("z", 0))
+			var gx: int = CommandParams.json_int(params, "x", 0)
+			var gz: int = CommandParams.json_int(params, "z", 0)
 			if gx < 0 or gx >= t_width or gz < 0 or gz >= t_depth:
 				respond({"error": "Coordinate out of bounds"})
 				return
 			respond({"success": true, "action": "get_height", "x": gx, "z": gz, "height": t_heights[gz * t_width + gx]})
 		"modify":
-			var cx: float = float(params.get("x", 0))
-			var cz: float = float(params.get("z", 0))
-			var radius: float = float(params.get("radius", 1.0))
-			var delta: float = float(params.get("height_delta", 0.0))
+			var cx: float = CommandParams.json_float(params, "x", 0)
+			var cz: float = CommandParams.json_float(params, "z", 0)
+			var radius: float = CommandParams.json_float(params, "radius", 1.0)
+			var delta: float = CommandParams.json_float(params, "height_delta", 0.0)
 			for z in range(t_depth):
 				for x in range(t_width):
 					var d: float = Vector2(x - cx, z - cz).length()
@@ -427,11 +455,11 @@ func _cmd_terrain(params: Dictionary) -> void:
 			_terrain_rebuild(mesh_node)
 			respond({"success": true, "action": "modify"})
 		"paint":
-			var cx: float = float(params.get("x", 0))
-			var cz: float = float(params.get("z", 0))
-			var radius: float = float(params.get("radius", 1.0))
+			var cx: float = CommandParams.json_float(params, "x", 0)
+			var cz: float = CommandParams.json_float(params, "z", 0)
+			var radius: float = CommandParams.json_float(params, "radius", 1.0)
 			var col_d: Dictionary = params.get("color", {"r": 1, "g": 1, "b": 1, "a": 1})
-			var col: Color = Color(float(col_d.get("r", 1)), float(col_d.get("g", 1)), float(col_d.get("b", 1)), float(col_d.get("a", 1)))
+			var col: Color = Color(CommandParams.json_float(col_d, "r", 1), CommandParams.json_float(col_d, "g", 1), CommandParams.json_float(col_d, "b", 1), CommandParams.json_float(col_d, "a", 1))
 			for z in range(t_depth):
 				for x in range(t_width):
 					if Vector2(x - cx, z - cz).length() <= radius:
@@ -456,13 +484,17 @@ func _terrain_rebuild(mi: MeshInstance3D) -> void:
 			var i10: int = z * width + (x + 1)
 			var i01: int = (z + 1) * width + x
 			var i11: int = (z + 1) * width + (x + 1)
-			var v00: Vector3 = Vector3(x, heights[i00], z)
-			var v10: Vector3 = Vector3(x + 1, heights[i10], z)
-			var v01: Vector3 = Vector3(x, heights[i01], z + 1)
-			var v11: Vector3 = Vector3(x + 1, heights[i11], z + 1)
-			for tri in [[i00, v00], [i10, v10], [i01, v01], [i10, v10], [i11, v11], [i01, v01]]:
-				st.set_color(colors[tri[0]])
-				st.add_vertex(tri[1])
+			var v00: Vector3 = Vector3(x, CommandParams.to_float(heights[i00]), z)
+			var v10: Vector3 = Vector3(x + 1, CommandParams.to_float(heights[i10]), z)
+			var v01: Vector3 = Vector3(x, CommandParams.to_float(heights[i01]), z + 1)
+			var v11: Vector3 = Vector3(x + 1, CommandParams.to_float(heights[i11]), z + 1)
+			var triangles: Array[Array] = [[i00, v00], [i10, v10], [i01, v01], [i10, v10], [i11, v11], [i01, v01]]
+			for tri: Array in triangles:
+				var color_index: int = tri[0]
+				var vertex: Vector3 = tri[1]
+				var vertex_color: Color = colors[color_index]
+				st.set_color(vertex_color)
+				st.add_vertex(vertex)
 	st.generate_normals()
 	var mat: StandardMaterial3D = StandardMaterial3D.new()
 	mat.vertex_color_use_as_albedo = true

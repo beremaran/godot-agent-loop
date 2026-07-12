@@ -30,7 +30,7 @@ func _cmd_window(params: Dictionary) -> void:
 		return
 	if reader.has_param("width") != reader.has_param("height"):
 		reader.fail("width and height must be provided together", {"param": "width", "reason": "missing_pair", "paired_with": "height"})
-		params_invalid(reader)
+		send_params_error(reader)
 		return
 	if reader.has_param("width"):
 		win.size = Vector2i(width, height)
@@ -41,7 +41,7 @@ func _cmd_window(params: Dictionary) -> void:
 	if reader.has_param("title"):
 		win.title = title
 	if reader.has_param("position"):
-		win.position = Vector2i(int(position.get("x", 0)), int(position.get("y", 0)))
+		win.position = Vector2i(CommandParams.json_int(position, "x"), CommandParams.json_int(position, "y"))
 	if reader.has_param("vsync"):
 		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if vsync else DisplayServer.VSYNC_DISABLED)
 	respond({"success": true, "action": action, "size": {"x": win.size.x, "y": win.size.y}})
@@ -126,7 +126,7 @@ func _cmd_resource(params: Dictionary) -> void:
 		"load":
 			if not ResourceLoader.exists(resource_path):
 				reader.fail("Resource not found", {"param": "path", "reason": "resource_not_found", "value": resource_path})
-				params_invalid(reader)
+				send_params_error(reader)
 				return
 			var resource: Resource = ResourceLoader.load(resource_path)
 			if resource == null:
@@ -138,15 +138,16 @@ func _cmd_resource(params: Dictionary) -> void:
 			var property: String = reader.required_string("property")
 			if params_invalid(reader):
 				return
-			var resource: Variant = node.get(property)
-			if not resource is Resource:
+			var property_value: Variant = node.get(property)
+			if not property_value is Resource:
 				reader.fail("Property is not a Resource", {"param": "property", "reason": "invalid_value", "value": property})
-				params_invalid(reader)
+				send_params_error(reader)
 				return
-			var err: int = ResourceSaver.save(resource as Resource, resource_path)
+			var resource: Resource = property_value
+			var err: int = ResourceSaver.save(resource, resource_path)
 			if err != OK:
 				reader.fail("Failed to save resource", godot_error_data(err))
-				params_invalid(reader)
+				send_params_error(reader)
 				return
 			respond({"success": true, "action": action, "path": resource_path})
 		"exists":

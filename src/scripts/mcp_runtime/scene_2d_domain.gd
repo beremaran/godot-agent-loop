@@ -39,11 +39,16 @@ func _require_class(reader: CommandParams, node: Node, type_name: String) -> voi
 
 
 func _color_from(value: Dictionary) -> Color:
-	return Color(float(value.get("r", 1)), float(value.get("g", 1)), float(value.get("b", 1)), float(value.get("a", 1)))
+	return Color(
+		CommandParams.json_float(value, "r", 1.0),
+		CommandParams.json_float(value, "g", 1.0),
+		CommandParams.json_float(value, "b", 1.0),
+		CommandParams.json_float(value, "a", 1.0),
+	)
 
 
 func _vector2_from(value: Dictionary, default_x: float = 0.0, default_y: float = 0.0) -> Vector2:
-	return Vector2(float(value.get("x", default_x)), float(value.get("y", default_y)))
+	return Vector2(CommandParams.json_float(value, "x", default_x), CommandParams.json_float(value, "y", default_y))
 
 
 func _apply_optional_name(reader: CommandParams, node: Node) -> void:
@@ -54,22 +59,23 @@ func _apply_optional_name(reader: CommandParams, node: Node) -> void:
 
 # Validates that every element of an array parameter is an object; the caller
 # still routes through params_invalid().
-func _require_dictionary_items(reader: CommandParams, name: String, items: Array) -> void:
+func _require_dictionary_items(reader: CommandParams, param_name: String, items: Array) -> void:
 	if reader.failed():
 		return
 	for item: Variant in items:
 		if not item is Dictionary:
-			reader.fail("%s must contain objects" % name, {"param": name, "reason": "invalid_type"})
+			reader.fail("%s must contain objects" % param_name, {"param": param_name, "reason": "invalid_type"})
 			return
 
 
-func _points_from(reader: CommandParams, name: String) -> PackedVector2Array:
-	var points: Array = reader.optional_array(name)
-	_require_dictionary_items(reader, name, points)
+func _points_from(reader: CommandParams, param_name: String) -> PackedVector2Array:
+	var points: Array = reader.optional_array(param_name)
+	_require_dictionary_items(reader, param_name, points)
 	var packed: PackedVector2Array = PackedVector2Array()
 	if reader.failed():
 		return packed
 	for point: Dictionary in points:
+		@warning_ignore("return_value_discarded")
 		packed.append(_vector2_from(point))
 	return packed
 
@@ -92,10 +98,10 @@ func _cmd_tilemap(params: Dictionary) -> void:
 			if params_invalid(reader):
 				return
 			for cell: Dictionary in cells:
-				var pos: Vector2i = Vector2i(int(cell.get("x", 0)), int(cell.get("y", 0)))
-				var source_id: int = int(cell.get("source_id", 0))
-				var atlas_coords: Vector2i = Vector2i(int(cell.get("atlas_x", 0)), int(cell.get("atlas_y", 0)))
-				var alt_tile: int = int(cell.get("alt_tile", 0))
+				var pos: Vector2i = Vector2i(CommandParams.json_int(cell, "x"), CommandParams.json_int(cell, "y"))
+				var source_id: int = CommandParams.json_int(cell, "source_id")
+				var atlas_coords: Vector2i = Vector2i(CommandParams.json_int(cell, "atlas_x"), CommandParams.json_int(cell, "atlas_y"))
+				var alt_tile: int = CommandParams.json_int(cell, "alt_tile")
 				tilemap.set_cell(pos, source_id, atlas_coords, alt_tile)
 			respond({"success": true, "action": "set_cells", "count": cells.size()})
 		"get_cell":
@@ -117,7 +123,7 @@ func _cmd_tilemap(params: Dictionary) -> void:
 			if params_invalid(reader):
 				return
 			for cell: Dictionary in cells:
-				tilemap.erase_cell(Vector2i(int(cell.get("x", 0)), int(cell.get("y", 0))))
+				tilemap.erase_cell(Vector2i(CommandParams.json_int(cell, "x"), CommandParams.json_int(cell, "y")))
 			respond({"success": true, "action": "erase_cells", "count": cells.size()})
 		"get_used_cells":
 			var source_filter: int = reader.optional_int("source_id", -1)
@@ -256,6 +262,7 @@ func _draw():
 				var pos = p.get("position", p.get("pos", {}))
 				draw_string(ThemeDB.fallback_font, Vector2(float(pos.get("x",0)),float(pos.get("y",0))), str(p.get("text","")), HORIZONTAL_ALIGNMENT_LEFT, -1, int(p.get("font_size",16)), c)
 """
+	@warning_ignore("return_value_discarded")
 	s.reload()
 	return s
 
@@ -412,6 +419,7 @@ func _cmd_shape_2d(params: Dictionary) -> void:
 				(node as Line2D).add_point(pt)
 			else:
 				var polygon: PackedVector2Array = (node as Polygon2D).polygon
+				@warning_ignore("return_value_discarded")
 				polygon.append(pt)
 				(node as Polygon2D).polygon = polygon
 			respond({"success": true, "action": "add_point"})

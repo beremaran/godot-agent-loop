@@ -109,10 +109,11 @@ func _cmd_get_node_info(params: Dictionary) -> void:
 	for prop in node.get_property_list():
 		var prop_dict: Dictionary = prop
 		if prop_dict.get("usage", 0) & PROPERTY_USAGE_EDITOR:
+			var property_name: String = CommandParams.json_string(prop_dict, "name")
 			properties.append({
-				"name": prop_dict.get("name", ""),
+				"name": property_name,
 				"type": prop_dict.get("type", 0),
-				"value": variant_to_json(node.get(prop_dict.get("name", "")))
+				"value": variant_to_json(node.get(property_name))
 			})
 
 	var signals: Array = []
@@ -232,6 +233,7 @@ func _cmd_connect_signal(params: Dictionary) -> void:
 		respond({"error": "Signal already connected"})
 		return
 
+	@warning_ignore("return_value_discarded")
 	node.connect(signal_name, Callable(target, method_name))
 	respond({"success": true, "signal": signal_name, "from": node_path, "to": target_path, "method": method_name})
 
@@ -301,7 +303,7 @@ func _cmd_get_nodes_in_group(params: Dictionary) -> void:
 
 	var nodes: Array = get_tree().get_nodes_in_group(group_name)
 	var result: Array = []
-	for node in nodes:
+	for node: Node in nodes:
 		result.append({
 			"name": node.name,
 			"type": node.get_class(),
@@ -387,20 +389,24 @@ func _cmd_spawn_node(params: Dictionary) -> void:
 		respond({"error": "Parent node not found: %s" % parent_path})
 		return
 
-	var instance: Node = ClassDB.instantiate(type_name) as Node
-	if instance == null:
+	# A class that is not a Node (or does not exist) instantiates to a value this
+	# command cannot add to the tree.
+	var instantiated: Variant = ClassDB.instantiate(type_name)
+	if not instantiated is Node:
 		respond({"error": "Failed to instantiate: %s" % type_name})
 		return
+	var instance: Node = instantiated
 
 	if node_name.length() > 0:
 		instance.name = node_name
 
 	# Apply properties if provided
-	var properties: Dictionary = params.get("properties", {})
-	for prop_name in properties:
+	var properties: Dictionary = CommandParams.json_dictionary(params, "properties")
+	for prop_name: Variant in properties:
+		var property: String = str(prop_name)
 		var raw_value: Variant = properties[prop_name]
-		var value: Variant = json_to_variant_for_property(instance, prop_name, raw_value)
-		instance.set(prop_name, value)
+		var value: Variant = json_to_variant_for_property(instance, property, raw_value)
+		instance.set(property, value)
 
 	parent.add_child(instance)
 	respond({"success": true, "name": instance.name, "type": type_name, "path": str(instance.get_path())})
@@ -417,7 +423,7 @@ func _cmd_manage_group(params: Dictionary) -> void:
 			respond({"error": "group is required for clear_group"})
 			return
 		var nodes: Array = get_tree().get_nodes_in_group(group_name)
-		for node in nodes:
+		for node: Node in nodes:
 			node.remove_from_group(group_name)
 		respond({"success": true, "action": "clear_group", "group": group_name, "removed_count": nodes.size()})
 		return
@@ -463,17 +469,18 @@ func _cmd_list_signals(params: Dictionary) -> void:
 	if params_invalid(reader):
 		return
 	var signals: Array = []
-	for sig in node.get_signal_list():
+	for sig: Dictionary in node.get_signal_list():
+		var sig_name: String = CommandParams.json_string(sig, "name")
 		var connections: Array = []
-		for conn in node.get_signal_connection_list(sig["name"]):
+		for conn: Dictionary in node.get_signal_connection_list(sig_name):
 			connections.append({"callable": str(conn["callable"]), "flags": conn["flags"]})
-		signals.append({"name": sig["name"], "args": str(sig["args"]), "connections": connections})
+		signals.append({"name": sig_name, "args": str(sig["args"]), "connections": connections})
 	respond({"success": true, "node_path": node_path, "signals": signals})
 
 func _cmd_await_signal(params: Dictionary) -> void:
 	var node_path: String = params.get("node_path", "")
 	var signal_name: String = params.get("signal_name", "")
-	var timeout: float = float(params.get("timeout", 10))
+	var timeout: float = CommandParams.to_float(params.get("timeout"), 10.0)
 	var node: Node = get_tree().root.get_node_or_null(node_path)
 	if node == null:
 		respond({"error": "Node not found: %s" % node_path})
@@ -483,8 +490,9 @@ func _cmd_await_signal(params: Dictionary) -> void:
 		return
 	var timer: SceneTreeTimer = get_tree().create_timer(timeout)
 	var result: Array = [false, []]
-	var cb: Callable = func():
+	var cb: Callable = func() -> void:
 		result[0] = true
+	@warning_ignore("return_value_discarded")
 	node.connect(signal_name, cb, CONNECT_ONE_SHOT)
 	while not result[0] and timer.time_left > 0:
 		await get_tree().process_frame

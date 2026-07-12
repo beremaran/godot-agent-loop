@@ -8,7 +8,7 @@ extends "res://mcp_runtime/runtime_domain.gd"
 # actions currently held down by key_hold.
 
 var _key_map: Dictionary = {}
-var _held_keys: Dictionary = {}
+var _held_keys: Dictionary[String, int] = {}
 
 
 func _init() -> void:
@@ -27,9 +27,10 @@ func _release_all_held() -> void:
 		if entry.begins_with("action:"):
 			Input.action_release(entry.substr(7))
 			continue
+		var held_keycode: Key = _held_keys[entry] as Key
 		var event: InputEventKey = InputEventKey.new()
-		event.keycode = _held_keys[entry] as Key
-		event.physical_keycode = _held_keys[entry] as Key
+		event.keycode = held_keycode
+		event.physical_keycode = held_keycode
 		event.pressed = false
 		Input.parse_input_event(event)
 	_held_keys.clear()
@@ -172,6 +173,7 @@ func _cmd_key_release(params: Dictionary) -> void:
 	if input["mode"] == "action":
 		var action: String = input["action"]
 		Input.action_release(action)
+		@warning_ignore("return_value_discarded")
 		_held_keys.erase("action:" + action)
 		respond({"success": true, "released": action, "type": "action"})
 		return
@@ -183,6 +185,7 @@ func _cmd_key_release(params: Dictionary) -> void:
 	event.physical_keycode = keycode as Key
 	event.pressed = false
 	Input.parse_input_event(event)
+	@warning_ignore("return_value_discarded")
 	_held_keys.erase("key:" + key.to_upper())
 	respond({"success": true, "released": key, "type": "key"})
 
@@ -358,7 +361,7 @@ func _cmd_touch(params: Dictionary) -> void:
 				var t: float = float(i + 1) / float(steps)
 				var drag_ev: InputEventScreenDrag = InputEventScreenDrag.new()
 				drag_ev.index = idx
-				drag_ev.position = Vector2(lerp(x, to_x, t), lerp(y, to_y, t))
+				drag_ev.position = Vector2(lerpf(x, to_x, t), lerpf(y, to_y, t))
 				Input.parse_input_event(drag_ev)
 				await get_tree().process_frame
 			var rel_ev: InputEventScreenTouch = InputEventScreenTouch.new()
@@ -393,7 +396,7 @@ func _cmd_input_state(params: Dictionary) -> void:
 			var mode_str: String = reader.optional_enum("mouse_mode", "visible", ["visible", "hidden", "captured", "confined"])
 			if params_invalid(reader):
 				return
-			var mode_val: int = Input.MOUSE_MODE_VISIBLE
+			var mode_val: Input.MouseMode = Input.MOUSE_MODE_VISIBLE
 			match mode_str:
 				"hidden": mode_val = Input.MOUSE_MODE_HIDDEN
 				"captured": mode_val = Input.MOUSE_MODE_CAPTURED
