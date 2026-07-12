@@ -217,8 +217,13 @@ func _test_handshake_and_id_correlation() -> void:
 
 	client.send_request("unk-2", "godot.runtime.not_a_real_command", {})
 	message = await client.read_message()
-	_check("routing: unknown runtime command returns a correlated error",
-		message is Dictionary and message.has("error") and _message_id(message) == "unk-2", message)
+	_check("routing: unregistered runtime command rejected with -32601",
+		_error_code(message) == -32601 and _message_id(message) == "unk-2", message)
+
+	client.send_request("after-unk", "godot.runtime.wait", {"frames": 1})
+	message = await client.read_message()
+	_check("routing: unknown command does not occupy the server",
+		_message_id(message) == "after-unk", message)
 
 	client.close()
 

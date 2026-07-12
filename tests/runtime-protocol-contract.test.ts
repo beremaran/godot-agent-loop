@@ -39,6 +39,18 @@ describe('runtime protocol contract', () => {
     expect(gdscript).toContain('const CANCELLABLE_COMMANDS: Array[String] = ["wait", "await_signal"]');
   });
 
+  it('dispatches runtime commands through a typed registry', () => {
+    const gdscript = readFileSync(join(root, 'src/scripts/mcp_interaction_server.gd'), 'utf8');
+
+    expect(gdscript).toContain('class CommandDescriptor:');
+    expect(gdscript).toContain('func _register_commands() -> void:');
+    expect(gdscript).toContain('_send_error(session, req_id, -32601, "Unknown method: %s" % method)');
+    // Unknown commands must be a JSON-RPC -32601 error, never a successful
+    // transport envelope wrapping an application-level error string.
+    expect(gdscript).not.toContain('"Unknown command:');
+    expect(gdscript).not.toContain('match command:');
+  });
+
   it('documents and enforces bounded runtime transport payloads', () => {
     const schema = JSON.parse(readFileSync(join(root, 'docs/runtime-api.schema.json'), 'utf8'));
     const gdscript = readFileSync(join(root, 'src/scripts/mcp_interaction_server.gd'), 'utf8');

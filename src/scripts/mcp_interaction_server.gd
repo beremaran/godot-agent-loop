@@ -21,6 +21,22 @@ class RuntimeSession:
 		peer = session_peer
 
 
+class CommandDescriptor:
+	extends RefCounted
+
+	# Typed dispatch entry for one runtime command. Every handler receives the
+	# request params dictionary and is awaited, so synchronous handlers and
+	# coroutine handlers share a single execution path in the transport layer.
+	var command: String
+	var handler: Callable
+	var cancellable: bool
+
+	func _init(command_name: String, command_handler: Callable, is_cancellable: bool) -> void:
+		command = command_name
+		handler = command_handler
+		cancellable = is_cancellable
+
+
 var _server: TCPServer
 var _sessions: Dictionary = {}
 var _next_session_id: int = 1
@@ -46,11 +62,16 @@ const ERROR_LIMIT_EXCEEDED: int = -32006
 @export var max_screenshot_png_bytes: int = 6 * 1024 * 1024
 var _key_map: Dictionary
 var _held_keys: Dictionary = {}
+# Command registry: maps a runtime command name to its CommandDescriptor.
+# The transport layer dispatches only through this registry and never names
+# individual subsystem commands.
+var _commands: Dictionary = {}
 
 func _ready() -> void:
 	# Ensure MCP server keeps processing even when game is paused
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_init_key_map()
+	_register_commands()
 	_server = TCPServer.new()
 	var err: int = _server.listen(PORT, "127.0.0.1")
 	if err != OK:
@@ -216,244 +237,149 @@ func _handle_command(session: RuntimeSession, json_str: String) -> void:
 		_handle_cancel(session, req_id, params)
 		return
 
+	var command: String = method.trim_prefix(METHOD_PREFIX)
+	var descriptor: CommandDescriptor = _commands.get(command)
+	if descriptor == null:
+		_send_error(session, req_id, -32601, "Unknown method: %s" % method)
+		return
+
 	if _active_session != null:
 		_send_error(session, req_id, -32001, "Server busy processing another command. Try again.")
 		return
 	session.request_running = true
 	session.request_id = req_id
-	session.request_command = method.trim_prefix(METHOD_PREFIX)
+	session.request_command = command
 	session.request_state = "running"
 	session.cancellation_requested = false
 	_active_session = session
 
-	var command: String = session.request_command
+	# Synchronous handlers complete before this await resumes; coroutine
+	# handlers suspend here until their own awaits finish.
+	await descriptor.handler.call(params)
 
-	match command:
-		# Async commands (use await)
-		"screenshot":
-			await _cmd_screenshot()
-		"click":
-			await _cmd_click(params)
-		"key_press":
-			await _cmd_key_press(params)
-		"eval":
-			await _cmd_eval(params)
-		"wait":
-			await _cmd_wait(params)
-		# Sync commands
-		"mouse_move":
-			_cmd_mouse_move(params)
-		"get_ui_elements":
-			_cmd_get_ui_elements()
-		"get_scene_tree":
-			_cmd_get_scene_tree()
-		"get_property":
-			_cmd_get_property(params)
-		"set_property":
-			_cmd_set_property(params)
-		"call_method":
-			_cmd_call_method(params)
-		"get_node_info":
-			_cmd_get_node_info(params)
-		"instantiate_scene":
-			_cmd_instantiate_scene(params)
-		"remove_node":
-			_cmd_remove_node(params)
-		"change_scene":
-			_cmd_change_scene(params)
-		"pause":
-			_cmd_pause(params)
-		"get_performance":
-			_cmd_get_performance(params)
-		"connect_signal":
-			_cmd_connect_signal(params)
-		"disconnect_signal":
-			_cmd_disconnect_signal(params)
-		"emit_signal":
-			_cmd_emit_signal(params)
-		"play_animation":
-			_cmd_play_animation(params)
-		"tween_property":
-			_cmd_tween_property(params)
-		"get_nodes_in_group":
-			_cmd_get_nodes_in_group(params)
-		"find_nodes_by_class":
-			_cmd_find_nodes_by_class(params)
-		"reparent_node":
-			_cmd_reparent_node(params)
-		# Enhanced input commands
-		"key_hold":
-			_cmd_key_hold(params)
-		"key_release":
-			_cmd_key_release(params)
-		"scroll":
-			_cmd_scroll(params)
-		"mouse_drag":
-			await _cmd_mouse_drag(params)
-		"gamepad":
-			_cmd_gamepad(params)
-		# Advanced runtime commands
-		"get_camera":
-			_cmd_get_camera()
-		"set_camera":
-			_cmd_set_camera(params)
-		"raycast":
-			await _cmd_raycast(params)
-		"get_audio":
-			_cmd_get_audio()
-		"spawn_node":
-			_cmd_spawn_node(params)
-		"set_shader_param":
-			_cmd_set_shader_param(params)
-		"audio_play":
-			_cmd_audio_play(params)
-		"audio_bus":
-			_cmd_audio_bus(params)
-		"navigate_path":
-			await _cmd_navigate_path(params)
-		"tilemap":
-			_cmd_tilemap(params)
-		"add_collision":
-			_cmd_add_collision(params)
-		"environment":
-			_cmd_environment(params)
-		"manage_group":
-			_cmd_manage_group(params)
-		"create_timer":
-			_cmd_create_timer(params)
-		"set_particles":
-			_cmd_set_particles(params)
-		"create_animation":
-			_cmd_create_animation(params)
-		"serialize_state":
-			_cmd_serialize_state(params)
-		"physics_body":
-			_cmd_physics_body(params)
-		"create_joint":
-			_cmd_create_joint(params)
-		"bone_pose":
-			_cmd_bone_pose(params)
-		"ui_theme":
-			_cmd_ui_theme(params)
-		"viewport":
-			_cmd_viewport(params)
-		"debug_draw":
-			_cmd_debug_draw(params)
-		# Batch 1: Networking + Input + System + Signals + Script
-		"http_request":
-			await _cmd_http_request(params)
-		"websocket":
-			_cmd_websocket(params)
-		"multiplayer":
-			_cmd_multiplayer(params)
-		"rpc":
-			_cmd_rpc(params)
-		"touch":
-			await _cmd_touch(params)
-		"input_state":
-			_cmd_input_state(params)
-		"input_action":
-			_cmd_input_action(params)
-		"list_signals":
-			_cmd_list_signals(params)
-		"await_signal":
-			await _cmd_await_signal(params)
-		"script":
-			_cmd_script(params)
-		"window":
-			_cmd_window(params)
-		"os_info":
-			_cmd_os_info()
-		"time_scale":
-			_cmd_time_scale(params)
-		"process_mode":
-			_cmd_process_mode(params)
-		"world_settings":
-			_cmd_world_settings(params)
-		# Batch 2: 3D Rendering + Lighting + Sky + Physics
-		"csg":
-			_cmd_csg(params)
-		"multimesh":
-			_cmd_multimesh(params)
-		"procedural_mesh":
-			_cmd_procedural_mesh(params)
-		"light_3d":
-			_cmd_light_3d(params)
-		"mesh_instance":
-			_cmd_mesh_instance(params)
-		"gridmap":
-			_cmd_gridmap(params)
-		"3d_effects":
-			_cmd_3d_effects(params)
-		"gi":
-			_cmd_gi(params)
-		"path_3d":
-			_cmd_path_3d(params)
-		"sky":
-			_cmd_sky(params)
-		"camera_attributes":
-			_cmd_camera_attributes(params)
-		"navigation_3d":
-			await _cmd_navigation_3d(params)
-		"physics_3d":
-			await _cmd_physics_3d(params)
-		# Batch 3: 2D Systems + Animation + Audio
-		"canvas":
-			_cmd_canvas(params)
-		"canvas_draw":
-			_cmd_canvas_draw(params)
-		"light_2d":
-			_cmd_light_2d(params)
-		"parallax":
-			_cmd_parallax(params)
-		"shape_2d":
-			_cmd_shape_2d(params)
-		"path_2d":
-			_cmd_path_2d(params)
-		"physics_2d":
-			await _cmd_physics_2d(params)
-		"animation_tree":
-			_cmd_animation_tree(params)
-		"animation_control":
-			_cmd_animation_control(params)
-		"skeleton_ik":
-			_cmd_skeleton_ik(params)
-		"audio_effect":
-			_cmd_audio_effect(params)
-		"audio_bus_layout":
-			_cmd_audio_bus_layout(params)
-		"audio_spatial":
-			_cmd_audio_spatial(params)
-		# Batch 4: Locale (runtime)
-		"locale":
-			_cmd_locale(params)
-		# Batch 5: UI Controls + Rendering + Resource
-		"ui_control":
-			_cmd_ui_control(params)
-		"ui_text":
-			_cmd_ui_text(params)
-		"ui_popup":
-			_cmd_ui_popup(params)
-		"ui_tree":
-			_cmd_ui_tree(params)
-		"ui_item_list":
-			_cmd_ui_item_list(params)
-		"ui_tabs":
-			_cmd_ui_tabs(params)
-		"ui_menu":
-			_cmd_ui_menu(params)
-		"ui_range":
-			_cmd_ui_range(params)
-		"render_settings":
-			_cmd_render_settings(params)
-		"resource":
-			_cmd_resource(params)
-		"video":
-			_cmd_video(params)
-		"terrain":
-			_cmd_terrain(params)
-		_:
-			_send_response({"error": "Unknown command: %s" % command})
+
+func _register_command(command: String, handler: Callable) -> void:
+	_commands[command] = CommandDescriptor.new(command, handler, CANCELLABLE_COMMANDS.has(command))
+
+
+func _register_commands() -> void:
+	# Screenshot + input
+	_register_command("screenshot", _cmd_screenshot)
+	_register_command("click", _cmd_click)
+	_register_command("key_press", _cmd_key_press)
+	_register_command("key_hold", _cmd_key_hold)
+	_register_command("key_release", _cmd_key_release)
+	_register_command("scroll", _cmd_scroll)
+	_register_command("mouse_move", _cmd_mouse_move)
+	_register_command("mouse_drag", _cmd_mouse_drag)
+	_register_command("gamepad", _cmd_gamepad)
+	_register_command("touch", _cmd_touch)
+	_register_command("input_state", _cmd_input_state)
+	_register_command("input_action", _cmd_input_action)
+	# Core scene/property/signal
+	_register_command("eval", _cmd_eval)
+	_register_command("wait", _cmd_wait)
+	_register_command("get_ui_elements", _cmd_get_ui_elements)
+	_register_command("get_scene_tree", _cmd_get_scene_tree)
+	_register_command("get_property", _cmd_get_property)
+	_register_command("set_property", _cmd_set_property)
+	_register_command("call_method", _cmd_call_method)
+	_register_command("get_node_info", _cmd_get_node_info)
+	_register_command("instantiate_scene", _cmd_instantiate_scene)
+	_register_command("remove_node", _cmd_remove_node)
+	_register_command("change_scene", _cmd_change_scene)
+	_register_command("pause", _cmd_pause)
+	_register_command("get_performance", _cmd_get_performance)
+	_register_command("connect_signal", _cmd_connect_signal)
+	_register_command("disconnect_signal", _cmd_disconnect_signal)
+	_register_command("emit_signal", _cmd_emit_signal)
+	_register_command("list_signals", _cmd_list_signals)
+	_register_command("await_signal", _cmd_await_signal)
+	_register_command("play_animation", _cmd_play_animation)
+	_register_command("tween_property", _cmd_tween_property)
+	_register_command("get_nodes_in_group", _cmd_get_nodes_in_group)
+	_register_command("find_nodes_by_class", _cmd_find_nodes_by_class)
+	_register_command("reparent_node", _cmd_reparent_node)
+	_register_command("spawn_node", _cmd_spawn_node)
+	_register_command("manage_group", _cmd_manage_group)
+	_register_command("create_timer", _cmd_create_timer)
+	_register_command("serialize_state", _cmd_serialize_state)
+	_register_command("script", _cmd_script)
+	# Camera + rendering + environment
+	_register_command("get_camera", _cmd_get_camera)
+	_register_command("set_camera", _cmd_set_camera)
+	_register_command("camera_attributes", _cmd_camera_attributes)
+	_register_command("set_shader_param", _cmd_set_shader_param)
+	_register_command("environment", _cmd_environment)
+	_register_command("set_particles", _cmd_set_particles)
+	_register_command("viewport", _cmd_viewport)
+	_register_command("debug_draw", _cmd_debug_draw)
+	_register_command("render_settings", _cmd_render_settings)
+	_register_command("sky", _cmd_sky)
+	_register_command("gi", _cmd_gi)
+	_register_command("video", _cmd_video)
+	# Audio + animation
+	_register_command("get_audio", _cmd_get_audio)
+	_register_command("audio_play", _cmd_audio_play)
+	_register_command("audio_bus", _cmd_audio_bus)
+	_register_command("audio_effect", _cmd_audio_effect)
+	_register_command("audio_bus_layout", _cmd_audio_bus_layout)
+	_register_command("audio_spatial", _cmd_audio_spatial)
+	_register_command("create_animation", _cmd_create_animation)
+	_register_command("animation_tree", _cmd_animation_tree)
+	_register_command("animation_control", _cmd_animation_control)
+	_register_command("skeleton_ik", _cmd_skeleton_ik)
+	_register_command("bone_pose", _cmd_bone_pose)
+	# Physics + navigation
+	_register_command("raycast", _cmd_raycast)
+	_register_command("navigate_path", _cmd_navigate_path)
+	_register_command("add_collision", _cmd_add_collision)
+	_register_command("physics_body", _cmd_physics_body)
+	_register_command("create_joint", _cmd_create_joint)
+	_register_command("navigation_3d", _cmd_navigation_3d)
+	_register_command("physics_3d", _cmd_physics_3d)
+	_register_command("physics_2d", _cmd_physics_2d)
+	# 3D rendering
+	_register_command("csg", _cmd_csg)
+	_register_command("multimesh", _cmd_multimesh)
+	_register_command("procedural_mesh", _cmd_procedural_mesh)
+	_register_command("light_3d", _cmd_light_3d)
+	_register_command("mesh_instance", _cmd_mesh_instance)
+	_register_command("gridmap", _cmd_gridmap)
+	_register_command("3d_effects", _cmd_3d_effects)
+	_register_command("path_3d", _cmd_path_3d)
+	_register_command("terrain", _cmd_terrain)
+	# 2D systems
+	_register_command("tilemap", _cmd_tilemap)
+	_register_command("canvas", _cmd_canvas)
+	_register_command("canvas_draw", _cmd_canvas_draw)
+	_register_command("light_2d", _cmd_light_2d)
+	_register_command("parallax", _cmd_parallax)
+	_register_command("shape_2d", _cmd_shape_2d)
+	_register_command("path_2d", _cmd_path_2d)
+	# UI
+	_register_command("ui_theme", _cmd_ui_theme)
+	_register_command("ui_control", _cmd_ui_control)
+	_register_command("ui_text", _cmd_ui_text)
+	_register_command("ui_popup", _cmd_ui_popup)
+	_register_command("ui_tree", _cmd_ui_tree)
+	_register_command("ui_item_list", _cmd_ui_item_list)
+	_register_command("ui_tabs", _cmd_ui_tabs)
+	_register_command("ui_menu", _cmd_ui_menu)
+	_register_command("ui_range", _cmd_ui_range)
+	# Networking + multiplayer
+	_register_command("http_request", _cmd_http_request)
+	_register_command("websocket", _cmd_websocket)
+	_register_command("multiplayer", _cmd_multiplayer)
+	_register_command("rpc", _cmd_rpc)
+	# System + project state
+	_register_command("window", _cmd_window)
+	_register_command("os_info", _cmd_os_info)
+	_register_command("time_scale", _cmd_time_scale)
+	_register_command("process_mode", _cmd_process_mode)
+	_register_command("world_settings", _cmd_world_settings)
+	_register_command("locale", _cmd_locale)
+	_register_command("resource", _cmd_resource)
 
 
 func _handle_handshake(session: RuntimeSession, req_id: Variant, params: Dictionary) -> void:
@@ -477,7 +403,8 @@ func _handle_cancel(session: RuntimeSession, req_id: Variant, params: Dictionary
 	if _active_session == null or _active_session != session or not _active_session.request_running or _active_session.request_id != target_id:
 		_send_error(session, req_id, -32004, "Request is not running", {"request_id": target_id})
 		return
-	if not CANCELLABLE_COMMANDS.has(_active_session.request_command):
+	var descriptor: CommandDescriptor = _commands.get(_active_session.request_command)
+	if descriptor == null or not descriptor.cancellable:
 		_send_error(session, req_id, -32005, "Request is not cancellable", {"request_id": target_id, "command": _active_session.request_command})
 		return
 	_active_session.cancellation_requested = true
@@ -574,7 +501,7 @@ func _send_error(session: RuntimeSession, id: Variant, code: int, message: Strin
 
 
 # --- Screenshot ---
-func _cmd_screenshot() -> void:
+func _cmd_screenshot(_params: Dictionary) -> void:
 	# Wait one frame so the viewport is fully rendered
 	await get_tree().process_frame
 	var viewport: Viewport = get_viewport()
@@ -687,7 +614,7 @@ func _cmd_mouse_move(params: Dictionary) -> void:
 
 
 # --- Get UI Elements ---
-func _cmd_get_ui_elements() -> void:
+func _cmd_get_ui_elements(_params: Dictionary) -> void:
 	var elements: Array = []
 	_collect_ui_elements(get_tree().root, elements)
 	_send_response({"success": true, "elements": elements})
@@ -721,7 +648,7 @@ func _collect_ui_elements(node: Node, elements: Array) -> void:
 
 
 # --- Get Scene Tree ---
-func _cmd_get_scene_tree() -> void:
+func _cmd_get_scene_tree(_params: Dictionary) -> void:
 	var tree: Dictionary = _build_tree_node(get_tree().root)
 	_send_response({"success": true, "tree": tree})
 
@@ -1652,7 +1579,7 @@ func _cmd_gamepad(params: Dictionary) -> void:
 
 
 # --- Get Camera ---
-func _cmd_get_camera() -> void:
+func _cmd_get_camera(_params: Dictionary) -> void:
 	var result: Dictionary = {"success": true}
 
 	var cam2d: Camera2D = get_viewport().get_camera_2d()
@@ -1768,7 +1695,7 @@ func _cmd_raycast(params: Dictionary) -> void:
 
 
 # --- Get Audio ---
-func _cmd_get_audio() -> void:
+func _cmd_get_audio(_params: Dictionary) -> void:
 	var buses: Array = []
 	for i in AudioServer.bus_count:
 		buses.append({
@@ -3308,7 +3235,7 @@ func _cmd_window(params: Dictionary) -> void:
 	_send_response({"success": true, "action": "set", "size": {"x": win.size.x, "y": win.size.y}})
 
 
-func _cmd_os_info() -> void:
+func _cmd_os_info(_params: Dictionary) -> void:
 	var screen_size: Vector2i = DisplayServer.screen_get_size()
 	_send_response({"success": true, "os_name": OS.get_name(), "locale": OS.get_locale(), "screen_size": {"x": screen_size.x, "y": screen_size.y}, "video_adapter": RenderingServer.get_video_adapter_name(), "processor_count": OS.get_processor_count()})
 

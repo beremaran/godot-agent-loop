@@ -14,6 +14,7 @@
   },
   "x-runtime-contract": {
     "protocolVersion": "1.0", "capabilities": ["runtime-commands", "godot-json-values"],
+    "routing": "Commands dispatch through a typed registry. An unknown method, including an unregistered godot.runtime.* command, receives -32601 before any busy or lifecycle state is touched.",
     "concurrency": "One command is processed at a time. A second command, including one from another session, receives -32001 and is not queued. Handshake and cancel are control requests and may be processed while a command is running.",
     "lifecycle": "A command transitions received → running → responded, cancelled, or timed_out. Terminal states are exclusive: exactly one response is emitted for a connected session; a disconnected session's terminal response is discarded.",
     "cancellation": { "method": "godot.runtime.cancel", "params": { "request_id": "The JSON-RPC id of the caller's active request." }, "cancellableCommands": ["wait", "await_signal"], "semantics": "Cancellation is cooperative. cancel returns an acknowledgement, then the original request terminates with -32003. Other commands return -32005 and continue running." },
