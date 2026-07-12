@@ -130,6 +130,7 @@ func _run() -> void:
 	await _test_parameter_validation()
 	await _test_input_domain()
 	await _test_ui_domain()
+	await _test_scene_2d_domain()
 
 	print("godot-runtime-integration: %d checks, %d failures" % [_checks, _failures])
 	quit(1 if _failures > 0 else 0)
@@ -745,6 +746,152 @@ func _test_ui_domain() -> void:
 	message = await client.read_message()
 	_check("ui domain: server keeps serving after domain commands",
 		_message_id(message) == "ui-after" and _result_of(message).get("success") == true, message)
+
+	client.close()
+	fixture.queue_free()
+	await process_frame
+
+
+# --- 2D domain ---
+# The 2D commands live in res://mcp_runtime/scene_2d_domain.gd rather than on
+# the server. These checks assert the behavior survived the move: handlers
+# create and mutate real 2D nodes through the same registry and session, the
+# canvas-draw node and command list the domain now owns persist across
+# requests, and invalid parameters still fail with standardized -32000 errors.
+func _test_scene_2d_domain() -> void:
+	var fixture: Node = Node.new()
+	fixture.name = "Scene2DFixture"
+	var line: Line2D = Line2D.new()
+	line.name = "Line"
+	fixture.add_child(line)
+	var tilemap: TileMapLayer = TileMapLayer.new()
+	tilemap.name = "Tiles"
+	fixture.add_child(tilemap)
+	root.add_child(fixture)
+	await process_frame
+
+	var client: Client = await _open_client("2d")
+
+	_check("2d domain: server attaches the domain node as a child",
+		_server.get_node_or_null("scene_2d_domain") != null, _server.get_children())
+
+	client.send_request("2d-layer", "godot.runtime.canvas",
+		{"action": "create_layer", "parent_path": "Scene2DFixture", "layer": 3, "name": "McpLayer"})
+	var message: Variant = await client.read_message()
+	var layer_node: CanvasLayer = fixture.get_node_or_null("McpLayer") as CanvasLayer
+	_check("2d domain: canvas create_layer adds a CanvasLayer with its own id",
+		_message_id(message) == "2d-layer" and layer_node != null and layer_node.layer == 3, message)
+
+	client.send_request("2d-conf", "godot.runtime.canvas",
+		{"action": "configure", "node_path": "Scene2DFixture/McpLayer", "layer": 7, "visible": false})
+	message = await client.read_message()
+	_check("2d domain: canvas configure applies layer and visibility",
+		(_result_of(message).get("applied") as Array).has("layer")
+		and layer_node.layer == 7 and layer_node.visible == false, message)
+
+	client.send_request("2d-draw", "godot.runtime.canvas_draw",
+		{"action": "line", "parent_path": "Scene2DFixture", "from": {"x": 0, "y": 0}, "to": {"x": 10, "y": 10}})
+	message = await client.read_message()
+	var draw_node: Node = fixture.get_node_or_null("_McpCanvasDraw")
+	_check("2d domain: canvas_draw creates the draw node it owns",
+		_result_of(message).get("success") == true and draw_node != null, message)
+
+	client.send_request("2d-draw2", "godot.runtime.canvas_draw",
+		{"action": "circle", "center": {"x": 5, "y": 5}, "radius": 4})
+	message = await client.read_message()
+	_check("2d domain: draw commands accumulate on the domain-owned node",
+		(draw_node.get("draw_commands") as Array).size() == 2, message)
+
+	client.send_request("2d-clear", "godot.runtime.canvas_draw", {"action": "clear"})
+	message = await client.read_message()
+	_check("2d domain: canvas_draw clear empties the command list",
+		_result_of(message).get("success") == true
+		and (draw_node.get("draw_commands") as Array).is_empty(), message)
+
+	client.send_request("2d-light", "godot.runtime.light_2d",
+		{"action": "create_point", "parent_path": "Scene2DFixture", "energy": 2.0, "name": "McpLight"})
+	message = await client.read_message()
+	var light: PointLight2D = fixture.get_node_or_null("McpLight") as PointLight2D
+	_check("2d domain: light_2d create_point adds a configured PointLight2D",
+		light != null and light.energy == 2.0 and light.texture != null, message)
+
+	client.send_request("2d-bg", "godot.runtime.parallax",
+		{"action": "create_background", "parent_path": "Scene2DFixture", "name": "McpParallax"})
+	message = await client.read_message()
+	client.send_request("2d-pl", "godot.runtime.parallax",
+		{"action": "add_layer", "parent_path": "Scene2DFixture/McpParallax", "motion_scale": {"x": 0.5, "y": 0.25}})
+	message = await client.read_message()
+	var parallax_layer: ParallaxLayer = null
+	var background: Node = fixture.get_node_or_null("McpParallax")
+	if background != null and background.get_child_count() > 0:
+		parallax_layer = background.get_child(0) as ParallaxLayer
+	_check("2d domain: parallax add_layer attaches a layer with motion_scale",
+		parallax_layer != null and parallax_layer.motion_scale == Vector2(0.5, 0.25), message)
+
+	client.send_request("2d-pts", "godot.runtime.shape_2d",
+		{"node_path": "Scene2DFixture/Line", "action": "set_points",
+			"points": [{"x": 0, "y": 0}, {"x": 10, "y": 0}, {"x": 10, "y": 10}]})
+	message = await client.read_message()
+	_check("2d domain: shape_2d set_points writes the Line2D points",
+		_result_of(message).get("count") == 3 and line.points.size() == 3, message)
+
+	client.send_request("2d-get", "godot.runtime.shape_2d",
+		{"node_path": "Scene2DFixture/Line", "action": "get_points"})
+	message = await client.read_message()
+	var points: Array = _result_of(message).get("points", [])
+	_check("2d domain: shape_2d get_points reads them back on its own request id",
+		_message_id(message) == "2d-get" and points.size() == 3
+		and (points[1] as Dictionary).get("x") == 10.0, message)
+
+	client.send_request("2d-path", "godot.runtime.path_2d",
+		{"action": "create", "parent_path": "Scene2DFixture", "name": "McpPath",
+			"points": [{"x": 0, "y": 0}, {"x": 20, "y": 20}]})
+	message = await client.read_message()
+	client.send_request("2d-path-add", "godot.runtime.path_2d",
+		{"action": "add_point", "node_path": "Scene2DFixture/McpPath", "point": {"x": 40, "y": 0}})
+	message = await client.read_message()
+	_check("2d domain: path_2d create and add_point build the curve",
+		_result_of(message).get("point_count") == 3, message)
+
+	client.send_request("2d-cell", "godot.runtime.tilemap",
+		{"node_path": "Scene2DFixture/Tiles", "action": "get_cell", "x": 1, "y": 1})
+	message = await client.read_message()
+	_check("2d domain: tilemap get_cell reports an empty cell",
+		_result_of(message).get("source_id") == -1, message)
+
+	client.send_request("2d-used", "godot.runtime.tilemap",
+		{"node_path": "Scene2DFixture/Tiles", "action": "get_used_cells"})
+	message = await client.read_message()
+	_check("2d domain: tilemap get_used_cells returns an empty list",
+		_result_of(message).get("count") == 0, message)
+
+	client.send_request("2d-class", "godot.runtime.tilemap",
+		{"node_path": "Scene2DFixture/Line", "action": "get_cell"})
+	message = await client.read_message()
+	_check("2d domain: wrong node class fails with invalid_value details",
+		_error_code(message) == -32000 and _error_data(message).get("reason") == "invalid_value", message)
+
+	client.send_request("2d-action", "godot.runtime.canvas", {"action": "explode"})
+	message = await client.read_message()
+	_check("2d domain: unknown action fails with the allowed action list",
+		_error_code(message) == -32000
+		and (_error_data(message).get("allowed") as Array).has("create_layer"), message)
+
+	client.send_request("2d-missing", "godot.runtime.shape_2d", {"action": "get_points"})
+	message = await client.read_message()
+	_check("2d domain: missing node_path fails with a structured -32000 error",
+		_error_code(message) == -32000 and _error_data(message).get("reason") == "missing", message)
+
+	client.send_request("2d-no-parent", "godot.runtime.parallax",
+		{"action": "add_layer", "parent_path": "/root/NoSuchParallax"})
+	message = await client.read_message()
+	_check("2d domain: missing parent fails with node_not_found details",
+		_error_code(message) == -32000 and _error_data(message).get("reason") == "node_not_found", message)
+
+	client.send_request("2d-after", "godot.runtime.wait", {"frames": 1})
+	message = await client.read_message()
+	_check("2d domain: server keeps serving after domain commands",
+		_message_id(message) == "2d-after" and _result_of(message).get("success") == true, message)
 
 	client.close()
 	fixture.queue_free()

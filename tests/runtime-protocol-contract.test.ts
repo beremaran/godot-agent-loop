@@ -122,6 +122,10 @@ describe('runtime protocol contract', () => {
         commands: ['ui_theme', 'ui_control', 'ui_text', 'ui_popup', 'ui_tree', 'ui_item_list', 'ui_tabs', 'ui_menu', 'ui_range'],
         internals: ['_resolve_anchor_preset', '_collect_tree_items'],
       },
+      'scene_2d_domain.gd': {
+        commands: ['tilemap', 'canvas', 'canvas_draw', 'light_2d', 'parallax', 'shape_2d', 'path_2d'],
+        internals: ['_canvas_draw_node', '_draw_commands', '_create_draw_script'],
+      },
     };
     for (const [file, ownership] of Object.entries(domainOwnership)) {
       const domain = readFileSync(join(root, 'src/scripts/mcp_runtime', file), 'utf8');
