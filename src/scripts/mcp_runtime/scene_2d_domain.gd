@@ -10,6 +10,15 @@ var _canvas_draw_node: Node2D = null
 var _draw_commands: Array = []
 
 
+# The draw node is parented into the scene, not under this domain, so it would
+# outlive the server. Free it with the domain that owns it.
+func _exit_tree() -> void:
+	_draw_commands.clear()
+	if _canvas_draw_node != null and is_instance_valid(_canvas_draw_node):
+		_canvas_draw_node.queue_free()
+	_canvas_draw_node = null
+
+
 func register_commands() -> void:
 	register_command("tilemap", _cmd_tilemap)
 	register_command("canvas", _cmd_canvas)

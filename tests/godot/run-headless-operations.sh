@@ -122,6 +122,34 @@ expect_in_file() {
   pass "$label"
 }
 
+expect_not_in_file() {
+  local label="$1" relative="$2" needle="$3"
+  checks=$((checks + 1))
+  if grep -qF -- "$needle" "$PROJECT/$relative" 2>/dev/null; then
+    fail "$label" "$relative should not contain: $needle"
+    return
+  fi
+  pass "$label"
+}
+
+# Assert the last operation left a file byte-for-byte unchanged. A failing
+# scene edit must not rewrite the scene it was asked to edit.
+expect_unchanged() {
+  local label="$1" relative="$2" before="$3"
+  checks=$((checks + 1))
+  local after
+  after="$(sha256sum "$PROJECT/$relative" | cut -d' ' -f1)"
+  if [[ "$after" != "$before" ]]; then
+    fail "$label" "$relative was rewritten"
+    return
+  fi
+  pass "$label"
+}
+
+sha_of() {
+  sha256sum "$PROJECT/$1" | cut -d' ' -f1
+}
+
 echo
 echo "Scene operations"
 
@@ -197,6 +225,64 @@ expect_ok "manage_scene_signals removes a connection" "removed"
 
 run_op manage_scene_signals '{"scene_path":"scenes/main.tscn","action":"list"}'
 expect_ok "the removed connection is gone" '"connections":[]'
+
+echo
+echo "Scene edit invariants (regressions from 29bf0b2)"
+
+# These are the end-to-end cases 29bf0b2 fixed by hand; they are kept here as
+# permanent fixtures. They assert the two invariants the scene-editing
+# operations rest on: an edited scene still reloads as a valid tree with its
+# ownership intact, and a rejected edit never rewrites the file.
+
+run_op create_scene '{"scene_path":"scenes/regress.tscn","root_node_type":"Node2D"}'
+expect_ok "regression: a scene for the edit invariants" "Scene created successfully"
+
+# TYPE_OBJECT properties: a res:// path given for an Object-typed property must
+# be loaded and persisted as an ext_resource, not silently dropped.
+run_op add_node '{"scene_path":"scenes/regress.tscn","parent_node_path":"root","node_type":"Sprite2D","node_name":"Enemy","properties":{"texture":"res://icon.png","modulate":{"r":1,"g":0,"b":0,"a":1}}}'
+expect_ok "regression: add_node accepts a resource-valued property" "added successfully"
+expect_in_file "regression: the resource property persisted as an ext_resource" \
+  "scenes/regress.tscn" 'ext_resource type="Texture2D"'
+expect_in_file "regression: add_node converted a non-resource property too" \
+  "scenes/regress.tscn" "modulate = Color(1, 0, 0, 1)"
+
+run_op add_node '{"scene_path":"scenes/regress.tscn","parent_node_path":"Enemy","node_type":"Node2D","node_name":"Weapon"}'
+expect_ok "regression: a child to carry through the reparent" "added successfully"
+run_op add_node '{"scene_path":"scenes/regress.tscn","parent_node_path":"root","node_type":"Node2D","node_name":"Enemies"}'
+expect_ok "regression: a reparent target" "added successfully"
+
+# duplicate must produce an addressable name (Enemy2), not the engine's
+# auto-generated @Enemy@2, which no later operation could target.
+run_op manage_scene_structure '{"scene_path":"scenes/regress.tscn","action":"duplicate","node_path":"Enemy"}'
+expect_ok "regression: duplicate names the copy readably" "(as 'Enemy2')"
+expect_not_in_file "regression: the copy has no auto-generated name" "scenes/regress.tscn" "@Enemy@"
+expect_in_file "regression: the copy kept the original's children" "scenes/regress.tscn" 'parent="Enemy2"'
+
+# move must carry descendants with the node and leave every path valid.
+run_op manage_scene_structure '{"scene_path":"scenes/regress.tscn","action":"move","node_path":"Enemy","new_parent_path":"Enemies"}'
+expect_ok "regression: move reparents the node" "Node moved"
+expect_in_file "regression: the moved node sits under its new parent" \
+  "scenes/regress.tscn" 'parent="Enemies"'
+expect_in_file "regression: the descendant moved with it" \
+  "scenes/regress.tscn" 'parent="Enemies/Enemy"'
+
+# The scene must still load: read_scene instantiates the PackedScene, so a tree
+# with broken ownership or dangling paths would not report back.
+run_op read_scene '{"scene_path":"scenes/regress.tscn"}'
+expect_ok "regression: the edited scene still reloads as a valid tree" \
+  "SCENE_JSON_START" '"name":"Weapon"' '"name":"Enemy2"' "SCENE_JSON_END"
+
+# A rejected edit must leave the scene byte-for-byte alone.
+before_sha="$(sha_of scenes/regress.tscn)"
+run_op manage_scene_structure '{"scene_path":"scenes/regress.tscn","action":"teleport","node_path":"Enemies/Enemy"}'
+expect_failure "regression: an unknown structure action fails" "Allowed actions"
+expect_unchanged "regression: the failed edit did not rewrite the scene" \
+  "scenes/regress.tscn" "$before_sha"
+
+run_op manage_scene_structure '{"scene_path":"scenes/regress.tscn","action":"move","node_path":"Ghost","new_parent_path":"Enemies"}'
+expect_failure "regression: moving a missing node fails" "not found"
+expect_unchanged "regression: the failed move did not rewrite the scene" \
+  "scenes/regress.tscn" "$before_sha"
 
 echo
 echo "Resource operations"

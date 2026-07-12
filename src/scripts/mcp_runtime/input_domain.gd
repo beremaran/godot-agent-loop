@@ -15,6 +15,26 @@ func _init() -> void:
 	_init_key_map()
 
 
+# key_hold deliberately leaves a key or action pressed after responding, so the
+# domain must undo that when it goes away: Input state is global and outlives
+# the server, and a stuck key would keep driving the game.
+func _exit_tree() -> void:
+	_release_all_held()
+
+
+func _release_all_held() -> void:
+	for entry: String in _held_keys:
+		if entry.begins_with("action:"):
+			Input.action_release(entry.substr(7))
+			continue
+		var event: InputEventKey = InputEventKey.new()
+		event.keycode = _held_keys[entry] as Key
+		event.physical_keycode = _held_keys[entry] as Key
+		event.pressed = false
+		Input.parse_input_event(event)
+	_held_keys.clear()
+
+
 func register_commands() -> void:
 	register_command("click", _cmd_click)
 	register_command("key_press", _cmd_key_press)

@@ -13,6 +13,9 @@ extends SceneTree
 # response fallback, and validated-parameter failures with structured error
 # details. Also covers the domain split: commands owned by a domain script
 # dispatch, await, hold state, and fail through the same registry and session.
+# Covered runtime behavior: the signal connect/emit/disconnect lifecycle, render
+# and physics frame awaits, and teardown — leaving the tree releases the input
+# key_hold left pressed and frees the canvas-draw node parented into the scene.
 # Exit code is 0 only when every check passes.
 
 const PORT: int = 9090
@@ -139,6 +142,10 @@ func _run() -> void:
 	await _test_audio_animation_domain()
 	await _test_networking_domain()
 	await _test_system_domain()
+	await _test_signal_lifecycle()
+	await _test_frame_awaits()
+	# Detaches the server; keep it last.
+	await _test_teardown_releases_state()
 
 	print("godot-runtime-integration: %d checks, %d failures" % [_checks, _failures])
 	quit(1 if _failures > 0 else 0)
@@ -1489,5 +1496,155 @@ func _test_scene_3d_domain() -> void:
 		_message_id(message) == "3d-after" and _result_of(message).get("success") == true, message)
 
 	client.close()
+	fixture.queue_free()
+	await process_frame
+
+
+# --- Signal lifecycle ---
+# connect_signal/emit_signal/disconnect_signal are the runtime's only way to
+# observe game events, so the whole lifecycle is pinned: a connection must
+# actually invoke the target method, appear in list_signals, and stop firing
+# once disconnected.
+func _test_signal_lifecycle() -> void:
+	var script: GDScript = GDScript.new()
+	script.source_code = """extends Node
+signal ping(value)
+var received: Array = []
+func on_ping(value: Variant = null) -> void:
+	received.append(value)
+"""
+	var reload_error: int = script.reload()
+	var fixture: Node = Node.new()
+	fixture.name = "SignalFixture"
+	fixture.set_script(script)
+	root.add_child(fixture)
+	await process_frame
+	_check("signals: the fixture script compiled", reload_error == OK, reload_error)
+
+	var client: Client = await _open_client("signals")
+
+	client.send_request("sig-connect", "godot.runtime.connect_signal",
+		{"node_path": "SignalFixture", "signal_name": "ping",
+			"target_path": "SignalFixture", "method": "on_ping"})
+	var message: Variant = await client.read_message()
+	_check("signals: connect_signal connects the source to the target method",
+		_result_of(message).get("success") == true
+		and fixture.is_connected("ping", Callable(fixture, "on_ping")), message)
+
+	client.send_request("sig-list", "godot.runtime.list_signals", {"node_path": "SignalFixture"})
+	message = await client.read_message()
+	var listed: bool = false
+	for entry: Dictionary in _result_of(message).get("signals", []) as Array:
+		if entry.get("name") == "ping" and not (entry.get("connections") as Array).is_empty():
+			listed = true
+	_check("signals: list_signals reports the live connection", listed, message)
+
+	client.send_request("sig-emit", "godot.runtime.emit_signal",
+		{"node_path": "SignalFixture", "signal_name": "ping", "args": [7]})
+	message = await client.read_message()
+	var received: Array = fixture.get("received") as Array
+	_check("signals: emit_signal invokes the connected method with its args",
+		_result_of(message).get("arg_count") == 1
+		and received.size() == 1 and received[0] == 7, [message, received])
+
+	client.send_request("sig-disconnect", "godot.runtime.disconnect_signal",
+		{"node_path": "SignalFixture", "signal_name": "ping",
+			"target_path": "SignalFixture", "method": "on_ping"})
+	message = await client.read_message()
+	_check("signals: disconnect_signal drops the connection",
+		_result_of(message).get("success") == true
+		and not fixture.is_connected("ping", Callable(fixture, "on_ping")), message)
+
+	client.send_request("sig-emit2", "godot.runtime.emit_signal",
+		{"node_path": "SignalFixture", "signal_name": "ping", "args": [9]})
+	message = await client.read_message()
+	await process_frame
+	_check("signals: a disconnected signal no longer reaches the target",
+		(fixture.get("received") as Array).size() == 1, fixture.get("received"))
+
+	client.send_request("sig-missing", "godot.runtime.await_signal",
+		{"node_path": "SignalFixture", "signal_name": "not_a_signal", "timeout": 1})
+	message = await client.read_message()
+	_check("signals: awaiting an unknown signal fails instead of hanging",
+		_error_code(message) != 0, message)
+
+	client.close()
+	fixture.queue_free()
+	await process_frame
+
+
+# --- Frame and physics awaits ---
+# wait is the primitive every awaited command is built on. It must actually
+# advance the requested clock (render or physics) before responding, and respond
+# exactly once on its own session.
+func _test_frame_awaits() -> void:
+	var client: Client = await _open_client("awaits")
+
+	var frames_before: int = Engine.get_process_frames()
+	client.send_request("wait-render", "godot.runtime.wait", {"frames": 3})
+	var message: Variant = await client.read_message()
+	_check("awaits: wait advances render frames before responding",
+		_message_id(message) == "wait-render"
+		and _result_of(message).get("waited_frames") == 3
+		and _result_of(message).get("frame_type") == "render"
+		and Engine.get_process_frames() - frames_before >= 3,
+		[message, Engine.get_process_frames() - frames_before])
+
+	var physics_before: int = Engine.get_physics_frames()
+	client.send_request("wait-physics", "godot.runtime.wait",
+		{"frames": 2, "frame_type": "physics"})
+	message = await client.read_message()
+	_check("awaits: wait on the physics clock advances physics frames",
+		_result_of(message).get("frame_type") == "physics"
+		and Engine.get_physics_frames() - physics_before >= 2,
+		[message, Engine.get_physics_frames() - physics_before])
+
+	_check("awaits: a completed wait leaves no further response queued",
+		not client.has_pending_data(), null)
+
+	client.close()
+
+
+# --- Teardown ---
+# Runs last: it detaches the server. The domains own global state that outlives
+# them — Input keeps a held key pressed, and the canvas-draw node is parented
+# into the scene — so leaving the tree must release both.
+func _test_teardown_releases_state() -> void:
+	var fixture: Node2D = Node2D.new()
+	fixture.name = "TeardownFixture"
+	root.add_child(fixture)
+	await process_frame
+
+	var client: Client = await _open_client("teardown")
+
+	client.send_request("td-action", "godot.runtime.input_action",
+		{"action": "add_action", "action_name": "mcp_teardown_action"})
+	var message: Variant = await client.read_message()
+	client.send_request("td-hold", "godot.runtime.key_hold", {"action": "mcp_teardown_action"})
+	message = await client.read_message()
+	_check("teardown: the action is held before the server goes away",
+		Input.is_action_pressed("mcp_teardown_action"), message)
+
+	client.send_request("td-draw", "godot.runtime.canvas_draw",
+		{"action": "rect", "parent_path": "TeardownFixture",
+			"position": {"x": 0, "y": 0}, "size": {"x": 4, "y": 4}})
+	message = await client.read_message()
+	var draw_node: Node = fixture.get_node_or_null("_McpCanvasDraw")
+	_check("teardown: the draw node exists before the server goes away",
+		draw_node != null, message)
+	client.close()
+
+	root.remove_child(_server)
+	_server.queue_free()
+	_server = null
+	await process_frame
+	await process_frame
+
+	_check("teardown: leaving the tree releases input held by key_hold",
+		not Input.is_action_pressed("mcp_teardown_action"), null)
+	_check("teardown: leaving the tree frees the canvas draw node it parented into the scene",
+		fixture.get_node_or_null("_McpCanvasDraw") == null, fixture.get_children())
+
+	InputMap.erase_action("mcp_teardown_action")
 	fixture.queue_free()
 	await process_frame
