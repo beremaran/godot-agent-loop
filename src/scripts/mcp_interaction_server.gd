@@ -6,8 +6,8 @@ extends Node
 # This script is the composition root: it owns the socket lifecycle, sessions,
 # the request lifecycle, and the command registry. Subsystem handlers live in
 # domain scripts under res://mcp_runtime/, which register their own commands and
-# reach the transport only through RuntimeDomain. Handlers not yet moved into a
-# domain still live below; they migrate one domain at a time.
+# reach the transport only through RuntimeDomain. Handlers that remain below are
+# cross-cutting runtime commands owned by this composition root.
 
 const CommandParams = preload("res://mcp_runtime/command_params.gd")
 const VariantCodec = preload("res://mcp_runtime/variant_codec.gd")
@@ -340,7 +340,6 @@ func _register_domains() -> void:
 
 func _register_commands() -> void:
 	_register_command("screenshot", _cmd_screenshot)
-	# Core scene/property/signal
 	_register_command("eval", _cmd_eval)
 	_register_command("wait", _cmd_wait)
 	_register_command("get_ui_elements", _cmd_get_ui_elements)
@@ -351,8 +350,6 @@ func _register_commands() -> void:
 	_register_command("create_timer", _cmd_create_timer)
 	_register_command("serialize_state", _cmd_serialize_state)
 	_register_command("script", _cmd_script)
-	# Camera + rendering + environment
-	# Audio + animation
 
 
 func _handle_handshake(session: RuntimeSession, req_id: Variant, params: Dictionary) -> void:
