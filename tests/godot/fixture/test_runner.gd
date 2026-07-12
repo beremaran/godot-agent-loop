@@ -123,6 +123,7 @@ func _run() -> void:
 	await _test_cancellation()
 	await _test_await_signal_timeout()
 	await _test_oversized_response()
+	await _test_visual_shader()
 
 	print("godot-runtime-integration: %d checks, %d failures" % [_checks, _failures])
 	quit(1 if _failures > 0 else 0)
@@ -441,3 +442,53 @@ func _test_oversized_response() -> void:
 
 	for filler: Node in fillers:
 		filler.queue_free()
+
+
+# --- Visual shader graph commands ---
+func _test_visual_shader() -> void:
+	var client: Client = await _open_client("visual-shader")
+
+	client.send_request("vs-1", "godot.runtime.visual_shader", {"action": "create", "shader_type": "spatial"})
+	var message: Variant = await client.read_message()
+	var shader_id: int = int(_result_of(message).get("shader_id", -1))
+	_check("visual_shader: create returns a shader id", shader_id >= 1, message)
+
+	client.send_request("vs-2", "godot.runtime.visual_shader",
+		{"action": "add_node", "node_class": "VisualShaderNodeFloatConstant", "position": {"x": 100, "y": 200}})
+	message = await client.read_message()
+	var from_node: int = int(_result_of(message).get("node_id", -1))
+	_check("visual_shader: add_node returns a node id", from_node >= 0, message)
+
+	client.send_request("vs-3", "godot.runtime.visual_shader",
+		{"action": "add_node", "node_class": "VisualShaderNodeFloatOp"})
+	message = await client.read_message()
+	var to_node: int = int(_result_of(message).get("node_id", -1))
+
+	client.send_request("vs-4", "godot.runtime.visual_shader",
+		{"action": "connect", "from_node": from_node, "from_port": 0, "to_node": to_node, "to_port": 0})
+	message = await client.read_message()
+	_check("visual_shader: connect links compatible ports", _result_of(message).get("success") == true, message)
+
+	client.send_request("vs-5", "godot.runtime.visual_shader", {"action": "get_nodes"})
+	message = await client.read_message()
+	var nodes: Array = _result_of(message).get("nodes", [])
+	_check("visual_shader: get_nodes lists output and added nodes", nodes.size() >= 3, message)
+
+	var target: Node = MeshInstance3D.new()
+	target.name = "VisualShaderTarget"
+	root.add_child(target)
+	client.send_request("vs-6", "godot.runtime.visual_shader",
+		{"action": "apply", "node_path": "/root/VisualShaderTarget"})
+	message = await client.read_message()
+	_check("visual_shader: apply assigns a ShaderMaterial",
+		_result_of(message).get("success") == true and target.material_override is ShaderMaterial, message)
+	target.queue_free()
+
+	client.send_request("vs-7", "godot.runtime.visual_shader", {"action": "add_node", "node_class": "Node"})
+	message = await client.read_message()
+	_check("visual_shader: non-VisualShaderNode class rejected", _error_code(message) == -32000, message)
+
+	client.send_request("vs-8", "godot.runtime.visual_shader", {"action": "explode"})
+	message = await client.read_message()
+	_check("visual_shader: unknown action rejected", _error_code(message) == -32000, message)
+	client.close()

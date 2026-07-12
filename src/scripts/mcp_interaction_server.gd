@@ -310,6 +310,7 @@ func _register_commands() -> void:
 	_register_command("set_camera", _cmd_set_camera)
 	_register_command("camera_attributes", _cmd_camera_attributes)
 	_register_command("set_shader_param", _cmd_set_shader_param)
+	_register_command("visual_shader", _cmd_visual_shader)
 	_register_command("environment", _cmd_environment)
 	_register_command("set_particles", _cmd_set_particles)
 	_register_command("viewport", _cmd_viewport)
@@ -1801,6 +1802,104 @@ func _cmd_set_shader_param(params: Dictionary) -> void:
 	var value: Variant = _json_to_variant(raw_value, type_hint)
 	shader_mat.set_shader_parameter(param_name, value)
 	_send_response({"success": true, "node_path": node_path, "param_name": param_name, "value": _variant_to_json(shader_mat.get_shader_parameter(param_name))})
+
+
+# --- Visual Shader ---
+# Shaders built through the visual_shader command live here until applied to a
+# node; ids let a client build several graphs. Edits target the fragment
+# function, which is where the tool's node/connection workflow operates.
+var _visual_shaders: Dictionary = {}
+var _next_visual_shader_id: int = 1
+
+const VISUAL_SHADER_MODES: Dictionary = {
+	"spatial": Shader.MODE_SPATIAL,
+	"canvas_item": Shader.MODE_CANVAS_ITEM,
+	"particles": Shader.MODE_PARTICLES,
+	"sky": Shader.MODE_SKY,
+	"fog": Shader.MODE_FOG,
+}
+
+func _cmd_visual_shader(params: Dictionary) -> void:
+	var action: String = params.get("action", "")
+	if action.is_empty():
+		_send_response({"error": "action is required"})
+		return
+
+	if action == "create":
+		var shader_type: String = params.get("shader_type", "spatial")
+		if not VISUAL_SHADER_MODES.has(shader_type):
+			_send_response({"error": "Unknown shader_type: %s" % shader_type})
+			return
+		var shader: VisualShader = VisualShader.new()
+		shader.set_mode(VISUAL_SHADER_MODES[shader_type])
+		var shader_id: int = _next_visual_shader_id
+		_next_visual_shader_id += 1
+		_visual_shaders[shader_id] = shader
+		_send_response({"success": true, "shader_id": shader_id, "shader_type": shader_type})
+		return
+
+	# Every other action edits an existing graph: the one named by shader_id,
+	# or the most recently created one.
+	var target_id: int = int(params.get("shader_id", _next_visual_shader_id - 1))
+	var shader: VisualShader = _visual_shaders.get(target_id)
+	if shader == null:
+		_send_response({"error": "No visual shader with id %s; use action create first" % target_id})
+		return
+
+	match action:
+		"add_node":
+			var node_class: String = params.get("node_class", "")
+			if node_class.is_empty():
+				_send_response({"error": "node_class is required for add_node"})
+				return
+			if not ClassDB.class_exists(node_class) or not ClassDB.is_parent_class(node_class, "VisualShaderNode"):
+				_send_response({"error": "Class '%s' is not a VisualShaderNode type" % node_class})
+				return
+			var graph_node: VisualShaderNode = ClassDB.instantiate(node_class) as VisualShaderNode
+			if graph_node == null:
+				_send_response({"error": "Failed to instantiate: %s" % node_class})
+				return
+			var position: Dictionary = params.get("position", {})
+			var node_id: int = shader.get_valid_node_id(VisualShader.TYPE_FRAGMENT)
+			shader.add_node(VisualShader.TYPE_FRAGMENT, graph_node, Vector2(position.get("x", 0.0), position.get("y", 0.0)), node_id)
+			_send_response({"success": true, "shader_id": target_id, "node_id": node_id, "node_class": node_class})
+		"connect":
+			var err: int = shader.connect_nodes(VisualShader.TYPE_FRAGMENT, int(params.get("from_node", -1)), int(params.get("from_port", 0)), int(params.get("to_node", -1)), int(params.get("to_port", 0)))
+			if err != OK:
+				_send_response({"error": "Failed to connect nodes (error %d)" % err})
+				return
+			_send_response({"success": true, "shader_id": target_id})
+		"disconnect":
+			shader.disconnect_nodes(VisualShader.TYPE_FRAGMENT, int(params.get("from_node", -1)), int(params.get("from_port", 0)), int(params.get("to_node", -1)), int(params.get("to_port", 0)))
+			_send_response({"success": true, "shader_id": target_id})
+		"get_nodes":
+			var nodes: Array = []
+			for node_id in shader.get_node_list(VisualShader.TYPE_FRAGMENT):
+				var graph_node: VisualShaderNode = shader.get_node(VisualShader.TYPE_FRAGMENT, node_id)
+				var node_position: Vector2 = shader.get_node_position(VisualShader.TYPE_FRAGMENT, node_id)
+				nodes.append({"id": node_id, "class": graph_node.get_class(), "position": {"x": node_position.x, "y": node_position.y}})
+			_send_response({"success": true, "shader_id": target_id, "nodes": nodes})
+		"apply":
+			var node_path: String = params.get("node_path", "")
+			if node_path.is_empty():
+				_send_response({"error": "node_path is required for apply"})
+				return
+			var node: Node = get_tree().root.get_node_or_null(node_path)
+			if node == null:
+				_send_response({"error": "Node not found: %s" % node_path})
+				return
+			var material: ShaderMaterial = ShaderMaterial.new()
+			material.shader = shader
+			if "material_override" in node:
+				node.set("material_override", material)
+			elif "material" in node:
+				node.set("material", material)
+			else:
+				_send_response({"error": "Node has no material property: %s" % node_path})
+				return
+			_send_response({"success": true, "shader_id": target_id, "node_path": node_path})
+		_:
+			_send_response({"error": "Unknown action: %s" % action})
 
 
 # --- Audio Play ---

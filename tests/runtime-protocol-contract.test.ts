@@ -2,9 +2,24 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { CANCELLABLE_RUNTIME_COMMANDS, CANCEL_METHOD, HANDSHAKE_METHOD, RUNTIME_CAPABILITIES, RUNTIME_PROTOCOL_VERSION, commandMethod } from '../src/runtime-protocol.js';
+import { CANCELLABLE_RUNTIME_COMMANDS, CANCEL_METHOD, HANDSHAKE_METHOD, RUNTIME_CAPABILITIES, RUNTIME_COMMANDS, RUNTIME_PROTOCOL_VERSION, commandMethod } from '../src/runtime-protocol.js';
 
 const root = join(fileURLToPath(new URL('..', import.meta.url)));
+
+function schemaCommands(): string[] {
+  const schema = JSON.parse(readFileSync(join(root, 'docs/runtime-api.schema.json'), 'utf8'));
+  return schema['x-runtime-contract'].commands as string[];
+}
+
+function gdscriptRegisteredCommands(): string[] {
+  const gdscript = readFileSync(join(root, 'src/scripts/mcp_interaction_server.gd'), 'utf8');
+  return [...gdscript.matchAll(/_register_command\("([^"]*)"/g)].map(match => match[1]);
+}
+
+function typescriptSentCommands(): string[] {
+  const handlers = readFileSync(join(root, 'src/tool-handlers/game-tool-handlers.ts'), 'utf8');
+  return [...handlers.matchAll(/(?:gameCommand|execute|send)\('([^']*)'/g)].map(match => match[1]);
+}
 
 describe('runtime protocol contract', () => {
   it('keeps the TypeScript and GDScript bindings aligned with the published schema', () => {
@@ -23,6 +38,37 @@ describe('runtime protocol contract', () => {
 
   it('uses the contract namespace for every runtime command method', () => {
     expect(commandMethod('get_scene_tree')).toBe('godot.runtime.get_scene_tree');
+  });
+
+  it('publishes a well-formed command manifest in the schema', () => {
+    const commands = schemaCommands();
+    const schema = JSON.parse(readFileSync(join(root, 'docs/runtime-api.schema.json'), 'utf8'));
+    const methodPattern = new RegExp(schema.$defs.request.properties.method.pattern);
+
+    expect(commands.length).toBeGreaterThan(0);
+    expect(commands).toEqual([...commands].sort());
+    expect(new Set(commands).size).toBe(commands.length);
+    for (const command of commands) {
+      expect(command).toMatch(/^[a-z0-9_]+$/);
+      expect(commandMethod(command)).toMatch(methodPattern);
+    }
+    expect(schema['x-runtime-contract'].cancellation.cancellableCommands.every((command: string) => commands.includes(command))).toBe(true);
+  });
+
+  it('keeps the TypeScript command binding identical to the schema manifest', () => {
+    // Exact array equality rejects missing, extra, and misnamed commands.
+    expect([...RUNTIME_COMMANDS]).toEqual(schemaCommands());
+  });
+
+  it('registers exactly the schema manifest commands in the GDScript server', () => {
+    const registered = gdscriptRegisteredCommands();
+    expect(new Set(registered).size).toBe(registered.length);
+    expect([...registered].sort()).toEqual(schemaCommands());
+  });
+
+  it('only sends manifest commands from the TypeScript tool handlers, and exercises all of them', () => {
+    const sent = [...new Set(typescriptSentCommands())].sort();
+    expect(sent).toEqual(schemaCommands());
   });
 
   it('keeps request state on a typed connection session', () => {

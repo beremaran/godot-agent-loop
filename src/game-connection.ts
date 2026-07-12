@@ -1,5 +1,5 @@
 import { createConnection, type Socket } from 'net';
-import { CANCEL_METHOD, HANDSHAKE_METHOD, RUNTIME_CAPABILITIES, RUNTIME_PROTOCOL_VERSION, commandMethod, isHandshakeResult, isJsonRpcResponse, type JsonRpcResponse } from './runtime-protocol.js';
+import { CANCEL_METHOD, HANDSHAKE_METHOD, RUNTIME_CAPABILITIES, RUNTIME_PROTOCOL_VERSION, commandMethod, isHandshakeResult, isJsonRpcResponse, isRuntimeCommand, type JsonRpcResponse } from './runtime-protocol.js';
 
 export interface GameConnectionOptions {
   port?: number; host?: string; initialDelayMs?: number; retryDelayMs?: number; maxAttempts?: number; log?: (message: string) => void;
@@ -99,6 +99,7 @@ export class GameConnection {
   }
 
   async send(command: string, params: Record<string, unknown> = {}, timeoutMs = 10000): Promise<GameResponse> {
+    if (!isRuntimeCommand(command)) throw new Error(`'${command}' is not a runtime command in the published contract`);
     if (!this.connected || !this.socket) throw new Error('Not connected to game interaction server. Is the game running?');
     return this.request(commandMethod(command), params, timeoutMs);
   }
