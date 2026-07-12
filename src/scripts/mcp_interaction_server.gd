@@ -18,6 +18,8 @@ const DOMAIN_SCRIPTS: Array[String] = [
 	"res://mcp_runtime/scene_3d_domain.gd",
 	"res://mcp_runtime/rendering_domain.gd",
 	"res://mcp_runtime/audio_animation_domain.gd",
+	"res://mcp_runtime/networking_domain.gd",
+	"res://mcp_runtime/system_domain.gd",
 	"res://mcp_runtime/core_domain.gd",
 ]
 
@@ -311,19 +313,6 @@ func _register_commands() -> void:
 	_register_command("script", _cmd_script)
 	# Camera + rendering + environment
 	# Audio + animation
-	# Networking + multiplayer
-	_register_command("http_request", _cmd_http_request)
-	_register_command("websocket", _cmd_websocket)
-	_register_command("multiplayer", _cmd_multiplayer)
-	_register_command("rpc", _cmd_rpc)
-	# System + project state
-	_register_command("window", _cmd_window)
-	_register_command("os_info", _cmd_os_info)
-	_register_command("time_scale", _cmd_time_scale)
-	_register_command("process_mode", _cmd_process_mode)
-	_register_command("world_settings", _cmd_world_settings)
-	_register_command("locale", _cmd_locale)
-	_register_command("resource", _cmd_resource)
 
 
 func _handle_handshake(session: RuntimeSession, req_id: Variant, params: Dictionary) -> void:
@@ -1031,151 +1020,6 @@ func _deserialize_node(node: Node, data: Dictionary) -> int:
 
 
 
-func _cmd_http_request(params: Dictionary) -> void:
-	var url: String = params.get("url", "")
-	if url.is_empty():
-		_send_response({"error": "url is required"})
-		return
-	var method_str: String = params.get("method", "GET").to_upper()
-	var http: HTTPRequest = HTTPRequest.new()
-	http.timeout = float(params.get("timeout", 30))
-	add_child(http)
-	var headers: PackedStringArray = PackedStringArray()
-	if params.has("headers"):
-		var h: Dictionary = params["headers"]
-		for k in h:
-			headers.append("%s: %s" % [k, str(h[k])])
-	var method_enum: int = HTTPClient.METHOD_GET
-	match method_str:
-		"POST": method_enum = HTTPClient.METHOD_POST
-		"PUT": method_enum = HTTPClient.METHOD_PUT
-		"DELETE": method_enum = HTTPClient.METHOD_DELETE
-	var body: String = params.get("body", "")
-	var err: int = http.request(url, headers, method_enum, body)
-	if err != OK:
-		http.queue_free()
-		_send_response({"error": "HTTP request failed to start: %d" % err})
-		return
-	var result: Array = await http.request_completed
-	http.queue_free()
-	_send_response({"success": true, "status_code": result[1], "body": result[3].get_string_from_utf8()})
-
-
-var _websocket: WebSocketPeer = null
-
-func _cmd_websocket(params: Dictionary) -> void:
-	var action: String = params.get("action", "")
-	match action:
-		"connect":
-			var url: String = params.get("url", "")
-			if url.is_empty():
-				_send_response({"error": "url is required for connect"})
-				return
-			_websocket = WebSocketPeer.new()
-			var err: int = _websocket.connect_to_url(url)
-			if err != OK:
-				_send_response({"error": "WebSocket connect failed: %d" % err})
-				_websocket = null
-				return
-			_send_response({"success": true, "action": "connect", "url": url})
-		"disconnect":
-			if _websocket != null:
-				_websocket.close()
-				_websocket = null
-			_send_response({"success": true, "action": "disconnect"})
-		"send":
-			if _websocket == null:
-				_send_response({"error": "No WebSocket connection"})
-				return
-			_websocket.poll()
-			var msg: String = params.get("message", "")
-			_websocket.send_text(msg)
-			_send_response({"success": true, "action": "send"})
-		"status":
-			if _websocket == null:
-				_send_response({"success": true, "status": "disconnected"})
-				return
-			_websocket.poll()
-			_send_response({"success": true, "status": _websocket.get_ready_state()})
-		_:
-			_send_response({"error": "Unknown websocket action: %s" % action})
-
-
-func _cmd_multiplayer(params: Dictionary) -> void:
-	var action: String = params.get("action", "")
-	match action:
-		"create_server":
-			var peer: ENetMultiplayerPeer = ENetMultiplayerPeer.new()
-			var port: int = int(params.get("port", 7000))
-			var max_cl: int = int(params.get("max_clients", 32))
-			var err: int = peer.create_server(port, max_cl)
-			if err != OK:
-				_send_response({"error": "Failed to create server: %d" % err})
-				return
-			multiplayer.multiplayer_peer = peer
-			_send_response({"success": true, "action": "create_server", "port": port})
-		"create_client":
-			var peer: ENetMultiplayerPeer = ENetMultiplayerPeer.new()
-			var address: String = params.get("address", "127.0.0.1")
-			var port: int = int(params.get("port", 7000))
-			var err: int = peer.create_client(address, port)
-			if err != OK:
-				_send_response({"error": "Failed to create client: %d" % err})
-				return
-			multiplayer.multiplayer_peer = peer
-			_send_response({"success": true, "action": "create_client", "address": address, "port": port})
-		"disconnect":
-			multiplayer.multiplayer_peer = null
-			_send_response({"success": true, "action": "disconnect"})
-		"status":
-			var peer = multiplayer.multiplayer_peer
-			if peer == null:
-				_send_response({"success": true, "connected": false})
-				return
-			_send_response({"success": true, "connected": true, "unique_id": multiplayer.get_unique_id(), "is_server": multiplayer.is_server()})
-		_:
-			_send_response({"error": "Unknown multiplayer action: %s" % action})
-
-
-func _cmd_rpc(params: Dictionary) -> void:
-	var node_path: String = params.get("node_path", "")
-	var node: Node = get_tree().root.get_node_or_null(node_path)
-	if node == null:
-		_send_response({"error": "Node not found: %s" % node_path})
-		return
-	var action: String = params.get("action", "call")
-	var method: String = params.get("method", "")
-	if method.is_empty():
-		_send_response({"error": "method is required"})
-		return
-	if action == "call":
-		var args: Array = params.get("args", [])
-		node.rpc(method, args)
-		_send_response({"success": true, "action": "call", "method": method})
-	elif action == "configure":
-		var config: Dictionary = {}
-		if params.has("mode"):
-			var m: Variant = params["mode"]
-			if m is String:
-				match (m as String).to_lower():
-					"any_peer": config["rpc_mode"] = MultiplayerAPI.RPC_MODE_ANY_PEER
-					"authority": config["rpc_mode"] = MultiplayerAPI.RPC_MODE_AUTHORITY
-			else:
-				config["rpc_mode"] = int(m)
-		if params.has("sync"):
-			var sync_val: Variant = params["sync"]
-			if sync_val is String:
-				config["call_local"] = (sync_val as String).to_lower() == "call_local"
-			else:
-				config["call_local"] = bool(sync_val)
-		if params.has("channel"):
-			config["channel"] = int(params["channel"])
-		node.rpc_config(method, config)
-		_send_response({"success": true, "action": "configure", "method": method, "config": config})
-	else:
-		_send_response({"error": "Unknown rpc action: %s" % action})
-
-
 func _cmd_script(params: Dictionary) -> void:
 	var node_path: String = params.get("node_path", "")
 	var node: Node = get_tree().root.get_node_or_null(node_path)
@@ -1210,66 +1054,6 @@ func _cmd_script(params: Dictionary) -> void:
 			_send_response({"error": "Unknown script action: %s" % action})
 
 
-func _cmd_window(params: Dictionary) -> void:
-	var action: String = params.get("action", "get")
-	var win: Window = get_tree().root
-	if action == "get":
-		_send_response({"success": true, "size": {"x": win.size.x, "y": win.size.y}, "position": {"x": win.position.x, "y": win.position.y}, "fullscreen": win.mode == Window.MODE_FULLSCREEN, "borderless": win.borderless, "title": win.title})
-		return
-	if params.has("width") and params.has("height"):
-		win.size = Vector2i(int(params["width"]), int(params["height"]))
-	if params.has("fullscreen"):
-		win.mode = Window.MODE_FULLSCREEN if bool(params["fullscreen"]) else Window.MODE_WINDOWED
-	if params.has("borderless"):
-		win.borderless = bool(params["borderless"])
-	if params.has("title"):
-		win.title = str(params["title"])
-	if params.has("position"):
-		var p: Dictionary = params["position"]
-		win.position = Vector2i(int(p.get("x", 0)), int(p.get("y", 0)))
-	if params.has("vsync"):
-		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if bool(params["vsync"]) else DisplayServer.VSYNC_DISABLED)
-	_send_response({"success": true, "action": "set", "size": {"x": win.size.x, "y": win.size.y}})
-
-
-func _cmd_os_info(_params: Dictionary) -> void:
-	var screen_size: Vector2i = DisplayServer.screen_get_size()
-	_send_response({"success": true, "os_name": OS.get_name(), "locale": OS.get_locale(), "screen_size": {"x": screen_size.x, "y": screen_size.y}, "video_adapter": RenderingServer.get_video_adapter_name(), "processor_count": OS.get_processor_count()})
-
-
-func _cmd_time_scale(params: Dictionary) -> void:
-	var action: String = params.get("action", "get")
-	if action == "set":
-		Engine.time_scale = float(params.get("time_scale", 1.0))
-	_send_response({"success": true, "time_scale": Engine.time_scale, "ticks_msec": Time.get_ticks_msec(), "fps": Engine.get_frames_per_second()})
-
-
-func _cmd_process_mode(params: Dictionary) -> void:
-	var node_path: String = params.get("node_path", "")
-	var node: Node = get_tree().root.get_node_or_null(node_path)
-	if node == null:
-		_send_response({"error": "Node not found: %s" % node_path})
-		return
-	var mode_str: String = params.get("mode", "inherit")
-	var mode_val: int = Node.PROCESS_MODE_INHERIT
-	match mode_str:
-		"pausable": mode_val = Node.PROCESS_MODE_PAUSABLE
-		"when_paused": mode_val = Node.PROCESS_MODE_WHEN_PAUSED
-		"always": mode_val = Node.PROCESS_MODE_ALWAYS
-		"disabled": mode_val = Node.PROCESS_MODE_DISABLED
-	node.process_mode = mode_val
-	_send_response({"success": true, "node_path": node_path, "mode": mode_str})
-
-
-func _cmd_world_settings(params: Dictionary) -> void:
-	var action: String = params.get("action", "get")
-	if action == "set":
-		if params.has("gravity"):
-			ProjectSettings.set_setting("physics/3d/default_gravity", float(params["gravity"]))
-		if params.has("physics_fps"):
-			Engine.physics_ticks_per_second = int(params["physics_fps"])
-	_send_response({"success": true, "gravity": ProjectSettings.get_setting("physics/3d/default_gravity"), "physics_fps": Engine.physics_ticks_per_second})
-
 
 # ==========================================================================
 # Batch 2: 3D Rendering + Lighting + Sky + Physics
@@ -1286,66 +1070,7 @@ func _cmd_world_settings(params: Dictionary) -> void:
 
 
 
-func _cmd_locale(params: Dictionary) -> void:
-	var action: String = params.get("action", "get")
-	match action:
-		"get":
-			_send_response({"success": true, "locale": TranslationServer.get_locale()})
-		"set":
-			var locale: String = params.get("locale", "en")
-			TranslationServer.set_locale(locale)
-			_send_response({"success": true, "action": "set", "locale": locale})
-		"translate":
-			var key: String = params.get("key", "")
-			var translated: String = tr(key)
-			_send_response({"success": true, "key": key, "translated": translated})
-		_:
-			_send_response({"error": "Unknown locale action: %s" % action})
-
-
-# ==========================================================================
-# Batch 5: Rendering + Resource Runtime
-# ==========================================================================
-
-func _cmd_resource(params: Dictionary) -> void:
-	var action: String = params.get("action", "load")
-	var res_path: String = params.get("path", "")
-	match action:
-		"load":
-			if not ResourceLoader.exists(res_path):
-				_send_response({"error": "Resource not found: %s" % res_path})
-				return
-			var res: Resource = ResourceLoader.load(res_path)
-			if res == null:
-				_send_response({"error": "Failed to load resource: %s" % res_path})
-				return
-			_send_response({"success": true, "action": "load", "path": res_path, "type": res.get_class()})
-		"save":
-			var node_path: String = params.get("node_path", "")
-			var prop: String = params.get("property", "")
-			if node_path.is_empty():
-				_send_response({"error": "node_path is required for save"})
-				return
-			var node: Node = get_tree().root.get_node_or_null(node_path)
-			if node == null:
-				_send_response({"error": "Node not found: %s" % node_path})
-				return
-			var res = node.get(prop) if not prop.is_empty() else null
-			if res is Resource:
-				var err: int = ResourceSaver.save(res, res_path)
-				_send_response({"success": err == OK, "action": "save", "path": res_path})
-			else:
-				_send_response({"error": "Property is not a Resource"})
-		"exists":
-			_send_response({"success": true, "action": "exists", "path": res_path, "exists": ResourceLoader.exists(res_path)})
-		_:
-			_send_response({"error": "Unknown resource action: %s" % action})
-
-
 func _exit_tree() -> void:
-	if _websocket != null:
-		_websocket.close()
-		_websocket = null
 	for session: RuntimeSession in _sessions.values():
 		if session.peer != null:
 			session.peer.disconnect_from_host()

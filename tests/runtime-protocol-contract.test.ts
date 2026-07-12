@@ -146,6 +146,14 @@ describe('runtime protocol contract', () => {
         commands: ['get_scene_tree', 'get_property', 'set_property', 'call_method', 'get_node_info', 'instantiate_scene', 'remove_node', 'change_scene', 'connect_signal', 'disconnect_signal', 'emit_signal', 'get_nodes_in_group', 'find_nodes_by_class', 'reparent_node', 'spawn_node', 'manage_group', 'list_signals', 'await_signal'],
         internals: ['_build_tree_node', '_find_by_class_recursive'],
       },
+      'networking_domain.gd': {
+        commands: ['http_request', 'websocket', 'multiplayer', 'rpc'],
+        internals: ['_websocket', '_close_websocket'],
+      },
+      'system_domain.gd': {
+        commands: ['window', 'os_info', 'time_scale', 'process_mode', 'world_settings', 'locale', 'resource'],
+        internals: [],
+      },
     };
     for (const [file, ownership] of Object.entries(domainOwnership)) {
       const domain = readFileSync(join(root, 'src/scripts/mcp_runtime', file), 'utf8');

@@ -135,6 +135,8 @@ func _run() -> void:
 	await _test_scene_3d_domain()
 	await _test_rendering_domain()
 	await _test_audio_animation_domain()
+	await _test_networking_domain()
+	await _test_system_domain()
 
 	print("godot-runtime-integration: %d checks, %d failures" % [_checks, _failures])
 	quit(1 if _failures > 0 else 0)
@@ -1137,6 +1139,72 @@ func _test_audio_animation_domain() -> void:
 	client.close()
 	fixture.queue_free()
 	await process_frame
+
+
+func _test_networking_domain() -> void:
+	var client: Client = await _open_client("networking")
+	_check("networking domain: server attaches the domain node as a child",
+		_server.get_node_or_null("networking_domain") != null, _server.get_children())
+
+	client.send_request("net-ws", "godot.runtime.websocket", {"action": "status"})
+	var message: Variant = await client.read_message()
+	_check("networking domain: WebSocket state starts disconnected",
+		_message_id(message) == "net-ws" and _result_of(message).get("status") == "disconnected", message)
+
+	client.send_request("net-mp", "godot.runtime.multiplayer", {"action": "status"})
+	message = await client.read_message()
+	_check("networking domain: multiplayer state remains available",
+		_message_id(message) == "net-mp" and _result_of(message).get("success") == true
+		and _result_of(message).has("connected"), message)
+
+	client.send_request("net-action", "godot.runtime.websocket", {"action": "explode"})
+	message = await client.read_message()
+	_check("networking domain: unknown actions return allowed values",
+		_error_code(message) == -32000 and _error_data(message).get("allowed", []).has("status"), message)
+
+	client.send_request("net-port", "godot.runtime.multiplayer", {"action": "create_server", "port": 70000})
+	message = await client.read_message()
+	_check("networking domain: ports are bounded before socket work",
+		_error_code(message) == -32000 and _error_data(message).get("reason") == "out_of_range", message)
+
+	client.send_request("net-after", "godot.runtime.wait", {"frames": 1})
+	message = await client.read_message()
+	_check("networking domain: server keeps serving after domain commands",
+		_message_id(message) == "net-after" and _result_of(message).get("success") == true, message)
+	client.close()
+
+
+func _test_system_domain() -> void:
+	var client: Client = await _open_client("system")
+	_check("system domain: server attaches the domain node as a child",
+		_server.get_node_or_null("system_domain") != null, _server.get_children())
+
+	client.send_request("sys-os", "godot.runtime.os_info", {})
+	var message: Variant = await client.read_message()
+	_check("system domain: OS state dispatches through its own request",
+		_message_id(message) == "sys-os" and not str(_result_of(message).get("os_name", "")).is_empty(), message)
+
+	client.send_request("sys-res", "godot.runtime.resource", {"action": "exists", "path": "res://test_runner.gd"})
+	message = await client.read_message()
+	_check("system domain: project resource state remains available",
+		_message_id(message) == "sys-res" and _result_of(message).get("exists") == true, message)
+
+	client.send_request("sys-action", "godot.runtime.locale", {"action": "explode"})
+	message = await client.read_message()
+	_check("system domain: unknown actions return allowed values",
+		_error_code(message) == -32000 and _error_data(message).get("allowed", []).has("translate"), message)
+
+	client.send_request("sys-mode", "godot.runtime.process_mode",
+		{"node_path": "/root/McpServer", "mode": "occasionally"})
+	message = await client.read_message()
+	_check("system domain: process modes are validated",
+		_error_code(message) == -32000 and _error_data(message).get("allowed", []).has("always"), message)
+
+	client.send_request("sys-after", "godot.runtime.wait", {"frames": 1})
+	message = await client.read_message()
+	_check("system domain: server keeps serving after domain commands",
+		_message_id(message) == "sys-after" and _result_of(message).get("success") == true, message)
+	client.close()
 
 
 func _test_scene_3d_domain() -> void:
