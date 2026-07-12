@@ -61,3 +61,10 @@ func require_node(reader: CommandParams, name: String = "node_path", default_pat
 func godot_error_data(err: int) -> Dictionary:
 	var data: Dictionary = _server._godot_error_data(err)
 	return data
+
+
+# JSON-safe encoding of a Variant result value. Forwards to the server's codec
+# until the codec is extracted as its own boundary.
+func variant_to_json(value: Variant) -> Variant:
+	var encoded: Variant = _server._variant_to_json(value)
+	return encoded

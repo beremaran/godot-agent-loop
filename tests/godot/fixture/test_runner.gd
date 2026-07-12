@@ -129,6 +129,7 @@ func _run() -> void:
 	await _test_visual_shader()
 	await _test_parameter_validation()
 	await _test_input_domain()
+	await _test_ui_domain()
 
 	print("godot-runtime-integration: %d checks, %d failures" % [_checks, _failures])
 	quit(1 if _failures > 0 else 0)
@@ -646,3 +647,105 @@ func _test_input_domain() -> void:
 	_check("input domain: server keeps serving after domain commands",
 		_message_id(message) == "in-after" and _result_of(message).get("success") == true, message)
 	client.close()
+
+# --- UI domain ---
+# The ui_* commands live in res://mcp_runtime/ui_domain.gd rather than on the
+# server. These checks assert the behavior survived the move: handlers mutate
+# and read real Control nodes through the same registry and session, and
+# invalid parameters still fail with the standardized -32000 structured errors.
+func _test_ui_domain() -> void:
+	var fixture: Node = Node.new()
+	fixture.name = "UiFixture"
+	var line_edit: LineEdit = LineEdit.new()
+	line_edit.name = "Line"
+	fixture.add_child(line_edit)
+	var item_list: ItemList = ItemList.new()
+	item_list.name = "Items"
+	fixture.add_child(item_list)
+	var slider: HSlider = HSlider.new()
+	slider.name = "Slider"
+	fixture.add_child(slider)
+	root.add_child(fixture)
+	await process_frame
+
+	var client: Client = await _open_client("ui")
+
+	_check("ui domain: server attaches the domain node as a child",
+		_server.get_node_or_null("ui_domain") != null, _server.get_children())
+
+	client.send_request("ui-set", "godot.runtime.ui_text",
+		{"node_path": "UiFixture/Line", "action": "set", "text": "hello"})
+	var message: Variant = await client.read_message()
+	_check("ui domain: ui_text set writes the LineEdit text",
+		_result_of(message).get("success") == true and line_edit.text == "hello", message)
+
+	client.send_request("ui-get", "godot.runtime.ui_text", {"node_path": "UiFixture/Line"})
+	message = await client.read_message()
+	_check("ui domain: ui_text get reads the text back on its own request id",
+		_message_id(message) == "ui-get" and _result_of(message).get("text") == "hello", message)
+
+	client.send_request("ui-add", "godot.runtime.ui_item_list",
+		{"node_path": "UiFixture/Items", "action": "add", "text": "first"})
+	message = await client.read_message()
+	_check("ui domain: ui_item_list add appends an item",
+		_result_of(message).get("success") == true and item_list.item_count == 1, message)
+
+	client.send_request("ui-sel", "godot.runtime.ui_item_list",
+		{"node_path": "UiFixture/Items", "action": "select", "index": 0})
+	message = await client.read_message()
+	client.send_request("ui-items", "godot.runtime.ui_item_list", {"node_path": "UiFixture/Items"})
+	message = await client.read_message()
+	var items: Array = _result_of(message).get("items", [])
+	_check("ui domain: ui_item_list get_items reports the selected item",
+		items.size() == 1 and (items[0] as Dictionary).get("text") == "first"
+		and (items[0] as Dictionary).get("selected") == true, message)
+
+	client.send_request("ui-conf", "godot.runtime.ui_control",
+		{"node_path": "UiFixture/Line", "action": "configure", "tooltip": "tip", "min_size": {"x": 120, "y": 30}})
+	message = await client.read_message()
+	_check("ui domain: ui_control configure applies tooltip and min_size",
+		(_result_of(message).get("applied") as Array).has("tooltip")
+		and line_edit.custom_minimum_size == Vector2(120, 30), message)
+
+	client.send_request("ui-info", "godot.runtime.ui_control", {"node_path": "UiFixture/Line", "action": "get_info"})
+	message = await client.read_message()
+	_check("ui domain: ui_control get_info serializes size through the codec",
+		_result_of(message).get("tooltip") == "tip" and _result_of(message).get("size") is Dictionary, message)
+
+	client.send_request("ui-range", "godot.runtime.ui_range",
+		{"node_path": "UiFixture/Slider", "action": "set", "min_value": 0.0, "max_value": 10.0, "value": 4.0})
+	message = await client.read_message()
+	_check("ui domain: ui_range set drives the Range value",
+		_result_of(message).get("value") == 4.0 and slider.value == 4.0, message)
+
+	client.send_request("ui-theme", "godot.runtime.ui_theme",
+		{"node_path": "UiFixture/Line", "overrides": {"colors": {"font_color": {"r": 1, "g": 0, "b": 0, "a": 1}}}})
+	message = await client.read_message()
+	_check("ui domain: ui_theme applies a color override",
+		(_result_of(message).get("applied") as Array).has("color:font_color")
+		and line_edit.has_theme_color_override("font_color"), message)
+
+	client.send_request("ui-missing", "godot.runtime.ui_text", {})
+	message = await client.read_message()
+	_check("ui domain: missing node_path fails with a structured -32000 error",
+		_error_code(message) == -32000 and _error_data(message).get("reason") == "missing", message)
+
+	client.send_request("ui-class", "godot.runtime.ui_menu", {"node_path": "UiFixture/Line"})
+	message = await client.read_message()
+	_check("ui domain: wrong node class fails with invalid_value details",
+		_error_code(message) == -32000 and _error_data(message).get("reason") == "invalid_value", message)
+
+	client.send_request("ui-action", "godot.runtime.ui_text",
+		{"node_path": "UiFixture/Line", "action": "explode"})
+	message = await client.read_message()
+	_check("ui domain: unknown action fails with the allowed action list",
+		_error_code(message) == -32000 and (_error_data(message).get("allowed") as Array).has("set"), message)
+
+	client.send_request("ui-after", "godot.runtime.wait", {"frames": 1})
+	message = await client.read_message()
+	_check("ui domain: server keeps serving after domain commands",
+		_message_id(message) == "ui-after" and _result_of(message).get("success") == true, message)
+
+	client.close()
+	fixture.queue_free()
+	await process_frame

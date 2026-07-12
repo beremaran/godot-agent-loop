@@ -110,16 +110,29 @@ describe('runtime protocol contract', () => {
 
   it('owns subsystem handlers in domain scripts, not in the composition root', () => {
     const server = readFileSync(join(root, 'src/scripts/mcp_interaction_server.gd'), 'utf8');
-    const inputDomain = readFileSync(join(root, 'src/scripts/mcp_runtime/input_domain.gd'), 'utf8');
 
-    // The input domain owns its commands and the input state that used to sit on the server.
-    for (const command of ['click', 'key_press', 'key_hold', 'key_release', 'scroll', 'mouse_move', 'mouse_drag', 'gamepad', 'touch', 'input_state', 'input_action']) {
-      expect(inputDomain).toContain(`register_command("${command}"`);
-      expect(server).not.toContain(`_cmd_${command}(`);
-    }
-    for (const state of ['_held_keys', '_key_map', '_string_to_keycode']) {
-      expect(inputDomain).toContain(state);
-      expect(server).not.toContain(state);
+    // Each moved domain owns its commands and any helpers/state that used to
+    // sit on the server beside unrelated handlers.
+    const domainOwnership: Record<string, { commands: string[]; internals: string[] }> = {
+      'input_domain.gd': {
+        commands: ['click', 'key_press', 'key_hold', 'key_release', 'scroll', 'mouse_move', 'mouse_drag', 'gamepad', 'touch', 'input_state', 'input_action'],
+        internals: ['_held_keys', '_key_map', '_string_to_keycode'],
+      },
+      'ui_domain.gd': {
+        commands: ['ui_theme', 'ui_control', 'ui_text', 'ui_popup', 'ui_tree', 'ui_item_list', 'ui_tabs', 'ui_menu', 'ui_range'],
+        internals: ['_resolve_anchor_preset', '_collect_tree_items'],
+      },
+    };
+    for (const [file, ownership] of Object.entries(domainOwnership)) {
+      const domain = readFileSync(join(root, 'src/scripts/mcp_runtime', file), 'utf8');
+      for (const command of ownership.commands) {
+        expect(domain).toContain(`register_command("${command}"`);
+        expect(server).not.toContain(`_cmd_${command}(`);
+      }
+      for (const internal of ownership.internals) {
+        expect(domain).toContain(internal);
+        expect(server).not.toContain(internal);
+      }
     }
 
     // Domains reach the transport only through RuntimeDomain, never through
