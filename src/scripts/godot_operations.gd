@@ -1,32 +1,99 @@
 #!/usr/bin/env -S godot --headless --script
 extends SceneTree
 
+# The outcome of one operation. Operations never report errors and never quit:
+# they return this to the entry point, which is the only place that logs
+# failures and chooses the exit code.
+class OperationResult extends RefCounted:
+    var ok: bool
+    var errors: PackedStringArray
+
+    func _init(p_ok: bool, p_errors: PackedStringArray) -> void:
+        ok = p_ok
+        errors = p_errors
+
+# A parsed command line: the operation to run and its JSON object parameters,
+# or the reasons the command line could not be used.
+class CliInvocation extends RefCounted:
+    var operation: String
+    var params: Dictionary
+    var errors: PackedStringArray
+
+    func _init(p_operation: String, p_params: Dictionary, p_errors: PackedStringArray) -> void:
+        operation = p_operation
+        params = p_params
+        errors = p_errors
+
+    func is_valid() -> bool:
+        return errors.is_empty()
+
 # Debug mode flag
 var debug_mode: bool = false
 
-func _init() -> void:
-    var args: PackedStringArray = OS.get_cmdline_args()
+# Operation name -> handler. The single source of truth for which operations
+# exist; the CLI rejects any name that is not registered here.
+var _operations: Dictionary[String, Callable] = {}
 
-    # Check for debug flag
+func _init() -> void:
+    _register_operations()
+
+    var args: PackedStringArray = OS.get_cmdline_args()
     debug_mode = "--debug-godot" in args
 
-    # Find the script argument and determine the positions of operation and params
+    var invocation := _parse_cli(args)
+    if not invocation.is_valid():
+        _report_errors(invocation.errors)
+        quit(1)
+        return
+
+    log_info("Executing operation: " + invocation.operation)
+
+    var handler: Callable = _operations[invocation.operation]
+    var result: OperationResult = handler.call(invocation.params)
+    if not result.ok:
+        _report_errors(result.errors)
+        quit(1)
+        return
+
+    quit(0)
+
+func _register_operations() -> void:
+    _operations = {
+        "create_scene": create_scene,
+        "add_node": add_node,
+        "load_sprite": load_sprite,
+        "export_mesh_library": export_mesh_library,
+        "save_scene": save_scene,
+        "get_uid": get_uid,
+        "resave_resources": resave_resources,
+        "read_scene": read_scene,
+        "modify_node": modify_node,
+        "remove_node": remove_node,
+        "attach_script": attach_script,
+        "create_resource": create_resource,
+        "manage_resource": manage_resource,
+        "manage_scene_signals": manage_scene_signals,
+        "manage_theme_resource": manage_theme_resource,
+        "manage_scene_structure": manage_scene_structure,
+    }
+
+# Parse the Godot command line into an operation and its parameters. The
+# operation name and the JSON object are both validated before any dispatch.
+func _parse_cli(args: PackedStringArray) -> CliInvocation:
     var script_index: int = args.find("--script")
     if script_index == -1:
-        log_error("Could not find --script argument")
-        quit(1)
+        return _invalid_cli("Could not find --script argument")
 
-    # The operation should be 2 positions after the script path (script_index + 1 is the script path itself)
+    # The operation follows the script path, and the params follow the operation.
     var operation_index: int = script_index + 2
-    # The params should be 3 positions after the script path
     var params_index: int = script_index + 3
 
     if args.size() <= params_index:
-        log_error("Usage: godot --headless --script godot_operations.gd <operation> <json_params>")
-        log_error("Not enough command-line arguments provided.")
-        quit(1)
+        return _invalid_cli(
+            "Usage: godot --headless --script godot_operations.gd <operation> <json_params>",
+            PackedStringArray(["Not enough command-line arguments provided."])
+        )
 
-    # Log all arguments for debugging
     log_debug("All arguments: " + str(args))
     log_debug("Script index: " + str(script_index))
     log_debug("Operation index: " + str(operation_index))
@@ -38,64 +105,53 @@ func _init() -> void:
     log_info("Operation: " + operation)
     log_debug("Params JSON: " + params_json)
 
-    # Parse JSON using Godot 4.x API
+    if not _operations.has(operation):
+        return _invalid_cli(
+            "Unknown operation: " + operation,
+            PackedStringArray(["Known operations: " + ", ".join(_operation_names())])
+        )
+
     var json := JSON.new()
-    var error: Error = json.parse(params_json)
-    var params: Variant = null
+    var parse_error: Error = json.parse(params_json)
+    if parse_error != OK:
+        return _invalid_cli(
+            "Failed to parse JSON parameters: " + params_json,
+            PackedStringArray(["JSON Error: " + json.get_error_message() + " at line " + str(json.get_error_line())])
+        )
 
-    if error == OK:
-        params = json.get_data()
-    else:
-        log_error("Failed to parse JSON parameters: " + params_json)
-        log_error("JSON Error: " + json.get_error_message() + " at line " + str(json.get_error_line()))
-        quit(1)
+    var data: Variant = json.get_data()
+    if not (data is Dictionary):
+        return _invalid_cli("Parameters must be a JSON object: " + params_json)
 
-    if not params:
-        log_error("Failed to parse JSON parameters: " + params_json)
-        quit(1)
+    var operation_params: Dictionary = data
+    return CliInvocation.new(operation, operation_params, PackedStringArray())
 
-    log_info("Executing operation: " + operation)
+func _operation_names() -> PackedStringArray:
+    var names := PackedStringArray(_operations.keys())
+    names.sort()
+    return names
 
-    var operation_params: Dictionary = params if params is Dictionary else {}
+func _invalid_cli(message: String, details: PackedStringArray = PackedStringArray()) -> CliInvocation:
+    return CliInvocation.new("", {}, _error_lines(message, details))
 
-    match operation:
-        "create_scene":
-            create_scene(operation_params)
-        "add_node":
-            add_node(operation_params)
-        "load_sprite":
-            load_sprite(operation_params)
-        "export_mesh_library":
-            export_mesh_library(operation_params)
-        "save_scene":
-            save_scene(operation_params)
-        "get_uid":
-            get_uid(operation_params)
-        "resave_resources":
-            resave_resources(operation_params)
-        "read_scene":
-            read_scene(operation_params)
-        "modify_node":
-            modify_node(operation_params)
-        "remove_node":
-            remove_node(operation_params)
-        "attach_script":
-            attach_script(operation_params)
-        "create_resource":
-            create_resource(operation_params)
-        "manage_resource":
-            manage_resource(operation_params)
-        "manage_scene_signals":
-            manage_scene_signals(operation_params)
-        "manage_theme_resource":
-            manage_theme_resource(operation_params)
-        "manage_scene_structure":
-            manage_scene_structure(operation_params)
-        _:
-            log_error("Unknown operation: " + operation)
-            quit(1)
+# Result constructors used by every operation instead of printerr()/quit(1).
+func _ok() -> OperationResult:
+    return OperationResult.new(true, PackedStringArray())
 
-    quit()
+func _fail(message: String, details: PackedStringArray = PackedStringArray()) -> OperationResult:
+    return OperationResult.new(false, _error_lines(message, details))
+
+func _failed(errors: PackedStringArray) -> OperationResult:
+    return OperationResult.new(false, errors)
+
+func _error_lines(message: String, details: PackedStringArray) -> PackedStringArray:
+    var lines := PackedStringArray([message])
+    lines.append_array(details)
+    return lines
+
+func _report_errors(errors: PackedStringArray) -> void:
+    for line in errors:
+        log_error(line)
 
 # Logging functions
 func log_debug(message: String) -> void:
@@ -219,7 +275,7 @@ func instantiate_node(name_of_class: String) -> Node:
     return instantiate_class(name_of_class) as Node
 
 # Create a new scene with a specified root node type
-func create_scene(params: Dictionary) -> void:
+func create_scene(params: Dictionary) -> OperationResult:
     var scene_path: String = _param_string(params, "scene_path")
     print("Creating scene: " + scene_path)
 
@@ -296,11 +352,10 @@ func create_scene(params: Dictionary) -> void:
     # Create the root node
     var scene_root := instantiate_node(root_node_type)
     if not scene_root:
-        printerr("Failed to instantiate node of type: " + root_node_type)
-        printerr("Make sure the class exists and can be instantiated")
-        printerr("Check if the class is registered in ClassDB or available as a script")
-        quit(1)
-        return
+        return _fail("Failed to instantiate node of type: " + root_node_type, PackedStringArray([
+            "Make sure the class exists and can be instantiated",
+            "Check if the class is registered in ClassDB or available as a script",
+        ]))
 
     scene_root.name = "root"
     if debug_mode:
@@ -374,10 +429,9 @@ func create_scene(params: Dictionary) -> void:
                         print("Make directory result (absolute): " + str(make_dir_error))
 
                     if make_dir_error != OK:
-                        printerr("Failed to create directory using absolute path")
-                        printerr("Error code: " + str(make_dir_error))
-                        quit(1)
-                        return
+                        return _fail("Failed to create directory using absolute path", PackedStringArray([
+                            "Error code: " + str(make_dir_error),
+                        ]))
                 else:
                     # Create the directory using the DirAccess instance
                     if debug_mode:
@@ -387,10 +441,9 @@ func create_scene(params: Dictionary) -> void:
                         print("Make directory result: " + str(make_dir_error))
 
                     if make_dir_error != OK:
-                        printerr("Failed to create directory: " + scene_dir_relative)
-                        printerr("Error code: " + str(make_dir_error))
-                        quit(1)
-                        return
+                        return _fail("Failed to create directory: " + scene_dir_relative, PackedStringArray([
+                            "Error code: " + str(make_dir_error),
+                        ]))
 
                 # Verify the directory was created
                 dir_exists = DirAccess.dir_exists_absolute(scene_dir_abs)
@@ -398,10 +451,9 @@ func create_scene(params: Dictionary) -> void:
                     print("Directory exists check after creation: " + str(dir_exists))
 
                 if not dir_exists:
-                    printerr("Directory reported as created but does not exist: " + scene_dir_abs)
-                    printerr("This may indicate a problem with path resolution or permissions")
-                    quit(1)
-                    return
+                    return _fail("Directory reported as created but does not exist: " + scene_dir_abs, PackedStringArray([
+                        "This may indicate a problem with path resolution or permissions",
+                    ]))
             elif debug_mode:
                 print("Directory already exists: " + scene_dir_abs)
 
@@ -471,9 +523,7 @@ func create_scene(params: Dictionary) -> void:
                         printerr("This confirms there are permission or path issues with the scene directory.")
 
                     # Return error since we couldn't create the scene file
-                    printerr("Failed to create scene: " + scene_path)
-                    quit(1)
-                    return
+                    return _fail("Failed to create scene: " + scene_path)
 
                 # If we get here, at least one of our file checks passed
                 if file_check_abs or file_check_res or res_exists:
@@ -490,19 +540,16 @@ func create_scene(params: Dictionary) -> void:
 
                     print("Scene created successfully at: " + scene_path)
                 else:
-                    printerr("All file existence checks failed despite successful save operation.")
-                    printerr("This indicates a serious issue with file system access or path resolution.")
-                    quit(1)
-                    return
+                    return _fail("All file existence checks failed despite successful save operation.", PackedStringArray([
+                        "This indicates a serious issue with file system access or path resolution.",
+                    ]))
             else:
                 # In non-debug mode, just check if the file exists
                 var file_exists: bool = FileAccess.file_exists(full_scene_path)
                 if file_exists:
                     print("Scene created successfully at: " + scene_path)
                 else:
-                    printerr("Failed to create scene: " + scene_path)
-                    quit(1)
-                    return
+                    return _fail("Failed to create scene: " + scene_path)
         else:
             # Handle specific error codes
             var error_message: String = "Failed to save scene. Error code: " + str(save_error)
@@ -516,17 +563,16 @@ func create_scene(params: Dictionary) -> void:
             elif save_error == ERR_FILE_NO_PERMISSION:
                 error_message += " (ERR_FILE_NO_PERMISSION - No permission to write the scene file)"
 
-            printerr(error_message)
-            quit(1)
-            return
+            return _fail(error_message)
     else:
-        printerr("Failed to pack scene: " + str(result))
-        printerr("Error code: " + str(result))
-        quit(1)
-        return
+        return _fail("Failed to pack scene: " + str(result), PackedStringArray([
+            "Error code: " + str(result),
+        ]))
+
+    return _ok()
 
 # Add a node to an existing scene
-func add_node(params: Dictionary) -> void:
+func add_node(params: Dictionary) -> OperationResult:
     var scene_path: String = _param_string(params, "scene_path")
     print("Adding node to scene: " + scene_path)
 
@@ -541,15 +587,11 @@ func add_node(params: Dictionary) -> void:
         print("Absolute scene path: " + absolute_scene_path)
 
     if not FileAccess.file_exists(absolute_scene_path):
-        printerr("Scene file does not exist at: " + absolute_scene_path)
-        quit(1)
-        return
+        return _fail("Scene file does not exist at: " + absolute_scene_path)
 
     var scene := load(full_scene_path) as PackedScene
     if not scene:
-        printerr("Failed to load scene: " + full_scene_path)
-        quit(1)
-        return
+        return _fail("Failed to load scene: " + full_scene_path)
 
     if debug_mode:
         print("Scene loaded successfully")
@@ -568,9 +610,7 @@ func add_node(params: Dictionary) -> void:
     if parent_path != "root":
         parent = scene_root.get_node(parent_path.replace("root/", ""))
         if not parent:
-            printerr("Parent node not found: " + parent_path)
-            quit(1)
-            return
+            return _fail("Parent node not found: " + parent_path)
     if debug_mode:
         print("Parent node found: " + parent.name)
 
@@ -579,11 +619,10 @@ func add_node(params: Dictionary) -> void:
         print("Instantiating node of type: " + node_type)
     var new_node := instantiate_node(node_type)
     if not new_node:
-        printerr("Failed to instantiate node of type: " + node_type)
-        printerr("Make sure the class exists and can be instantiated")
-        printerr("Check if the class is registered in ClassDB or available as a script")
-        quit(1)
-        return
+        return _fail("Failed to instantiate node of type: " + node_type, PackedStringArray([
+            "Make sure the class exists and can be instantiated",
+            "Check if the class is registered in ClassDB or available as a script",
+        ]))
     var node_name: String = _param_string(params, "node_name")
     new_node.name = node_name
     if debug_mode:
@@ -622,22 +661,18 @@ func add_node(params: Dictionary) -> void:
                 if file_check_after:
                     print("Node '" + node_name + "' of type '" + node_type + "' added successfully")
                 else:
-                    printerr("File reported as saved but does not exist at: " + absolute_scene_path)
-                    quit(1)
-                    return
+                    return _fail("File reported as saved but does not exist at: " + absolute_scene_path)
             else:
                 print("Node '" + node_name + "' of type '" + node_type + "' added successfully")
         else:
-            printerr("Failed to save scene: " + str(save_error))
-            quit(1)
-            return
+            return _fail("Failed to save scene: " + str(save_error))
     else:
-        printerr("Failed to pack scene: " + str(result))
-        quit(1)
-        return
+        return _fail("Failed to pack scene: " + str(result))
+
+    return _ok()
 
 # Load a sprite into a Sprite2D node
-func load_sprite(params: Dictionary) -> void:
+func load_sprite(params: Dictionary) -> OperationResult:
     var scene_path: String = _param_string(params, "scene_path")
     print("Loading sprite into scene: " + scene_path)
 
@@ -655,12 +690,9 @@ func load_sprite(params: Dictionary) -> void:
         print("Scene file exists check: " + str(file_check))
 
     if not file_check:
-        printerr("Scene file does not exist at: " + full_scene_path)
-        # Get the absolute path for reference
-        var absolute_path: String = ProjectSettings.globalize_path(full_scene_path)
-        printerr("Absolute file path that doesn't exist: " + absolute_path)
-        quit(1)
-        return
+        return _fail("Scene file does not exist at: " + full_scene_path, PackedStringArray([
+            "Absolute file path that doesn't exist: " + ProjectSettings.globalize_path(full_scene_path),
+        ]))
 
     # Ensure the texture path starts with res:// for Godot's resource system
     var full_texture_path: String = _param_string(params, "texture_path")
@@ -673,9 +705,7 @@ func load_sprite(params: Dictionary) -> void:
     # Load the scene
     var scene := load(full_scene_path) as PackedScene
     if not scene:
-        printerr("Failed to load scene: " + full_scene_path)
-        quit(1)
-        return
+        return _fail("Failed to load scene: " + full_scene_path)
 
     if debug_mode:
         print("Scene loaded successfully")
@@ -708,26 +738,20 @@ func load_sprite(params: Dictionary) -> void:
             print("Found sprite node: " + sprite_node.name)
 
     if not sprite_node:
-        printerr("Node not found: " + requested_node_path)
-        quit(1)
-        return
+        return _fail("Node not found: " + requested_node_path)
 
     # Check if the node is a Sprite2D or compatible type
     if debug_mode:
         print("Node class: " + sprite_node.get_class())
     if not (sprite_node is Sprite2D or sprite_node is Sprite3D or sprite_node is TextureRect):
-        printerr("Node is not a sprite-compatible type: " + sprite_node.get_class())
-        quit(1)
-        return
+        return _fail("Node is not a sprite-compatible type: " + sprite_node.get_class())
 
     # Load the texture
     if debug_mode:
         print("Loading texture from: " + full_texture_path)
     var texture := load(full_texture_path) as Texture2D
     if not texture:
-        printerr("Failed to load texture: " + full_texture_path)
-        quit(1)
-        return
+        return _fail("Failed to load texture: " + full_texture_path)
 
     if debug_mode:
         print("Texture loaded successfully")
@@ -771,22 +795,18 @@ func load_sprite(params: Dictionary) -> void:
                     var absolute_path: String = ProjectSettings.globalize_path(full_scene_path)
                     print("Absolute file path: " + absolute_path)
                 else:
-                    printerr("File reported as saved but does not exist at: " + full_scene_path)
-                    quit(1)
-                    return
+                    return _fail("File reported as saved but does not exist at: " + full_scene_path)
             else:
                 print("Sprite loaded successfully with texture: " + full_texture_path)
         else:
-            printerr("Failed to save scene: " + str(error))
-            quit(1)
-            return
+            return _fail("Failed to save scene: " + str(error))
     else:
-        printerr("Failed to pack scene: " + str(result))
-        quit(1)
-        return
+        return _fail("Failed to pack scene: " + str(result))
+
+    return _ok()
 
 # Export a scene as a MeshLibrary resource
-func export_mesh_library(params: Dictionary) -> void:
+func export_mesh_library(params: Dictionary) -> OperationResult:
     var scene_path: String = _param_string(params, "scene_path")
     print("Exporting MeshLibrary from scene: " + scene_path)
 
@@ -812,21 +832,16 @@ func export_mesh_library(params: Dictionary) -> void:
         print("Scene file exists check: " + str(file_check))
 
     if not file_check:
-        printerr("Scene file does not exist at: " + full_scene_path)
-        # Get the absolute path for reference
-        var absolute_path: String = ProjectSettings.globalize_path(full_scene_path)
-        printerr("Absolute file path that doesn't exist: " + absolute_path)
-        quit(1)
-        return
+        return _fail("Scene file does not exist at: " + full_scene_path, PackedStringArray([
+            "Absolute file path that doesn't exist: " + ProjectSettings.globalize_path(full_scene_path),
+        ]))
 
     # Load the scene
     if debug_mode:
         print("Loading scene from: " + full_scene_path)
     var scene := load(full_scene_path) as PackedScene
     if not scene:
-        printerr("Failed to load scene: " + full_scene_path)
-        quit(1)
-        return
+        return _fail("Failed to load scene: " + full_scene_path)
 
     if debug_mode:
         print("Scene loaded successfully")
@@ -918,10 +933,9 @@ func export_mesh_library(params: Dictionary) -> void:
     # Create directory if it doesn't exist
     var dir := DirAccess.open("res://")
     if dir == null:
-        printerr("Failed to open res:// directory")
-        printerr("DirAccess error: " + str(DirAccess.get_open_error()))
-        quit(1)
-        return
+        return _fail("Failed to open res:// directory", PackedStringArray([
+            "DirAccess error: " + str(DirAccess.get_open_error()),
+        ]))
 
     var output_dir: String = full_output_path.get_base_dir()
     if debug_mode:
@@ -932,9 +946,7 @@ func export_mesh_library(params: Dictionary) -> void:
             print("Creating directory: " + output_dir)
         var error: Error = dir.make_dir_recursive(output_dir.substr(6))  # Remove "res://" prefix
         if error != OK:
-            printerr("Failed to create directory: " + output_dir + ", error: " + str(error))
-            quit(1)
-            return
+            return _fail("Failed to create directory: " + output_dir + ", error: " + str(error))
 
     # Save the mesh library
     if item_id > 0:
@@ -956,19 +968,15 @@ func export_mesh_library(params: Dictionary) -> void:
                     var absolute_path: String = ProjectSettings.globalize_path(full_output_path)
                     print("Absolute file path: " + absolute_path)
                 else:
-                    printerr("File reported as saved but does not exist at: " + full_output_path)
-                    quit(1)
-                    return
+                    return _fail("File reported as saved but does not exist at: " + full_output_path)
             else:
                 print("MeshLibrary exported successfully with " + str(item_id) + " items to: " + full_output_path)
         else:
-            printerr("Failed to save MeshLibrary: " + str(error))
-            quit(1)
-            return
+            return _fail("Failed to save MeshLibrary: " + str(error))
     else:
-        printerr("No valid meshes found in the scene")
-        quit(1)
-        return
+        return _fail("No valid meshes found in the scene")
+
+    return _ok()
 
 # Find files with a specific extension recursively
 func find_files(path: String, extension: String) -> PackedStringArray:
@@ -992,11 +1000,9 @@ func find_files(path: String, extension: String) -> PackedStringArray:
     return files
 
 # Get UID for a specific file
-func get_uid(params: Dictionary) -> void:
+func get_uid(params: Dictionary) -> OperationResult:
     if not params.has("file_path"):
-        printerr("File path is required")
-        quit(1)
-        return
+        return _fail("File path is required")
 
     # Ensure the file path starts with res:// for Godot's resource system
     var file_path: String = _param_string(params, "file_path")
@@ -1018,10 +1024,9 @@ func get_uid(params: Dictionary) -> void:
         print("File exists check: " + str(file_check))
 
     if not file_check:
-        printerr("File does not exist at: " + file_path)
-        printerr("Absolute file path that doesn't exist: " + absolute_path)
-        quit(1)
-        return
+        return _fail("File does not exist at: " + file_path, PackedStringArray([
+            "Absolute file path that doesn't exist: " + absolute_path,
+        ]))
 
     # Check if the UID file exists
     var uid_path: String = file_path + ".uid"
@@ -1051,6 +1056,7 @@ func get_uid(params: Dictionary) -> void:
         if debug_mode:
             print("UID result: " + JSON.stringify(result))
         print(JSON.stringify(result))
+        return _ok()
     else:
         if debug_mode:
             print("UID file does not exist or could not be opened")
@@ -1065,9 +1071,10 @@ func get_uid(params: Dictionary) -> void:
         if debug_mode:
             print("UID result: " + JSON.stringify(result))
         print(JSON.stringify(result))
+        return _ok()
 
 # Resave all resources to update UID references
-func resave_resources(params: Dictionary) -> void:
+func resave_resources(params: Dictionary) -> OperationResult:
     print("Resaving all resources to update UID references...")
 
     # Get project path if provided
@@ -1089,9 +1096,10 @@ func resave_resources(params: Dictionary) -> void:
     if debug_mode:
         print("Found " + str(scenes.size()) + " scenes")
 
-    # Resave each scene
+    # Resave each scene. Per-file problems accumulate here instead of being
+    # printed and quit on, so the entry point reports them together.
     var success_count: int = 0
-    var error_count: int = 0
+    var errors: Array[String] = []
 
     for scene_path in scenes:
         if debug_mode:
@@ -1103,8 +1111,7 @@ func resave_resources(params: Dictionary) -> void:
             print("Scene file exists check: " + str(file_check))
 
         if not file_check:
-            printerr("Scene file does not exist at: " + scene_path)
-            error_count += 1
+            errors.append("Scene file does not exist at: " + scene_path)
             continue
 
         # Load the scene
@@ -1126,14 +1133,11 @@ func resave_resources(params: Dictionary) -> void:
                     print("File exists check after save: " + str(file_check_after))
 
                     if not file_check_after:
-                        printerr("File reported as saved but does not exist at: " + scene_path)
-                        error_count += 1
+                        errors.append("File reported as saved but does not exist at: " + scene_path)
             else:
-                error_count += 1
-                printerr("Failed to save: " + scene_path + ", error: " + str(error))
+                errors.append("Failed to save: " + scene_path + ", error: " + str(error))
         else:
-            error_count += 1
-            printerr("Failed to load: " + scene_path)
+            errors.append("Failed to load: " + scene_path)
 
     # Get all .gd and .shader files
     if debug_mode:
@@ -1178,14 +1182,11 @@ func resave_resources(params: Dictionary) -> void:
                         print("UID file exists check after save: " + str(uid_check_after))
 
                         if not uid_check_after:
-                            printerr("UID file reported as generated but does not exist at: " + uid_path)
-                            error_count += 1
+                            errors.append("UID file reported as generated but does not exist at: " + uid_path)
                 else:
-                    printerr("Failed to generate UID for: " + script_path + ", error: " + str(error))
-                    error_count += 1
+                    errors.append("Failed to generate UID for: " + script_path + ", error: " + str(error))
             else:
-                printerr("Failed to load resource: " + script_path)
-                error_count += 1
+                errors.append("Failed to load resource: " + script_path)
         elif debug_mode:
             print("UID file already exists for: " + script_path)
 
@@ -1193,16 +1194,17 @@ func resave_resources(params: Dictionary) -> void:
         print("Summary:")
         print("- Scenes processed: " + str(scenes.size()))
         print("- Scenes successfully saved: " + str(success_count))
-        print("- Scenes with errors: " + str(error_count))
+        print("- Scenes with errors: " + str(errors.size()))
         print("- Scripts/shaders missing UIDs: " + str(missing_uids))
         print("- UIDs successfully generated: " + str(generated_uids))
     print("Resave operation complete")
-    if error_count > 0:
-        quit(1)
-        return
+
+    if not errors.is_empty():
+        return _failed(PackedStringArray(errors))
+    return _ok()
 
 # Save changes to a scene file
-func save_scene(params: Dictionary) -> void:
+func save_scene(params: Dictionary) -> OperationResult:
     var scene_path: String = _param_string(params, "scene_path")
     print("Saving scene: " + scene_path)
 
@@ -1220,19 +1222,14 @@ func save_scene(params: Dictionary) -> void:
         print("Scene file exists check: " + str(file_check))
 
     if not file_check:
-        printerr("Scene file does not exist at: " + full_scene_path)
-        # Get the absolute path for reference
-        var absolute_path: String = ProjectSettings.globalize_path(full_scene_path)
-        printerr("Absolute file path that doesn't exist: " + absolute_path)
-        quit(1)
-        return
+        return _fail("Scene file does not exist at: " + full_scene_path, PackedStringArray([
+            "Absolute file path that doesn't exist: " + ProjectSettings.globalize_path(full_scene_path),
+        ]))
 
     # Load the scene
     var scene := load(full_scene_path) as PackedScene
     if not scene:
-        printerr("Failed to load scene: " + full_scene_path)
-        quit(1)
-        return
+        return _fail("Failed to load scene: " + full_scene_path)
 
     if debug_mode:
         print("Scene loaded successfully")
@@ -1255,10 +1252,9 @@ func save_scene(params: Dictionary) -> void:
     if has_new_path:
         var dir := DirAccess.open("res://")
         if dir == null:
-            printerr("Failed to open res:// directory")
-            printerr("DirAccess error: " + str(DirAccess.get_open_error()))
-            quit(1)
-            return
+            return _fail("Failed to open res:// directory", PackedStringArray([
+                "DirAccess error: " + str(DirAccess.get_open_error()),
+            ]))
 
         var scene_dir: String = save_path.get_base_dir()
         if debug_mode:
@@ -1269,9 +1265,7 @@ func save_scene(params: Dictionary) -> void:
                 print("Creating directory: " + scene_dir)
             var error: Error = dir.make_dir_recursive(scene_dir.substr(6))  # Remove "res://" prefix
             if error != OK:
-                printerr("Failed to create directory: " + scene_dir + ", error: " + str(error))
-                quit(1)
-                return
+                return _fail("Failed to create directory: " + scene_dir + ", error: " + str(error))
 
     # Create a packed scene
     var packed_scene := PackedScene.new()
@@ -1298,19 +1292,15 @@ func save_scene(params: Dictionary) -> void:
                     var absolute_path: String = ProjectSettings.globalize_path(save_path)
                     print("Absolute file path: " + absolute_path)
                 else:
-                    printerr("File reported as saved but does not exist at: " + save_path)
-                    quit(1)
-                    return
+                    return _fail("File reported as saved but does not exist at: " + save_path)
             else:
                 print("Scene saved successfully to: " + save_path)
         else:
-            printerr("Failed to save scene: " + str(error))
-            quit(1)
-            return
+            return _fail("Failed to save scene: " + str(error))
     else:
-        printerr("Failed to pack scene (save_scene): " + str(result))
-        quit(1)
-        return
+        return _fail("Failed to pack scene (save_scene): " + str(result))
+
+    return _ok()
 
 # JSON decodes into Variant, so the conversions below are the one place where
 # untyped values are narrowed. Every suppression in this file lives here.
@@ -1475,11 +1465,9 @@ func _variant_to_string(value: Variant) -> String:
     return str(value)
 
 # Read a scene file and return its full node tree as JSON
-func read_scene(params: Dictionary) -> void:
+func read_scene(params: Dictionary) -> OperationResult:
     if not params.has("scene_path"):
-        printerr("scene_path is required")
-        quit(1)
-        return
+        return _fail("scene_path is required")
 
     var full_scene_path: String = _param_string(params, "scene_path")
     if not full_scene_path.begins_with("res://"):
@@ -1488,15 +1476,12 @@ func read_scene(params: Dictionary) -> void:
     log_info("Reading scene: " + full_scene_path)
 
     if not FileAccess.file_exists(full_scene_path):
-        printerr("Scene file does not exist at: " + full_scene_path)
-        quit(1)
-        return
+        return _fail("Scene file does not exist at: " + full_scene_path)
 
     var scene := load(full_scene_path) as PackedScene
     if not scene:
-        printerr("Failed to load scene: " + full_scene_path)
-        printerr("The scene may reference missing external resources.")
-        # Try to read the .tscn file as text and return raw structure
+        # A scene that references missing external resources still has readable
+        # text, so fall back to the raw file rather than failing the operation.
         var f := FileAccess.open(full_scene_path, FileAccess.READ)
         if f:
             var raw_content: String = f.get_as_text()
@@ -1504,15 +1489,14 @@ func read_scene(params: Dictionary) -> void:
             print("SCENE_JSON_START")
             print(JSON.stringify({"error": "Failed to instantiate scene, returning raw text", "raw": raw_content.substr(0, 4096)}))
             print("SCENE_JSON_END")
-            return
-        quit(1)
-        return
+            return _ok()
+        return _fail("Failed to load scene: " + full_scene_path, PackedStringArray([
+            "The scene may reference missing external resources.",
+        ]))
 
     var scene_root := scene.instantiate()
     if scene_root == null:
-        printerr("Failed to instantiate scene: " + full_scene_path)
-        quit(1)
-        return
+        return _fail("Failed to instantiate scene: " + full_scene_path)
 
     var tree_data: Dictionary = _walk_scene_tree(scene_root)
 
@@ -1523,6 +1507,7 @@ func read_scene(params: Dictionary) -> void:
 
     # Clean up
     scene_root.queue_free()
+    return _ok()
 
 func _walk_scene_tree(node: Node) -> Dictionary:
     var info: Dictionary = {
@@ -1568,11 +1553,9 @@ func _walk_scene_tree(node: Node) -> Dictionary:
     return info
 
 # Modify a node's properties in a scene file
-func modify_node(params: Dictionary) -> void:
+func modify_node(params: Dictionary) -> OperationResult:
     if not params.has("scene_path") or not params.has("node_path") or not params.has("properties"):
-        printerr("scene_path, node_path, and properties are required")
-        quit(1)
-        return
+        return _fail("scene_path, node_path, and properties are required")
 
     var full_scene_path: String = _param_string(params, "scene_path")
     if not full_scene_path.begins_with("res://"):
@@ -1581,15 +1564,11 @@ func modify_node(params: Dictionary) -> void:
     log_info("Modifying node in scene: " + full_scene_path)
 
     if not FileAccess.file_exists(full_scene_path):
-        printerr("Scene file does not exist at: " + full_scene_path)
-        quit(1)
-        return
+        return _fail("Scene file does not exist at: " + full_scene_path)
 
     var scene := load(full_scene_path) as PackedScene
     if not scene:
-        printerr("Failed to load scene: " + full_scene_path)
-        quit(1)
-        return
+        return _fail("Failed to load scene: " + full_scene_path)
 
     var scene_root := scene.instantiate()
 
@@ -1603,9 +1582,7 @@ func modify_node(params: Dictionary) -> void:
         target = scene_root.get_node_or_null(node_path)
 
     if target == null:
-        printerr("Node not found: " + requested_node_path)
-        quit(1)
-        return
+        return _fail("Node not found: " + requested_node_path)
 
     # Set properties with type conversion
     var properties: Dictionary = _param_dictionary(params, "properties")
@@ -1619,24 +1596,19 @@ func modify_node(params: Dictionary) -> void:
     var packed_scene := PackedScene.new()
     var result: Error = packed_scene.pack(scene_root)
     if result != OK:
-        printerr("Failed to pack scene after modification: " + str(result))
-        quit(1)
-        return
+        return _fail("Failed to pack scene after modification: " + str(result))
 
     var save_error: Error = ResourceSaver.save(packed_scene, full_scene_path)
     if save_error != OK:
-        printerr("Failed to save modified scene: " + str(save_error))
-        quit(1)
-        return
+        return _fail("Failed to save modified scene: " + str(save_error))
 
     print("Node modified successfully in: " + full_scene_path)
+    return _ok()
 
 # Remove a node from a scene file
-func remove_node(params: Dictionary) -> void:
+func remove_node(params: Dictionary) -> OperationResult:
     if not params.has("scene_path") or not params.has("node_path"):
-        printerr("scene_path and node_path are required")
-        quit(1)
-        return
+        return _fail("scene_path and node_path are required")
 
     var full_scene_path: String = _param_string(params, "scene_path")
     if not full_scene_path.begins_with("res://"):
@@ -1645,15 +1617,11 @@ func remove_node(params: Dictionary) -> void:
     log_info("Removing node from scene: " + full_scene_path)
 
     if not FileAccess.file_exists(full_scene_path):
-        printerr("Scene file does not exist at: " + full_scene_path)
-        quit(1)
-        return
+        return _fail("Scene file does not exist at: " + full_scene_path)
 
     var scene := load(full_scene_path) as PackedScene
     if not scene:
-        printerr("Failed to load scene: " + full_scene_path)
-        quit(1)
-        return
+        return _fail("Failed to load scene: " + full_scene_path)
 
     var scene_root := scene.instantiate()
 
@@ -1665,14 +1633,10 @@ func remove_node(params: Dictionary) -> void:
 
     var target := scene_root.get_node_or_null(node_path)
     if target == null:
-        printerr("Node not found: " + requested_node_path)
-        quit(1)
-        return
+        return _fail("Node not found: " + requested_node_path)
 
     if target == scene_root:
-        printerr("Cannot remove the root node of a scene")
-        quit(1)
-        return
+        return _fail("Cannot remove the root node of a scene")
 
     var removed_name: String = String(target.name)
     target.get_parent().remove_child(target)
@@ -1682,24 +1646,19 @@ func remove_node(params: Dictionary) -> void:
     var packed_scene := PackedScene.new()
     var result: Error = packed_scene.pack(scene_root)
     if result != OK:
-        printerr("Failed to pack scene after removal: " + str(result))
-        quit(1)
-        return
+        return _fail("Failed to pack scene after removal: " + str(result))
 
     var save_error: Error = ResourceSaver.save(packed_scene, full_scene_path)
     if save_error != OK:
-        printerr("Failed to save scene after removal: " + str(save_error))
-        quit(1)
-        return
+        return _fail("Failed to save scene after removal: " + str(save_error))
 
     print("Node '" + removed_name + "' removed successfully from: " + full_scene_path)
+    return _ok()
 
 # Attach a script to a node in a scene file
-func attach_script(params: Dictionary) -> void:
+func attach_script(params: Dictionary) -> OperationResult:
     if not params.has("scene_path") or not params.has("node_path") or not params.has("script_path"):
-        printerr("scene_path, node_path, and script_path are required")
-        quit(1)
-        return
+        return _fail("scene_path, node_path, and script_path are required")
 
     var full_scene_path: String = _param_string(params, "scene_path")
     if not full_scene_path.begins_with("res://"):
@@ -1712,20 +1671,14 @@ func attach_script(params: Dictionary) -> void:
     log_info("Attaching script " + full_script_path + " to node in scene: " + full_scene_path)
 
     if not FileAccess.file_exists(full_scene_path):
-        printerr("Scene file does not exist at: " + full_scene_path)
-        quit(1)
-        return
+        return _fail("Scene file does not exist at: " + full_scene_path)
 
     if not FileAccess.file_exists(full_script_path):
-        printerr("Script file does not exist at: " + full_script_path)
-        quit(1)
-        return
+        return _fail("Script file does not exist at: " + full_script_path)
 
     var scene := load(full_scene_path) as PackedScene
     if not scene:
-        printerr("Failed to load scene: " + full_scene_path)
-        quit(1)
-        return
+        return _fail("Failed to load scene: " + full_scene_path)
 
     var scene_root := scene.instantiate()
 
@@ -1739,16 +1692,12 @@ func attach_script(params: Dictionary) -> void:
         target = scene_root.get_node_or_null(node_path)
 
     if target == null:
-        printerr("Node not found: " + requested_node_path)
-        quit(1)
-        return
+        return _fail("Node not found: " + requested_node_path)
 
     # Load and attach the script
     var script := load(full_script_path) as Script
     if not script:
-        printerr("Failed to load script: " + full_script_path)
-        quit(1)
-        return
+        return _fail("Failed to load script: " + full_script_path)
 
     target.set_script(script)
 
@@ -1756,24 +1705,19 @@ func attach_script(params: Dictionary) -> void:
     var packed_scene := PackedScene.new()
     var result: Error = packed_scene.pack(scene_root)
     if result != OK:
-        printerr("Failed to pack scene after attaching script: " + str(result))
-        quit(1)
-        return
+        return _fail("Failed to pack scene after attaching script: " + str(result))
 
     var save_error: Error = ResourceSaver.save(packed_scene, full_scene_path)
     if save_error != OK:
-        printerr("Failed to save scene after attaching script: " + str(save_error))
-        quit(1)
-        return
+        return _fail("Failed to save scene after attaching script: " + str(save_error))
 
     print("Script '" + full_script_path + "' attached successfully to node in: " + full_scene_path)
+    return _ok()
 
 # Create a resource file (.tres)
-func create_resource(params: Dictionary) -> void:
+func create_resource(params: Dictionary) -> OperationResult:
     if not params.has("resource_type") or not params.has("resource_path"):
-        printerr("resource_type and resource_path are required")
-        quit(1)
-        return
+        return _fail("resource_type and resource_path are required")
 
     var resource_type: String = _param_string(params, "resource_type")
     var full_resource_path: String = _param_string(params, "resource_path")
@@ -1784,27 +1728,20 @@ func create_resource(params: Dictionary) -> void:
 
     # Instantiate the resource
     if not ClassDB.class_exists(resource_type):
-        printerr("Unknown resource type: " + resource_type)
-        printerr("Must be a valid Godot class name (e.g., StandardMaterial3D, AudioStreamPlayer, Theme)")
-        quit(1)
-        return
+        return _fail("Unknown resource type: " + resource_type, PackedStringArray([
+            "Must be a valid Godot class name (e.g., StandardMaterial3D, AudioStreamPlayer, Theme)",
+        ]))
 
     if not ClassDB.can_instantiate(resource_type):
-        printerr("Cannot instantiate resource type: " + resource_type)
-        quit(1)
-        return
+        return _fail("Cannot instantiate resource type: " + resource_type)
 
     var instance: Object = ClassDB.instantiate(resource_type)
     if instance == null:
-        printerr("Failed to instantiate resource of type: " + resource_type)
-        quit(1)
-        return
+        return _fail("Failed to instantiate resource of type: " + resource_type)
 
     var resource := instance as Resource
     if resource == null:
-        printerr("Type " + resource_type + " is not a Resource subclass")
-        quit(1)
-        return
+        return _fail("Type " + resource_type + " is not a Resource subclass")
 
     # Set properties if provided
     if params.has("properties"):
@@ -1823,21 +1760,18 @@ func create_resource(params: Dictionary) -> void:
         if dir and not dir.dir_exists(dir_relative):
             var make_dir_error: Error = dir.make_dir_recursive(dir_relative)
             if make_dir_error != OK:
-                printerr("Failed to create directory: " + dir_path + ", error: " + str(make_dir_error))
-                quit(1)
-                return
+                return _fail("Failed to create directory: " + dir_path + ", error: " + str(make_dir_error))
 
     # Save the resource
     var save_error: Error = ResourceSaver.save(resource, full_resource_path)
     if save_error != OK:
-        printerr("Failed to save resource: " + str(save_error))
-        quit(1)
-        return
+        return _fail("Failed to save resource: " + str(save_error))
 
     print("Resource created successfully at: " + full_resource_path)
+    return _ok()
 
 
-func manage_resource(params: Dictionary) -> void:
+func manage_resource(params: Dictionary) -> OperationResult:
     var resource_path: String = _param_string(params, "resource_path")
     var action: String = _param_string(params, "action", "read")
     var full_path: String = resource_path
@@ -1846,14 +1780,10 @@ func manage_resource(params: Dictionary) -> void:
 
     if action == "read":
         if not ResourceLoader.exists(full_path):
-            printerr("Resource not found: " + full_path)
-            quit(1)
-            return
+            return _fail("Resource not found: " + full_path)
         var res := ResourceLoader.load(full_path)
         if res == null:
-            printerr("Failed to load resource: " + full_path)
-            quit(1)
-            return
+            return _fail("Failed to load resource: " + full_path)
         var props: Dictionary = {}
         for prop in res.get_property_list():
             var usage: int = prop.get("usage", 0)
@@ -1865,14 +1795,10 @@ func manage_resource(params: Dictionary) -> void:
         print("RESOURCE_JSON_END")
     elif action == "modify":
         if not ResourceLoader.exists(full_path):
-            printerr("Resource not found: " + full_path)
-            quit(1)
-            return
+            return _fail("Resource not found: " + full_path)
         var res := ResourceLoader.load(full_path)
         if res == null:
-            printerr("Failed to load resource: " + full_path)
-            quit(1)
-            return
+            return _fail("Failed to load resource: " + full_path)
         var properties: Dictionary = _param_dictionary(params, "properties")
         for prop_name: String in properties:
             var raw_value: Variant = properties[prop_name]
@@ -1880,17 +1806,17 @@ func manage_resource(params: Dictionary) -> void:
             res.set(prop_name, converted_value)
         var save_error: Error = ResourceSaver.save(res, full_path)
         if save_error != OK:
-            printerr("Failed to save resource: " + str(save_error))
-            quit(1)
-            return
+            return _fail("Failed to save resource: " + str(save_error))
         print("Resource modified: " + full_path)
     else:
-        printerr("Unknown manage_resource action: " + action)
-        quit(1)
-        return
+        return _fail("Unknown manage_resource action: " + action, PackedStringArray([
+            "Allowed actions: read, modify",
+        ]))
+
+    return _ok()
 
 
-func manage_scene_signals(params: Dictionary) -> void:
+func manage_scene_signals(params: Dictionary) -> OperationResult:
     var scene_path: String = _param_string(params, "scene_path")
     var action: String = _param_string(params, "action", "list")
     var full_path: String = scene_path
@@ -1898,9 +1824,7 @@ func manage_scene_signals(params: Dictionary) -> void:
         full_path = "res://" + full_path
 
     if not FileAccess.file_exists(full_path):
-        printerr("Scene not found: " + full_path)
-        quit(1)
-        return
+        return _fail("Scene not found: " + full_path)
 
     var content: String = FileAccess.get_file_as_string(full_path)
 
@@ -1922,9 +1846,7 @@ func manage_scene_signals(params: Dictionary) -> void:
         content += "\n" + conn_line + "\n"
         var file := FileAccess.open(full_path, FileAccess.WRITE)
         if file == null:
-            printerr("Failed to open scene for writing: " + full_path + ", error: " + str(FileAccess.get_open_error()))
-            quit(1)
-            return
+            return _fail("Failed to open scene for writing: " + full_path + ", error: " + str(FileAccess.get_open_error()))
         @warning_ignore("return_value_discarded")
         file.store_string(content)
         file.close()
@@ -1939,20 +1861,20 @@ func manage_scene_signals(params: Dictionary) -> void:
                 new_lines.append(line)
         var file := FileAccess.open(full_path, FileAccess.WRITE)
         if file == null:
-            printerr("Failed to open scene for writing: " + full_path + ", error: " + str(FileAccess.get_open_error()))
-            quit(1)
-            return
+            return _fail("Failed to open scene for writing: " + full_path + ", error: " + str(FileAccess.get_open_error()))
         @warning_ignore("return_value_discarded")
         file.store_string("\n".join(new_lines))
         file.close()
         print("Signal connections for '%s' removed" % signal_name)
     else:
-        printerr("Unknown manage_scene_signals action: " + action)
-        quit(1)
-        return
+        return _fail("Unknown manage_scene_signals action: " + action, PackedStringArray([
+            "Allowed actions: list, add, remove",
+        ]))
+
+    return _ok()
 
 
-func manage_theme_resource(params: Dictionary) -> void:
+func manage_theme_resource(params: Dictionary) -> OperationResult:
     var resource_path: String = _param_string(params, "resource_path")
     var action: String = _param_string(params, "action", "read")
     var full_path: String = resource_path
@@ -1971,54 +1893,42 @@ func manage_theme_resource(params: Dictionary) -> void:
             if dir and not dir.dir_exists(dir_relative):
                 var make_dir_error: Error = dir.make_dir_recursive(dir_relative)
                 if make_dir_error != OK:
-                    printerr("Failed to create directory: " + dir_path + ", error: " + str(make_dir_error))
-                    quit(1)
-                    return
+                    return _fail("Failed to create directory: " + dir_path + ", error: " + str(make_dir_error))
         var save_error: Error = ResourceSaver.save(theme, full_path)
         if save_error != OK:
-            printerr("Failed to save theme: " + str(save_error))
-            quit(1)
-            return
+            return _fail("Failed to save theme: " + str(save_error))
         print("Theme created at: " + full_path)
     elif action == "read":
         if not ResourceLoader.exists(full_path):
-            printerr("Theme not found: " + full_path)
-            quit(1)
-            return
+            return _fail("Theme not found: " + full_path)
         var theme := ResourceLoader.load(full_path)
         if theme == null:
-            printerr("Failed to load theme: " + full_path)
-            quit(1)
-            return
+            return _fail("Failed to load theme: " + full_path)
         print("THEME_JSON_START")
         print(JSON.stringify({"type": theme.get_class(), "path": full_path}))
         print("THEME_JSON_END")
     elif action == "modify":
         if not ResourceLoader.exists(full_path):
-            printerr("Theme not found: " + full_path)
-            quit(1)
-            return
+            return _fail("Theme not found: " + full_path)
         var theme := ResourceLoader.load(full_path)
         if theme == null:
-            printerr("Failed to load theme: " + full_path)
-            quit(1)
-            return
+            return _fail("Failed to load theme: " + full_path)
         var properties: Dictionary = _param_dictionary(params, "properties")
         for key: String in properties:
             theme.set(key, properties[key])
         var save_error: Error = ResourceSaver.save(theme, full_path)
         if save_error != OK:
-            printerr("Failed to save theme: " + str(save_error))
-            quit(1)
-            return
+            return _fail("Failed to save theme: " + str(save_error))
         print("Theme modified: " + full_path)
     else:
-        printerr("Unknown manage_theme_resource action: " + action)
-        quit(1)
-        return
+        return _fail("Unknown manage_theme_resource action: " + action, PackedStringArray([
+            "Allowed actions: create, read, modify",
+        ]))
+
+    return _ok()
 
 
-func manage_scene_structure(params: Dictionary) -> void:
+func manage_scene_structure(params: Dictionary) -> OperationResult:
     var scene_path: String = _param_string(params, "scene_path")
     var action: String = _param_string(params, "action", "rename")
     var node_path_str: String = _param_string(params, "node_path")
@@ -2027,36 +1937,26 @@ func manage_scene_structure(params: Dictionary) -> void:
         full_path = "res://" + full_path
 
     if not FileAccess.file_exists(full_path):
-        printerr("Scene not found: " + full_path)
-        quit(1)
-        return
+        return _fail("Scene not found: " + full_path)
 
     var scene := load(full_path) as PackedScene
     if scene == null:
-        printerr("Failed to load scene: " + full_path)
-        quit(1)
-        return
+        return _fail("Failed to load scene: " + full_path)
 
     var root := scene.instantiate()
     var target := _resolve_scene_node(root, node_path_str)
     if target == null:
-        printerr("Node not found: " + node_path_str)
-        quit(1)
-        return
+        return _fail("Node not found: " + node_path_str)
 
     if action == "rename":
         var new_name: String = _param_string(params, "new_name")
         if new_name.is_empty():
-            printerr("new_name is required for rename")
-            quit(1)
-            return
+            return _fail("new_name is required for rename")
         target.name = new_name
         print("Node renamed to '%s'" % target.name)
     elif action == "duplicate":
         if target == root:
-            printerr("Cannot duplicate the root node")
-            quit(1)
-            return
+            return _fail("Cannot duplicate the root node")
         var dup := target.duplicate()
         target.get_parent().add_child(dup, true)
         _set_owner_recursive(dup, root)
@@ -2064,43 +1964,32 @@ func manage_scene_structure(params: Dictionary) -> void:
     elif action == "move":
         var new_parent_path: String = _param_string(params, "new_parent_path")
         if new_parent_path.is_empty():
-            printerr("new_parent_path is required for move")
-            quit(1)
-            return
+            return _fail("new_parent_path is required for move")
         if target == root:
-            printerr("Cannot move the root node")
-            quit(1)
-            return
+            return _fail("Cannot move the root node")
         var new_parent := _resolve_scene_node(root, new_parent_path)
         if new_parent == null:
-            printerr("New parent not found: " + new_parent_path)
-            quit(1)
-            return
+            return _fail("New parent not found: " + new_parent_path)
         if new_parent == target or _is_ancestor(target, new_parent):
-            printerr("Cannot move a node into itself or one of its descendants")
-            quit(1)
-            return
+            return _fail("Cannot move a node into itself or one of its descendants")
         target.get_parent().remove_child(target)
         new_parent.add_child(target, true)
         _set_owner_recursive(target, root)
         print("Node moved: %s -> parent %s (as '%s')" % [node_path_str, new_parent_path, target.name])
     else:
-        printerr("Unknown manage_scene_structure action: " + action)
-        quit(1)
-        return
+        return _fail("Unknown manage_scene_structure action: " + action, PackedStringArray([
+            "Allowed actions: rename, duplicate, move",
+        ]))
 
     var packed := PackedScene.new()
     var pack_result: Error = packed.pack(root)
     if pack_result != OK:
-        printerr("Failed to pack scene: " + str(pack_result))
-        quit(1)
-        return
+        return _fail("Failed to pack scene: " + str(pack_result))
     var save_error: Error = ResourceSaver.save(packed, full_path)
     if save_error != OK:
-        printerr("Failed to save scene: " + str(save_error))
-        quit(1)
-        return
+        return _fail("Failed to save scene: " + str(save_error))
     print("Scene structure saved: " + full_path)
+    return _ok()
 
 
 func _resolve_scene_node(root: Node, tool_path: String) -> Node:
