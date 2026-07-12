@@ -132,6 +132,7 @@ func _run() -> void:
 	await _test_ui_domain()
 	await _test_scene_2d_domain()
 	await _test_physics_domain()
+	await _test_scene_3d_domain()
 
 	print("godot-runtime-integration: %d checks, %d failures" % [_checks, _failures])
 	quit(1 if _failures > 0 else 0)
@@ -1048,6 +1049,69 @@ func _test_physics_domain() -> void:
 	message = await client.read_message()
 	_check("physics domain: server keeps serving after domain commands",
 		_message_id(message) == "ph-after" and _result_of(message).get("success") == true, message)
+
+	client.close()
+	fixture.queue_free()
+	await process_frame
+
+
+# --- 3D scene and geometry domain ---
+func _test_scene_3d_domain() -> void:
+	var fixture: Node3D = Node3D.new()
+	fixture.name = "Scene3DFixture"
+	root.add_child(fixture)
+	await process_frame
+
+	var client: Client = await _open_client("3d-scene")
+	_check("3d domain: server attaches the domain node as a child",
+		_server.get_node_or_null("scene_3d_domain") != null, _server.get_children())
+
+	client.send_request("3d-mesh", "godot.runtime.mesh_instance",
+		{"parent_path": "Scene3DFixture", "name": "Box", "mesh_type": "box",
+			"size": {"x": 2, "y": 3, "z": 4}})
+	var message: Variant = await client.read_message()
+	var box: MeshInstance3D = fixture.get_node_or_null("Box") as MeshInstance3D
+	_check("3d domain: mesh_instance creates configured primitive geometry",
+		_message_id(message) == "3d-mesh" and box != null
+		and (box.mesh as BoxMesh).size == Vector3(2, 3, 4), message)
+
+	client.send_request("3d-path", "godot.runtime.path_3d",
+		{"action": "create", "parent_path": "Scene3DFixture", "name": "Route",
+			"points": [{"x": 0, "y": 1, "z": 2}, {"x": 3, "y": 4, "z": 5}]})
+	message = await client.read_message()
+	client.send_request("3d-path-add", "godot.runtime.path_3d",
+		{"action": "add_point", "node_path": "Scene3DFixture/Route",
+			"point": {"x": 6, "y": 7, "z": 8}})
+	message = await client.read_message()
+	_check("3d domain: path_3d preserves curve state across requests",
+		_result_of(message).get("point_count") == 3, message)
+
+	client.send_request("3d-terrain", "godot.runtime.terrain",
+		{"action": "create", "parent_path": "Scene3DFixture", "name": "Ground",
+			"width": 3, "depth": 3, "height_data": [0, 0, 0, 0, 2, 0, 0, 0, 0]})
+	message = await client.read_message()
+	client.send_request("3d-height", "godot.runtime.terrain",
+		{"action": "get_height", "node_path": "Scene3DFixture/Ground", "x": 1, "z": 1})
+	message = await client.read_message()
+	_check("3d domain: terrain owns and reads its generated height state",
+		_result_of(message).get("height") == 2.0, message)
+
+	client.send_request("3d-action", "godot.runtime.csg", {"action": "explode"})
+	message = await client.read_message()
+	_check("3d domain: unknown action fails with standardized allowed values",
+		_error_code(message) == -32000
+		and (_error_data(message).get("allowed") as Array).has("create"), message)
+
+	client.send_request("3d-class", "godot.runtime.csg",
+		{"action": "configure", "node_path": "Scene3DFixture/Box"})
+	message = await client.read_message()
+	_check("3d domain: wrong node class fails with invalid_value details",
+		_error_code(message) == -32000 and _error_data(message).get("reason") == "invalid_value", message)
+
+	client.send_request("3d-after", "godot.runtime.wait", {"frames": 1})
+	message = await client.read_message()
+	_check("3d domain: server keeps serving after domain commands",
+		_message_id(message) == "3d-after" and _result_of(message).get("success") == true, message)
 
 	client.close()
 	fixture.queue_free()

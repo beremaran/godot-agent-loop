@@ -130,6 +130,10 @@ describe('runtime protocol contract', () => {
         commands: ['raycast', 'navigate_path', 'add_collision', 'physics_body', 'create_joint', 'navigation_3d', 'physics_3d', 'physics_2d'],
         internals: ['_shape_3d', '_shape_2d', '_respond_ray_hit'],
       },
+      'scene_3d_domain.gd': {
+        commands: ['csg', 'multimesh', 'procedural_mesh', 'light_3d', 'mesh_instance', 'gridmap', '3d_effects', 'path_3d', 'terrain'],
+        internals: ['_terrain_rebuild'],
+      },
       'core_domain.gd': {
         commands: ['get_scene_tree', 'get_property', 'set_property', 'call_method', 'get_node_info', 'instantiate_scene', 'remove_node', 'change_scene', 'connect_signal', 'disconnect_signal', 'emit_signal', 'get_nodes_in_group', 'find_nodes_by_class', 'reparent_node', 'spawn_node', 'manage_group', 'list_signals', 'await_signal'],
         internals: ['_build_tree_node', '_find_by_class_recursive'],
