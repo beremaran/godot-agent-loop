@@ -22,7 +22,7 @@ The original godot-mcp provided 20 tools for basic project management and scene 
 
 - **.NET / C# support** - Scaffold C# projects and generate C# scripts (`create_project` with `dotnet: true`, `create_csharp_script`); the `.csproj` SDK version is matched to your installed Godot.
 - **GDScript diagnostics** - Validate scripts for syntax and type errors without running the game (`validate_script`, and `validate_scripts` for all git-changed or project-wide files).
-- **Correctness and robustness fixes** across the headless scene operations and the runtime interaction server (resource-typed properties now persist, reparenting works, runtime commands are correlated by request id, and the tools survive projects with warnings-as-errors). Requires Godot 4.4 or later; tested and working with the latest Godot **4.7**.
+- **Correctness and robustness fixes** across the headless scene operations and the runtime interaction server (resource-typed properties now persist, reparenting works, runtime commands are correlated by request id, and the tools survive projects with warnings-as-errors). Godot **4.7** is recommended; Godot 4.4 remains the tested compatibility floor.
 
 ### Runtime Code Execution
 
@@ -523,10 +523,20 @@ The original godot-mcp provided 20 tools for basic project management and scene 
 
 ## Requirements
 
-- [Godot Engine](https://godotengine.org/download) 4.4 or later (the headless operations script and UID features require 4.4+); tested and working with the latest Godot **4.7**
+- [Godot Engine](https://godotengine.org/download) 4.4 or later; the latest stable release, currently Godot **4.7**, is recommended
 - (Optional) [.NET SDK](https://dotnet.microsoft.com/download) 8.0+ and the Godot .NET (C#) build, only if you use `create_project`'s `dotnet: true` flag or `create_csharp_script`
 - [Node.js](https://nodejs.org/) >= 18.0.0
 - An AI assistant that supports MCP (Claude Code, Cline, Cursor, etc.)
+
+### Godot compatibility policy
+
+Development targets the latest stable Godot release. The project also keeps a
+tested compatibility floor while the same implementation remains cleanly
+portable; currently, CI covers Godot 4.4 and 4.7. The floor may be raised when
+it blocks useful features or creates meaningful maintenance cost. In that case,
+the last compatible release remains available, and an older-version maintenance
+branch will be created only when user demand justifies maintaining it. Such a
+branch would receive critical fixes rather than new features.
 
 ## Installation
 

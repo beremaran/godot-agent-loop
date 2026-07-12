@@ -11,8 +11,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 4.4-stable is the documented minimum supported release; 4.7-stable is
-        # the current one. Both shipped scripts must parse and behave on each.
+        # 4.4-stable is the tested compatibility floor; 4.7-stable is the
+        # primary development target. Both shipped scripts must work on each.
         godot-version: ["4.4-stable", "4.7-stable"]
     name: Godot ${{ matrix.godot-version }}
     steps:

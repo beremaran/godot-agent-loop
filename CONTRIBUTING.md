@@ -211,8 +211,12 @@ on `PATH`, or `GODOT_PATH`). It runs three suites, each also runnable on its own
   stdout payloads, and the files each operation leaves behind.
 - `npm run test:godot:runtime` drives the interaction server over loopback TCP.
 
-CI runs all three against the minimum supported Godot (4.4-stable) and the
-current release (4.7-stable).
+CI runs all three against the compatibility floor (4.4-stable) and the primary
+development target (4.7-stable). New code should prefer a single implementation
+that works on both. Do not introduce version-specific branches or compatibility
+paths preemptively; raise the floor when an older release blocks useful work or
+adds meaningful maintenance cost, and create a maintenance branch only in
+response to demonstrated user demand.
 
 ## Documentation
 
