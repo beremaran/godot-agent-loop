@@ -511,6 +511,8 @@ func _test_visual_shader() -> void:
 # --- Validated parameter helpers and standardized command failures ---
 func _test_parameter_validation() -> void:
 	var client: Client = await _open_client("params")
+	_check("core domain: server attaches the domain node as a child",
+		_server.get_node_or_null("core_domain") != null, _server.get_children())
 
 	client.send_request("p-missing", "godot.runtime.click", {"y": 10})
 	var message: Variant = await client.read_message()

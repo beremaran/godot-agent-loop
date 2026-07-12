@@ -68,3 +68,22 @@ func godot_error_data(err: int) -> Dictionary:
 func variant_to_json(value: Variant) -> Variant:
 	var encoded: Variant = _server._variant_to_json(value)
 	return encoded
+
+# Property-aware decoding remains owned by the shared codec until that boundary
+# is extracted into its own typed service.
+func json_to_variant(value: Variant, type_hint: String = "") -> Variant:
+	return _server._json_to_variant(value, type_hint)
+
+
+func json_to_variant_for_property(node: Node, property: String, value: Variant) -> Variant:
+	return _server._json_to_variant_for_property(node, property, value)
+
+
+# Async signal waits query cancellation and report timeout through transport
+# helpers without gaining access to sessions or request IDs.
+func cancellation_requested() -> bool:
+	return _server._is_active_request_cancelled()
+
+
+func respond_timeout(message: String, details: Dictionary = {}) -> void:
+	_server._send_timeout_response(message, details)
