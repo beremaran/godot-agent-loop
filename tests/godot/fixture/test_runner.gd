@@ -133,6 +133,7 @@ func _run() -> void:
 	await _test_scene_2d_domain()
 	await _test_physics_domain()
 	await _test_scene_3d_domain()
+	await _test_rendering_domain()
 
 	print("godot-runtime-integration: %d checks, %d failures" % [_checks, _failures])
 	quit(1 if _failures > 0 else 0)
@@ -369,7 +370,6 @@ func _test_disconnect_discards_response() -> void:
 
 	_check("disconnect: orphaned request finishes and frees the server", await _wait_for_idle_server())
 	await process_frame
-	await process_frame
 	_check("disconnect: orphaned response is discarded, not delivered to new session",
 		not second.has_pending_data())
 
@@ -378,6 +378,44 @@ func _test_disconnect_discards_response() -> void:
 	_check("disconnect: new session gets its own correlated response",
 		_message_id(message) == "after-orphan" and _result_of(message).get("success") == true, message)
 	second.close()
+
+
+# --- Rendering and environment domain ---
+func _test_rendering_domain() -> void:
+	var client: Client = await _open_client("rendering")
+	_check("rendering domain: server attaches the domain node as a child",
+		_server.get_node_or_null("rendering_domain") != null, _server.get_children())
+
+	client.send_request("render-env-set", "godot.runtime.environment",
+		{"action": "set", "background_color": {"r": 0.1, "g": 0.2, "b": 0.3, "a": 1.0}})
+	var message: Variant = await client.read_message()
+	_check("rendering domain: environment state persists across requests",
+		_message_id(message) == "render-env-set" and _result_of(message).get("success") == true, message)
+	client.send_request("render-env-get", "godot.runtime.environment", {"action": "get"})
+	message = await client.read_message()
+	var background: Dictionary = _result_of(message).get("background_color", {})
+	_check("rendering domain: environment get reads configured state",
+		is_equal_approx(float(background.get("r", -1.0)), 0.1), message)
+
+	client.send_request("render-debug", "godot.runtime.debug_draw",
+		{"action": "line", "from": {"x": 0, "y": 0, "z": 0}, "to": {"x": 1, "y": 0, "z": 0}})
+	message = await client.read_message()
+	client.send_request("render-clear", "godot.runtime.debug_draw", {"action": "clear"})
+	message = await client.read_message()
+	_check("rendering domain: debug draw owns state and clears across requests",
+		_result_of(message).get("success") == true and _result_of(message).get("action") == "clear", message)
+	client.send_request("render-action", "godot.runtime.debug_draw", {"action": "explode"})
+	message = await client.read_message()
+	_check("rendering domain: unknown action fails with the allowed action list",
+		_error_code(message) == -32000
+		and (_error_data(message).get("allowed") as Array).has("clear"), message)
+
+	client.send_request("render-after", "godot.runtime.wait", {"frames": 1})
+	message = await client.read_message()
+	_check("rendering domain: server keeps serving after domain commands",
+		_message_id(message) == "render-after" and _result_of(message).get("success") == true, message)
+
+	client.close()
 
 
 # --- Cooperative cancellation ---
