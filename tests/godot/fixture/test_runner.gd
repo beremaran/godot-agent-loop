@@ -119,6 +119,7 @@ func _run() -> void:
 	await process_frame
 
 	await _test_variant_codec()
+	await _test_privileged_policy()
 	await _test_handshake_and_id_correlation()
 	await _test_transport_errors()
 	await _test_limit_rejections()
@@ -156,6 +157,43 @@ func _open_client(name: String) -> Client:
 	var client: Client = Client.new(self)
 	_check("%s: client connects" % name, await client.open(PORT))
 	return client
+
+
+# Privileged runtime commands are opt-in even though the transport is
+# localhost-only and unauthenticated. The denial is checked before parameter
+# validation so request contents never appear in policy error responses.
+func _test_privileged_policy() -> void:
+	var client: Client = await _open_client("privileged-policy-disabled")
+	client.send_request("policy-hs", "godot.runtime.handshake", {"protocolVersion": "1.0"})
+	var message: Variant = await client.read_message()
+	var capabilities: Array = _result_of(message).get("capabilities", [])
+	_check("privileged policy: disabled by default", not capabilities.has("privileged-commands"), message)
+
+	var privileged_commands: Array[String] = ["eval", "get_property", "set_property", "call_method", "rpc", "script", "http_request", "websocket"]
+	for command: String in privileged_commands:
+		var params: Dictionary = {"code": "return 'project-secret'", "url": "https://project-secret.invalid", "source": "project-secret"}
+		client.send_request("policy-%s" % command, "godot.runtime.%s" % command, params)
+		message = await client.read_message()
+		_check("privileged policy: %s is denied" % command,
+			_error_code(message) == -32007 and _error_data(message).get("reason") == "privileged_command_disabled"
+			and str(message).find("project-secret") < 0, message)
+
+	client.send_request("policy-after-denial", "godot.runtime.wait", {"frames": 1})
+	message = await client.read_message()
+	_check("privileged policy: denial does not occupy the server", _message_id(message) == "policy-after-denial", message)
+	client.close()
+
+	_server.allow_privileged_commands = true
+	var enabled_client: Client = await _open_client("privileged-policy-enabled")
+	enabled_client.send_request("policy-enabled-hs", "godot.runtime.handshake", {"protocolVersion": "1.0"})
+	message = await enabled_client.read_message()
+	capabilities = _result_of(message).get("capabilities", [])
+	_check("privileged policy: opt-in capability is advertised", capabilities.has("privileged-commands"), message)
+	enabled_client.send_request("policy-enabled-eval", "godot.runtime.eval", {"code": "return 42"})
+	message = await enabled_client.read_message()
+	_check("privileged policy: opted-in eval remains available",
+		_error_code(message) == 0 and _result_of(message).get("result") == 42, message)
+	enabled_client.close()
 
 
 func _error_code(message: Variant) -> int:

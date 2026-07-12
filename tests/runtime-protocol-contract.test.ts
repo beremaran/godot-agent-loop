@@ -2,7 +2,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { CANCELLABLE_RUNTIME_COMMANDS, CANCEL_METHOD, HANDSHAKE_METHOD, RUNTIME_CAPABILITIES, RUNTIME_COMMANDS, RUNTIME_PROTOCOL_VERSION, commandMethod } from '../src/runtime-protocol.js';
+import { CANCELLABLE_RUNTIME_COMMANDS, CANCEL_METHOD, HANDSHAKE_METHOD, PRIVILEGED_RUNTIME_CAPABILITY, PRIVILEGED_RUNTIME_COMMANDS, RUNTIME_CAPABILITIES, RUNTIME_COMMANDS, RUNTIME_PROTOCOL_VERSION, commandMethod } from '../src/runtime-protocol.js';
 
 const root = join(fileURLToPath(new URL('..', import.meta.url)));
 
@@ -45,6 +45,23 @@ describe('runtime protocol contract', () => {
     for (const capability of RUNTIME_CAPABILITIES) expect(gdscript).toContain(`"${capability}"`);
     expect(schema['x-runtime-contract'].cancellation.method).toBe(CANCEL_METHOD);
     expect(schema['x-runtime-contract'].cancellation.cancellableCommands).toEqual([...CANCELLABLE_RUNTIME_COMMANDS]);
+  });
+
+  it('publishes and enforces the privileged-command policy', () => {
+    const schema = JSON.parse(readFileSync(join(root, 'docs/runtime-api.schema.json'), 'utf8'));
+    const policy = schema['x-runtime-contract'].privilegedCommandPolicy;
+    const server = readFileSync(join(root, 'src/scripts/mcp_interaction_server.gd'), 'utf8');
+    const policyScript = readFileSync(join(root, 'src/scripts/mcp_runtime/privileged_command_policy.gd'), 'utf8');
+
+    expect(policy.capability).toBe(PRIVILEGED_RUNTIME_CAPABILITY);
+    expect(policy.commands).toEqual([...PRIVILEGED_RUNTIME_COMMANDS]);
+    expect(policy.default).toBe('deny');
+    expect(policy.deniedErrorCode).toBe(-32007);
+    expect(server).toContain('@export var allow_privileged_commands: bool = false');
+    expect(server).toContain('ERROR_PRIVILEGED_COMMAND_DISABLED');
+    expect(server).toContain('_privileged_policy.denial_details(command)');
+    expect(policyScript).toContain('GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS');
+    expect(policyScript).toContain('"privileged_command_disabled"');
   });
 
   it('uses the contract namespace for every runtime command method', () => {

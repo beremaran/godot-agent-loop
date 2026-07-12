@@ -315,6 +315,7 @@ describe('GodotServer class tests', () => {
         connected: true,
         responseBuffer: '',
         pendingRequests: new Map(),
+        runtimeCapabilities: ['runtime-commands', 'godot-json-values', 'privileged-commands'],
         projectPath: '/fake/project',
         interactionServerInjectedByUs: true,
       });

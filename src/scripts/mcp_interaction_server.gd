@@ -11,6 +11,7 @@ extends Node
 
 const CommandParams = preload("res://mcp_runtime/command_params.gd")
 const VariantCodec = preload("res://mcp_runtime/variant_codec.gd")
+const PrivilegedCommandPolicy = preload("res://mcp_runtime/privileged_command_policy.gd")
 const DOMAIN_SCRIPTS: Array[String] = [
 	"res://mcp_runtime/input_domain.gd",
 	"res://mcp_runtime/ui_domain.gd",
@@ -51,11 +52,13 @@ class CommandDescriptor:
 	var command: String
 	var handler: Callable
 	var cancellable: bool
+	var privileged: bool
 
-	func _init(command_name: String, command_handler: Callable, is_cancellable: bool) -> void:
+	func _init(command_name: String, command_handler: Callable, is_cancellable: bool, is_privileged: bool) -> void:
 		command = command_name
 		handler = command_handler
 		cancellable = is_cancellable
+		privileged = is_privileged
 
 
 var _server: TCPServer
@@ -70,6 +73,12 @@ const CAPABILITIES: Array[String] = ["runtime-commands", "godot-json-values"]
 const METHOD_PREFIX: String = "godot.runtime."
 const CANCELLABLE_COMMANDS: Array[String] = ["wait", "await_signal"]
 const ERROR_LIMIT_EXCEEDED: int = -32006
+const ERROR_PRIVILEGED_COMMAND_DISABLED: int = PrivilegedCommandPolicy.ERROR_CODE
+
+# The interaction server binds only to loopback and has no authentication.
+# Keep commands that can execute code, invoke arbitrary APIs, mutate scripts,
+# call peers, or reach external hosts disabled unless explicitly enabled.
+@export var allow_privileged_commands: bool = false
 
 # These limits are exports so a project can tune its local developer runtime
 # without changing the protocol implementation. Values include JSON framing.
@@ -89,11 +98,13 @@ var _commands: Dictionary = {}
 # viewport exactly as the server does. Each owns its subsystem's state.
 var _domains: Array[Node] = []
 var _codec: VariantCodec
+var _privileged_policy: PrivilegedCommandPolicy
 
 func _ready() -> void:
 	# Ensure MCP server keeps processing even when game is paused
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_codec = VariantCodec.new(max_json_nesting_depth, max_json_collection_items)
+	_privileged_policy = PrivilegedCommandPolicy.new()
 	_register_domains()
 	_register_commands()
 	_server = TCPServer.new()
@@ -266,6 +277,14 @@ func _handle_command(session: RuntimeSession, json_str: String) -> void:
 	if descriptor == null:
 		_send_error(session, req_id, -32601, "Unknown method: %s" % method)
 		return
+	if descriptor.privileged and not _privileged_policy.is_enabled(allow_privileged_commands):
+		# Do not include params, source, property values, URLs, headers, or engine
+		# error text in this response. The command name and opt-in mechanism are
+		# safe policy metadata; request contents remain private to the caller.
+		_send_error(session, req_id, ERROR_PRIVILEGED_COMMAND_DISABLED,
+			"Privileged runtime command is disabled by policy",
+			_privileged_policy.denial_details(command))
+		return
 
 	if _active_session != null:
 		_send_error(session, req_id, -32001, "Server busy processing another command. Try again.")
@@ -283,7 +302,12 @@ func _handle_command(session: RuntimeSession, json_str: String) -> void:
 
 
 func _register_command(command: String, handler: Callable) -> void:
-	_commands[command] = CommandDescriptor.new(command, handler, CANCELLABLE_COMMANDS.has(command))
+	_commands[command] = CommandDescriptor.new(
+		command,
+		handler,
+		CANCELLABLE_COMMANDS.has(command),
+		_privileged_policy.is_privileged(command),
+	)
 
 
 # Instantiates each domain, attaches it to the tree, and lets it register its
@@ -324,7 +348,7 @@ func _handle_handshake(session: RuntimeSession, req_id: Variant, params: Diction
 		return
 	_send_response_raw(session, {"jsonrpc": "2.0", "id": req_id, "result": {
 		"protocolVersion": PROTOCOL_VERSION,
-		"capabilities": CAPABILITIES,
+		"capabilities": _privileged_policy.capabilities(CAPABILITIES, allow_privileged_commands),
 	}})
 
 

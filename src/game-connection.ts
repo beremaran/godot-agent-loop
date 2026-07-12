@@ -1,8 +1,8 @@
 import { createConnection, type Socket } from 'net';
-import { CANCEL_METHOD, HANDSHAKE_METHOD, RUNTIME_CAPABILITIES, RUNTIME_PROTOCOL_VERSION, commandMethod, isHandshakeResult, isJsonRpcResponse, isRuntimeCommand, type JsonRpcResponse } from './runtime-protocol.js';
+import { CANCEL_METHOD, HANDSHAKE_METHOD, PRIVILEGED_RUNTIME_CAPABILITY, PRIVILEGED_RUNTIME_COMMANDS, RUNTIME_CAPABILITIES, RUNTIME_PROTOCOL_VERSION, commandMethod, isHandshakeResult, isJsonRpcResponse, isRuntimeCommand, type JsonRpcResponse } from './runtime-protocol.js';
 
 export interface GameConnectionOptions {
-  port?: number; host?: string; initialDelayMs?: number; retryDelayMs?: number; maxAttempts?: number; log?: (message: string) => void;
+  port?: number; host?: string; initialDelayMs?: number; retryDelayMs?: number; maxAttempts?: number; log?: (message: string) => void; allowPrivilegedCommands?: boolean;
 }
 
 export type GameResponse = JsonRpcResponse;
@@ -24,6 +24,8 @@ export class GameConnection {
   private readonly retryDelayMs: number;
   private readonly maxAttempts: number;
   private readonly log: (message: string) => void;
+  private readonly allowPrivilegedCommands: boolean;
+  private runtimeCapabilities: string[] = [];
   private connectionGeneration = 0;
   private connectingSocket: Socket | null = null;
   private pendingDelay: { timer: ReturnType<typeof setTimeout>; resolve: (active: boolean) => void } | null = null;
@@ -35,6 +37,7 @@ export class GameConnection {
     this.retryDelayMs = options.retryDelayMs ?? 500;
     this.maxAttempts = options.maxAttempts ?? 10;
     this.log = options.log ?? (() => undefined);
+    this.allowPrivilegedCommands = options.allowPrivilegedCommands ?? false;
   }
 
   get interactionPort(): number { return this.port; }
@@ -81,7 +84,7 @@ export class GameConnection {
   }
 
   disconnect(): void {
-    this.connectionGeneration++; this.cancelPendingDelay(); this.destroySocket(); this.connected = false; this.responseBuffer = '';
+    this.connectionGeneration++; this.cancelPendingDelay(); this.destroySocket(); this.connected = false; this.responseBuffer = ''; this.runtimeCapabilities = [];
     this.rejectAllPending(this.connectionError(null, 'Disconnected'));
   }
 
@@ -100,6 +103,10 @@ export class GameConnection {
 
   async send(command: string, params: Record<string, unknown> = {}, timeoutMs = 10000): Promise<GameResponse> {
     if (!isRuntimeCommand(command)) throw new Error(`'${command}' is not a runtime command in the published contract`);
+    const isPrivileged = PRIVILEGED_RUNTIME_COMMANDS.includes(command as typeof PRIVILEGED_RUNTIME_COMMANDS[number]);
+    if (isPrivileged && !this.allowPrivilegedCommands && !this.runtimeCapabilities.includes(PRIVILEGED_RUNTIME_CAPABILITY)) {
+      throw new Error(`Privileged runtime command '${command}' is disabled. Set GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS=true to opt in.`);
+    }
     if (!this.connected || !this.socket) throw new Error('Not connected to game interaction server. Is the game running?');
     return this.request(commandMethod(command), params, timeoutMs);
   }
@@ -122,7 +129,7 @@ export class GameConnection {
     return new Promise((resolve, reject) => {
       const socket = createConnection({ host: this.host, port: this.port }, () => {
         if (!this.isCurrentGeneration(generation)) { socket.destroy(); resolve(false); return; }
-        this.connectingSocket = null; this.socket = socket; this.connected = true; this.responseBuffer = ''; this.pendingRequests.clear();
+        this.connectingSocket = null; this.socket = socket; this.connected = true; this.responseBuffer = ''; this.runtimeCapabilities = []; this.pendingRequests.clear();
         this.log(`Connected to game interaction server (attempt ${attempt})`);
         socket.on('data', data => { if (this.isCurrentSocket(socket, generation)) this.handleData(data); });
         socket.on('close', () => {
@@ -145,13 +152,19 @@ export class GameConnection {
   }
 
   private async negotiateProtocol(): Promise<void> {
-    const response = await this.request(HANDSHAKE_METHOD, { protocolVersion: RUNTIME_PROTOCOL_VERSION, capabilities: [...RUNTIME_CAPABILITIES] }, 5000);
+    const requestedCapabilities: string[] = [...RUNTIME_CAPABILITIES];
+    if (this.allowPrivilegedCommands) requestedCapabilities.push(PRIVILEGED_RUNTIME_CAPABILITY);
+    const response = await this.request(HANDSHAKE_METHOD, { protocolVersion: RUNTIME_PROTOCOL_VERSION, capabilities: requestedCapabilities }, 5000);
     if ('error' in response) throw new Error(response.error.message);
     if (!isHandshakeResult(response.result)) throw new Error('invalid handshake result');
     const handshake = response.result;
     if (handshake.protocolVersion !== RUNTIME_PROTOCOL_VERSION) throw new Error(`unsupported runtime protocol version ${handshake.protocolVersion}`);
     const missing = RUNTIME_CAPABILITIES.filter(capability => !handshake.capabilities.includes(capability));
     if (missing.length > 0) throw new Error(`runtime does not support ${missing.join(', ')}`);
+    if (this.allowPrivilegedCommands && !handshake.capabilities.includes(PRIVILEGED_RUNTIME_CAPABILITY)) {
+      throw new Error(`runtime does not support privileged runtime commands; enable ${PRIVILEGED_RUNTIME_CAPABILITY} in the Godot interaction server`);
+    }
+    this.runtimeCapabilities = handshake.capabilities;
   }
 
   private isCurrentGeneration(generation: number): boolean { return generation === this.connectionGeneration; }

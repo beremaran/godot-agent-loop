@@ -5,6 +5,17 @@ export const HANDSHAKE_METHOD = 'godot.runtime.handshake';
 export const COMMAND_METHOD_PREFIX = 'godot.runtime.';
 export const CANCEL_METHOD = 'godot.runtime.cancel';
 export const CANCELLABLE_RUNTIME_COMMANDS = ['wait', 'await_signal'] as const;
+export const PRIVILEGED_RUNTIME_CAPABILITY = 'privileged-commands' as const;
+export const PRIVILEGED_RUNTIME_COMMANDS = [
+  'call_method',
+  'eval',
+  'get_property',
+  'http_request',
+  'rpc',
+  'script',
+  'set_property',
+  'websocket',
+] as const;
 
 /**
  * Every runtime command in the published contract, sorted. The manifest of

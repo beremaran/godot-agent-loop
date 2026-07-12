@@ -4,7 +4,7 @@ import { GameConnection } from '../src/game-connection.js';
 
 const servers: Server[] = [];
 
-async function startServer(): Promise<{ server: Server; port: number; sockets: import('node:net').Socket[] }> {
+async function startServer(capabilities = ['runtime-commands', 'godot-json-values']): Promise<{ server: Server; port: number; sockets: import('node:net').Socket[] }> {
   const sockets: import('node:net').Socket[] = [];
   const server = createServer(socket => {
     sockets.push(socket);
@@ -16,7 +16,7 @@ async function startServer(): Promise<{ server: Server; port: number; sockets: i
         const request = JSON.parse(buffer.slice(0, newline));
         buffer = buffer.slice(newline + 1);
         if (request.method === 'godot.runtime.handshake') {
-          socket.write(`${JSON.stringify({ jsonrpc: '2.0', id: request.id, result: { protocolVersion: '1.0', capabilities: ['runtime-commands', 'godot-json-values'] } })}\n`);
+          socket.write(`${JSON.stringify({ jsonrpc: '2.0', id: request.id, result: { protocolVersion: '1.0', capabilities } })}\n`);
         } else {
           socket.write(`${JSON.stringify({ jsonrpc: '2.0', id: request.id, result: { success: true } })}\n`);
         }
@@ -119,6 +119,16 @@ describe('GameConnection lifecycle', () => {
     const response = await connection.send('click', { x: 10, y: 20 });
 
     expect(response).toEqual({ jsonrpc: '2.0', id: 2, result: { success: true } });
+    await expect(connection.send('eval', { code: 'return 1' })).rejects.toThrow('Privileged runtime command');
+    connection.disconnect();
+  });
+
+  it('negotiates and sends privileged commands only after explicit opt-in', async () => {
+    const { port } = await startServer(['runtime-commands', 'godot-json-values', 'privileged-commands']);
+    const connection = new GameConnection({ port, initialDelayMs: 0, allowPrivilegedCommands: true });
+
+    await connection.connect('/project', () => true);
+    await expect(connection.send('eval', { code: 'return 1' })).resolves.toEqual({ jsonrpc: '2.0', id: 2, result: { success: true } });
     connection.disconnect();
   });
 

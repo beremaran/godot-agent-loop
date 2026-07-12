@@ -599,6 +599,8 @@ To use the `game_*` runtime tools, your Godot project needs the MCP interaction 
 
 The server listens on `127.0.0.1:9090` and accepts JSON commands over TCP when the game is running.
 
+The runtime endpoint has no authentication. Commands that execute arbitrary GDScript, invoke arbitrary node properties or methods, mutate scripts, call multiplayer peers, or make HTTP/WebSocket connections are disabled by default. Enable them only for a trusted local developer workflow by setting `GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS=true`; the Godot script also exposes the equivalent `allow_privileged_commands` export. The client and runtime negotiate the `privileged-commands` capability before these commands can be sent. Policy denials do not echo request parameters, source, property values, URLs, headers, or engine error text.
+
 ## Environment Variables
 
 | Variable | Description |
@@ -606,6 +608,7 @@ The server listens on `127.0.0.1:9090` and accepts JSON commands over TCP when t
 | `GODOT_PATH` | Path to the Godot executable (overrides auto-detection) |
 | `DEBUG` | Set to `"true"` for detailed server-side logging |
 | `GODOT_MCP_ALLOWED_DIRS` | Optional. Restrict `run_project` to projects under these roots (`;`, `,`, or `:` separated). When unset, any project path is allowed. |
+| `GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS` | Optional, default `false`. Explicitly enable runtime `eval`, arbitrary property/method access, script control, RPC, HTTP, and WebSocket commands for a trusted localhost developer workflow. |
 
 ## Architecture
 

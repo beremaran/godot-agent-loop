@@ -37,6 +37,7 @@ import { ProjectSupport } from './project-support.js';
 
 // Check if debug mode is enabled
 const DEBUG_MODE: boolean = process.env.DEBUG === 'true';
+const ALLOW_PRIVILEGED_COMMANDS: boolean = process.env.GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS === 'true';
 
 const pathSecurity = new PathSecurity();
 
@@ -94,6 +95,7 @@ export class GodotServer {
   private strictPathValidation = false;
   private readonly tcpGameConnection = new GameConnection({
     port: 9090,
+    allowPrivilegedCommands: ALLOW_PRIVILEGED_COMMANDS,
     log: message => { this.logDebug(message); },
   });
   private get gameConnection(): GameConnection {
