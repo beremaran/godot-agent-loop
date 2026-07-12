@@ -1,5 +1,5 @@
 import { createConnection, type Socket } from 'net';
-import { HANDSHAKE_METHOD, RUNTIME_CAPABILITIES, RUNTIME_PROTOCOL_VERSION, commandMethod, isHandshakeResult, isJsonRpcResponse, type JsonRpcResponse } from './runtime-protocol.js';
+import { CANCEL_METHOD, HANDSHAKE_METHOD, RUNTIME_CAPABILITIES, RUNTIME_PROTOCOL_VERSION, commandMethod, isHandshakeResult, isJsonRpcResponse, type JsonRpcResponse } from './runtime-protocol.js';
 
 export interface GameConnectionOptions {
   port?: number; host?: string; initialDelayMs?: number; retryDelayMs?: number; maxAttempts?: number; log?: (message: string) => void;
@@ -107,7 +107,11 @@ export class GameConnection {
     const id = this.nextRequestId++;
     const payload = JSON.stringify({ jsonrpc: '2.0', method, params, id }) + '\n';
     return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => { this.pendingRequests.delete(id); reject(new Error(`Game request '${method}' timed out after ${timeoutMs / 1000}s`)); }, timeoutMs);
+      const timeout = setTimeout(() => {
+        if (!this.pendingRequests.delete(id)) return;
+        this.requestCancellation(id);
+        reject(new Error(`Game request '${method}' timed out after ${timeoutMs / 1000}s`));
+      }, timeoutMs);
       this.pendingRequests.set(id, response => { clearTimeout(timeout); resolve(response); });
       this.socket!.write(payload);
     });
@@ -163,6 +167,12 @@ export class GameConnection {
   private destroySocket(): void {
     const sockets = [this.socket, this.connectingSocket]; this.socket = null; this.connectingSocket = null;
     for (const socket of sockets) socket?.destroy();
+  }
+  /** Best-effort cooperative cancellation; servers acknowledge it separately. */
+  private requestCancellation(requestId: number): void {
+    if (!this.connected || !this.socket) return;
+    const id = this.nextRequestId++;
+    this.socket.write(`${JSON.stringify({ jsonrpc: '2.0', method: CANCEL_METHOD, params: { request_id: requestId }, id })}\n`);
   }
   private handleData(data: Buffer): void {
     this.responseBuffer += data.toString();

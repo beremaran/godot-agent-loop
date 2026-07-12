@@ -12,6 +12,9 @@ class RuntimeSession:
 	var connected: bool = true
 	var request_running: bool = false
 	var request_id: Variant = null
+	var request_command: String = ""
+	var request_state: String = "received"
+	var cancellation_requested: bool = false
 
 	func _init(session_id: int, session_peer: StreamPeerTCP) -> void:
 		id = session_id
@@ -28,6 +31,7 @@ const PORT: int = 9090
 const PROTOCOL_VERSION: String = "1.0"
 const CAPABILITIES: Array[String] = ["runtime-commands", "godot-json-values"]
 const METHOD_PREFIX: String = "godot.runtime."
+const CANCELLABLE_COMMANDS: Array[String] = ["wait", "await_signal"]
 var _key_map: Dictionary
 var _held_keys: Dictionary = {}
 
@@ -125,15 +129,21 @@ func _handle_command(session: RuntimeSession, json_str: String) -> void:
 	if not method.begins_with(METHOD_PREFIX):
 		_send_error(session, req_id, -32601, "Unknown method: %s" % method)
 		return
+	if method == "%scancel" % METHOD_PREFIX:
+		_handle_cancel(session, req_id, params)
+		return
 
 	if _active_session != null:
 		_send_error(session, req_id, -32001, "Server busy processing another command. Try again.")
 		return
 	session.request_running = true
 	session.request_id = req_id
+	session.request_command = method.trim_prefix(METHOD_PREFIX)
+	session.request_state = "running"
+	session.cancellation_requested = false
 	_active_session = session
 
-	var command: String = method.trim_prefix(METHOD_PREFIX)
+	var command: String = session.request_command
 
 	match command:
 		# Async commands (use await)
@@ -373,21 +383,62 @@ func _handle_handshake(session: RuntimeSession, req_id: Variant, params: Diction
 	}})
 
 
+# Cancellation is cooperative: only commands that regularly yield to the scene
+# tree can be cancelled safely. The original request receives -32003 when it
+# observes the cancellation; this acknowledgement is for the cancel request.
+func _handle_cancel(session: RuntimeSession, req_id: Variant, params: Dictionary) -> void:
+	var target_id: Variant = params.get("request_id", null)
+	if target_id == null:
+		_send_error(session, req_id, -32602, "request_id is required")
+		return
+	if _active_session == null or _active_session != session or not _active_session.request_running or _active_session.request_id != target_id:
+		_send_error(session, req_id, -32004, "Request is not running", {"request_id": target_id})
+		return
+	if not CANCELLABLE_COMMANDS.has(_active_session.request_command):
+		_send_error(session, req_id, -32005, "Request is not cancellable", {"request_id": target_id, "command": _active_session.request_command})
+		return
+	_active_session.cancellation_requested = true
+	_send_response_raw(session, {"jsonrpc": "2.0", "id": req_id, "result": {"cancelled": true, "request_id": target_id}})
+
+
 # Send the active request's response only through the session that received it.
 # Disconnected sessions retain their request state until this point, then their
 # response is intentionally discarded rather than sent to a later connection.
 func _send_response(data: Dictionary) -> void:
 	var session: RuntimeSession = _active_session
-	if session == null:
+	if session == null or not session.request_running:
 		return
 	_active_session = null
 	session.request_running = false
 	var id: Variant = session.request_id
 	session.request_id = null
-	if data.has("error"):
+	if session.cancellation_requested:
+		session.request_state = "cancelled"
+		_send_error(session, id, -32003, "Request cancelled", {"command": session.request_command})
+	elif data.has("error"):
+		session.request_state = "responded"
 		_send_error(session, id, -32000, str(data["error"]))
 	else:
+		session.request_state = "responded"
 		_send_response_raw(session, {"jsonrpc": "2.0", "id": id, "result": data})
+	session.request_command = ""
+	session.cancellation_requested = false
+	if not session.connected:
+		_sessions.erase(session.id)
+
+
+func _send_timeout_response(message: String, details: Dictionary = {}) -> void:
+	var session: RuntimeSession = _active_session
+	if session == null or not session.request_running:
+		return
+	_active_session = null
+	session.request_running = false
+	var id: Variant = session.request_id
+	session.request_id = null
+	session.request_state = "timed_out"
+	session.request_command = ""
+	session.cancellation_requested = false
+	_send_error(session, id, -32004, message, details)
 	if not session.connected:
 		_sessions.erase(session.id)
 
@@ -856,6 +907,9 @@ func _cmd_wait(params: Dictionary) -> void:
 			await get_tree().physics_frame
 		else:
 			await get_tree().process_frame
+		if _active_session != null and _active_session.cancellation_requested:
+			_send_response({})
+			return
 	_send_response({"success": true, "waited_frames": frames, "frame_type": "physics" if use_physics else "render"})
 
 
@@ -3063,12 +3117,17 @@ func _cmd_await_signal(params: Dictionary) -> void:
 	node.connect(signal_name, cb, CONNECT_ONE_SHOT)
 	while not result[0] and timer.time_left > 0:
 		await get_tree().process_frame
+		if _active_session != null and _active_session.cancellation_requested:
+			break
 	if node.is_connected(signal_name, cb):
 		node.disconnect(signal_name, cb)
+	if _active_session != null and _active_session.cancellation_requested:
+		_send_response({})
+		return
 	if result[0]:
 		_send_response({"success": true, "signal_name": signal_name, "received": true})
 	else:
-		_send_response({"success": true, "signal_name": signal_name, "received": false, "timeout": true})
+		_send_timeout_response("Signal wait timed out", {"command": "await_signal", "timeout_seconds": timeout})
 
 
 func _cmd_script(params: Dictionary) -> void:

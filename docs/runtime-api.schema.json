@@ -14,8 +14,10 @@
   },
   "x-runtime-contract": {
     "protocolVersion": "1.0", "capabilities": ["runtime-commands", "godot-json-values"],
-    "concurrency": "One command is processed at a time; concurrent commands receive -32001.",
-    "timeout": "Clients set per-request timeouts; the runtime clears a stuck busy state after 120 seconds.",
-    "errorCodes": { "-32700": "Parse error", "-32600": "Invalid request", "-32601": "Method not found", "-32602": "Invalid params", "-32001": "Server busy", "-32002": "Protocol version mismatch", "-32000": "Runtime command failed" }
+    "concurrency": "One command is processed at a time. A second command, including one from another session, receives -32001 and is not queued. Handshake and cancel are control requests and may be processed while a command is running.",
+    "lifecycle": "A command transitions received → running → responded, cancelled, or timed_out. Terminal states are exclusive: exactly one response is emitted for a connected session; a disconnected session's terminal response is discarded.",
+    "cancellation": { "method": "godot.runtime.cancel", "params": { "request_id": "The JSON-RPC id of the caller's active request." }, "cancellableCommands": ["wait", "await_signal"], "semantics": "Cancellation is cooperative. cancel returns an acknowledgement, then the original request terminates with -32003. Other commands return -32005 and continue running." },
+    "timeout": "await_signal has a runtime deadline from its timeout parameter and terminates with -32004. Client-side timeouts are local and issue a best-effort cancel request; non-cancellable commands continue until their normal terminal response or session disconnect.",
+    "errorCodes": { "-32700": "Parse error", "-32600": "Invalid request", "-32601": "Method not found", "-32602": "Invalid params", "-32001": "Server busy", "-32002": "Protocol version mismatch", "-32003": "Request cancelled", "-32004": "Request timed out or is not running", "-32005": "Request is not cancellable", "-32000": "Runtime command failed" }
   }
 }

@@ -121,4 +121,35 @@ describe('GameConnection lifecycle', () => {
     expect(response).toEqual({ jsonrpc: '2.0', id: 2, result: { success: true } });
     connection.disconnect();
   });
+
+  it('requests cooperative cancellation when a runtime request times out', async () => {
+    const methods: string[] = [];
+    const server = createServer(socket => {
+      let buffer = '';
+      socket.on('data', data => {
+        buffer += data.toString();
+        while (buffer.includes('\n')) {
+          const newline = buffer.indexOf('\n');
+          const request = JSON.parse(buffer.slice(0, newline));
+          buffer = buffer.slice(newline + 1);
+          methods.push(request.method);
+          if (request.method === 'godot.runtime.handshake') {
+            socket.write(`${JSON.stringify({ jsonrpc: '2.0', id: request.id, result: { protocolVersion: '1.0', capabilities: ['runtime-commands', 'godot-json-values'] } })}\n`);
+          }
+        }
+      });
+    });
+    servers.push(server);
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('Server did not bind to a port');
+    const connection = new GameConnection({ port: address.port, initialDelayMs: 0 });
+
+    await connection.connect('/project', () => true);
+    await expect(connection.send('wait', {}, 10)).rejects.toThrow('timed out');
+    await waitFor(() => methods.includes('godot.runtime.cancel'));
+
+    expect(methods).toEqual(['godot.runtime.handshake', 'godot.runtime.wait', 'godot.runtime.cancel']);
+    connection.disconnect();
+  });
 });

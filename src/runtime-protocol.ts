@@ -3,6 +3,8 @@ export const RUNTIME_PROTOCOL_VERSION = '1.0';
 export const RUNTIME_CAPABILITIES = ['runtime-commands', 'godot-json-values'] as const;
 export const HANDSHAKE_METHOD = 'godot.runtime.handshake';
 export const COMMAND_METHOD_PREFIX = 'godot.runtime.';
+export const CANCEL_METHOD = 'godot.runtime.cancel';
+export const CANCELLABLE_RUNTIME_COMMANDS = ['wait', 'await_signal'] as const;
 
 export type JsonRpcId = number | string;
 export interface JsonRpcRequest { jsonrpc: '2.0'; id: JsonRpcId; method: string; params?: Record<string, unknown>; }
