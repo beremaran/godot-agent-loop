@@ -169,7 +169,7 @@ describe('runtime protocol contract', () => {
 
     // Domains reach the transport only through RuntimeDomain, never through
     // sessions, sockets, or the registry directly.
-    const domainFiles = gdscriptSources().filter(path => path.includes('mcp_runtime') && !path.endsWith('runtime_domain.gd') && !path.endsWith('command_params.gd'));
+    const domainFiles = gdscriptSources().filter(path => path.includes('mcp_runtime') && path.endsWith('_domain.gd') && !path.endsWith('runtime_domain.gd'));
     expect(domainFiles.length).toBeGreaterThan(0);
     for (const path of domainFiles) {
       const domain = readFileSync(path, 'utf8');

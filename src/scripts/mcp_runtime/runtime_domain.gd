@@ -17,6 +17,7 @@ const CommandParams = preload("res://mcp_runtime/command_params.gd")
 
 var _server: Node
 var _registrar: Callable
+var _codec: RefCounted
 
 
 # Called by the composition root before register_commands(). `registrar` is the
@@ -25,6 +26,7 @@ var _registrar: Callable
 func setup(server: Node, registrar: Callable) -> void:
 	_server = server
 	_registrar = registrar
+	_codec = server._codec
 
 
 # Overridden by each domain to register its commands via register_command().
@@ -63,20 +65,20 @@ func godot_error_data(err: int) -> Dictionary:
 	return data
 
 
-# JSON-safe encoding of a Variant result value. Forwards to the server's codec
-# until the codec is extracted as its own boundary.
+# JSON-safe encoding and typed decoding are owned by the shared codec service.
 func variant_to_json(value: Variant) -> Variant:
-	var encoded: Variant = _server._variant_to_json(value)
+	_codec.configure(_server.max_json_nesting_depth, _server.max_json_collection_items)
+	var encoded: Variant = _codec.encode(value)
 	return encoded
 
-# Property-aware decoding remains owned by the shared codec until that boundary
-# is extracted into its own typed service.
 func json_to_variant(value: Variant, type_hint: String = "") -> Variant:
-	return _server._json_to_variant(value, type_hint)
+	_codec.configure(_server.max_json_nesting_depth, _server.max_json_collection_items)
+	return _codec.decode(value, type_hint)
 
 
 func json_to_variant_for_property(node: Node, property: String, value: Variant) -> Variant:
-	return _server._json_to_variant_for_property(node, property, value)
+	_codec.configure(_server.max_json_nesting_depth, _server.max_json_collection_items)
+	return _codec.decode_for_property(node, property, value)
 
 
 # Async signal waits query cancellation and report timeout through transport
