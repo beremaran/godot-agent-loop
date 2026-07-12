@@ -1,0 +1,31 @@
+name: Godot integration tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  runtime-integration:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 4.4-stable is the documented minimum supported Godot release.
+        godot-version: ["4.4-stable"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Godot ${{ matrix.godot-version }}
+        run: |
+          curl -sSL -o godot.zip \
+            "https://github.com/godotengine/godot-builds/releases/download/${{ matrix.godot-version }}/Godot_v${{ matrix.godot-version }}_linux.x86_64.zip"
+          unzip -q godot.zip
+          mkdir -p "$HOME/.local/bin"
+          mv "Godot_v${{ matrix.godot-version }}_linux.x86_64" "$HOME/.local/bin/godot"
+          chmod +x "$HOME/.local/bin/godot"
+          echo "GODOT_BIN=$HOME/.local/bin/godot" >> "$GITHUB_ENV"
+          "$HOME/.local/bin/godot" --version
+
+      - name: Run runtime server integration tests
+        run: tests/godot/run-integration-tests.sh

@@ -42,6 +42,7 @@
     "watch": "tsc --watch",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:godot": "tests/godot/run-integration-tests.sh",
     "lint": "eslint . && npm run lint:md",
     "lint:md": "markdownlint-cli2 \"**/*.md\" \"#node_modules\"",
     "lint:md:fix": "markdownlint-cli2 --fix \"**/*.md\" \"#node_modules\""

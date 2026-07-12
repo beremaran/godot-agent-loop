@@ -1,0 +1,10 @@
+; Fixture project for the runtime interaction server integration tests.
+; The shipped src/scripts/mcp_interaction_server.gd is copied in by
+; tests/godot/run-integration-tests.sh before every run.
+
+config_version=5
+
+[application]
+
+config/name="godot-mcp-runtime-fixture"
+config/features=PackedStringArray("4.4")

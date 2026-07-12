@@ -140,6 +140,19 @@ func _reject_and_close_session(session: RuntimeSession, message: String, details
 	session.buffer = PackedByteArray()
 	session.connected = false
 	if session.peer != null:
+		# Drain unread input first: closing a socket with pending received data
+		# sends a TCP RST, which would discard the queued error response before
+		# the client can read it. Drain is bounded so a flooding peer cannot
+		# keep this loop alive.
+		var drained: int = 0
+		session.peer.poll()
+		var pending: int = session.peer.get_available_bytes()
+		while pending > 0 and drained < max_receive_buffer_bytes:
+			var chunk: int = min(pending, max_receive_chunk_bytes)
+			session.peer.get_data(chunk)
+			drained += chunk
+			session.peer.poll()
+			pending = session.peer.get_available_bytes()
 		session.peer.disconnect_from_host()
 	if session != _active_session:
 		_sessions.erase(session.id)
