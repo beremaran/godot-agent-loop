@@ -136,7 +136,9 @@ vi.mock('fs', () => {
     }),
     mkdirSync: vi.fn(),
     copyFileSync: vi.fn(),
+    cpSync: vi.fn(),
     unlinkSync: vi.fn(),
+    rmSync: vi.fn(),
     renameSync: vi.fn(),
     chmodSync: vi.fn(),
   };

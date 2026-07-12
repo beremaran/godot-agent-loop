@@ -1,9 +1,11 @@
-import { copyFileSync, existsSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import { copyFileSync, cpSync, existsSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'fs';
+import { dirname, join } from 'path';
 import type { DebugLogger } from './godot-executable.js';
 
 const DEFAULT_AUTOLOAD_NAME = 'McpInteractionServer';
 const DESTINATION_SCRIPT_NAME = 'mcp_interaction_server.gd';
+/** Domain scripts the server preloads from res://; a missing copy fails the autoload at parse time. */
+const RUNTIME_DIR_NAME = 'mcp_runtime';
 
 export interface InteractionServerInstallerOptions {
   sourceScriptPath: string;
@@ -34,10 +36,14 @@ export class InteractionServerInstaller {
       } else {
         this.logDebug('Interaction server autoload and script already present; leaving project untouched');
       }
+      // The script is only useful with its domain scripts, so keep them in sync even
+      // when an existing installation is left in place.
+      this.syncRuntimeDir(projectPath);
       return false;
     }
 
     copyFileSync(this.options.sourceScriptPath, destinationScript);
+    this.syncRuntimeDir(projectPath);
     this.logDebug(`Copied interaction server script to ${destinationScript}`);
     const autoloadLine = `${this.autoloadName}="*res://${DESTINATION_SCRIPT_NAME}"`;
     const content = existingContent.includes('[autoload]')
@@ -74,6 +80,24 @@ export class InteractionServerInstaller {
       unlinkSync(uidFile);
       this.logDebug('Deleted interaction server .uid file');
     }
+
+    const runtimeDir = join(projectPath, RUNTIME_DIR_NAME);
+    if (existsSync(runtimeDir)) {
+      // Removes the domain scripts and any .uid files Godot generated beside them.
+      rmSync(runtimeDir, { recursive: true, force: true });
+      this.logDebug('Deleted interaction server domain scripts from project');
+    }
+  }
+
+  /** Copies the domain scripts the installed server preloads, overwriting stale copies. */
+  private syncRuntimeDir(projectPath: string): void {
+    const source = join(dirname(this.options.sourceScriptPath), RUNTIME_DIR_NAME);
+    if (!existsSync(source)) {
+      this.logDebug(`No ${RUNTIME_DIR_NAME} directory beside the source script; nothing to sync`);
+      return;
+    }
+    cpSync(source, join(projectPath, RUNTIME_DIR_NAME), { recursive: true });
+    this.logDebug(`Synced ${RUNTIME_DIR_NAME} domain scripts into ${projectPath}`);
   }
 }
 

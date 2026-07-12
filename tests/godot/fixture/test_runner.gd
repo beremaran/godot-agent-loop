@@ -2,8 +2,8 @@ extends SceneTree
 
 # Integration tests for mcp_interaction_server.gd over real loopback TCP.
 #
-# Run via tests/godot/run-integration-tests.sh, which copies the shipped
-# server script into this fixture and launches:
+# Run via tests/godot/run-integration-tests.sh, which copies the shipped server
+# script and its mcp_runtime domain scripts into this fixture and launches:
 #   godot --headless --path tests/godot/fixture --script res://test_runner.gd
 #
 # Covered transport/session behavior: handshake, response-ID correlation,
@@ -11,7 +11,9 @@ extends SceneTree
 # two concurrent clients and busy rejection, disconnect during an awaited
 # command, cooperative cancellation, await_signal timeout, the oversized
 # response fallback, and validated-parameter failures with structured error
-# details. Exit code is 0 only when every check passes.
+# details. Also covers the domain split: commands owned by a domain script
+# dispatch, await, hold state, and fail through the same registry and session.
+# Exit code is 0 only when every check passes.
 
 const PORT: int = 9090
 const READ_TIMEOUT_MS: int = 10000
@@ -126,6 +128,7 @@ func _run() -> void:
 	await _test_oversized_response()
 	await _test_visual_shader()
 	await _test_parameter_validation()
+	await _test_input_domain()
 
 	print("godot-runtime-integration: %d checks, %d failures" % [_checks, _failures])
 	quit(1 if _failures > 0 else 0)
@@ -567,4 +570,79 @@ func _test_parameter_validation() -> void:
 	message = await client.read_message()
 	_check("params: server serves normal requests after validation failures",
 		_message_id(message) == "p-after" and _result_of(message).get("success") == true, message)
+	client.close()
+
+
+# --- Input domain ---
+# The input commands live in res://mcp_runtime/input_domain.gd rather than on the
+# server. These checks assert the behavior survived the move: the domain is
+# reachable through the same registry, its awaited handlers still resume and
+# respond on the requesting session, and the held-key state it now owns is
+# observable across separate requests.
+func _test_input_domain() -> void:
+	var client: Client = await _open_client("input")
+
+	_check("input domain: server attaches the domain node as a child",
+		_server.get_node_or_null("input_domain") != null, _server.get_children())
+
+	client.send_request("in-click", "godot.runtime.click", {"x": 12, "y": 34})
+	var message: Variant = await client.read_message()
+	_check("input domain: awaited click responds on the requesting session",
+		_message_id(message) == "in-click" and _result_of(message).get("success") == true
+		and (_result_of(message).get("clicked") as Dictionary).get("x") == 12, message)
+
+	client.send_request("in-add", "godot.runtime.input_action",
+		{"action": "add_action", "action_name": "mcp_test_action"})
+	message = await client.read_message()
+	_check("input domain: add_action registers a Godot input action",
+		_result_of(message).get("success") == true and InputMap.has_action("mcp_test_action"), message)
+
+	client.send_request("in-list", "godot.runtime.input_action", {"action": "list"})
+	message = await client.read_message()
+	_check("input domain: list reports the registered action",
+		(_result_of(message).get("actions") as Array).has("mcp_test_action"), message)
+
+	# Held state lives in the domain now; it must persist between requests.
+	client.send_request("in-hold", "godot.runtime.key_hold", {"action": "mcp_test_action"})
+	message = await client.read_message()
+	_check("input domain: key_hold keeps the action pressed after responding",
+		_result_of(message).get("held") == "mcp_test_action"
+		and Input.is_action_pressed("mcp_test_action"), message)
+
+	client.send_request("in-release", "godot.runtime.key_release", {"action": "mcp_test_action"})
+	message = await client.read_message()
+	_check("input domain: key_release clears the held action",
+		_result_of(message).get("released") == "mcp_test_action"
+		and not Input.is_action_pressed("mcp_test_action"), message)
+
+	client.send_request("in-remove", "godot.runtime.input_action",
+		{"action": "remove_action", "action_name": "mcp_test_action"})
+	message = await client.read_message()
+	_check("input domain: remove_action erases the input action",
+		_result_of(message).get("success") == true and not InputMap.has_action("mcp_test_action"), message)
+
+	# A multi-frame awaited handler inside a domain must still produce exactly one
+	# response, correlated to its own request.
+	client.send_request("in-drag", "godot.runtime.mouse_drag",
+		{"from_x": 0, "from_y": 0, "to_x": 40, "to_y": 20, "steps": 3})
+	message = await client.read_message()
+	_check("input domain: multi-frame mouse_drag responds once with its own id",
+		_message_id(message) == "in-drag" and _result_of(message).get("steps") == 3
+		and (_result_of(message).get("to") as Dictionary).get("x") == 40, message)
+
+	client.send_request("in-state", "godot.runtime.input_state", {"action": "query"})
+	message = await client.read_message()
+	_check("input domain: input_state query reports mouse position",
+		_result_of(message).get("success") == true
+		and (_result_of(message).get("mouse_position") as Dictionary).has("x"), message)
+
+	client.send_request("in-bad", "godot.runtime.touch", {"action": "hover"})
+	message = await client.read_message()
+	_check("input domain: domain handlers still fail with standardized -32000 errors",
+		_error_code(message) == -32000 and _error_data(message).get("reason") == "invalid_value", message)
+
+	client.send_request("in-after", "godot.runtime.wait", {"frames": 1})
+	message = await client.read_message()
+	_check("input domain: server keeps serving after domain commands",
+		_message_id(message) == "in-after" and _result_of(message).get("success") == true, message)
 	client.close()

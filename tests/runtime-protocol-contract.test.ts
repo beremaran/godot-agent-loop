@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -11,9 +11,20 @@ function schemaCommands(): string[] {
   return schema['x-runtime-contract'].commands as string[];
 }
 
+/** Every .gd file that can register commands: the composition root plus each domain script. */
+function gdscriptSources(): string[] {
+  const runtimeDir = join(root, 'src/scripts/mcp_runtime');
+  const domains = readdirSync(runtimeDir)
+    .filter(file => file.endsWith('.gd'))
+    .map(file => join(runtimeDir, file));
+  return [join(root, 'src/scripts/mcp_interaction_server.gd'), ...domains];
+}
+
 function gdscriptRegisteredCommands(): string[] {
-  const gdscript = readFileSync(join(root, 'src/scripts/mcp_interaction_server.gd'), 'utf8');
-  return [...gdscript.matchAll(/_register_command\("([^"]*)"/g)].map(match => match[1]);
+  // Matches the server's _register_command("x", ...) and a domain's register_command("x", ...).
+  return gdscriptSources().flatMap(path =>
+    [...readFileSync(path, 'utf8').matchAll(/register_command\("([^"]*)"/g)].map(match => match[1])
+  );
 }
 
 function typescriptSentCommands(): string[] {
@@ -95,6 +106,53 @@ describe('runtime protocol contract', () => {
     // transport envelope wrapping an application-level error string.
     expect(gdscript).not.toContain('"Unknown command:');
     expect(gdscript).not.toContain('match command:');
+  });
+
+  it('owns subsystem handlers in domain scripts, not in the composition root', () => {
+    const server = readFileSync(join(root, 'src/scripts/mcp_interaction_server.gd'), 'utf8');
+    const inputDomain = readFileSync(join(root, 'src/scripts/mcp_runtime/input_domain.gd'), 'utf8');
+
+    // The input domain owns its commands and the input state that used to sit on the server.
+    for (const command of ['click', 'key_press', 'key_hold', 'key_release', 'scroll', 'mouse_move', 'mouse_drag', 'gamepad', 'touch', 'input_state', 'input_action']) {
+      expect(inputDomain).toContain(`register_command("${command}"`);
+      expect(server).not.toContain(`_cmd_${command}(`);
+    }
+    for (const state of ['_held_keys', '_key_map', '_string_to_keycode']) {
+      expect(inputDomain).toContain(state);
+      expect(server).not.toContain(state);
+    }
+
+    // Domains reach the transport only through RuntimeDomain, never through
+    // sessions, sockets, or the registry directly.
+    const domainFiles = gdscriptSources().filter(path => path.includes('mcp_runtime') && !path.endsWith('runtime_domain.gd') && !path.endsWith('command_params.gd'));
+    expect(domainFiles.length).toBeGreaterThan(0);
+    for (const path of domainFiles) {
+      const domain = readFileSync(path, 'utf8');
+      expect(domain).toContain('extends "res://mcp_runtime/runtime_domain.gd"');
+      for (const internal of ['_sessions', '_active_session', '_send_response_raw', 'StreamPeerTCP', '_commands[']) {
+        expect(domain).not.toContain(internal);
+      }
+    }
+  });
+
+  it('resolves every res:// script path the runtime preloads', () => {
+    // A preload or DOMAIN_SCRIPTS path that does not exist in the installed layout
+    // fails the autoload at parse time, so the paths are checked against disk.
+    for (const path of gdscriptSources()) {
+      const source = readFileSync(path, 'utf8');
+      const referenced = [...source.matchAll(/"(res:\/\/mcp_runtime\/[^"]+\.gd)"/g)].map(match => match[1]);
+      for (const reference of referenced) {
+        const onDisk = join(root, 'src/scripts', reference.replace('res://', ''));
+        expect(existsSync(onDisk), `${path} references missing ${reference}`).toBe(true);
+      }
+    }
+    // The server must load every domain script that exists.
+    const server = readFileSync(join(root, 'src/scripts/mcp_interaction_server.gd'), 'utf8');
+    const domains = readdirSync(join(root, 'src/scripts/mcp_runtime'))
+      .filter(file => file.endsWith('_domain.gd') && file !== 'runtime_domain.gd');
+    for (const domain of domains) {
+      expect(server).toContain(`"res://mcp_runtime/${domain}"`);
+    }
   });
 
   it('documents and enforces bounded runtime transport payloads', () => {

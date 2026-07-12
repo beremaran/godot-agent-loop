@@ -26,6 +26,13 @@ try {
     path.join(__dirname, '..', 'build', 'scripts', 'mcp_interaction_server.gd')
   );
 
+  // Copy the mcp_runtime domain scripts the interaction server preloads
+  fs.cpSync(
+    path.join(__dirname, '..', 'src', 'scripts', 'mcp_runtime'),
+    path.join(__dirname, '..', 'build', 'scripts', 'mcp_runtime'),
+    { recursive: true }
+  );
+
   console.log('Successfully copied scripts to build/scripts');
 } catch (error) {
   console.error('Error copying scripts:', error);

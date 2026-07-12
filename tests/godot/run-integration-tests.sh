@@ -34,6 +34,10 @@ fi
 
 echo "Using Godot: $GODOT ($("$GODOT" --version | tail -n 1))"
 
+# Mirror the installed layout: the server plus the mcp_runtime domain scripts it
+# preloads from res://.
 cp "$ROOT_DIR/src/scripts/mcp_interaction_server.gd" "$FIXTURE_DIR/mcp_interaction_server.gd"
+rm -rf "$FIXTURE_DIR/mcp_runtime"
+cp -R "$ROOT_DIR/src/scripts/mcp_runtime" "$FIXTURE_DIR/mcp_runtime"
 
 exec "$GODOT" --headless --path "$FIXTURE_DIR" --script res://test_runner.gd
