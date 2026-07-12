@@ -8,7 +8,7 @@ class RuntimeSession:
 
 	var id: int
 	var peer: StreamPeerTCP
-	var buffer: String = ""
+	var buffer: PackedByteArray = PackedByteArray()
 	var connected: bool = true
 	var request_running: bool = false
 	var request_id: Variant = null
@@ -32,6 +32,18 @@ const PROTOCOL_VERSION: String = "1.0"
 const CAPABILITIES: Array[String] = ["runtime-commands", "godot-json-values"]
 const METHOD_PREFIX: String = "godot.runtime."
 const CANCELLABLE_COMMANDS: Array[String] = ["wait", "await_signal"]
+const ERROR_LIMIT_EXCEEDED: int = -32006
+
+# These limits are exports so a project can tune its local developer runtime
+# without changing the protocol implementation. Values include JSON framing.
+@export var max_request_line_bytes: int = 1 * 1024 * 1024
+@export var max_receive_buffer_bytes: int = 2 * 1024 * 1024
+@export var max_receive_chunk_bytes: int = 64 * 1024
+@export var max_json_nesting_depth: int = 32
+@export var max_json_collection_items: int = 1024
+@export var max_response_bytes: int = 8 * 1024 * 1024
+@export var max_screenshot_pixels: int = 16 * 1024 * 1024
+@export var max_screenshot_png_bytes: int = 6 * 1024 * 1024
 var _key_map: Dictionary
 var _held_keys: Dictionary = {}
 
@@ -78,7 +90,7 @@ func _poll_session(session: RuntimeSession) -> void:
 	var status: int = session.peer.get_status()
 	if status == StreamPeerTCP.STATUS_ERROR or status == StreamPeerTCP.STATUS_NONE:
 		session.connected = false
-		session.buffer = ""
+		session.buffer = PackedByteArray()
 		print("McpInteractionServer: Client disconnected (session %d)" % session.id)
 		return
 
@@ -87,18 +99,72 @@ func _poll_session(session: RuntimeSession) -> void:
 
 	var available: int = session.peer.get_available_bytes()
 	if available > 0:
-		var data: Array = session.peer.get_data(available)
+		var remaining_capacity: int = max_receive_buffer_bytes - session.buffer.size()
+		if remaining_capacity <= 0:
+			_reject_and_close_session(session, "Receive buffer exceeds the configured limit", {"limit_bytes": max_receive_buffer_bytes})
+			return
+		var bytes_to_read: int = min(available, min(max_receive_chunk_bytes, remaining_capacity))
+		var data: Array = session.peer.get_data(bytes_to_read)
 		if data[0] == OK:
 			var bytes: PackedByteArray = data[1]
-			session.buffer += bytes.get_string_from_utf8()
+			session.buffer.append_array(bytes)
 
 			# Process complete lines (newline-delimited JSON)
-			while session.buffer.find("\n") >= 0:
-				var newline_pos: int = session.buffer.find("\n")
-				var line: String = session.buffer.substr(0, newline_pos).strip_edges()
-				session.buffer = session.buffer.substr(newline_pos + 1)
-				if line.length() > 0:
+			while true:
+				var newline_pos: int = session.buffer.find(10)
+				if newline_pos < 0:
+					break
+				var line_bytes: PackedByteArray = session.buffer.slice(0, newline_pos)
+				session.buffer = session.buffer.slice(newline_pos + 1)
+				if line_bytes.size() > max_request_line_bytes:
+					_reject_and_close_session(session, "Request line exceeds the configured limit", {"limit_bytes": max_request_line_bytes})
+					return
+				if line_bytes.size() == 0:
+					continue
+				var line: String = line_bytes.get_string_from_utf8()
+				if line.to_utf8_buffer() != line_bytes:
+					_reject_and_close_session(session, "Request line is not valid UTF-8")
+					return
+				line = line.strip_edges()
+				if not line.is_empty():
 					_handle_command(session, line)
+					if not session.connected:
+						return
+
+			if session.buffer.size() > max_request_line_bytes:
+				_reject_and_close_session(session, "Request line exceeds the configured limit", {"limit_bytes": max_request_line_bytes})
+
+
+func _reject_and_close_session(session: RuntimeSession, message: String, details: Dictionary = {}) -> void:
+	_send_error(session, null, ERROR_LIMIT_EXCEEDED, message, details)
+	session.buffer = PackedByteArray()
+	session.connected = false
+	if session.peer != null:
+		session.peer.disconnect_from_host()
+	if session != _active_session:
+		_sessions.erase(session.id)
+
+
+func _validate_json_limits(value: Variant, depth: int = 0) -> String:
+	if depth > max_json_nesting_depth:
+		return "JSON nesting exceeds the configured limit of %d" % max_json_nesting_depth
+	if value is Array:
+		var array_value: Array = value
+		if array_value.size() > max_json_collection_items:
+			return "JSON array exceeds the configured limit of %d items" % max_json_collection_items
+		for item: Variant in array_value:
+			var array_error: String = _validate_json_limits(item, depth + 1)
+			if not array_error.is_empty():
+				return array_error
+	elif value is Dictionary:
+		var dictionary_value: Dictionary = value
+		if dictionary_value.size() > max_json_collection_items:
+			return "JSON object exceeds the configured limit of %d properties" % max_json_collection_items
+		for key: Variant in dictionary_value:
+			var dictionary_error: String = _validate_json_limits(dictionary_value[key], depth + 1)
+			if not dictionary_error.is_empty():
+				return dictionary_error
+	return ""
 
 
 func _handle_command(session: RuntimeSession, json_str: String) -> void:
@@ -111,6 +177,10 @@ func _handle_command(session: RuntimeSession, json_str: String) -> void:
 	var data: Variant = json.data
 	if not data is Dictionary:
 		_send_error(session, null, -32600, "Expected JSON-RPC request object")
+		return
+	var limits_error: String = _validate_json_limits(data)
+	if not limits_error.is_empty():
+		_reject_and_close_session(session, limits_error, {"max_depth": max_json_nesting_depth, "max_collection_items": max_json_collection_items})
 		return
 
 	var req_id: Variant = data.get("id", null)
@@ -443,12 +513,43 @@ func _send_timeout_response(message: String, details: Dictionary = {}) -> void:
 		_sessions.erase(session.id)
 
 
+func _send_limit_response(message: String, details: Dictionary = {}) -> void:
+	var session: RuntimeSession = _active_session
+	if session == null or not session.request_running:
+		return
+	_active_session = null
+	session.request_running = false
+	var id: Variant = session.request_id
+	session.request_id = null
+	session.request_state = "responded"
+	session.request_command = ""
+	session.cancellation_requested = false
+	_send_error(session, id, ERROR_LIMIT_EXCEEDED, message, details)
+	if not session.connected:
+		_sessions.erase(session.id)
+
+
 # Send response without clearing busy flag (used when rejecting during busy state)
 func _send_response_raw(session: RuntimeSession, data: Dictionary) -> void:
 	if not session.connected or session.peer == null:
 		return
 	var json_str: String = JSON.stringify(data) + "\n"
 	var bytes: PackedByteArray = json_str.to_utf8_buffer()
+	if bytes.size() > max_response_bytes:
+		var fallback: Dictionary = {
+			"jsonrpc": "2.0",
+			"id": data.get("id", null),
+			"error": {
+				"code": ERROR_LIMIT_EXCEEDED,
+				"message": "Response exceeds the configured limit",
+				"data": {"limit_bytes": max_response_bytes},
+			},
+		}
+		bytes = (JSON.stringify(fallback) + "\n").to_utf8_buffer()
+		if bytes.size() > max_response_bytes:
+			session.connected = false
+			session.peer.disconnect_from_host()
+			return
 	session.peer.put_data(bytes)
 
 
@@ -463,11 +564,19 @@ func _send_error(session: RuntimeSession, id: Variant, code: int, message: Strin
 func _cmd_screenshot() -> void:
 	# Wait one frame so the viewport is fully rendered
 	await get_tree().process_frame
-	var image: Image = get_viewport().get_texture().get_image()
+	var viewport: Viewport = get_viewport()
+	var viewport_size: Vector2i = viewport.get_visible_rect().size
+	if viewport_size.x <= 0 or viewport_size.y <= 0 or viewport_size.x * viewport_size.y > max_screenshot_pixels:
+		_send_limit_response("Screenshot dimensions exceed the configured limit", {"max_pixels": max_screenshot_pixels})
+		return
+	var image: Image = viewport.get_texture().get_image()
 	if image == null:
 		_send_response({"error": "Failed to capture screenshot"})
 		return
 	var png_buffer: PackedByteArray = image.save_png_to_buffer()
+	if png_buffer.size() > max_screenshot_png_bytes:
+		_send_limit_response("Screenshot payload exceeds the configured limit", {"limit_bytes": max_screenshot_png_bytes})
+		return
 	var base64_str: String = Marshalls.raw_to_base64(png_buffer)
 	_send_response({
 		"success": true,

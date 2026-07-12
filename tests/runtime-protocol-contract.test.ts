@@ -38,4 +38,22 @@ describe('runtime protocol contract', () => {
     expect(gdscript).toContain('var request_state: String = "received"');
     expect(gdscript).toContain('const CANCELLABLE_COMMANDS: Array[String] = ["wait", "await_signal"]');
   });
+
+  it('documents and enforces bounded runtime transport payloads', () => {
+    const schema = JSON.parse(readFileSync(join(root, 'docs/runtime-api.schema.json'), 'utf8'));
+    const gdscript = readFileSync(join(root, 'src/scripts/mcp_interaction_server.gd'), 'utf8');
+
+    expect(schema['x-runtime-contract'].limits).toMatchObject({
+      requestLineBytes: 1024 * 1024,
+      receiveBufferBytes: 2 * 1024 * 1024,
+      responseBytes: 8 * 1024 * 1024,
+      screenshotPngBytes: 6 * 1024 * 1024,
+    });
+    expect(schema['x-runtime-contract'].errorCodes['-32006']).toContain('limit');
+    expect(gdscript).toContain('@export var max_request_line_bytes: int = 1 * 1024 * 1024');
+    expect(gdscript).toContain('@export var max_response_bytes: int = 8 * 1024 * 1024');
+    expect(gdscript).toContain('func _validate_json_limits(');
+    expect(gdscript).toContain('line.to_utf8_buffer() != line_bytes');
+    expect(gdscript).toContain('max_screenshot_png_bytes');
+  });
 });
