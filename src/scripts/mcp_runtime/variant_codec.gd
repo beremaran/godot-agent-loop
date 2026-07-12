@@ -31,6 +31,7 @@ func take_error() -> Dictionary:
 
 
 func encode(value: Variant) -> Variant:
+	_last_error = {}
 	return _encode(value, 0, [])
 
 
@@ -55,13 +56,33 @@ func _encode(value: Variant, depth: int, ancestors: Array) -> Variant:
 	if value is Quaternion:
 		return {"x": value.x, "y": value.y, "z": value.z, "w": value.w}
 	if value is Basis:
-		return {"x": _encode(value.x, depth + 1, ancestors), "y": _encode(value.y, depth + 1, ancestors), "z": _encode(value.z, depth + 1, ancestors)}
+		var basis_x: Variant = _encode_child(value.x, depth + 1, ancestors)
+		if not _last_error.is_empty(): return null
+		var basis_y: Variant = _encode_child(value.y, depth + 1, ancestors)
+		if not _last_error.is_empty(): return null
+		var basis_z: Variant = _encode_child(value.z, depth + 1, ancestors)
+		if not _last_error.is_empty(): return null
+		return {"x": basis_x, "y": basis_y, "z": basis_z}
 	if value is Transform3D:
-		return {"basis": _encode(value.basis, depth + 1, ancestors), "origin": _encode(value.origin, depth + 1, ancestors)}
+		var basis: Variant = _encode_child(value.basis, depth + 1, ancestors)
+		if not _last_error.is_empty(): return null
+		var origin: Variant = _encode_child(value.origin, depth + 1, ancestors)
+		if not _last_error.is_empty(): return null
+		return {"basis": basis, "origin": origin}
 	if value is Transform2D:
-		return {"x": _encode(value.x, depth + 1, ancestors), "y": _encode(value.y, depth + 1, ancestors), "origin": _encode(value.origin, depth + 1, ancestors)}
+		var x_axis: Variant = _encode_child(value.x, depth + 1, ancestors)
+		if not _last_error.is_empty(): return null
+		var y_axis: Variant = _encode_child(value.y, depth + 1, ancestors)
+		if not _last_error.is_empty(): return null
+		var transform_origin: Variant = _encode_child(value.origin, depth + 1, ancestors)
+		if not _last_error.is_empty(): return null
+		return {"x": x_axis, "y": y_axis, "origin": transform_origin}
 	if value is Rect2 or value is AABB:
-		return {"position": _encode(value.position, depth + 1, ancestors), "size": _encode(value.size, depth + 1, ancestors)}
+		var position: Variant = _encode_child(value.position, depth + 1, ancestors)
+		if not _last_error.is_empty(): return null
+		var size: Variant = _encode_child(value.size, depth + 1, ancestors)
+		if not _last_error.is_empty(): return null
+		return {"position": position, "size": size}
 	if value is NodePath or value is StringName:
 		return str(value)
 	if value is PackedByteArray or value is PackedInt32Array or value is PackedInt64Array or value is PackedFloat32Array or value is PackedFloat64Array or value is PackedStringArray:
@@ -73,7 +94,8 @@ func _encode(value: Variant, depth: int, ancestors: Array) -> Variant:
 			return _fail("codec_collection_exceeded", "Packed array exceeds the configured limit", {"max_collection_items": max_collection_items})
 		var packed_result: Array = []
 		for item: Variant in value:
-			packed_result.append(_encode(item, depth + 1, ancestors))
+			packed_result.append(_encode_child(item, depth + 1, ancestors))
+			if not _last_error.is_empty(): return null
 		return packed_result
 	if value is Array or value is Dictionary:
 		for ancestor: Variant in ancestors:
@@ -86,11 +108,13 @@ func _encode(value: Variant, depth: int, ancestors: Array) -> Variant:
 		if value is Array:
 			var array_result: Array = []
 			for item: Variant in value:
-				array_result.append(_encode(item, depth + 1, next_ancestors))
+				array_result.append(_encode_child(item, depth + 1, next_ancestors))
+				if not _last_error.is_empty(): return null
 			return array_result
 		var dictionary_result: Dictionary = {}
 		for key: Variant in value:
-			dictionary_result[str(key)] = _encode(value[key], depth + 1, next_ancestors)
+			dictionary_result[str(key)] = _encode_child(value[key], depth + 1, next_ancestors)
+			if not _last_error.is_empty(): return null
 		return dictionary_result
 	if value is Node:
 		return {"_type": "Node", "class": value.get_class(), "name": value.name, "path": str(value.get_path())}
@@ -101,7 +125,13 @@ func _encode(value: Variant, depth: int, ancestors: Array) -> Variant:
 	return _fail("unsupported_variant", "Variant type is not supported by the runtime codec", {"variant_type": type_string(typeof(value))})
 
 
+func _encode_child(value: Variant, depth: int, ancestors: Array) -> Variant:
+	var encoded: Variant = _encode(value, depth, ancestors)
+	return null if not _last_error.is_empty() else encoded
+
+
 func decode(value: Variant, type_hint: String = "") -> Variant:
+	_last_error = {}
 	if not type_hint in SUPPORTED_TYPE_HINTS:
 		return _fail("invalid_type_hint", "Unknown Variant type hint", {"type_hint": type_hint, "allowed": SUPPORTED_TYPE_HINTS})
 	return _decode(value, type_hint, 0)

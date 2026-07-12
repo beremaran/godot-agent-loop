@@ -118,6 +118,7 @@ func _run() -> void:
 	await process_frame
 	await process_frame
 
+	await _test_variant_codec()
 	await _test_handshake_and_id_correlation()
 	await _test_transport_errors()
 	await _test_limit_rejections()
@@ -197,6 +198,191 @@ func _wait_for_idle_server(timeout_ms: int = READ_TIMEOUT_MS) -> bool:
 			return true
 		await process_frame
 	return false
+
+
+# --- Variant codec corpus ---
+# This suite consumes the same JSON corpus as the TypeScript contract test. It
+# exercises the codec directly so every supported Variant category has both a
+# stable wire representation and a typed decode round-trip, while failures are
+# checked for their structured reason rather than an incidental error string.
+func _test_variant_codec() -> void:
+	var corpus_path: String = "res://variant-codec-corpus.json"
+	if not FileAccess.file_exists(corpus_path):
+		_check("variant codec: shared corpus is installed", false, corpus_path)
+		return
+	var corpus: Variant = JSON.parse_string(FileAccess.get_file_as_string(corpus_path))
+	if not corpus is Dictionary:
+		_check("variant codec: shared corpus parses as an object", false, corpus)
+		return
+	var codec_script: GDScript = load("res://mcp_runtime/variant_codec.gd")
+	var codec: RefCounted = codec_script.new()
+	var fixture: Node = Node.new()
+	fixture.name = "CodecFixture"
+	var codec_node: Node = Node.new()
+	codec_node.name = "CodecNode"
+	fixture.add_child(codec_node)
+	root.add_child(fixture)
+	await process_frame
+
+	var cases: Array = (corpus as Dictionary).get("cases", [])
+	for case_value: Variant in cases:
+		var test_case: Dictionary = case_value as Dictionary
+		var case_name: String = str(test_case.get("name", "unnamed"))
+		var value: Variant = _codec_value_for_case(case_name, fixture, codec_node)
+		var expected_wire: Variant = test_case.get("wire", null)
+		var dynamic_keys: Array = test_case.get("dynamicKeys", [])
+		codec.configure(32, 1024)
+		var encoded: Variant = codec.encode(value)
+		var encode_error: Dictionary = codec.take_error()
+		_check("variant codec: %s encodes the corpus wire value" % case_name,
+			encode_error.is_empty() and _codec_wire_equal(_codec_normalize_dynamic(encoded, dynamic_keys), expected_wire), {"encoded": encoded, "error": encode_error})
+		if not dynamic_keys.is_empty():
+			for key_value: Variant in dynamic_keys:
+				var key: String = str(key_value)
+				var encoded_dict: Dictionary = encoded as Dictionary
+				_check("variant codec: %s has dynamic %s" % [case_name, key],
+					encoded is Dictionary and encoded_dict.has(key), encoded)
+				if key == "id":
+					_check("variant codec: %s dynamic id is positive" % case_name,
+						encoded is Dictionary and int(encoded_dict.get(key, 0)) > 0, encoded)
+
+		var type_hint: String = str(test_case.get("typeHint", ""))
+		var decoded: Variant = codec.decode(encoded, type_hint)
+		var decode_error: Dictionary = codec.take_error()
+		_check("variant codec: %s decodes without an error" % case_name,
+			decode_error.is_empty() and _codec_has_type(decoded, type_hint), {"decoded": decoded, "error": decode_error})
+		var reencoded: Variant = codec.encode(decoded)
+		var reencode_error: Dictionary = codec.take_error()
+		_check("variant codec: %s round-trips its wire value" % case_name,
+			reencode_error.is_empty() and _codec_wire_equal(_codec_normalize_dynamic(reencoded, dynamic_keys), expected_wire), {"reencoded": reencoded, "error": reencode_error})
+
+	var negative_cases: Array = (corpus as Dictionary).get("negative", [])
+	for negative_value: Variant in negative_cases:
+		var negative_case: Dictionary = negative_value as Dictionary
+		var negative_name: String = str(negative_case.get("name", "unnamed"))
+		var expected_reason: String = str(negative_case.get("reason", ""))
+		codec.configure(32, 1024)
+		if negative_name == "depth_exceeded":
+			codec.configure(2, 1024)
+		elif negative_name == "collection_exceeded":
+			codec.configure(32, 2)
+		var result: Variant
+		if negative_name == "invalid_type_hint":
+			result = codec.decode({"x": 1, "y": 2}, "Vector4")
+		else:
+			result = codec.encode(_codec_negative_value(negative_name))
+		var error: Dictionary = codec.take_error()
+		_check("variant codec: %s fails with %s" % [negative_name, expected_reason],
+			result == null and error.get("reason", "") == expected_reason, {"result": result, "error": error})
+
+	fixture.queue_free()
+	await process_frame
+
+
+func _codec_value_for_case(case_name: String, fixture: Node, codec_node: Node) -> Variant:
+	match case_name:
+		"null": return null
+		"bool": return true
+		"int": return 9007199254740991
+		"float": return -12.5
+		"string": return "codec"
+		"vector2": return Vector2(1.25, -2.5)
+		"vector2i": return Vector2i(3, -4)
+		"vector3": return Vector3(1.25, -2.5, 3.75)
+		"vector3i": return Vector3i(3, -4, 5)
+		"color": return Color(0.1, 0.2, 0.3, 0.4)
+		"quaternion": return Quaternion(0.1, -0.2, 0.3, 0.9)
+		"rect2": return Rect2(Vector2(1.25, -2.5), Vector2(10, 20))
+		"aabb": return AABB(Vector3(1, 2, 3), Vector3(4, 5, 6))
+		"basis": return Basis(Vector3(1, 2, 3), Vector3(4, 5, 6), Vector3(7, 8, 9))
+		"transform3d": return Transform3D(Basis(Vector3(1, 2, 3), Vector3(4, 5, 6), Vector3(7, 8, 9)), Vector3(10, 11, 12))
+		"transform2d": return Transform2D(Vector2(1, 2), Vector2(3, 4), Vector2(5, 6))
+		"node_path": return NodePath("CodecFixture/CodecNode")
+		"string_name": return StringName("codec-name")
+		"packed_byte_array": return PackedByteArray([1, 2, 255])
+		"packed_int32_array": return PackedInt32Array([-2, 4, 8])
+		"packed_int64_array": return PackedInt64Array([-2, 4, 8])
+		"packed_float32_array": return PackedFloat32Array([1.5, -2.25])
+		"packed_float64_array": return PackedFloat64Array([1.5, -2.25])
+		"packed_string_array": return PackedStringArray(["one", "two"])
+		"packed_vector2_array": return PackedVector2Array([Vector2(1, 2), Vector2(3, 4)])
+		"packed_vector3_array": return PackedVector3Array([Vector3(1, 2, 3), Vector3(4, 5, 6)])
+		"packed_color_array": return PackedColorArray([Color(1, 0, 0, 1), Color(0, 1, 0, 1)])
+		"nested_collections":
+			var nested_resource: Resource = Resource.new()
+			return {"array": [1, {"resource": nested_resource, "vector": Vector2(1.25, -2.5)}], "dictionary": {"items": [true, "text"]}}
+		"resource": return Resource.new()
+		"node": return codec_node
+		"object": return Object.new()
+		_: return null
+
+
+func _codec_negative_value(case_name: String) -> Variant:
+	match case_name:
+		"array_cycle":
+			var array_cycle: Array = []
+			array_cycle.append(array_cycle)
+			return array_cycle
+		"dictionary_cycle":
+			var dictionary_cycle: Dictionary = {}
+			dictionary_cycle["self"] = dictionary_cycle
+			return dictionary_cycle
+		"callable": return Callable(self, "_test_variant_codec")
+		"signal": return process_frame
+		"rid": return RID()
+		"depth_exceeded":
+			var nested: Array = [[[1]]]
+			return nested
+		"collection_exceeded": return [1, 2, 3]
+		_: return null
+
+
+func _codec_normalize_dynamic(value: Variant, dynamic_keys: Array) -> Variant:
+	if not value is Dictionary:
+		return value
+	var normalized: Dictionary = (value as Dictionary).duplicate(true)
+	for key_value: Variant in dynamic_keys:
+		normalized.erase(str(key_value))
+	return normalized
+
+
+func _codec_wire_equal(actual: Variant, expected: Variant) -> bool:
+	if (actual is int or actual is float) and (expected is int or expected is float):
+		return is_equal_approx(float(actual), float(expected))
+	if (actual is StringName or actual is NodePath) and expected is String:
+		return str(actual) == expected
+	if actual is Array and expected is Array:
+		var actual_array: Array = actual as Array
+		var expected_array: Array = expected as Array
+		if actual_array.size() != expected_array.size(): return false
+		for index: int in actual_array.size():
+			if not _codec_wire_equal(actual_array[index], expected_array[index]): return false
+		return true
+	if actual is Dictionary and expected is Dictionary:
+		var actual_dict: Dictionary = actual as Dictionary
+		var expected_dict: Dictionary = expected as Dictionary
+		if actual_dict.size() != expected_dict.size(): return false
+		for key: Variant in expected_dict:
+			if not actual_dict.has(key): return false
+			if not _codec_wire_equal(actual_dict[key], expected_dict[key]): return false
+		return true
+	return actual == expected
+
+
+func _codec_has_type(value: Variant, type_hint: String) -> bool:
+	match type_hint:
+		"Vector2": return value is Vector2
+		"Vector2i": return value is Vector2i
+		"Vector3": return value is Vector3
+		"Vector3i": return value is Vector3i
+		"Color": return value is Color
+		"Quaternion": return value is Quaternion
+		"Rect2": return value is Rect2
+		"AABB": return value is AABB
+		"Basis": return value is Basis
+		"Transform3D": return value is Transform3D
+		"Transform2D": return value is Transform2D
+		_: return true
 
 
 # --- Handshake, method routing, and response-ID correlation ---

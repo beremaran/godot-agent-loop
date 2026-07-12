@@ -3,3 +3,4 @@
 mcp_interaction_server.gd
 mcp_interaction_server.gd.uid
 mcp_runtime/
+variant-codec-corpus.json
