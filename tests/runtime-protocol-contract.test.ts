@@ -138,6 +138,10 @@ describe('runtime protocol contract', () => {
         commands: ['get_camera', 'set_camera', 'camera_attributes', 'set_shader_param', 'visual_shader', 'environment', 'set_particles', 'viewport', 'debug_draw', 'render_settings', 'sky', 'gi', 'video'],
         internals: ['_visual_shaders', '_debug_draw_node', '_clear_debug_draw', '_get_or_create_environment'],
       },
+      'audio_animation_domain.gd': {
+        commands: ['get_audio', 'audio_play', 'audio_bus', 'audio_effect', 'audio_bus_layout', 'audio_spatial', 'create_animation', 'animation_tree', 'animation_control', 'skeleton_ik', 'bone_pose'],
+        internals: ['_find_audio_players', '_resolve_bone_index'],
+      },
       'core_domain.gd': {
         commands: ['get_scene_tree', 'get_property', 'set_property', 'call_method', 'get_node_info', 'instantiate_scene', 'remove_node', 'change_scene', 'connect_signal', 'disconnect_signal', 'emit_signal', 'get_nodes_in_group', 'find_nodes_by_class', 'reparent_node', 'spawn_node', 'manage_group', 'list_signals', 'await_signal'],
         internals: ['_build_tree_node', '_find_by_class_recursive'],

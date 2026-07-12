@@ -134,6 +134,7 @@ func _run() -> void:
 	await _test_physics_domain()
 	await _test_scene_3d_domain()
 	await _test_rendering_domain()
+	await _test_audio_animation_domain()
 
 	print("godot-runtime-integration: %d checks, %d failures" % [_checks, _failures])
 	quit(1 if _failures > 0 else 0)
@@ -1094,6 +1095,50 @@ func _test_physics_domain() -> void:
 
 
 # --- 3D scene and geometry domain ---
+func _test_audio_animation_domain() -> void:
+	var fixture := Node.new()
+	fixture.name = "AudioAnimationFixture"
+	root.add_child(fixture)
+	var player := AnimationPlayer.new()
+	player.name = "AnimationPlayer"
+	fixture.add_child(player)
+	var library := AnimationLibrary.new()
+	library.add_animation("idle", Animation.new())
+	player.add_animation_library("", library)
+	player.play("idle")
+
+	var client := Client.new(self)
+	_check("audio/animation domain: client connects", await client.open(PORT), null)
+	_check("audio/animation domain: server attaches the domain node as a child",
+		_server.get_node_or_null("audio_animation_domain") != null, _server.get_children())
+
+	client.send_request("aa-list", "godot.runtime.animation_control",
+		{"node_path": "/root/AudioAnimationFixture/AnimationPlayer", "action": "get_info"})
+	var message: Variant = await client.read_message()
+	_check("audio/animation domain: animation state dispatches through its own request",
+		_message_id(message) == "aa-list" and _result_of(message).get("animations", []).has("idle"), message)
+
+	client.send_request("aa-audio", "godot.runtime.audio_bus_layout", {"action": "list"})
+	message = await client.read_message()
+	_check("audio/animation domain: audio bus state remains available",
+		_message_id(message) == "aa-audio" and _result_of(message).get("buses", []).size() > 0, message)
+
+	client.send_request("aa-action", "godot.runtime.animation_control",
+		{"node_path": "/root/AudioAnimationFixture/AnimationPlayer", "action": "explode"})
+	message = await client.read_message()
+	_check("audio/animation domain: unknown actions return allowed values",
+		_error_code(message) == -32000 and _error_data(message).get("allowed", []).has("get_info"), message)
+
+	client.send_request("aa-after", "godot.runtime.wait", {"frames": 1})
+	message = await client.read_message()
+	_check("audio/animation domain: server keeps serving after domain commands",
+		_message_id(message) == "aa-after" and _result_of(message).get("success") == true, message)
+
+	client.close()
+	fixture.queue_free()
+	await process_frame
+
+
 func _test_scene_3d_domain() -> void:
 	var fixture: Node3D = Node3D.new()
 	fixture.name = "Scene3DFixture"
