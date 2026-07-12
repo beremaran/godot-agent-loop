@@ -9,8 +9,9 @@ extends SceneTree
 # Covered transport/session behavior: handshake, response-ID correlation,
 # malformed and oversized frames, invalid UTF-8, JSON depth/collection limits,
 # two concurrent clients and busy rejection, disconnect during an awaited
-# command, cooperative cancellation, await_signal timeout, and the oversized
-# response fallback. Exit code is 0 only when every check passes.
+# command, cooperative cancellation, await_signal timeout, the oversized
+# response fallback, and validated-parameter failures with structured error
+# details. Exit code is 0 only when every check passes.
 
 const PORT: int = 9090
 const READ_TIMEOUT_MS: int = 10000
@@ -124,6 +125,7 @@ func _run() -> void:
 	await _test_await_signal_timeout()
 	await _test_oversized_response()
 	await _test_visual_shader()
+	await _test_parameter_validation()
 
 	print("godot-runtime-integration: %d checks, %d failures" % [_checks, _failures])
 	quit(1 if _failures > 0 else 0)
@@ -154,6 +156,12 @@ func _message_id(message: Variant) -> Variant:
 	if message is Dictionary:
 		return message.get("id")
 	return null
+
+
+func _error_data(message: Variant) -> Dictionary:
+	if message is Dictionary and message.get("error") is Dictionary and (message["error"] as Dictionary).get("data") is Dictionary:
+		return (message["error"] as Dictionary)["data"]
+	return {}
 
 
 func _result_of(message: Variant) -> Dictionary:
@@ -491,4 +499,72 @@ func _test_visual_shader() -> void:
 	client.send_request("vs-8", "godot.runtime.visual_shader", {"action": "explode"})
 	message = await client.read_message()
 	_check("visual_shader: unknown action rejected", _error_code(message) == -32000, message)
+	client.close()
+
+
+# --- Validated parameter helpers and standardized command failures ---
+func _test_parameter_validation() -> void:
+	var client: Client = await _open_client("params")
+
+	client.send_request("p-missing", "godot.runtime.click", {"y": 10})
+	var message: Variant = await client.read_message()
+	_check("params: missing required field yields -32000 with structured details",
+		_error_code(message) == -32000 and _error_data(message).get("param") == "x"
+		and _error_data(message).get("reason") == "missing", message)
+
+	client.send_request("p-type", "godot.runtime.click", {"x": "left", "y": 10})
+	message = await client.read_message()
+	_check("params: invalid parameter type yields reason invalid_type",
+		_error_code(message) == -32000 and _error_data(message).get("param") == "x"
+		and _error_data(message).get("reason") == "invalid_type", message)
+
+	client.send_request("p-enum", "godot.runtime.touch", {"action": "hover", "x": 1, "y": 1})
+	message = await client.read_message()
+	_check("params: unknown enum action lists allowed values",
+		_error_code(message) == -32000 and _error_data(message).get("reason") == "invalid_value"
+		and (_error_data(message).get("allowed") as Array).has("drag"), message)
+
+	client.send_request("p-range", "godot.runtime.scroll", {"x": 0, "y": 0, "amount": 0})
+	message = await client.read_message()
+	_check("params: out-of-range value yields reason out_of_range",
+		_error_code(message) == -32000 and _error_data(message).get("reason") == "out_of_range", message)
+
+	client.send_request("p-key-or-action", "godot.runtime.key_press", {})
+	message = await client.read_message()
+	_check("params: key_press requires key or action",
+		_error_code(message) == -32000 and _error_data(message).get("reason") == "missing", message)
+
+	client.send_request("p-bad-key", "godot.runtime.key_press", {"key": "NOTAKEY"})
+	message = await client.read_message()
+	_check("params: unknown key name yields reason invalid_value",
+		_error_code(message) == -32000 and _error_data(message).get("reason") == "invalid_value", message)
+
+	client.send_request("p-no-node", "godot.runtime.get_property",
+		{"node_path": "/root/NoSuchNode", "property": "name"})
+	message = await client.read_message()
+	_check("params: missing node yields reason node_not_found",
+		_error_code(message) == -32000 and _error_data(message).get("reason") == "node_not_found", message)
+
+	client.send_request("p-node-ok", "godot.runtime.get_property",
+		{"node_path": "McpServer", "property": "name"})
+	message = await client.read_message()
+	_check("params: validated node lookup still resolves existing nodes",
+		_result_of(message).get("value") == "McpServer", message)
+
+	client.send_request("p-res-path", "godot.runtime.instantiate_scene", {"scene_path": "nope.tscn"})
+	message = await client.read_message()
+	_check("params: non-resource path rejected before any work",
+		_error_code(message) == -32000 and _error_data(message).get("param") == "scene_path"
+		and _error_data(message).get("reason") == "invalid_value", message)
+
+	client.send_request("p-godot-err", "godot.runtime.change_scene", {"scene_path": "res://missing.tscn"})
+	message = await client.read_message()
+	_check("params: Godot Error values are reported with error_string details",
+		_error_code(message) == -32000 and _error_data(message).get("reason") == "godot_error"
+		and _error_data(message).has("godot_error_string"), message)
+
+	client.send_request("p-after", "godot.runtime.wait", {"frames": 1})
+	message = await client.read_message()
+	_check("params: server serves normal requests after validation failures",
+		_message_id(message) == "p-after" and _result_of(message).get("success") == true, message)
 	client.close()
