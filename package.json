@@ -42,7 +42,10 @@
     "watch": "tsc --watch",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:godot": "tests/godot/run-integration-tests.sh",
+    "test:godot": "npm run test:godot:typecheck && npm run test:godot:operations && npm run test:godot:runtime",
+    "test:godot:typecheck": "tests/godot/run-typecheck.sh",
+    "test:godot:operations": "tests/godot/run-headless-operations.sh",
+    "test:godot:runtime": "tests/godot/run-integration-tests.sh",
     "lint": "eslint . && npm run lint:md",
     "lint:md": "markdownlint-cli2 \"**/*.md\" \"#node_modules\"",
     "lint:md:fix": "markdownlint-cli2 --fix \"**/*.md\" \"#node_modules\""

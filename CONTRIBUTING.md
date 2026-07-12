@@ -195,6 +195,25 @@ When making changes, ensure they work across different platforms:
 Before every commit, the pre-commit hook runs `npm test` and `npm run lint`.
 Run both checks together at any time with `npm run check`.
 
+### Godot-side tests
+
+The shipped GDScript files are exercised against a real headless Godot with
+`npm run test:godot`, which needs an engine binary (`GODOT_BIN`, `godot4`/`godot`
+on `PATH`, or `GODOT_PATH`). It runs three suites, each also runnable on its own:
+
+- `npm run test:godot:typecheck` parses `godot_operations.gd`, the interaction
+  server, and every `mcp_runtime` domain with GDScript warnings promoted to
+  errors. The promoted set lives in the `project.godot` of each tier under
+  `tests/godot/typecheck/`, and those files record which warnings are not
+  satisfied yet, so lowering the bar is a visible change.
+- `npm run test:godot:operations` runs all 16 headless operations against a
+  throwaway copy of `tests/godot/operations-fixture`, asserting exit status,
+  stdout payloads, and the files each operation leaves behind.
+- `npm run test:godot:runtime` drives the interaction server over loopback TCP.
+
+CI runs all three against the minimum supported Godot (4.4-stable) and the
+current release (4.7-stable).
+
 ## Documentation
 
 - Keep README.md up to date with new features

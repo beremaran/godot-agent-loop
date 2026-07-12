@@ -1,0 +1,10 @@
+; Template project for the headless-operation tests. run-headless-operations.sh
+; copies this tree into a scratch directory before each run, because the
+; operations under test write scenes and resources into the project they target.
+
+config_version=5
+
+[application]
+
+config/name="godot-mcp-operations-fixture"
+config/features=PackedStringArray("4.4")

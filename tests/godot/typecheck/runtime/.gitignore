@@ -1,0 +1,6 @@
+# Copied in by tests/godot/run-typecheck.sh; the source of truth is
+# src/scripts/.
+mcp_interaction_server.gd
+mcp_interaction_server.gd.uid
+mcp_runtime/
+.godot/

@@ -565,9 +565,10 @@ func create_scene(params: Dictionary) -> OperationResult:
             "Check if the class is registered in ClassDB or available as a script",
         ]))
 
-    # PackedScene.pack() only stores nodes the root owns, and the root owns itself.
+    # PackedScene.pack() stores the root plus the nodes it owns. The root itself
+    # needs no owner: Node.set_owner() rejects a node owning itself, so assigning
+    # one only printed an engine error.
     scene_root.name = "root"
-    scene_root.owner = scene_root
 
     var save_result := _save_scene_root(scene_root, full_scene_path)
     if not save_result.ok:
