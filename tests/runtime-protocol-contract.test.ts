@@ -126,6 +126,10 @@ describe('runtime protocol contract', () => {
         commands: ['tilemap', 'canvas', 'canvas_draw', 'light_2d', 'parallax', 'shape_2d', 'path_2d'],
         internals: ['_canvas_draw_node', '_draw_commands', '_create_draw_script'],
       },
+      'physics_domain.gd': {
+        commands: ['raycast', 'navigate_path', 'add_collision', 'physics_body', 'create_joint', 'navigation_3d', 'physics_3d', 'physics_2d'],
+        internals: ['_shape_3d', '_shape_2d', '_respond_ray_hit'],
+      },
     };
     for (const [file, ownership] of Object.entries(domainOwnership)) {
       const domain = readFileSync(join(root, 'src/scripts/mcp_runtime', file), 'utf8');

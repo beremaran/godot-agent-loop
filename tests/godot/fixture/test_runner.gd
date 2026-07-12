@@ -131,6 +131,7 @@ func _run() -> void:
 	await _test_input_domain()
 	await _test_ui_domain()
 	await _test_scene_2d_domain()
+	await _test_physics_domain()
 
 	print("godot-runtime-integration: %d checks, %d failures" % [_checks, _failures])
 	quit(1 if _failures > 0 else 0)
@@ -892,6 +893,159 @@ func _test_scene_2d_domain() -> void:
 	message = await client.read_message()
 	_check("2d domain: server keeps serving after domain commands",
 		_message_id(message) == "2d-after" and _result_of(message).get("success") == true, message)
+
+	client.close()
+	fixture.queue_free()
+	await process_frame
+
+
+# --- Physics domain ---
+# The physics/navigation commands live in res://mcp_runtime/physics_domain.gd.
+# These checks assert the behavior survived the move: collision shapes, body
+# properties, joints, navigation regions, and direct-space queries run through
+# the same registry and session (including handlers that await physics frames),
+# and invalid parameters still fail with standardized -32000 errors.
+func _test_physics_domain() -> void:
+	var fixture: Node = Node.new()
+	fixture.name = "PhysicsFixture"
+	var body_2d: StaticBody2D = StaticBody2D.new()
+	body_2d.name = "Wall"
+	fixture.add_child(body_2d)
+	var body_3d: StaticBody3D = StaticBody3D.new()
+	body_3d.name = "Wall3D"
+	fixture.add_child(body_3d)
+	var rigid: RigidBody2D = RigidBody2D.new()
+	rigid.name = "Crate"
+	rigid.freeze = true
+	fixture.add_child(rigid)
+	root.add_child(fixture)
+	await process_frame
+
+	var client: Client = await _open_client("physics")
+
+	_check("physics domain: server attaches the domain node as a child",
+		_server.get_node_or_null("physics_domain") != null, _server.get_children())
+
+	client.send_request("ph-col2d", "godot.runtime.add_collision",
+		{"parent_path": "PhysicsFixture/Wall", "shape_type": "box", "shape_params": {"size_x": 100, "size_y": 20}})
+	var message: Variant = await client.read_message()
+	var col_2d: CollisionShape2D = null
+	if body_2d.get_child_count() > 0:
+		col_2d = body_2d.get_child(0) as CollisionShape2D
+	_check("physics domain: add_collision builds a sized 2D rectangle shape",
+		_result_of(message).get("mode") == "2d" and col_2d != null
+		and (col_2d.shape as RectangleShape2D).size == Vector2(100, 20), message)
+
+	client.send_request("ph-col3d", "godot.runtime.add_collision",
+		{"parent_path": "PhysicsFixture/Wall3D", "shape_type": "sphere", "shape_params": {"radius": 2.5}})
+	message = await client.read_message()
+	var col_3d: CollisionShape3D = null
+	if body_3d.get_child_count() > 0:
+		col_3d = body_3d.get_child(0) as CollisionShape3D
+	_check("physics domain: add_collision picks 3D shapes from the parent class",
+		_result_of(message).get("mode") == "3d" and col_3d != null
+		and (col_3d.shape as SphereShape3D).radius == 2.5, message)
+
+	client.send_request("ph-body", "godot.runtime.physics_body",
+		{"node_path": "PhysicsFixture/Crate", "mass": 4.0, "gravity_scale": 0.5,
+			"linear_velocity": {"x": 3, "y": -1}, "friction": 0.25})
+	message = await client.read_message()
+	_check("physics domain: physics_body applies mass, gravity and velocity",
+		_result_of(message).get("mass") == 4.0 and rigid.gravity_scale == 0.5
+		and rigid.linear_velocity == Vector2(3, -1)
+		and rigid.physics_material_override.friction == 0.25, message)
+
+	client.send_request("ph-joint", "godot.runtime.create_joint",
+		{"parent_path": "PhysicsFixture", "joint_type": "pin_2d",
+			"node_a_path": "../Wall", "node_b_path": "../Crate", "softness": 1.5})
+	message = await client.read_message()
+	var joint: PinJoint2D = null
+	for child in fixture.get_children():
+		if child is PinJoint2D:
+			joint = child
+	_check("physics domain: create_joint attaches a configured PinJoint2D",
+		_result_of(message).get("joint_type") == "pin_2d" and joint != null
+		and joint.softness == 1.5 and joint.node_a == NodePath("../Wall"), message)
+
+	client.send_request("ph-nav", "godot.runtime.navigation_3d",
+		{"action": "create", "parent_path": "PhysicsFixture", "cell_size": 0.2, "name": "McpNav"})
+	message = await client.read_message()
+	var region: NavigationRegion3D = fixture.get_node_or_null("McpNav") as NavigationRegion3D
+	_check("physics domain: navigation_3d create adds a configured region",
+		region != null and region.navigation_mesh != null
+		and is_equal_approx(region.navigation_mesh.cell_size, 0.2), message)
+
+	client.send_request("ph-path", "godot.runtime.navigate_path",
+		{"start": {"x": 0, "y": 0}, "end": {"x": 10, "y": 10}})
+	message = await client.read_message()
+	_check("physics domain: navigate_path answers a 2D query on its own id",
+		_message_id(message) == "ph-path" and _result_of(message).get("mode") == "2d", message)
+
+	# Ray and point queries await a physics frame inside the handler, so a
+	# response at all proves awaited physics handlers still complete the request.
+	client.send_request("ph-ray", "godot.runtime.raycast",
+		{"from": {"x": -500, "y": -500}, "to": {"x": -400, "y": -500}})
+	message = await client.read_message()
+	_check("physics domain: raycast in empty space reports a 2D miss",
+		_result_of(message).get("hit") == false and _result_of(message).get("mode") == "2d", message)
+
+	client.send_request("ph-ray3d", "godot.runtime.raycast",
+		{"from": {"x": 0, "y": 0, "z": -5}, "to": {"x": 0, "y": 0, "z": 5}})
+	message = await client.read_message()
+	_check("physics domain: raycast picks 3D mode from the z component",
+		_result_of(message).get("mode") == "3d", message)
+
+	client.send_request("ph-point", "godot.runtime.physics_2d",
+		{"action": "point_query", "position": {"x": -900, "y": -900}})
+	message = await client.read_message()
+	_check("physics domain: physics_2d point_query in empty space finds nothing",
+		_result_of(message).get("action") == "point_query" and _result_of(message).get("count") == 0, message)
+
+	client.send_request("ph-shape", "godot.runtime.physics_2d",
+		{"action": "shape_query", "shape_type": "rectangle", "size": {"x": 4, "y": 4}, "position": {"x": -900, "y": -900}})
+	message = await client.read_message()
+	_check("physics domain: physics_2d shape_query responds with a result list",
+		_result_of(message).get("action") == "shape_query" and _result_of(message).get("count") == 0, message)
+
+	client.send_request("ph-class", "godot.runtime.physics_body", {"node_path": "PhysicsFixture"})
+	message = await client.read_message()
+	_check("physics domain: wrong node class fails with invalid_value details",
+		_error_code(message) == -32000 and _error_data(message).get("reason") == "invalid_value", message)
+
+	client.send_request("ph-shape-type", "godot.runtime.add_collision",
+		{"parent_path": "PhysicsFixture/Wall", "shape_type": "dodecahedron"})
+	message = await client.read_message()
+	_check("physics domain: unknown shape type fails with the allowed list",
+		_error_code(message) == -32000
+		and (_error_data(message).get("allowed") as Array).has("circle"), message)
+
+	client.send_request("ph-joint-type", "godot.runtime.create_joint",
+		{"parent_path": "PhysicsFixture", "joint_type": "rope"})
+	message = await client.read_message()
+	_check("physics domain: unknown joint type fails with invalid_value details",
+		_error_code(message) == -32000 and _error_data(message).get("reason") == "invalid_value", message)
+
+	client.send_request("ph-missing", "godot.runtime.navigate_path", {"start": {"x": 0, "y": 0}})
+	message = await client.read_message()
+	_check("physics domain: missing end fails with a structured -32000 error",
+		_error_code(message) == -32000 and _error_data(message).get("reason") == "missing", message)
+
+	client.send_request("ph-no-parent", "godot.runtime.add_collision",
+		{"parent_path": "/root/NoSuchBody", "shape_type": "box"})
+	message = await client.read_message()
+	_check("physics domain: missing parent fails with node_not_found details",
+		_error_code(message) == -32000 and _error_data(message).get("reason") == "node_not_found", message)
+
+	client.send_request("ph-action", "godot.runtime.physics_2d", {"action": "explode"})
+	message = await client.read_message()
+	_check("physics domain: unknown action fails with the allowed action list",
+		_error_code(message) == -32000
+		and (_error_data(message).get("allowed") as Array).has("point_query"), message)
+
+	client.send_request("ph-after", "godot.runtime.wait", {"frames": 1})
+	message = await client.read_message()
+	_check("physics domain: server keeps serving after domain commands",
+		_message_id(message) == "ph-after" and _result_of(message).get("success") == true, message)
 
 	client.close()
 	fixture.queue_free()
