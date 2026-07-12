@@ -148,6 +148,7 @@ export class GodotServer {
         return path;
       },
       logDebug: message => { this.logDebug(message); },
+      debugGodot: debugMode,
     });
     this.headlessOperations = new HeadlessOperationService(this.operationRunner, pathSecurity);
     this.gameCommands = new GameCommandService(this.processManager, this.gameConnection);

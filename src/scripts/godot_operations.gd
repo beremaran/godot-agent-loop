@@ -27,8 +27,89 @@ class CliInvocation extends RefCounted:
     func is_valid() -> bool:
         return errors.is_empty()
 
+# Opt-in debug diagnostics. This is constructed only under --debug-godot, so a
+# normal operation never logs diagnostics and never writes a probe file into the
+# user's project. Values that can carry file paths, tokens, or script source are
+# summarized by type and size rather than printed.
+class DebugDiagnostics extends RefCounted:
+    const PROBE_PREFIX := "godot_mcp_write_probe_"
+
+    func log_message(message: String) -> void:
+        print("[DEBUG] " + message)
+
+    # Describe a JSON value without disclosing its contents. JSON values arrive
+    # as Variant, so each branch narrows after its own type check.
+    func redact(value: Variant) -> String:
+        if value is String:
+            var text: String = value
+            return "<string, " + str(text.length()) + " chars>"
+        if value is Dictionary:
+            var object: Dictionary = value
+            return "<object, " + str(object.size()) + " keys>"
+        if value is Array:
+            var items: Array = value
+            return "<array, " + str(items.size()) + " items>"
+        if value == null:
+            return "null"
+        if value is bool or value is int or value is float:
+            return str(value)
+        return "<" + type_string(typeof(value)) + ">"
+
+    func redact_params(params: Dictionary) -> String:
+        var parts := PackedStringArray()
+        var keys := PackedStringArray(params.keys())
+        keys.sort()
+        for key in keys:
+            @warning_ignore("return_value_discarded")
+            parts.append(key + ": " + redact(params[key]))
+        return "{" + ", ".join(parts) + "}"
+
+    func log_project_environment() -> void:
+        log_message("Globalized res:// path: " + ProjectSettings.globalize_path("res://"))
+        log_message("Globalized user:// path: " + ProjectSettings.globalize_path("user://"))
+
+        # Only report which variables are set; their values are paths and may
+        # carry credentials.
+        var set_vars := PackedStringArray()
+        for env_var: String in ["PATH", "HOME", "USER", "TEMP", "GODOT_PATH"]:
+            if OS.has_environment(env_var):
+                @warning_ignore("return_value_discarded")
+                set_vars.append(env_var)
+        log_message("Environment variables set: " + ", ".join(set_vars))
+
+    # Check that a directory is writable by creating and deleting one probe file.
+    # The probe name is unique per call and the file is removed on every branch,
+    # so the directory is left exactly as it was found.
+    func probe_write_access(res_dir: String) -> void:
+        var probe_path: String = res_dir.path_join(PROBE_PREFIX + str(Time.get_ticks_usec()) + ".tmp")
+        if FileAccess.file_exists(probe_path):
+            log_message("Skipping write probe, path is already taken: " + probe_path)
+            return
+
+        var probe := FileAccess.open(probe_path, FileAccess.WRITE)
+        if probe == null:
+            log_message("Write probe failed for " + res_dir + " (open error " + str(FileAccess.get_open_error()) + "); this indicates a permission or path issue")
+            return
+
+        @warning_ignore("return_value_discarded")
+        probe.store_string("write probe")
+        probe.close()
+        log_message("Write probe succeeded for: " + res_dir)
+        _remove_probe(probe_path)
+
+    func _remove_probe(probe_path: String) -> void:
+        if not FileAccess.file_exists(probe_path):
+            return
+        var remove_error: Error = DirAccess.remove_absolute(ProjectSettings.globalize_path(probe_path))
+        if remove_error != OK:
+            log_message("Failed to remove write probe " + probe_path + " (error " + str(remove_error) + ")")
+
 # Debug mode flag
 var debug_mode: bool = false
+
+# The diagnostics service, or null when diagnostics are off. Nothing outside
+# log_debug() and the branches guarded by debug_mode may use it.
+var _diagnostics: DebugDiagnostics = null
 
 # Operation name -> handler. The single source of truth for which operations
 # exist; the CLI rejects any name that is not registered here.
@@ -39,6 +120,8 @@ func _init() -> void:
 
     var args: PackedStringArray = OS.get_cmdline_args()
     debug_mode = "--debug-godot" in args
+    if debug_mode:
+        _diagnostics = DebugDiagnostics.new()
 
     var invocation := _parse_cli(args)
     if not invocation.is_valid():
@@ -94,7 +177,9 @@ func _parse_cli(args: PackedStringArray) -> CliInvocation:
             PackedStringArray(["Not enough command-line arguments provided."])
         )
 
-    log_debug("All arguments: " + str(args))
+    # The arguments carry the params JSON, which can hold paths or script
+    # source, so only their positions are logged.
+    log_debug("Argument count: " + str(args.size()))
     log_debug("Script index: " + str(script_index))
     log_debug("Operation index: " + str(operation_index))
     log_debug("Params index: " + str(params_index))
@@ -103,7 +188,7 @@ func _parse_cli(args: PackedStringArray) -> CliInvocation:
     var params_json: String = args[params_index]
 
     log_info("Operation: " + operation)
-    log_debug("Params JSON: " + params_json)
+    log_debug("Params JSON: " + str(params_json.length()) + " chars")
 
     if not _operations.has(operation):
         return _invalid_cli(
@@ -124,6 +209,7 @@ func _parse_cli(args: PackedStringArray) -> CliInvocation:
         return _invalid_cli("Parameters must be a JSON object: " + params_json)
 
     var operation_params: Dictionary = data
+    log_debug("Params: " + _redact_params(operation_params))
     return CliInvocation.new(operation, operation_params, PackedStringArray())
 
 func _operation_names() -> PackedStringArray:
@@ -155,8 +241,20 @@ func _report_errors(errors: PackedStringArray) -> void:
 
 # Logging functions
 func log_debug(message: String) -> void:
-    if debug_mode:
-        print("[DEBUG] " + message)
+    if _diagnostics != null:
+        _diagnostics.log_message(message)
+
+# Summaries used when a debug line would otherwise print a value that can carry
+# a file path, a token, or script source.
+func _redact(value: Variant) -> String:
+    if _diagnostics == null:
+        return ""
+    return _diagnostics.redact(value)
+
+func _redact_params(params: Dictionary) -> String:
+    if _diagnostics == null:
+        return ""
+    return _diagnostics.redact_params(params)
 
 func log_info(message: String) -> void:
     print("[INFO] " + message)
@@ -364,46 +462,40 @@ func _apply_properties(target: Object, properties: Dictionary) -> void:
     for prop_name: String in properties:
         var raw_value: Variant = properties[prop_name]
         var converted_value: Variant = _convert_property_value(target, prop_name, raw_value)
-        log_debug("Setting " + prop_name + " = " + str(converted_value) + " (from " + str(raw_value) + ")")
+        log_debug("Setting " + prop_name + " = " + _redact(converted_value) + " (from " + _redact(raw_value) + ")")
         target.set(prop_name, converted_value)
 
 # --- Class and script resolution -------------------------------------------
 
 # Get a script by name or path
 func get_script_by_name(name_of_class: String) -> Script:
-    if debug_mode:
-        print("Attempting to get script for class: " + name_of_class)
+    log_debug("Attempting to get script for class: " + name_of_class)
 
     # Try to load it directly if it's a resource path
     if ResourceLoader.exists(name_of_class, "Script"):
-        if debug_mode:
-            print("Resource exists, loading directly: " + name_of_class)
+        log_debug("Resource exists, loading directly: " + name_of_class)
         var script := load(name_of_class) as Script
         if script:
-            if debug_mode:
-                print("Successfully loaded script from path")
+            log_debug("Successfully loaded script from path")
             return script
         else:
             printerr("Failed to load script from path: " + name_of_class)
-    elif debug_mode:
-        print("Resource not found, checking global class registry")
+    else:
+        log_debug("Resource not found, checking global class registry")
 
     # Search for it in the global class registry if it's a class name
     var global_classes: Array[Dictionary] = ProjectSettings.get_global_class_list()
-    if debug_mode:
-        print("Searching through " + str(global_classes.size()) + " global classes")
+    log_debug("Searching through " + str(global_classes.size()) + " global classes")
 
     for global_class in global_classes:
         var found_name_of_class: String = global_class["class"]
         var found_path: String = global_class["path"]
 
         if found_name_of_class == name_of_class:
-            if debug_mode:
-                print("Found matching class in registry: " + found_name_of_class + " at path: " + found_path)
+            log_debug("Found matching class in registry: " + found_name_of_class + " at path: " + found_path)
             var script := load(found_path) as Script
             if script:
-                if debug_mode:
-                    print("Successfully loaded script from registry")
+                log_debug("Successfully loaded script from registry")
                 return script
             else:
                 printerr("Failed to load script from registry path: " + found_path)
@@ -419,13 +511,11 @@ func instantiate_class(name_of_class: String) -> Object:
         return null
 
     var result: Object = null
-    if debug_mode:
-        print("Attempting to instantiate class: " + name_of_class)
+    log_debug("Attempting to instantiate class: " + name_of_class)
 
     # Check if it's a built-in class
     if ClassDB.class_exists(name_of_class):
-        if debug_mode:
-            print("Class exists in ClassDB, using ClassDB.instantiate()")
+        log_debug("Class exists in ClassDB, using ClassDB.instantiate()")
         if ClassDB.can_instantiate(name_of_class):
             result = ClassDB.instantiate(name_of_class)
             if result == null:
@@ -435,12 +525,10 @@ func instantiate_class(name_of_class: String) -> Object:
             printerr("This may be an abstract class or interface that cannot be directly instantiated")
     else:
         # Try to get the script
-        if debug_mode:
-            print("Class not found in ClassDB, trying to get script")
+        log_debug("Class not found in ClassDB, trying to get script")
         var script := get_script_by_name(name_of_class)
         if script is GDScript:
-            if debug_mode:
-                print("Found GDScript, creating instance")
+            log_debug("Found GDScript, creating instance")
             result = (script as GDScript).new()
         else:
             printerr("Failed to get script for class: " + name_of_class)
@@ -448,8 +536,8 @@ func instantiate_class(name_of_class: String) -> Object:
 
     if result == null:
         printerr("Failed to instantiate class: " + name_of_class)
-    elif debug_mode:
-        print("Successfully instantiated class: " + name_of_class + " of type: " + result.get_class())
+    else:
+        log_debug("Successfully instantiated class: " + name_of_class + " of type: " + result.get_class())
 
     return result
 
@@ -462,9 +550,9 @@ func create_scene(params: Dictionary) -> OperationResult:
     var scene_path: String = _param_string(params, "scene_path")
     print("Creating scene: " + scene_path)
 
-    if debug_mode:
-        _debug_log_project_environment()
-        _debug_probe_write_access(RES_PREFIX)
+    if _diagnostics != null:
+        _diagnostics.log_project_environment()
+        _diagnostics.probe_write_access(RES_PREFIX)
 
     var full_scene_path: String = _res_path(scene_path)
     var root_node_type: String = _param_string(params, "root_node_type", "Node2D")
@@ -483,42 +571,12 @@ func create_scene(params: Dictionary) -> OperationResult:
 
     var save_result := _save_scene_root(scene_root, full_scene_path)
     if not save_result.ok:
-        if debug_mode:
-            _debug_probe_write_access(full_scene_path.get_base_dir())
+        if _diagnostics != null:
+            _diagnostics.probe_write_access(full_scene_path.get_base_dir())
         return save_result
 
     print("Scene created successfully at: " + scene_path)
     return _ok()
-
-# Debug-only diagnostics. These write probe files, so they run only under
-# --debug-godot and never on a normal operation path.
-func _debug_log_project_environment() -> void:
-    print("Project paths:")
-    print("- Globalized res:// path: " + ProjectSettings.globalize_path(RES_PREFIX))
-    print("- Globalized user:// path: " + ProjectSettings.globalize_path("user://"))
-
-    print("Environment variables:")
-    var env_vars: Array[String] = ["PATH", "HOME", "USER", "TEMP", "GODOT_PATH"]
-    for env_var in env_vars:
-        if OS.has_environment(env_var):
-            print("  " + env_var + " = " + OS.get_environment(env_var))
-
-func _debug_probe_write_access(res_dir: String) -> void:
-    var probe_path: String = res_dir.path_join("godot_mcp_test_write.tmp")
-    var probe := FileAccess.open(probe_path, FileAccess.WRITE)
-    if probe == null:
-        printerr("Failed to write test file to: " + probe_path)
-        printerr("Open error: " + str(FileAccess.get_open_error()) + " (this indicates a permission or path issue)")
-        return
-
-    @warning_ignore("return_value_discarded")
-    probe.store_string("Test write access")
-    probe.close()
-    print("Successfully wrote test file: " + probe_path)
-
-    if FileAccess.file_exists(probe_path):
-        var remove_error: Error = DirAccess.remove_absolute(ProjectSettings.globalize_path(probe_path))
-        print("Test file removal result: " + str(remove_error))
 
 # Add a node to an existing scene
 func add_node(params: Dictionary) -> OperationResult:
@@ -769,13 +827,12 @@ func resave_resources(params: Dictionary) -> OperationResult:
         if FileAccess.file_exists(uid_path):
             generated_uids += 1
 
-    if debug_mode:
-        print("Summary:")
-        print("- Scenes processed: " + str(scenes.size()))
-        print("- Scenes successfully saved: " + str(saved_scenes))
-        print("- Scripts/shaders missing UIDs: " + str(missing_uids))
-        print("- UIDs successfully generated: " + str(generated_uids))
-        print("- Errors: " + str(errors.size()))
+    log_debug("Summary:")
+    log_debug("- Scenes processed: " + str(scenes.size()))
+    log_debug("- Scenes successfully saved: " + str(saved_scenes))
+    log_debug("- Scripts/shaders missing UIDs: " + str(missing_uids))
+    log_debug("- UIDs successfully generated: " + str(generated_uids))
+    log_debug("- Errors: " + str(errors.size()))
     print("Resave operation complete")
 
     if not errors.is_empty():

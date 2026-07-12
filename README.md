@@ -606,7 +606,7 @@ The runtime endpoint has no authentication. Commands that execute arbitrary GDSc
 | Variable | Description |
 | ---------- | ------------- |
 | `GODOT_PATH` | Path to the Godot executable (overrides auto-detection) |
-| `DEBUG` | Set to `"true"` for detailed server-side logging |
+| `DEBUG` | Set to `"true"` for detailed server-side logging. This also runs the headless operations script with `--debug-godot`, which logs diagnostics and writes a temporary write-access probe file into the project (removed again on every branch). Parameter values are summarized by type and size in both logs, never printed. |
 | `GODOT_MCP_ALLOWED_DIRS` | Optional. Restrict `run_project` to projects under these roots (`;`, `,`, or `:` separated). When unset, any project path is allowed. |
 | `GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS` | Optional, default `false`. Explicitly enable runtime `eval`, arbitrary property/method access, script control, RPC, HTTP, and WebSocket commands for a trusted localhost developer workflow. |
 
