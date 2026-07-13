@@ -9,7 +9,7 @@
  *   node scripts/generate-coverage-report.js          # rewrite the report
  *   node scripts/generate-coverage-report.js --check  # fail if the report is stale
  */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -82,6 +82,31 @@ lines.push('## Action coverage');
 lines.push('');
 lines.push(`${totalTested} of ${totalActions} action rows declare at least one resolving test`);
 lines.push(`reference; ${totalActions - totalTested} are explicitly recorded as untested.`);
+lines.push('');
+lines.push('## Test suites by declared kind');
+lines.push('');
+lines.push('Kinds are declared per suite with `@test-kind` and validated by');
+lines.push('`tests/test-metadata.test.ts`; "integration" always means a real Godot');
+lines.push('engine, never a mocked transport.');
+lines.push('');
+lines.push('| Kind | Suites |');
+lines.push('| --- | --- |');
+const suiteFiles = [
+  ...readdirSync(join(root, 'tests')).filter(file => file.endsWith('.test.ts')).map(file => `tests/${file}`),
+  ...readdirSync(join(root, 'tests/godot')).filter(file => file.endsWith('.sh') && file !== 'godot-bin.sh').map(file => `tests/godot/${file}`),
+];
+const suitesByKind = new Map();
+for (const file of suiteFiles) {
+  const head = readFileSync(join(root, file), 'utf8').split('\n').slice(0, 5).join('\n');
+  const kind = /@test-kind:\s*(\S+)/.exec(head)?.[1] ?? 'undeclared';
+  if (!suitesByKind.has(kind)) suitesByKind.set(kind, []);
+  suitesByKind.get(kind).push(file);
+}
+for (const kind of ['unit', 'contract', 'integration', 'e2e', 'undeclared']) {
+  const suites = suitesByKind.get(kind);
+  if (!suites) continue;
+  lines.push(`| ${kind} | ${suites.map(file => `\`${file}\``).join(', ')} |`);
+}
 lines.push('');
 lines.push('## Per-tool rollup');
 lines.push('');

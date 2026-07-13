@@ -1,3 +1,4 @@
+// @test-kind: unit
 import { describe, expect, it } from 'vitest';
 import { toolDefinitions } from '../src/tool-definitions.js';
 import { parseToolArguments, ToolArgumentValidationError } from '../src/tool-argument-validation.js';

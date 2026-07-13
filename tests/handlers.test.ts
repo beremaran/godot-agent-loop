@@ -1,3 +1,4 @@
+// @test-kind: unit
 /**
  * Handler tests for Godot MCP server.
  *

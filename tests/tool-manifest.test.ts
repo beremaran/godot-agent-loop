@@ -1,3 +1,4 @@
+// @test-kind: contract
 import { describe, expect, it } from 'vitest';
 import { toolDefinitions, type ToolName } from '../src/tool-definitions.js';
 import { toolManifest } from '../src/tool-manifest.js';

@@ -1,3 +1,4 @@
+// @test-kind: unit
 import { describe, expect, it, vi } from 'vitest';
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js';
 import { ToolRegistry } from '../src/tool-registry.js';

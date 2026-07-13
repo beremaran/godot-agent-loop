@@ -1,3 +1,4 @@
+// @test-kind: unit
 process.env.GODOT_MCP_ALLOWED_DIRS = '/fake/project';
 
 import { describe, it, expect, vi, beforeAll } from 'vitest';

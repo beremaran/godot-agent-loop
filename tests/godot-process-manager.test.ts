@@ -1,3 +1,4 @@
+// @test-kind: unit
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { GodotProcessManager } from '../src/godot-process-manager.js';

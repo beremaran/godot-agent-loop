@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# @test-kind: integration
 # Parses every shipped GDScript file with Godot's warnings promoted to errors.
 #
 # Each tier is a throwaway Godot project whose project.godot declares which

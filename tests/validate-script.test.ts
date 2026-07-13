@@ -1,3 +1,4 @@
+// @test-kind: unit
 import { describe, it, expect } from 'vitest';
 import { parseGodotScriptDiagnostics, collectGdPaths } from '../src/utils.js';
 

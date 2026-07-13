@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# @test-kind: integration
 # Runs every operation in src/scripts/godot_operations.gd against a real Godot
 # instance and a throwaway fixture project.
 #

@@ -1,3 +1,4 @@
+// @test-kind: unit
 import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';

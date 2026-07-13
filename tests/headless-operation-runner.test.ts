@@ -1,3 +1,4 @@
+// @test-kind: unit
 import { describe, expect, it, vi } from 'vitest';
 
 const execFileCalls = vi.hoisted(() => [] as { file: string; args: string[] }[]);

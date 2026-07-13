@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# @test-kind: integration
 # Runs the Godot runtime-server integration tests against a real headless
 # Godot instance, driving the shipped server over loopback TCP.
 set -euo pipefail

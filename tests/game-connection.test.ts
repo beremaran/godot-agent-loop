@@ -1,3 +1,4 @@
+// @test-kind: unit
 import { createServer, type Server } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
 import { GameConnection } from '../src/game-connection.js';
