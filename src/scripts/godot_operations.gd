@@ -344,7 +344,10 @@ func _ensure_directory(res_dir: String) -> OperationResult:
 # --- Scene loading, packing and saving -------------------------------------
 
 # A scene file opened for editing: its instantiated root, or the reasons it
-# could not be opened.
+# could not be opened. The instantiated tree is never added to the running
+# SceneTree and queue_free() would never be processed before quit(), so the
+# guard frees the root when the OpenScene itself is released; without it every
+# early return leaks the whole tree as ObjectDB instances at exit.
 class OpenScene extends RefCounted:
     var root: Node
     var errors: PackedStringArray
@@ -355,6 +358,10 @@ class OpenScene extends RefCounted:
 
     func is_valid() -> bool:
         return errors.is_empty()
+
+    func _notification(what: int) -> void:
+        if what == NOTIFICATION_PREDELETE and root != null and is_instance_valid(root):
+            root.free()
 
 # Load a scene file and instantiate it so an operation can edit the tree.
 func _open_scene(res_scene_path: String) -> OpenScene:
@@ -571,6 +578,9 @@ func create_scene(params: Dictionary) -> OperationResult:
     scene_root.name = "root"
 
     var save_result := _save_scene_root(scene_root, full_scene_path)
+    # The root never joins the SceneTree, so it must be freed explicitly or it
+    # leaks an ObjectDB instance at exit.
+    scene_root.free()
     if not save_result.ok:
         if _diagnostics != null:
             _diagnostics.probe_write_access(full_scene_path.get_base_dir())
@@ -1061,8 +1071,9 @@ func read_scene(params: Dictionary) -> OperationResult:
     print(JSON.stringify(tree_data))
     print("SCENE_JSON_END")
 
-    # Clean up
-    scene_root.queue_free()
+    # queue_free() is never processed under --script before quit(), so free
+    # the tree immediately.
+    scene_root.free()
     return _ok()
 
 func _walk_scene_tree(node: Node) -> Dictionary:
@@ -1157,7 +1168,9 @@ func remove_node(params: Dictionary) -> OperationResult:
 
     var removed_name: String = String(target.name)
     target.get_parent().remove_child(target)
-    target.queue_free()
+    # queue_free() is never processed under --script before quit(); free the
+    # detached subtree immediately so it cannot leak at exit.
+    target.free()
 
     var save_result := _save_scene_root(scene_root, full_scene_path)
     if not save_result.ok:
@@ -1409,6 +1422,10 @@ func manage_scene_structure(params: Dictionary) -> OperationResult:
         if new_parent == target or _is_ancestor(target, new_parent):
             return _fail("Cannot move a node into itself or one of its descendants")
         target.get_parent().remove_child(target)
+        # Descendants keep their owner across remove_child, and add_child warns
+        # that the pending owner would be inconsistent; clear owners first and
+        # reassign them once the subtree is in place.
+        _clear_owner_recursive(target)
         new_parent.add_child(target, true)
         _set_owner_recursive(target, scene_root)
         print("Node moved: %s -> parent %s (as '%s')" % [node_path_str, new_parent_path, target.name])
@@ -1423,6 +1440,12 @@ func manage_scene_structure(params: Dictionary) -> OperationResult:
 
     print("Scene structure saved: " + full_path)
     return _ok()
+
+
+func _clear_owner_recursive(node: Node) -> void:
+    node.owner = null
+    for c in node.get_children():
+        _clear_owner_recursive(c)
 
 
 func _set_owner_recursive(node: Node, owner_root: Node) -> void:

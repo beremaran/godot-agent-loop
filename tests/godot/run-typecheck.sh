@@ -18,6 +18,7 @@ echo "Using Godot: $GODOT ($("$GODOT" --version | tail -n 1))"
 
 failed=0
 checked=0
+init_godot_log typecheck
 
 check_script() {
   local project="$1" script="$2" output status
@@ -28,6 +29,7 @@ check_script() {
   output="$("$GODOT" --headless --path "$project" --check-only --script "res://$script" 2>&1)"
   status=$?
   set -e
+  append_godot_log "$output"
   if [[ "$status" -ne 0 ]] || grep -q 'SCRIPT ERROR' <<<"$output"; then
     echo "FAIL $script"
     grep -v 'Godot Engine v' <<<"$output" || true
@@ -59,4 +61,5 @@ if [[ "$failed" -gt 0 ]]; then
   echo "Type check failed: $failed of $checked scripts have promoted warnings or parse errors"
   exit 1
 fi
+assert_clean_godot_log typecheck
 echo "Type check passed: $checked scripts"

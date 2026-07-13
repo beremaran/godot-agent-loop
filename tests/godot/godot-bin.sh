@@ -30,3 +30,64 @@ require_godot() {
   fi
   echo "$godot"
 }
+
+# --- Godot output gating -----------------------------------------------------
+# Unexpected engine diagnostics are test failures: every suite appends the raw
+# Godot output it captures to a suite log, and asserts the log clean before
+# reporting success. A diagnostic may only be tolerated through an entry in
+# allowed-godot-output.tsv, and only with both a reason and an issue/test
+# reference; anything else fails the suite even when every check passed.
+
+GODOT_DIAGNOSTIC_PATTERN='^(ERROR|SCRIPT ERROR|WARNING):|Leaked instance|ObjectDB instances? .*leaked|leaked at exit|Segmentation fault|handle_crash|=== debug print'
+
+init_godot_log() {
+  local suite="$1"
+  local log_dir
+  log_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/logs"
+  mkdir -p "$log_dir"
+  GODOT_SUITE_LOG="$log_dir/$suite.log"
+  : > "$GODOT_SUITE_LOG"
+  export GODOT_SUITE_LOG
+}
+
+append_godot_log() {
+  printf '%s\n' "$1" >> "$GODOT_SUITE_LOG"
+}
+
+assert_clean_godot_log() {
+  local suite="$1"
+  local allowlist
+  allowlist="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/allowed-godot-output.tsv"
+  local offenders
+  offenders="$(grep -E "$GODOT_DIAGNOSTIC_PATTERN" "$GODOT_SUITE_LOG" || true)"
+  [[ -z "$offenders" ]] && return 0
+
+  local unexpected=""
+  local line allowed entry_suite entry_pattern entry_reason entry_issue
+  while IFS= read -r line; do
+    allowed=0
+    while IFS=$'\t' read -r entry_suite entry_pattern entry_reason entry_issue; do
+      [[ -z "$entry_suite" || "$entry_suite" == \#* ]] && continue
+      [[ "$entry_suite" != "$suite" && "$entry_suite" != "*" ]] && continue
+      # Reason and issue are mandatory: an allowlist entry without a documented
+      # justification does not suppress anything.
+      [[ -z "$entry_reason" || -z "$entry_issue" ]] && continue
+      if [[ "$line" =~ $entry_pattern ]]; then
+        allowed=1
+        break
+      fi
+    done < "$allowlist"
+    if [[ "$allowed" -eq 0 ]]; then
+      unexpected+="$line"$'\n'
+    fi
+  done <<< "$offenders"
+
+  if [[ -n "$unexpected" ]]; then
+    echo "error: unexpected Godot diagnostics in the $suite suite:" >&2
+    printf '%s' "$unexpected" | sed 's/^/  | /' >&2
+    echo "Godot ERROR/WARNING/leak output fails the suite. If a diagnostic is" >&2
+    echo "genuinely expected, add a line to tests/godot/allowed-godot-output.tsv" >&2
+    echo "with the suite, a pattern, the reason, and an issue/test reference." >&2
+    return 1
+  fi
+}

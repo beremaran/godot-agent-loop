@@ -19,4 +19,14 @@ rm -rf "$FIXTURE_DIR/mcp_runtime"
 cp -R "$ROOT_DIR/src/scripts/mcp_runtime" "$FIXTURE_DIR/mcp_runtime"
 cp "$ROOT_DIR/tests/variant-codec-corpus.json" "$FIXTURE_DIR/variant-codec-corpus.json"
 
-exec "$GODOT" --headless --path "$FIXTURE_DIR" --script res://test_runner.gd
+# Capture the full engine output so unexpected ERROR/WARNING/leak diagnostics
+# fail the suite even when every check passed.
+init_godot_log runtime
+set +e
+"$GODOT" --headless --path "$FIXTURE_DIR" --script res://test_runner.gd 2>&1 | tee "$GODOT_SUITE_LOG"
+status=${PIPESTATUS[0]}
+set -e
+if [[ "$status" -ne 0 ]]; then
+  exit "$status"
+fi
+assert_clean_godot_log runtime

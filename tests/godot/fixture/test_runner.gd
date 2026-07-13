@@ -300,6 +300,10 @@ func _test_variant_codec() -> void:
 		var reencode_error: Dictionary = codec.take_error()
 		_check("variant codec: %s round-trips its wire value" % case_name,
 			reencode_error.is_empty() and _codec_wire_equal(_codec_normalize_dynamic(reencoded, dynamic_keys), expected_wire), {"reencoded": reencoded, "error": reencode_error})
+		# Bare Objects are not reference counted, so the corpus values for the
+		# "object" case must be freed here or they leak ObjectDB instances at exit.
+		_codec_free_if_bare_object(value)
+		_codec_free_if_bare_object(decoded)
 
 	var negative_cases: Array = (corpus as Dictionary).get("negative", [])
 	for negative_value: Variant in negative_cases:
@@ -360,6 +364,11 @@ func _codec_value_for_case(case_name: String, fixture: Node, codec_node: Node) -
 		"node": return codec_node
 		"object": return Object.new()
 		_: return null
+
+
+func _codec_free_if_bare_object(value: Variant) -> void:
+	if value is Object and not value is RefCounted and not value is Node:
+		(value as Object).free()
 
 
 func _codec_negative_value(case_name: String) -> Variant:

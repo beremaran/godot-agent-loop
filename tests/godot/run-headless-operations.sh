@@ -35,12 +35,15 @@ failures=0
 OUT=""
 STATUS=0
 
+init_godot_log headless-operations
+
 run_op() {
   local operation="$1" params="$2"
   set +e
   OUT="$("$GODOT" --headless --path "$PROJECT" --script "$OPERATIONS_SCRIPT" "$operation" "$params" 2>&1)"
   STATUS=$?
   set -e
+  append_godot_log "$OUT"
 }
 
 fail() {
@@ -375,4 +378,5 @@ if [[ "$failures" -gt 0 ]]; then
   echo "Headless operations: $failures of $checks checks failed"
   exit 1
 fi
+assert_clean_godot_log headless-operations
 echo "Headless operations: $checks checks passed"
