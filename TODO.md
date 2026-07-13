@@ -551,18 +551,27 @@ action, and fails when a new public action has no declared tests.
 
 ### Phase 1: establish the full MCP-to-Godot path
 
-- [ ] Build the package before E2E tests and start `build/index.js` over stdio.
-- [ ] Use an MCP SDK client to perform initialization, list tools, and invoke
-  tools exactly as a consumer does.
-- [ ] Give each test a temporary project, isolated runtime port, process group,
-  user-data directory, and deterministic teardown.
-- [ ] Add independent observers for filesystem, scene/resource reload, runtime
-  state, signals, logs, screenshots, processes, and exports.
-- [ ] Cover one representative lifecycle tool, headless tool, runtime query,
+- [x] Build the package before E2E tests and start `build/index.js` over stdio.
+  (`npm run test:e2e` builds first; the harness spawns the built entry point.)
+- [x] Use an MCP SDK client to perform initialization, list tools, and invoke
+  tools exactly as a consumer does. (`tests/e2e/helpers/harness.ts` uses the
+  official SDK `Client` + `StdioClientTransport`.)
+- [x] Give each test a temporary project, isolated runtime port, process group,
+  user-data directory, and deterministic teardown. (Fresh temp project, a
+  freshly allocated `GODOT_MCP_RUNTIME_PORT`, isolated XDG dirs, and teardown
+  that fails on any surviving Godot process for the test's root.)
+- [x] Add independent observers for filesystem, scene/resource reload, runtime
+  state, signals, logs, screenshots, processes, and exports. (Filesystem reads,
+  engine reloads, follow-up runtime queries, signal delivery observed through
+  group membership, log cursors, PNG-decoded screenshots with a structured
+  headless limitation path, OS process checks, and export failure
+  classification; `tests/e2e/observers.test.ts`.)
+- [x] Cover one representative lifecycle tool, headless tool, runtime query,
   runtime mutation, async command, privileged command, and failure through the
   complete path before scaling horizontally.
-- [ ] Test server shutdown during active Godot work and Godot shutdown during an
-  active MCP request.
+  (`tests/e2e/representative-path.test.ts`.)
+- [x] Test server shutdown during active Godot work and Godot shutdown during an
+  active MCP request. (Both directions in the shutdown-behavior suite.)
 
 Exit criteria: at least one test crosses every architectural seam, detects a
 planted defect at each seam, and leaves no process, socket, file, input, node, or

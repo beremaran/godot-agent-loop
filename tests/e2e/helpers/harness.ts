@@ -89,10 +89,28 @@ export function createTempProject(options: TempProjectOptions = {}): { root: str
     'config/features=PackedStringArray("4.4")',
     '',
   ].join('\n'));
+  // The root script provides unprivileged observation hooks: a signal handler
+  // that tags nodes with a group (readable via game_get_nodes_in_group) and a
+  // startup print (readable via game_get_logs / get_debug_output).
+  writeFileSync(join(projectPath, 'main.gd'), [
+    'extends Node2D',
+    '',
+    '',
+    'func _ready() -> void:',
+    '\tprint("e2e-fixture-ready")',
+    '',
+    '',
+    'func observe_child(node: Node) -> void:',
+    '\tnode.add_to_group("observed-by-signal")',
+    '',
+  ].join('\n'));
   writeFileSync(join(projectPath, 'main.tscn'), [
-    '[gd_scene format=3]',
+    '[gd_scene load_steps=2 format=3]',
+    '',
+    '[ext_resource type="Script" path="res://main.gd" id="1"]',
     '',
     '[node name="Main" type="Node2D"]',
+    'script = ExtResource("1")',
     '',
     '[node name="Anchor" type="Node2D" parent="."]',
     '',
