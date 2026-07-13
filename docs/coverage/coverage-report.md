@@ -19,11 +19,11 @@ when this file is stale, and the inventory behind it is validated by
 
 | Class | Tools | Meaning |
 | --- | ---: | --- |
-| E2E | 16 | Complete MCP-to-Godot path with independent observation |
+| E2E | 23 | Complete MCP-to-Godot path with independent observation |
 | H | 0 | Headless GDScript operation exercised directly against Godot |
 | G+ | 45 | Runtime command reaches real Godot with at least one successful behavior |
 | G- | 14 | Runtime command reaches real Godot on a negative path only |
-| T | 82 | TypeScript, source-contract, schema, or mocked-transport coverage only |
+| T | 75 | TypeScript, source-contract, schema, or mocked-transport coverage only |
 | **Total** | **157** | |
 
 ## Action coverage
@@ -42,19 +42,19 @@ engine, never a mocked transport.
 | unit | `tests/dotnet.test.ts`, `tests/game-connection.test.ts`, `tests/godot-process-manager.test.ts`, `tests/handler-modules.test.ts`, `tests/handlers.test.ts`, `tests/headless-operation-runner.test.ts`, `tests/headless-operation-service.test.ts`, `tests/index.test.ts`, `tests/interaction-server-installer.test.ts`, `tests/project-support.test.ts`, `tests/tool-argument-validation.test.ts`, `tests/tool-registry.test.ts`, `tests/utils.test.ts`, `tests/validate-script.test.ts` |
 | contract | `tests/runtime-protocol-contract.test.ts`, `tests/source-guardrails.test.ts`, `tests/test-metadata.test.ts`, `tests/tool-coverage.test.ts`, `tests/tool-definitions.test.ts`, `tests/tool-manifest.test.ts`, `tests/variant-codec-corpus.test.ts` |
 | integration | `tests/godot/run-headless-operations.sh`, `tests/godot/run-integration-tests.sh`, `tests/godot/run-typecheck.sh` |
-| e2e | `tests/e2e/headless-tools.test.ts`, `tests/e2e/observers.test.ts`, `tests/e2e/representative-path.test.ts` |
+| e2e | `tests/e2e/headless-tools.test.ts`, `tests/e2e/lifecycle-tools.test.ts`, `tests/e2e/observers.test.ts`, `tests/e2e/representative-path.test.ts` |
 
 ## Per-tool rollup
 
 | Tool | Backend | Privileged | Level | Actions tested |
 | --- | --- | --- | --- | ---: |
-| `launch_editor` | process | no | T | 1/1 |
-| `run_project` | process | no | T | 1/1 |
-| `get_debug_output` | process | no | T | 1/1 |
-| `stop_project` | process | no | T | 1/1 |
-| `get_godot_version` | process | no | T | 1/1 |
-| `list_projects` | local | no | T | 1/1 |
-| `get_project_info` | godot-cli | no | T | 1/1 |
+| `launch_editor` | process | no | E2E | 1/1 |
+| `run_project` | process | no | E2E | 1/1 |
+| `get_debug_output` | process | no | E2E | 1/1 |
+| `stop_project` | process | no | E2E | 1/1 |
+| `get_godot_version` | process | no | E2E | 1/1 |
+| `list_projects` | local | no | E2E | 1/1 |
+| `get_project_info` | godot-cli | no | E2E | 1/1 |
 | `create_scene` | headless `create_scene` | no | E2E | 1/1 |
 | `add_node` | headless `add_node` | no | E2E | 1/1 |
 | `load_sprite` | headless `load_sprite` | no | E2E | 1/1 |

@@ -46,8 +46,12 @@ export class LifecycleToolHandlers {
         return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
 
       this.context.logDebug(`Launching Godot editor for project: ${args.projectPath}`);
-      const process = spawn(godotPath, ['-e', '--path', args.projectPath], { stdio: 'pipe' });
-      process.on('error', (err: Error) => { console.error('Failed to start Godot editor:', err); });
+      const editorArgs = ['-e', '--path', args.projectPath];
+      // Display-less environments (CI, the E2E harness) opt in to a headless
+      // editor process, same as run_project.
+      if (process.env.GODOT_MCP_RUN_HEADLESS === 'true') editorArgs.unshift('--headless');
+      const editorProcess = spawn(godotPath, editorArgs, { stdio: 'pipe' });
+      editorProcess.on('error', (err: Error) => { console.error('Failed to start Godot editor:', err); });
       return { content: [{ type: 'text', text: `Godot editor launched successfully for project at ${args.projectPath}.` }] };
     } catch (error: unknown) {
       return createErrorResponse(`Failed to launch Godot editor: ${this.errorMessage(error)}`);
@@ -75,7 +79,11 @@ export class LifecycleToolHandlers {
         this.context.disconnectFromGame();
         const existingProjectPath = this.context.getConnectedProjectPath();
         if (existingProjectPath) this.context.removeInteractionServer(existingProjectPath);
-        this.context.stopProjectProcess();
+        const stopped = this.context.stopProjectProcess();
+        // The old process still holds the interaction port until it exits;
+        // starting the replacement immediately made its server fail to listen
+        // and the relaunch never became reachable.
+        if (stopped) await this.waitForProcessExit(stopped, 10_000);
       }
 
       this.context.injectInteractionServer(args.projectPath);
@@ -137,6 +145,21 @@ export class LifecycleToolHandlers {
     } catch (error: unknown) {
       return createErrorResponse(`Failed to get Godot version: ${this.errorMessage(error)}`);
     }
+  }
+
+  private waitForProcessExit(record: GodotProcess, timeoutMs: number): Promise<void> {
+    return new Promise(resolve => {
+      const child = record.process;
+      if (typeof child.once !== 'function' || child.exitCode !== null || child.signalCode !== null) {
+        resolve();
+        return;
+      }
+      const timer = setTimeout(resolve, timeoutMs);
+      child.once('exit', () => {
+        clearTimeout(timer);
+        resolve();
+      });
+    });
   }
 
   private async requireGodotPath(): Promise<string | null> {

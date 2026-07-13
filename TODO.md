@@ -148,13 +148,13 @@ release-level rollup.
 
 ### Project lifecycle and discovery
 
-- [ ] **T** `launch_editor`
-- [ ] **T** `run_project`
-- [ ] **T** `get_debug_output`
-- [ ] **T** `stop_project`
-- [ ] **T** `get_godot_version`
-- [ ] **T** `list_projects`
-- [ ] **T** `get_project_info`
+- [x] **E2E** `launch_editor`
+- [x] **E2E** `run_project`
+- [x] **E2E** `get_debug_output`
+- [x] **E2E** `stop_project`
+- [x] **E2E** `get_godot_version`
+- [x] **E2E** `list_projects`
+- [x] **E2E** `get_project_info`
 
 Required E2E additions: launch/stop process ownership, repeated launches,
 crashes, startup timeout, output ordering, paths with spaces, missing binaries,

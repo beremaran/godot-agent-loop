@@ -2,13 +2,15 @@
   "$comment": "Per-tool coverage inventory. level: E2E|H|G+|G-|T per TODO.md definitions. Every test ref is \"file::needle\" and tests/tool-coverage.test.ts verifies the needle occurs in the file. Every manifest action must appear here, either with tests or with an explicit untested reason.",
   "tools": {
     "launch_editor": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/lifecycle-tools.test.ts::'launch_editor'",
         "tests/handlers.test.ts::handleLaunchEditor"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/lifecycle-tools.test.ts::'launch_editor'",
             "tests/handlers.test.ts::handleLaunchEditor"
           ]
         }
@@ -30,14 +32,18 @@
       }
     },
     "run_project": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/representative-path.test.ts::'run_project'",
+        "tests/e2e/lifecycle-tools.test.ts::'run_project'",
         "tests/handlers.test.ts::handleRunProject",
         "tests/index.test.ts::run_project"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/representative-path.test.ts::'run_project'",
+            "tests/e2e/lifecycle-tools.test.ts::'run_project'",
             "tests/handlers.test.ts::handleRunProject",
             "tests/index.test.ts::run_project"
           ]
@@ -60,14 +66,18 @@
       }
     },
     "get_debug_output": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/representative-path.test.ts::'get_debug_output'",
+        "tests/e2e/lifecycle-tools.test.ts::'get_debug_output'",
         "tests/handler-modules.test.ts::handleGetDebugOutput",
         "tests/handlers.test.ts::handleGetDebugOutput"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/representative-path.test.ts::'get_debug_output'",
+            "tests/e2e/lifecycle-tools.test.ts::'get_debug_output'",
             "tests/handler-modules.test.ts::handleGetDebugOutput",
             "tests/handlers.test.ts::handleGetDebugOutput"
           ]
@@ -90,14 +100,18 @@
       }
     },
     "stop_project": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/representative-path.test.ts::'stop_project'",
+        "tests/e2e/lifecycle-tools.test.ts::'stop_project'",
         "tests/handler-modules.test.ts::handleStopProject",
         "tests/handlers.test.ts::handleStopProject"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/representative-path.test.ts::'stop_project'",
+            "tests/e2e/lifecycle-tools.test.ts::'stop_project'",
             "tests/handler-modules.test.ts::handleStopProject",
             "tests/handlers.test.ts::handleStopProject"
           ]
@@ -120,13 +134,15 @@
       }
     },
     "get_godot_version": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/lifecycle-tools.test.ts::'get_godot_version'",
         "tests/handlers.test.ts::handleGetGodotVersion"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/lifecycle-tools.test.ts::'get_godot_version'",
             "tests/handlers.test.ts::handleGetGodotVersion"
           ]
         }
@@ -148,14 +164,16 @@
       }
     },
     "list_projects": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/lifecycle-tools.test.ts::'list_projects'",
         "tests/handler-modules.test.ts::handleListProjects",
         "tests/handlers.test.ts::handleListProjects"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/lifecycle-tools.test.ts::'list_projects'",
             "tests/handler-modules.test.ts::handleListProjects",
             "tests/handlers.test.ts::handleListProjects"
           ]
@@ -178,13 +196,15 @@
       }
     },
     "get_project_info": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/lifecycle-tools.test.ts::'get_project_info'",
         "tests/handlers.test.ts::handleGetProjectInfo"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/lifecycle-tools.test.ts::'get_project_info'",
             "tests/handlers.test.ts::handleGetProjectInfo"
           ]
         }
