@@ -701,6 +701,101 @@ Exit criteria: `docs/coverage/engine-surface.md` reports zero gaps, with every
 class in this list resolved to a tool, a reachability proof, or a recorded
 scope decision.
 
+## End goal and architecture direction
+
+Phases 0-5 established that the advertised surface is real: every tool reaches
+Godot and every action is observed. That is a statement about *correctness*. It
+says nothing about whether the surface composes into the thing it exists for.
+
+**End goal: an agent builds a game end to end.** Not "an agent can call 166
+tools", but: an agent authors scenes and scripts, runs the game, observes what
+happened, asserts against it, edits, and repeats — unattended, for hundreds of
+iterations — while a human can watch it happen in real time and take the wheel.
+
+The audit's own denominator is the wrong one for that goal. Tool coverage is now
+a solved problem; the open problems are loop latency, repo hygiene, fidelity, and
+legibility. This section records the architecture decisions taken to close them,
+so the reasoning survives the decision.
+
+### Decisions
+
+**Stay in GDScript; do not move the runtime to GDExtension.** GDExtension would
+load in the game process automatically and remove script injection entirely (see
+below), which is genuinely tempting. It is still rejected: it would trade 14
+readable domain scripts covering 109 runtime commands for native code plus a
+per-platform binary release matrix pinned to Godot's ABI. The project's leverage
+is that a contributor — or an agent — can add a runtime command in minutes.
+
+**The editor is an observation surface, not the execution path.** An earlier
+sketch had an addon own all work through `EditorInterface`, gaining undo/redo
+integration and killing per-operation engine boot. It is rejected as the trunk:
+an unattended agent loop needs execution that is headless-capable,
+containerizable, parallelizable, and deterministic, and a GUI editor is none of
+those. `editor_control` and the authenticated editor bridge remain — scoped to
+letting a human see and intervene, not to carrying the work.
+
+**Collapse the two engine channels into one persistent session.** The server
+currently has two transports of the same shape: `headless` (boot the engine,
+run one operation via `--script`, exit) and `runtime` (JSON-RPC over TCP into a
+live engine). The headless path pays a full engine start per operation, which an
+agent doing dozens of edits pays dozens of times. Make `godot_operations.gd` a
+long-lived `SceneTree` that serves the JSON-RPC protocol the runtime channel
+already speaks, and authoring becomes commands on the same wire.
+
+**Stop mutating the user's project to reach the running game.** `run_project`
+today copies `mcp_interaction_server.gd` plus `res://mcp_runtime/` into the
+project and rewrites `[autoload]` in `project.godot`. Ownership is tracked and
+cleanup is careful, but a crashed or `SIGKILL`ed server leaves a modified
+`project.godot` and ~15 files in the user's working tree. Two ways out, in
+increasing order of ambition:
+
+- `override.cfg`, which the engine merges over `project.godot` at startup, so the
+  autoload is declared in a file we create and delete and never in a file the user
+  tracks;
+- or the persistent session, where the harness *owns* the main loop and
+  instantiates the user's scene as a child — running their game inside us rather
+  than injecting ourselves into their game, at which point there is nothing to
+  inject.
+
+**Rendering does not require the editor, and headless is not the only way to run
+without a human.** `--headless` swaps in the dummy display driver *and* the dummy
+rasterizer, which is why viewport captures come back black; that is a CI
+constraint, not a desktop one. The primary target is a developer workstation with
+a real GPU, so the session runs windowed with a real rendering context. Captures
+go through `get_viewport().get_texture().get_image()`, which reads the
+framebuffer rather than the screen, so the window may be occluded, unfocused, or
+parked offscreen and still produce correct pixels. A persistent session also
+means the window opens once per agent session rather than once per operation.
+
+**Human observability is a push, not a path.** `GameConnection` already emits
+structured lifecycle events with correlation IDs. Fan them out over the existing
+editor bridge into an addon dock and the human watches the agent's *intent*
+scroll by, not just files flickering in the FileSystem panel — while the windowed
+session shows them the game itself. Watch mode and fast mode therefore run the
+same harness, the same protocol, and the same code path, differing only in where
+the window goes. Two code paths would invite the failure that matters most here:
+an agent that behaves differently when nobody is looking.
+
+### Unvalidated assumptions
+
+Phase 6 is gated on these. Each is load-bearing, and each is cheap to settle
+against the engine on this machine rather than by reading documentation.
+
+- A non-headless `--script` `SceneTree` renders and returns non-black pixels from
+  `get_viewport().get_texture().get_image()`. **This single result decides the
+  architecture** and should be tested first.
+- `override.cfg` actually overrides `[autoload]`, and the engine tolerates its
+  removal between runs.
+- Replacing the `MainLoop` via `--script` skips the project's own autoloads. If
+  so, the harness must read `[autoload]` from `project.godot` and instantiate them
+  itself, in declaration order — and the resulting fidelity gap between "the game
+  under the agent" and "the game the player runs" is the sharpest risk in this
+  plan, because agents write passing tests against games that are subtly not the
+  shipped game.
+- A windowed session can be parked offscreen, or nested (separate X display;
+  `gamescope`, already present via Steam, exposes a headless backend), without
+  losing the rendering context.
+
 ## Roadmap
 
 ### Phase 0: make the audit enforceable
@@ -855,6 +950,75 @@ represented in the manifest, and covered by its own full-path acceptance suite.
 Exit criteria: published claims match generated evidence and cannot drift when
 tools, actions, or supported environments change.
 
+### Phase 6: make the agent loop the product
+
+Phases 0-5 proved the tools work. This phase makes them compose into an
+autonomous author -> run -> observe -> assert -> edit loop that a human can watch.
+Rationale and rejected alternatives are recorded under "End goal and architecture
+direction"; the spikes below settle the assumptions that gate the rest.
+
+#### 6a: settle the assumptions (spikes, no production code)
+
+- [ ] Prove a non-headless `--script` `SceneTree` obtains a rendering context and
+  returns non-black pixels from `get_viewport().get_texture().get_image()`. Every
+  item below depends on this; do it first and stop if it fails.
+- [ ] Prove `override.cfg` overrides `[autoload]` and that removing it restores
+  the project cleanly.
+- [ ] Determine whether `--script` skips project autoloads. If it does, prototype
+  reading `[autoload]` from `project.godot` and instantiating them in declaration
+  order, and characterize what still differs from a normally launched game.
+- [ ] Confirm a windowed session keeps rendering while parked offscreen, and
+  evaluate a nested display (separate X display, or `gamescope --backend
+  headless`) as the isolation story.
+
+#### 6b: stop mutating the user's project
+
+- [ ] Move runtime-server injection from rewriting `project.godot` to a generated
+  `override.cfg`, keeping the existing ownership/cleanup semantics.
+- [ ] Add a stale-installation reaper: on startup, detect and remove artifacts an
+  earlier crashed or `SIGKILL`ed server left behind.
+- [ ] Add a full-path test that a `SIGKILL`ed server leaves the project tree
+  byte-identical to its pre-launch state.
+
+#### 6c: the persistent session
+
+- [ ] Extend the runtime JSON-RPC contract with the authoring commands currently
+  served by `godot_operations.gd`, and make the operations script a long-lived
+  `SceneTree` that serves them.
+- [ ] Port headless tools to the session one at a time through
+  `ToolBackend`, which already models backend-per-tool; keep the subprocess path
+  as a fallback until parity is proven.
+- [ ] Add `--fixed-fps` and time-scale control so "wait N frames, then capture"
+  means the same thing on every run. Determinism is miserable to retrofit.
+- [ ] Benchmark a realistic edit -> run -> observe -> edit cycle against today's
+  subprocess-per-operation path; the loop-latency delta is this phase's headline
+  result and belongs in the coverage report.
+- [ ] Decide whether the harness-owned main loop replaces autoload injection
+  entirely, or whether inject-and-run survives as a high-fidelity verification
+  mode alongside a fast iteration mode.
+
+#### 6d: let a human watch
+
+- [ ] Fan `GameConnection`'s existing correlated lifecycle events out over the
+  editor bridge and render them in an addon dock: command, target, outcome,
+  duration, live.
+- [ ] Push a filesystem rescan and scene reload to the open editor after the
+  session writes, instead of relying on Godot's focus-triggered rescan.
+- [ ] Follow the agent's focus: select and reveal the node a command just touched,
+  reusing `editor_control`'s `select`/`inspect`.
+- [ ] Resolve concurrent editing. The agent writing a scene while a human holds
+  unsaved changes to it loses someone's work, and Godot will not arbitrate. The
+  proposed answer is a cooperative "agent is driving" lock in the addon, with a
+  pause button that makes the server refuse mutating tools until resumed;
+  dirty-buffer detection is more permissive but strands the agent in a state it
+  cannot resolve on its own.
+
+Exit criteria: an agent completes a non-trivial game end to end through the MCP
+server, unattended, in a session whose loop latency is dominated by agent thinking
+rather than engine startup; the project tree it worked in contains only the game;
+and a human watching the addon dock can say what the agent did and why without
+reading a log.
+
 ## Definition of done
 
 ### Per tool
@@ -954,8 +1118,11 @@ A tool may be marked `[x] E2E` only when all applicable items pass:
 - Which renderers and GPU-dependent features are promised in CI?
 - Is Godot .NET a first-class supported build or an optional scaffold generator?
 - Which export targets and templates are supported and smoke-runnable?
-- Is editor automation a core product direction, or is the supported boundary
-  intentionally project files plus running games?
+- ~~Is editor automation a core product direction, or is the supported boundary
+  intentionally project files plus running games?~~ **Resolved:** neither exactly.
+  The supported boundary is project files plus running games, and the editor is a
+  first-class *observation and intervention* surface rather than an execution
+  path. See "End goal and architecture direction".
 - Which third-party test frameworks, add-on sources, and native toolchains may be
   integrated without expanding the trust boundary unexpectedly?
 - What latency and project-size budgets define acceptable behavior for tree,
