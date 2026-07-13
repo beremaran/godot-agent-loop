@@ -1,0 +1,2597 @@
+{
+  "$comment": "Per-tool coverage inventory. level: E2E|H|G+|G-|T per TODO.md definitions. Every test ref is \"file::needle\" and tests/tool-coverage.test.ts verifies the needle occurs in the file. Every manifest action must appear here, either with tests or with an explicit untested reason.",
+  "tools": {
+    "launch_editor": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleLaunchEditor"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/handlers.test.ts::handleLaunchEditor"
+          ]
+        }
+      }
+    },
+    "run_project": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleRunProject",
+        "tests/index.test.ts::run_project"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/handlers.test.ts::handleRunProject",
+            "tests/index.test.ts::run_project"
+          ]
+        }
+      }
+    },
+    "get_debug_output": {
+      "level": "T",
+      "tests": [
+        "tests/handler-modules.test.ts::handleGetDebugOutput",
+        "tests/handlers.test.ts::handleGetDebugOutput"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/handler-modules.test.ts::handleGetDebugOutput",
+            "tests/handlers.test.ts::handleGetDebugOutput"
+          ]
+        }
+      }
+    },
+    "stop_project": {
+      "level": "T",
+      "tests": [
+        "tests/handler-modules.test.ts::handleStopProject",
+        "tests/handlers.test.ts::handleStopProject"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/handler-modules.test.ts::handleStopProject",
+            "tests/handlers.test.ts::handleStopProject"
+          ]
+        }
+      }
+    },
+    "get_godot_version": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGetGodotVersion"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/handlers.test.ts::handleGetGodotVersion"
+          ]
+        }
+      }
+    },
+    "list_projects": {
+      "level": "T",
+      "tests": [
+        "tests/handler-modules.test.ts::handleListProjects",
+        "tests/handlers.test.ts::handleListProjects"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/handler-modules.test.ts::handleListProjects",
+            "tests/handlers.test.ts::handleListProjects"
+          ]
+        }
+      }
+    },
+    "get_project_info": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGetProjectInfo"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/handlers.test.ts::handleGetProjectInfo"
+          ]
+        }
+      }
+    },
+    "create_scene": {
+      "level": "H",
+      "tests": [
+        "tests/godot/run-headless-operations.sh::run_op create_scene",
+        "tests/handler-modules.test.ts::handleCreateScene",
+        "tests/handlers.test.ts::handleCreateScene",
+        "tests/headless-operation-runner.test.ts::create_scene"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/run-headless-operations.sh::run_op create_scene",
+            "tests/handler-modules.test.ts::handleCreateScene",
+            "tests/handlers.test.ts::handleCreateScene",
+            "tests/headless-operation-runner.test.ts::create_scene"
+          ]
+        }
+      }
+    },
+    "add_node": {
+      "level": "H",
+      "tests": [
+        "tests/godot/run-headless-operations.sh::run_op add_node",
+        "tests/handlers.test.ts::add_node",
+        "tests/tool-argument-validation.test.ts::add_node"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/run-headless-operations.sh::run_op add_node",
+            "tests/handlers.test.ts::add_node",
+            "tests/tool-argument-validation.test.ts::add_node"
+          ]
+        }
+      }
+    },
+    "load_sprite": {
+      "level": "H",
+      "tests": [
+        "tests/godot/run-headless-operations.sh::run_op load_sprite"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/run-headless-operations.sh::run_op load_sprite"
+          ]
+        }
+      }
+    },
+    "export_mesh_library": {
+      "level": "H",
+      "tests": [
+        "tests/godot/run-headless-operations.sh::run_op export_mesh_library"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/run-headless-operations.sh::run_op export_mesh_library"
+          ]
+        }
+      }
+    },
+    "save_scene": {
+      "level": "H",
+      "tests": [
+        "tests/godot/run-headless-operations.sh::run_op save_scene",
+        "tests/handlers.test.ts::handleSaveScene"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/run-headless-operations.sh::run_op save_scene",
+            "tests/handlers.test.ts::handleSaveScene"
+          ]
+        }
+      }
+    },
+    "get_uid": {
+      "level": "H",
+      "tests": [
+        "tests/godot/run-headless-operations.sh::run_op get_uid"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/run-headless-operations.sh::run_op get_uid"
+          ]
+        }
+      }
+    },
+    "update_project_uids": {
+      "level": "H",
+      "tests": [
+        "tests/godot/run-headless-operations.sh::run_op resave_resources",
+        "tests/handlers.test.ts::handleUpdateProjectUids"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/run-headless-operations.sh::run_op resave_resources",
+            "tests/handlers.test.ts::handleUpdateProjectUids"
+          ]
+        }
+      }
+    },
+    "game_screenshot": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGameScreenshot"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/handlers.test.ts::handleGameScreenshot"
+          ]
+        }
+      }
+    },
+    "game_click": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.click",
+        "tests/handlers.test.ts::handleGameClick",
+        "tests/index.test.ts::game_click",
+        "tests/tool-argument-validation.test.ts::game_click"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::godot.runtime.click",
+            "tests/handlers.test.ts::handleGameClick",
+            "tests/index.test.ts::game_click",
+            "tests/tool-argument-validation.test.ts::game_click"
+          ]
+        }
+      }
+    },
+    "game_key_press": {
+      "level": "G-",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.key_press",
+        "tests/handlers.test.ts::handleGameKeyPress"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::godot.runtime.key_press",
+            "tests/handlers.test.ts::handleGameKeyPress"
+          ]
+        }
+      }
+    },
+    "game_mouse_move": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGameMouseMove"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/handlers.test.ts::handleGameMouseMove"
+          ]
+        }
+      }
+    },
+    "game_get_ui": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGameGetUi"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/handlers.test.ts::handleGameGetUi"
+          ]
+        }
+      }
+    },
+    "game_get_scene_tree": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.get_scene_tree",
+        "tests/handlers.test.ts::handleGameGetSceneTree"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::godot.runtime.get_scene_tree",
+            "tests/handlers.test.ts::handleGameGetSceneTree"
+          ]
+        }
+      }
+    },
+    "game_eval": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.eval",
+        "tests/handlers.test.ts::handleGameEval"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::godot.runtime.eval",
+            "tests/handlers.test.ts::handleGameEval"
+          ]
+        }
+      }
+    },
+    "game_get_property": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.get_property",
+        "tests/handler-modules.test.ts::handleGameGetProperty",
+        "tests/handlers.test.ts::handleGameGetProperty"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::godot.runtime.get_property",
+            "tests/handler-modules.test.ts::handleGameGetProperty",
+            "tests/handlers.test.ts::handleGameGetProperty"
+          ]
+        }
+      }
+    },
+    "game_set_property": {
+      "level": "G-",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::\"set_property\"",
+        "tests/handler-modules.test.ts::handleGameSetProperty",
+        "tests/handlers.test.ts::handleGameSetProperty"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"set_property\"",
+            "tests/handler-modules.test.ts::handleGameSetProperty",
+            "tests/handlers.test.ts::handleGameSetProperty"
+          ]
+        }
+      }
+    },
+    "game_call_method": {
+      "level": "G-",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::\"call_method\"",
+        "tests/handlers.test.ts::handleGameCallMethod"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"call_method\"",
+            "tests/handlers.test.ts::handleGameCallMethod"
+          ]
+        }
+      }
+    },
+    "game_get_node_info": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGameGetNodeInfo"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/handlers.test.ts::handleGameGetNodeInfo"
+          ]
+        }
+      }
+    },
+    "game_instantiate_scene": {
+      "level": "G-",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.instantiate_scene",
+        "tests/handlers.test.ts::handleGameInstantiateScene"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::godot.runtime.instantiate_scene",
+            "tests/handlers.test.ts::handleGameInstantiateScene"
+          ]
+        }
+      }
+    },
+    "game_remove_node": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGameRemoveNode"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/handlers.test.ts::handleGameRemoveNode"
+          ]
+        }
+      }
+    },
+    "game_change_scene": {
+      "level": "G-",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.change_scene",
+        "tests/handlers.test.ts::handleGameChangeScene"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::godot.runtime.change_scene",
+            "tests/handlers.test.ts::handleGameChangeScene"
+          ]
+        }
+      }
+    },
+    "game_pause": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGamePause"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/handlers.test.ts::handleGamePause"
+          ]
+        }
+      }
+    },
+    "game_performance": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGamePerformance"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/handlers.test.ts::handleGamePerformance"
+          ]
+        }
+      }
+    },
+    "game_wait": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.wait",
+        "tests/handlers.test.ts::handleGameWait"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::godot.runtime.wait",
+            "tests/handlers.test.ts::handleGameWait"
+          ]
+        }
+      }
+    },
+    "read_scene": {
+      "level": "H",
+      "tests": [
+        "tests/godot/run-headless-operations.sh::run_op read_scene",
+        "tests/handlers.test.ts::handleReadScene"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/run-headless-operations.sh::run_op read_scene",
+            "tests/handlers.test.ts::handleReadScene"
+          ]
+        }
+      }
+    },
+    "modify_scene_node": {
+      "level": "H",
+      "tests": [
+        "tests/godot/run-headless-operations.sh::run_op modify_node",
+        "tests/handlers.test.ts::handleModifySceneNode"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/run-headless-operations.sh::run_op modify_node",
+            "tests/handlers.test.ts::handleModifySceneNode"
+          ]
+        }
+      }
+    },
+    "remove_scene_node": {
+      "level": "H",
+      "tests": [
+        "tests/godot/run-headless-operations.sh::run_op remove_node",
+        "tests/handlers.test.ts::handleRemoveSceneNode"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/run-headless-operations.sh::run_op remove_node",
+            "tests/handlers.test.ts::handleRemoveSceneNode"
+          ]
+        }
+      }
+    },
+    "read_project_settings": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleReadProjectSettings"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/handlers.test.ts::handleReadProjectSettings"
+          ]
+        }
+      }
+    },
+    "modify_project_settings": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleModifyProjectSettings"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/handlers.test.ts::handleModifyProjectSettings"
+          ]
+        }
+      }
+    },
+    "list_project_files": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleListProjectFiles"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/handlers.test.ts::handleListProjectFiles"
+          ]
+        }
+      }
+    },
+    "game_connect_signal": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.connect_signal",
+        "tests/handlers.test.ts::handleGameConnectSignal"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::godot.runtime.connect_signal",
+            "tests/handlers.test.ts::handleGameConnectSignal"
+          ]
+        }
+      }
+    },
+    "game_disconnect_signal": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.disconnect_signal",
+        "tests/handlers.test.ts::handleGameDisconnectSignal"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::godot.runtime.disconnect_signal",
+            "tests/handlers.test.ts::handleGameDisconnectSignal"
+          ]
+        }
+      }
+    },
+    "game_emit_signal": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.emit_signal",
+        "tests/handlers.test.ts::handleGameEmitSignal"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::godot.runtime.emit_signal",
+            "tests/handlers.test.ts::handleGameEmitSignal"
+          ]
+        }
+      }
+    },
+    "game_play_animation": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGamePlayAnimation"
+      ],
+      "actions": {
+        "play": {
+          "untested": "baseline-audit"
+        },
+        "stop": {
+          "untested": "baseline-audit"
+        },
+        "pause": {
+          "untested": "baseline-audit"
+        },
+        "get_list": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "game_tween_property": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGameTweenProperty"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/handlers.test.ts::handleGameTweenProperty"
+          ]
+        }
+      }
+    },
+    "game_get_nodes_in_group": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGameGetNodesInGroup"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/handlers.test.ts::handleGameGetNodesInGroup"
+          ]
+        }
+      }
+    },
+    "game_find_nodes_by_class": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGameFindNodesByClass"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/handlers.test.ts::handleGameFindNodesByClass"
+          ]
+        }
+      }
+    },
+    "game_reparent_node": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGameReparentNode"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/handlers.test.ts::handleGameReparentNode"
+          ]
+        }
+      }
+    },
+    "attach_script": {
+      "level": "H",
+      "tests": [
+        "tests/godot/run-headless-operations.sh::run_op attach_script",
+        "tests/handlers.test.ts::handleAttachScript",
+        "tests/headless-operation-runner.test.ts::attach_script"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/run-headless-operations.sh::run_op attach_script",
+            "tests/handlers.test.ts::handleAttachScript",
+            "tests/headless-operation-runner.test.ts::attach_script"
+          ]
+        }
+      }
+    },
+    "create_resource": {
+      "level": "H",
+      "tests": [
+        "tests/godot/run-headless-operations.sh::run_op create_resource",
+        "tests/handlers.test.ts::handleCreateResource"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/run-headless-operations.sh::run_op create_resource",
+            "tests/handlers.test.ts::handleCreateResource"
+          ]
+        }
+      }
+    },
+    "read_file": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleReadFile"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/handlers.test.ts::handleReadFile"
+          ]
+        }
+      }
+    },
+    "write_file": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleWriteFile"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/handlers.test.ts::handleWriteFile"
+          ]
+        }
+      }
+    },
+    "delete_file": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleDeleteFile"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/handlers.test.ts::handleDeleteFile"
+          ]
+        }
+      }
+    },
+    "create_directory": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleCreateDirectory"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/handlers.test.ts::handleCreateDirectory"
+          ]
+        }
+      }
+    },
+    "game_get_errors": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGameGetErrors"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/handlers.test.ts::handleGameGetErrors"
+          ]
+        }
+      }
+    },
+    "game_get_logs": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGameGetLogs"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/handlers.test.ts::handleGameGetLogs"
+          ]
+        }
+      }
+    },
+    "game_key_hold": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.key_hold",
+        "tests/handlers.test.ts::handleGameKeyHold"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::godot.runtime.key_hold",
+            "tests/handlers.test.ts::handleGameKeyHold"
+          ]
+        }
+      }
+    },
+    "game_key_release": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.key_release",
+        "tests/handlers.test.ts::handleGameKeyRelease"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::godot.runtime.key_release",
+            "tests/handlers.test.ts::handleGameKeyRelease"
+          ]
+        }
+      }
+    },
+    "game_scroll": {
+      "level": "G-",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.scroll",
+        "tests/handlers.test.ts::handleGameScroll"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::godot.runtime.scroll",
+            "tests/handlers.test.ts::handleGameScroll"
+          ]
+        }
+      }
+    },
+    "game_mouse_drag": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.mouse_drag",
+        "tests/handlers.test.ts::handleGameMouseDrag"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::godot.runtime.mouse_drag",
+            "tests/handlers.test.ts::handleGameMouseDrag"
+          ]
+        }
+      }
+    },
+    "game_gamepad": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGameGamepad"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/handlers.test.ts::handleGameGamepad"
+          ]
+        }
+      }
+    },
+    "create_project": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleCreateProject",
+        "tests/index.test.ts::create_project"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/handlers.test.ts::handleCreateProject",
+            "tests/index.test.ts::create_project"
+          ]
+        }
+      }
+    },
+    "create_csharp_script": {
+      "level": "T",
+      "tests": [
+        "tests/dotnet.test.ts::generateCsharpScriptSource"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/dotnet.test.ts::generateCsharpScriptSource"
+          ]
+        }
+      }
+    },
+    "manage_autoloads": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleManageAutoloads",
+        "tests/index.test.ts::manage_autoloads"
+      ],
+      "actions": {
+        "list": {
+          "untested": "baseline-audit"
+        },
+        "add": {
+          "untested": "baseline-audit"
+        },
+        "remove": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "manage_input_map": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleManageInputMap",
+        "tests/index.test.ts::manage_input_map"
+      ],
+      "actions": {
+        "list": {
+          "untested": "baseline-audit"
+        },
+        "add": {
+          "untested": "baseline-audit"
+        },
+        "remove": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "manage_export_presets": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleManageExportPresets",
+        "tests/index.test.ts::manage_export_presets"
+      ],
+      "actions": {
+        "list": {
+          "untested": "baseline-audit"
+        },
+        "add": {
+          "untested": "baseline-audit"
+        },
+        "remove": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "game_get_camera": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGameGetCamera"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/handlers.test.ts::handleGameGetCamera"
+          ]
+        }
+      }
+    },
+    "game_set_camera": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGameSetCamera"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/handlers.test.ts::handleGameSetCamera"
+          ]
+        }
+      }
+    },
+    "game_raycast": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.raycast",
+        "tests/handlers.test.ts::handleGameRaycast"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::godot.runtime.raycast",
+            "tests/handlers.test.ts::handleGameRaycast"
+          ]
+        }
+      }
+    },
+    "game_get_audio": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGameGetAudio"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/handlers.test.ts::handleGameGetAudio"
+          ]
+        }
+      }
+    },
+    "game_spawn_node": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGameSpawnNode"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/handlers.test.ts::handleGameSpawnNode"
+          ]
+        }
+      }
+    },
+    "game_set_shader_param": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGameSetShaderParam"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/handlers.test.ts::handleGameSetShaderParam"
+          ]
+        }
+      }
+    },
+    "game_audio_play": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGameAudioPlay"
+      ],
+      "actions": {
+        "play": {
+          "untested": "baseline-audit"
+        },
+        "stop": {
+          "untested": "baseline-audit"
+        },
+        "pause": {
+          "untested": "baseline-audit"
+        },
+        "resume": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "game_audio_bus": {
+      "level": "T",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.audio_bus",
+        "tests/handlers.test.ts::handleGameAudioBus"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::godot.runtime.audio_bus",
+            "tests/handlers.test.ts::handleGameAudioBus"
+          ]
+        }
+      }
+    },
+    "game_navigate_path": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.navigate_path",
+        "tests/handlers.test.ts::handleGameNavigatePath"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::godot.runtime.navigate_path",
+            "tests/handlers.test.ts::handleGameNavigatePath"
+          ]
+        }
+      }
+    },
+    "game_tilemap": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.tilemap",
+        "tests/handlers.test.ts::handleGameTilemap"
+      ],
+      "actions": {
+        "set_cells": {
+          "untested": "baseline-audit"
+        },
+        "get_cell": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"get_cell\""
+          ]
+        },
+        "erase_cells": {
+          "untested": "baseline-audit"
+        },
+        "get_used_cells": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"get_used_cells\""
+          ]
+        }
+      }
+    },
+    "game_add_collision": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.add_collision",
+        "tests/handlers.test.ts::handleGameAddCollision"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::godot.runtime.add_collision",
+            "tests/handlers.test.ts::handleGameAddCollision"
+          ]
+        }
+      }
+    },
+    "game_environment": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.environment",
+        "tests/handlers.test.ts::handleGameEnvironment"
+      ],
+      "actions": {
+        "get": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"get\""
+          ]
+        },
+        "set": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"set\""
+          ]
+        }
+      }
+    },
+    "game_manage_group": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGameManageGroup"
+      ],
+      "actions": {
+        "add": {
+          "untested": "baseline-audit"
+        },
+        "remove": {
+          "untested": "baseline-audit"
+        },
+        "get_groups": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "game_create_timer": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGameCreateTimer"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/handlers.test.ts::handleGameCreateTimer"
+          ]
+        }
+      }
+    },
+    "game_set_particles": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGameSetParticles"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/handlers.test.ts::handleGameSetParticles"
+          ]
+        }
+      }
+    },
+    "game_create_animation": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGameCreateAnimation"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/handlers.test.ts::handleGameCreateAnimation"
+          ]
+        }
+      }
+    },
+    "export_project": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleExportProject"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/handlers.test.ts::handleExportProject"
+          ]
+        }
+      }
+    },
+    "game_serialize_state": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGameSerializeState"
+      ],
+      "actions": {
+        "save": {
+          "untested": "baseline-audit"
+        },
+        "load": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "game_physics_body": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.physics_body",
+        "tests/handlers.test.ts::handleGamePhysicsBody"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::godot.runtime.physics_body",
+            "tests/handlers.test.ts::handleGamePhysicsBody"
+          ]
+        }
+      }
+    },
+    "game_create_joint": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.create_joint",
+        "tests/handlers.test.ts::handleGameCreateJoint"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::godot.runtime.create_joint",
+            "tests/handlers.test.ts::handleGameCreateJoint"
+          ]
+        }
+      }
+    },
+    "game_bone_pose": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGameBonePose"
+      ],
+      "actions": {
+        "list": {
+          "untested": "baseline-audit"
+        },
+        "get": {
+          "untested": "baseline-audit"
+        },
+        "set": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "game_ui_theme": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.ui_theme",
+        "tests/handlers.test.ts::handleGameUiTheme"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::godot.runtime.ui_theme",
+            "tests/handlers.test.ts::handleGameUiTheme"
+          ]
+        }
+      }
+    },
+    "game_viewport": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGameViewport"
+      ],
+      "actions": {
+        "create": {
+          "untested": "baseline-audit"
+        },
+        "configure": {
+          "untested": "baseline-audit"
+        },
+        "get": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "game_debug_draw": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.debug_draw",
+        "tests/handlers.test.ts::handleGameDebugDraw"
+      ],
+      "actions": {
+        "line": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"line\""
+          ]
+        },
+        "sphere": {
+          "untested": "baseline-audit"
+        },
+        "box": {
+          "untested": "baseline-audit"
+        },
+        "clear": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"clear\""
+          ]
+        }
+      }
+    },
+    "game_http_request": {
+      "level": "G-",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::\"http_request\"",
+        "tests/handlers.test.ts::handleGameHttpRequest"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"http_request\"",
+            "tests/handlers.test.ts::handleGameHttpRequest"
+          ]
+        }
+      }
+    },
+    "game_websocket": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.websocket",
+        "tests/handlers.test.ts::handleGameWebsocket"
+      ],
+      "actions": {
+        "connect": {
+          "untested": "baseline-audit"
+        },
+        "disconnect": {
+          "untested": "baseline-audit"
+        },
+        "send": {
+          "untested": "baseline-audit"
+        },
+        "status": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"status\""
+          ]
+        }
+      }
+    },
+    "game_multiplayer": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.multiplayer",
+        "tests/handlers.test.ts::handleGameMultiplayer"
+      ],
+      "actions": {
+        "create_server": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"create_server\""
+          ]
+        },
+        "create_client": {
+          "untested": "baseline-audit"
+        },
+        "disconnect": {
+          "untested": "baseline-audit"
+        },
+        "status": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"status\""
+          ]
+        }
+      }
+    },
+    "game_rpc": {
+      "level": "G-",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::\"rpc\""
+      ],
+      "actions": {
+        "call": {
+          "untested": "baseline-audit"
+        },
+        "configure": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "game_touch": {
+      "level": "G-",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.touch",
+        "tests/handlers.test.ts::handleGameTouch"
+      ],
+      "actions": {
+        "press": {
+          "untested": "baseline-audit"
+        },
+        "release": {
+          "untested": "baseline-audit"
+        },
+        "drag": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "game_input_state": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.input_state",
+        "tests/handlers.test.ts::handleGameInputState"
+      ],
+      "actions": {
+        "query": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"query\""
+          ]
+        },
+        "warp_mouse": {
+          "untested": "baseline-audit"
+        },
+        "set_mouse_mode": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "game_input_action": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.input_action"
+      ],
+      "actions": {
+        "set_strength": {
+          "untested": "baseline-audit"
+        },
+        "add_action": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"add_action\""
+          ]
+        },
+        "remove_action": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"remove_action\""
+          ]
+        },
+        "list": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"list\""
+          ]
+        }
+      }
+    },
+    "game_list_signals": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.list_signals",
+        "tests/handlers.test.ts::handleGameListSignals"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::godot.runtime.list_signals",
+            "tests/handlers.test.ts::handleGameListSignals"
+          ]
+        }
+      }
+    },
+    "game_await_signal": {
+      "level": "G-",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.await_signal"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::godot.runtime.await_signal"
+          ]
+        }
+      }
+    },
+    "game_script": {
+      "level": "G-",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::\"script\"",
+        "tests/handlers.test.ts::handleGameScript"
+      ],
+      "actions": {
+        "get_source": {
+          "untested": "baseline-audit"
+        },
+        "attach": {
+          "untested": "baseline-audit"
+        },
+        "detach": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "game_window": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGameWindow"
+      ],
+      "actions": {
+        "get": {
+          "untested": "baseline-audit"
+        },
+        "set": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "game_os_info": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.os_info",
+        "tests/handlers.test.ts::handleGameOsInfo"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::godot.runtime.os_info",
+            "tests/handlers.test.ts::handleGameOsInfo"
+          ]
+        }
+      }
+    },
+    "game_time_scale": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGameTimeScale"
+      ],
+      "actions": {
+        "get": {
+          "untested": "baseline-audit"
+        },
+        "set": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "game_process_mode": {
+      "level": "G-",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.process_mode",
+        "tests/handlers.test.ts::handleGameProcessMode"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::godot.runtime.process_mode",
+            "tests/handlers.test.ts::handleGameProcessMode"
+          ]
+        }
+      }
+    },
+    "game_world_settings": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGameWorldSettings"
+      ],
+      "actions": {
+        "get": {
+          "untested": "baseline-audit"
+        },
+        "set": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "game_csg": {
+      "level": "G-",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.csg",
+        "tests/handlers.test.ts::handleGameCsg"
+      ],
+      "actions": {
+        "create": {
+          "untested": "baseline-audit"
+        },
+        "configure": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"configure\""
+          ]
+        }
+      }
+    },
+    "game_multimesh": {
+      "level": "T",
+      "tests": [
+        "tests/runtime-protocol-contract.test.ts::'multimesh'"
+      ],
+      "actions": {
+        "create": {
+          "untested": "baseline-audit"
+        },
+        "set_instance": {
+          "untested": "baseline-audit"
+        },
+        "get_info": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "game_procedural_mesh": {
+      "level": "T",
+      "tests": [
+        "tests/runtime-protocol-contract.test.ts::'procedural_mesh'"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/runtime-protocol-contract.test.ts::'procedural_mesh'"
+          ]
+        }
+      }
+    },
+    "game_light_3d": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGameLight3d",
+        "tests/tool-registry.test.ts::game_light_3d"
+      ],
+      "actions": {
+        "create": {
+          "untested": "baseline-audit"
+        },
+        "configure": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "game_mesh_instance": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.mesh_instance",
+        "tests/handlers.test.ts::handleGameMeshInstance"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::godot.runtime.mesh_instance",
+            "tests/handlers.test.ts::handleGameMeshInstance"
+          ]
+        }
+      }
+    },
+    "game_gridmap": {
+      "level": "T",
+      "tests": [
+        "tests/runtime-protocol-contract.test.ts::'gridmap'"
+      ],
+      "actions": {
+        "set_cell": {
+          "untested": "baseline-audit"
+        },
+        "get_cell": {
+          "untested": "baseline-audit"
+        },
+        "clear": {
+          "untested": "baseline-audit"
+        },
+        "get_used": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "game_3d_effects": {
+      "level": "T",
+      "tests": [
+        "tests/runtime-protocol-contract.test.ts::'3d_effects'"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/runtime-protocol-contract.test.ts::'3d_effects'"
+          ]
+        }
+      }
+    },
+    "game_gi": {
+      "level": "T",
+      "tests": [
+        "tests/runtime-protocol-contract.test.ts::'gi'"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/runtime-protocol-contract.test.ts::'gi'"
+          ]
+        }
+      }
+    },
+    "game_path_3d": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.path_3d"
+      ],
+      "actions": {
+        "create": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"create\""
+          ]
+        },
+        "add_point": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"add_point\""
+          ]
+        },
+        "get_points": {
+          "untested": "baseline-audit"
+        },
+        "set_points": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "game_sky": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGameSky"
+      ],
+      "actions": {
+        "create": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "game_camera_attributes": {
+      "level": "T",
+      "tests": [
+        "tests/runtime-protocol-contract.test.ts::'camera_attributes'"
+      ],
+      "actions": {
+        "get": {
+          "untested": "baseline-audit"
+        },
+        "set": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "game_navigation_3d": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.navigation_3d"
+      ],
+      "actions": {
+        "create": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"create\""
+          ]
+        },
+        "bake": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "game_physics_3d": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGamePhysics3d"
+      ],
+      "actions": {
+        "ray": {
+          "untested": "baseline-audit"
+        },
+        "overlap": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "game_canvas": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.canvas",
+        "tests/handlers.test.ts::handleGameCanvas"
+      ],
+      "actions": {
+        "create_layer": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"create_layer\""
+          ]
+        },
+        "create_modulate": {
+          "untested": "baseline-audit"
+        },
+        "configure": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"configure\""
+          ]
+        }
+      }
+    },
+    "game_canvas_draw": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.canvas_draw"
+      ],
+      "actions": {
+        "line": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"line\""
+          ]
+        },
+        "rect": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"rect\""
+          ]
+        },
+        "circle": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"circle\""
+          ]
+        },
+        "polygon": {
+          "untested": "baseline-audit"
+        },
+        "text": {
+          "untested": "baseline-audit"
+        },
+        "clear": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"clear\""
+          ]
+        }
+      }
+    },
+    "game_light_2d": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.light_2d"
+      ],
+      "actions": {
+        "create_point": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"create_point\""
+          ]
+        },
+        "create_directional": {
+          "untested": "baseline-audit"
+        },
+        "create_occluder": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "game_parallax": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.parallax"
+      ],
+      "actions": {
+        "create_background": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"create_background\""
+          ]
+        },
+        "add_layer": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"add_layer\""
+          ]
+        },
+        "configure": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "game_shape_2d": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.shape_2d"
+      ],
+      "actions": {
+        "add_point": {
+          "untested": "baseline-audit"
+        },
+        "set_points": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"set_points\""
+          ]
+        },
+        "clear": {
+          "untested": "baseline-audit"
+        },
+        "get_points": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"get_points\""
+          ]
+        }
+      }
+    },
+    "game_path_2d": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.path_2d"
+      ],
+      "actions": {
+        "create": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"create\""
+          ]
+        },
+        "add_point": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"add_point\""
+          ]
+        },
+        "get_points": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "game_physics_2d": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.physics_2d"
+      ],
+      "actions": {
+        "ray": {
+          "untested": "baseline-audit"
+        },
+        "overlap": {
+          "untested": "baseline-audit"
+        },
+        "point_query": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"point_query\""
+          ]
+        },
+        "shape_query": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"shape_query\""
+          ]
+        }
+      }
+    },
+    "game_animation_tree": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGameAnimationTree"
+      ],
+      "actions": {
+        "travel": {
+          "untested": "baseline-audit"
+        },
+        "set_param": {
+          "untested": "baseline-audit"
+        },
+        "get_state": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "game_animation_control": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.animation_control",
+        "tests/handlers.test.ts::handleGameAnimationControl"
+      ],
+      "actions": {
+        "seek": {
+          "untested": "baseline-audit"
+        },
+        "queue": {
+          "untested": "baseline-audit"
+        },
+        "set_speed": {
+          "untested": "baseline-audit"
+        },
+        "stop": {
+          "untested": "baseline-audit"
+        },
+        "get_info": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"get_info\""
+          ]
+        }
+      }
+    },
+    "game_skeleton_ik": {
+      "level": "T",
+      "tests": [
+        "tests/runtime-protocol-contract.test.ts::'skeleton_ik'"
+      ],
+      "actions": {
+        "start": {
+          "untested": "baseline-audit"
+        },
+        "stop": {
+          "untested": "baseline-audit"
+        },
+        "set_target": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "game_audio_effect": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGameAudioEffect"
+      ],
+      "actions": {
+        "list": {
+          "untested": "baseline-audit"
+        },
+        "add": {
+          "untested": "baseline-audit"
+        },
+        "remove": {
+          "untested": "baseline-audit"
+        },
+        "configure": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "game_audio_bus_layout": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.audio_bus_layout",
+        "tests/handlers.test.ts::handleGameAudioBusLayout"
+      ],
+      "actions": {
+        "list": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"list\""
+          ]
+        },
+        "add": {
+          "untested": "baseline-audit"
+        },
+        "remove": {
+          "untested": "baseline-audit"
+        },
+        "set_send": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "game_audio_spatial": {
+      "level": "T",
+      "tests": [
+        "tests/runtime-protocol-contract.test.ts::'audio_spatial'"
+      ],
+      "actions": {
+        "get_info": {
+          "untested": "baseline-audit"
+        },
+        "configure": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "rename_file": {
+      "level": "T",
+      "tests": [
+        "tests/tool-definitions.test.ts::'rename_file'"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/tool-definitions.test.ts::'rename_file'"
+          ]
+        }
+      }
+    },
+    "manage_resource": {
+      "level": "H",
+      "tests": [
+        "tests/godot/run-headless-operations.sh::run_op manage_resource",
+        "tests/index.test.ts::manage_resource"
+      ],
+      "actions": {
+        "read": {
+          "tests": [
+            "tests/godot/run-headless-operations.sh::\"action\":\"read\""
+          ]
+        },
+        "modify": {
+          "tests": [
+            "tests/godot/run-headless-operations.sh::\"action\":\"modify\""
+          ]
+        }
+      }
+    },
+    "validate_script": {
+      "level": "T",
+      "tests": [
+        "tests/validate-script.test.ts::parseGodotScriptDiagnostics"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/validate-script.test.ts::parseGodotScriptDiagnostics"
+          ]
+        }
+      }
+    },
+    "validate_scripts": {
+      "level": "T",
+      "tests": [
+        "tests/index.test.ts::validate_scripts",
+        "tests/tool-argument-validation.test.ts::validate_scripts"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/index.test.ts::validate_scripts",
+            "tests/tool-argument-validation.test.ts::validate_scripts"
+          ]
+        }
+      }
+    },
+    "create_script": {
+      "level": "T",
+      "tests": [
+        "tests/index.test.ts::create_script"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/index.test.ts::create_script"
+          ]
+        }
+      }
+    },
+    "manage_scene_signals": {
+      "level": "H",
+      "tests": [
+        "tests/godot/run-headless-operations.sh::run_op manage_scene_signals",
+        "tests/index.test.ts::manage_scene_signals"
+      ],
+      "actions": {
+        "list": {
+          "tests": [
+            "tests/godot/run-headless-operations.sh::\"action\":\"list\""
+          ]
+        },
+        "add": {
+          "tests": [
+            "tests/godot/run-headless-operations.sh::\"action\":\"add\""
+          ]
+        },
+        "remove": {
+          "tests": [
+            "tests/godot/run-headless-operations.sh::\"action\":\"remove\""
+          ]
+        }
+      }
+    },
+    "manage_layers": {
+      "level": "T",
+      "tests": [
+        "tests/index.test.ts::manage_layers"
+      ],
+      "actions": {
+        "list": {
+          "untested": "baseline-audit"
+        },
+        "set": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "manage_plugins": {
+      "level": "T",
+      "tests": [
+        "tests/index.test.ts::manage_plugins"
+      ],
+      "actions": {
+        "list": {
+          "untested": "baseline-audit"
+        },
+        "enable": {
+          "untested": "baseline-audit"
+        },
+        "disable": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "manage_shader": {
+      "level": "T",
+      "tests": [
+        "tests/tool-definitions.test.ts::'manage_shader'"
+      ],
+      "actions": {
+        "read": {
+          "untested": "baseline-audit"
+        },
+        "create": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "manage_theme_resource": {
+      "level": "H",
+      "tests": [
+        "tests/godot/run-headless-operations.sh::run_op manage_theme_resource",
+        "tests/index.test.ts::manage_theme_resource"
+      ],
+      "actions": {
+        "create": {
+          "tests": [
+            "tests/godot/run-headless-operations.sh::\"action\":\"create\""
+          ]
+        },
+        "read": {
+          "tests": [
+            "tests/godot/run-headless-operations.sh::\"action\":\"read\""
+          ]
+        },
+        "modify": {
+          "tests": [
+            "tests/godot/run-headless-operations.sh::\"action\":\"modify\""
+          ]
+        }
+      }
+    },
+    "set_main_scene": {
+      "level": "T",
+      "tests": [
+        "tests/tool-definitions.test.ts::'set_main_scene'"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/tool-definitions.test.ts::'set_main_scene'"
+          ]
+        }
+      }
+    },
+    "manage_scene_structure": {
+      "level": "H",
+      "tests": [
+        "tests/godot/run-headless-operations.sh::run_op manage_scene_structure",
+        "tests/index.test.ts::manage_scene_structure"
+      ],
+      "actions": {
+        "rename": {
+          "tests": [
+            "tests/godot/run-headless-operations.sh::\"action\":\"rename\""
+          ]
+        },
+        "duplicate": {
+          "tests": [
+            "tests/godot/run-headless-operations.sh::\"action\":\"duplicate\""
+          ]
+        },
+        "move": {
+          "tests": [
+            "tests/godot/run-headless-operations.sh::\"action\":\"move\""
+          ]
+        }
+      }
+    },
+    "manage_translations": {
+      "level": "T",
+      "tests": [
+        "tests/index.test.ts::manage_translations"
+      ],
+      "actions": {
+        "list": {
+          "untested": "baseline-audit"
+        },
+        "add": {
+          "untested": "baseline-audit"
+        },
+        "remove": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "game_locale": {
+      "level": "T",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.locale",
+        "tests/handlers.test.ts::handleGameLocale"
+      ],
+      "actions": {
+        "get": {
+          "untested": "baseline-audit"
+        },
+        "set": {
+          "untested": "baseline-audit"
+        },
+        "translate": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "game_ui_control": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.ui_control",
+        "tests/handlers.test.ts::handleGameUiControl"
+      ],
+      "actions": {
+        "grab_focus": {
+          "untested": "baseline-audit"
+        },
+        "release_focus": {
+          "untested": "baseline-audit"
+        },
+        "configure": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"configure\""
+          ]
+        },
+        "get_info": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"get_info\""
+          ]
+        }
+      }
+    },
+    "game_ui_text": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.ui_text",
+        "tests/handlers.test.ts::handleGameUiText"
+      ],
+      "actions": {
+        "get": {
+          "untested": "baseline-audit"
+        },
+        "set": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"set\""
+          ]
+        },
+        "append": {
+          "untested": "baseline-audit"
+        },
+        "clear": {
+          "untested": "baseline-audit"
+        },
+        "bbcode": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "game_ui_popup": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGameUiPopup"
+      ],
+      "actions": {
+        "popup_centered": {
+          "untested": "baseline-audit"
+        },
+        "popup": {
+          "untested": "baseline-audit"
+        },
+        "hide": {
+          "untested": "baseline-audit"
+        },
+        "get_info": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "game_ui_tree": {
+      "level": "T",
+      "tests": [
+        "tests/runtime-protocol-contract.test.ts::'ui_tree'"
+      ],
+      "actions": {
+        "get_items": {
+          "untested": "baseline-audit"
+        },
+        "add": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "game_ui_item_list": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.ui_item_list"
+      ],
+      "actions": {
+        "get_items": {
+          "untested": "baseline-audit"
+        },
+        "select": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"select\""
+          ]
+        },
+        "add": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"add\""
+          ]
+        },
+        "remove": {
+          "untested": "baseline-audit"
+        },
+        "clear": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "game_ui_tabs": {
+      "level": "T",
+      "tests": [
+        "tests/runtime-protocol-contract.test.ts::'ui_tabs'"
+      ],
+      "actions": {
+        "get_tabs": {
+          "untested": "baseline-audit"
+        },
+        "set_current": {
+          "untested": "baseline-audit"
+        },
+        "set_title": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "game_ui_menu": {
+      "level": "G-",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.ui_menu"
+      ],
+      "actions": {
+        "get_items": {
+          "untested": "baseline-audit"
+        },
+        "add": {
+          "untested": "baseline-audit"
+        },
+        "remove": {
+          "untested": "baseline-audit"
+        },
+        "set_checked": {
+          "untested": "baseline-audit"
+        },
+        "clear": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "game_ui_range": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.ui_range",
+        "tests/handlers.test.ts::handleGameUiRange"
+      ],
+      "actions": {
+        "get": {
+          "untested": "baseline-audit"
+        },
+        "set": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"set\""
+          ]
+        }
+      }
+    },
+    "game_render_settings": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGameRenderSettings"
+      ],
+      "actions": {
+        "get": {
+          "untested": "baseline-audit"
+        },
+        "set": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "game_resource": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.resource",
+        "tests/handlers.test.ts::handleGameResource"
+      ],
+      "actions": {
+        "load": {
+          "untested": "baseline-audit"
+        },
+        "save": {
+          "untested": "baseline-audit"
+        },
+        "exists": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"exists\""
+          ]
+        }
+      }
+    },
+    "game_visual_shader": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.visual_shader",
+        "tests/handlers.test.ts::handleGameVisualShader"
+      ],
+      "actions": {
+        "add_node": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"add_node\""
+          ]
+        },
+        "connect": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"connect\""
+          ]
+        },
+        "disconnect": {
+          "untested": "baseline-audit"
+        },
+        "get_nodes": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"get_nodes\""
+          ]
+        },
+        "apply": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"apply\""
+          ]
+        }
+      }
+    },
+    "game_terrain": {
+      "level": "G+",
+      "tests": [
+        "tests/godot/fixture/test_runner.gd::godot.runtime.terrain",
+        "tests/handlers.test.ts::handleGameTerrain"
+      ],
+      "actions": {
+        "get_height": {
+          "tests": [
+            "tests/godot/fixture/test_runner.gd::\"action\": \"get_height\""
+          ]
+        },
+        "modify": {
+          "untested": "baseline-audit"
+        },
+        "paint": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "game_video": {
+      "level": "T",
+      "tests": [
+        "tests/handlers.test.ts::handleGameVideo"
+      ],
+      "actions": {
+        "create": {
+          "untested": "baseline-audit"
+        },
+        "play": {
+          "untested": "baseline-audit"
+        },
+        "pause": {
+          "untested": "baseline-audit"
+        },
+        "resume": {
+          "untested": "baseline-audit"
+        },
+        "stop": {
+          "untested": "baseline-audit"
+        },
+        "seek": {
+          "untested": "baseline-audit"
+        },
+        "get_status": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "manage_ci_pipeline": {
+      "level": "T",
+      "tests": [
+        "tests/handler-modules.test.ts::handleManageCiPipeline",
+        "tests/handlers.test.ts::handleManageCiPipeline",
+        "tests/tool-argument-validation.test.ts::manage_ci_pipeline"
+      ],
+      "actions": {
+        "create": {
+          "untested": "baseline-audit"
+        },
+        "read": {
+          "untested": "baseline-audit"
+        }
+      }
+    },
+    "manage_docker_export": {
+      "level": "T",
+      "tests": [
+        "tests/handler-modules.test.ts::handleManageDockerExport",
+        "tests/handlers.test.ts::handleManageDockerExport",
+        "tests/tool-argument-validation.test.ts::manage_docker_export"
+      ],
+      "actions": {
+        "create": {
+          "untested": "baseline-audit"
+        },
+        "read": {
+          "untested": "baseline-audit"
+        }
+      }
+    }
+  }
+}

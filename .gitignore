@@ -375,3 +375,8 @@ $RECYCLE.BIN/
 *.lnk
 
 # End of https://www.toptal.com/developers/gitignore/api/linux,macos,windows,visualstudiocode,jetbrains+all,node,godot
+
+# The tracked coverage inventory and generated report, not tool output.
+# (Must stay after the generated Node "coverage" pattern above to win.)
+!docs/coverage/
+!docs/coverage/**
