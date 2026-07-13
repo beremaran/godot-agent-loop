@@ -12,6 +12,21 @@
             "tests/handlers.test.ts::handleLaunchEditor"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "run_project": {
@@ -27,6 +42,21 @@
             "tests/index.test.ts::run_project"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "get_debug_output": {
@@ -42,6 +72,21 @@
             "tests/handlers.test.ts::handleGetDebugOutput"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "stop_project": {
@@ -57,6 +102,21 @@
             "tests/handlers.test.ts::handleStopProject"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "get_godot_version": {
@@ -70,6 +130,21 @@
             "tests/handlers.test.ts::handleGetGodotVersion"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "list_projects": {
@@ -85,6 +160,21 @@
             "tests/handlers.test.ts::handleListProjects"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "get_project_info": {
@@ -98,6 +188,21 @@
             "tests/handlers.test.ts::handleGetProjectInfo"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "create_scene": {
@@ -117,6 +222,21 @@
             "tests/headless-operation-runner.test.ts::create_scene"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "add_node": {
@@ -134,6 +254,21 @@
             "tests/tool-argument-validation.test.ts::add_node"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "load_sprite": {
@@ -147,6 +282,21 @@
             "tests/godot/run-headless-operations.sh::run_op load_sprite"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "export_mesh_library": {
@@ -160,6 +310,21 @@
             "tests/godot/run-headless-operations.sh::run_op export_mesh_library"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "save_scene": {
@@ -175,6 +340,21 @@
             "tests/handlers.test.ts::handleSaveScene"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "get_uid": {
@@ -188,6 +368,21 @@
             "tests/godot/run-headless-operations.sh::run_op get_uid"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "update_project_uids": {
@@ -203,6 +398,21 @@
             "tests/handlers.test.ts::handleUpdateProjectUids"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "game_screenshot": {
@@ -216,6 +426,21 @@
             "tests/handlers.test.ts::handleGameScreenshot"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "game_click": {
@@ -235,6 +460,21 @@
             "tests/tool-argument-validation.test.ts::game_click"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_key_press": {
@@ -250,6 +490,21 @@
             "tests/handlers.test.ts::handleGameKeyPress"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_mouse_move": {
@@ -263,6 +518,21 @@
             "tests/handlers.test.ts::handleGameMouseMove"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_get_ui": {
@@ -276,6 +546,21 @@
             "tests/handlers.test.ts::handleGameGetUi"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_get_scene_tree": {
@@ -291,6 +576,21 @@
             "tests/handlers.test.ts::handleGameGetSceneTree"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_eval": {
@@ -306,6 +606,21 @@
             "tests/handlers.test.ts::handleGameEval"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "game_get_property": {
@@ -323,6 +638,21 @@
             "tests/handlers.test.ts::handleGameGetProperty"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "game_set_property": {
@@ -340,6 +670,21 @@
             "tests/handlers.test.ts::handleGameSetProperty"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "game_call_method": {
@@ -355,6 +700,21 @@
             "tests/handlers.test.ts::handleGameCallMethod"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "game_get_node_info": {
@@ -368,6 +728,21 @@
             "tests/handlers.test.ts::handleGameGetNodeInfo"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_instantiate_scene": {
@@ -383,6 +758,21 @@
             "tests/handlers.test.ts::handleGameInstantiateScene"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_remove_node": {
@@ -396,6 +786,21 @@
             "tests/handlers.test.ts::handleGameRemoveNode"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_change_scene": {
@@ -411,6 +816,21 @@
             "tests/handlers.test.ts::handleGameChangeScene"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_pause": {
@@ -424,6 +844,21 @@
             "tests/handlers.test.ts::handleGamePause"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_performance": {
@@ -437,6 +872,21 @@
             "tests/handlers.test.ts::handleGamePerformance"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_wait": {
@@ -452,6 +902,21 @@
             "tests/handlers.test.ts::handleGameWait"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "read_scene": {
@@ -467,6 +932,21 @@
             "tests/handlers.test.ts::handleReadScene"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "modify_scene_node": {
@@ -482,6 +962,21 @@
             "tests/handlers.test.ts::handleModifySceneNode"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "remove_scene_node": {
@@ -497,6 +992,21 @@
             "tests/handlers.test.ts::handleRemoveSceneNode"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "read_project_settings": {
@@ -510,6 +1020,21 @@
             "tests/handlers.test.ts::handleReadProjectSettings"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "modify_project_settings": {
@@ -523,6 +1048,21 @@
             "tests/handlers.test.ts::handleModifyProjectSettings"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "list_project_files": {
@@ -536,6 +1076,21 @@
             "tests/handlers.test.ts::handleListProjectFiles"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "game_connect_signal": {
@@ -551,6 +1106,21 @@
             "tests/handlers.test.ts::handleGameConnectSignal"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_disconnect_signal": {
@@ -566,6 +1136,21 @@
             "tests/handlers.test.ts::handleGameDisconnectSignal"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_emit_signal": {
@@ -581,6 +1166,21 @@
             "tests/handlers.test.ts::handleGameEmitSignal"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_play_animation": {
@@ -601,6 +1201,21 @@
         "get_list": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_tween_property": {
@@ -614,6 +1229,21 @@
             "tests/handlers.test.ts::handleGameTweenProperty"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_get_nodes_in_group": {
@@ -627,6 +1257,21 @@
             "tests/handlers.test.ts::handleGameGetNodesInGroup"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_find_nodes_by_class": {
@@ -640,6 +1285,21 @@
             "tests/handlers.test.ts::handleGameFindNodesByClass"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_reparent_node": {
@@ -653,6 +1313,21 @@
             "tests/handlers.test.ts::handleGameReparentNode"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "attach_script": {
@@ -670,6 +1345,21 @@
             "tests/headless-operation-runner.test.ts::attach_script"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "create_resource": {
@@ -685,6 +1375,21 @@
             "tests/handlers.test.ts::handleCreateResource"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "read_file": {
@@ -698,6 +1403,21 @@
             "tests/handlers.test.ts::handleReadFile"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "write_file": {
@@ -711,6 +1431,21 @@
             "tests/handlers.test.ts::handleWriteFile"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "delete_file": {
@@ -724,6 +1459,21 @@
             "tests/handlers.test.ts::handleDeleteFile"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "create_directory": {
@@ -737,6 +1487,21 @@
             "tests/handlers.test.ts::handleCreateDirectory"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "game_get_errors": {
@@ -750,6 +1515,21 @@
             "tests/handlers.test.ts::handleGameGetErrors"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_get_logs": {
@@ -763,6 +1543,21 @@
             "tests/handlers.test.ts::handleGameGetLogs"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_key_hold": {
@@ -778,6 +1573,21 @@
             "tests/handlers.test.ts::handleGameKeyHold"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_key_release": {
@@ -793,6 +1603,21 @@
             "tests/handlers.test.ts::handleGameKeyRelease"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_scroll": {
@@ -808,6 +1633,21 @@
             "tests/handlers.test.ts::handleGameScroll"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_mouse_drag": {
@@ -823,6 +1663,21 @@
             "tests/handlers.test.ts::handleGameMouseDrag"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_gamepad": {
@@ -836,6 +1691,21 @@
             "tests/handlers.test.ts::handleGameGamepad"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "create_project": {
@@ -851,6 +1721,21 @@
             "tests/index.test.ts::create_project"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "applicable",
+        "security": "applicable"
       }
     },
     "create_csharp_script": {
@@ -864,6 +1749,21 @@
             "tests/dotnet.test.ts::generateCsharpScriptSource"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "applicable",
+        "security": "applicable"
       }
     },
     "manage_autoloads": {
@@ -882,6 +1782,21 @@
         "remove": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "manage_input_map": {
@@ -900,6 +1815,21 @@
         "remove": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "manage_export_presets": {
@@ -918,6 +1848,21 @@
         "remove": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "game_get_camera": {
@@ -931,6 +1876,21 @@
             "tests/handlers.test.ts::handleGameGetCamera"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_set_camera": {
@@ -944,6 +1904,21 @@
             "tests/handlers.test.ts::handleGameSetCamera"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_raycast": {
@@ -959,6 +1934,21 @@
             "tests/handlers.test.ts::handleGameRaycast"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_get_audio": {
@@ -972,6 +1962,21 @@
             "tests/handlers.test.ts::handleGameGetAudio"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_spawn_node": {
@@ -985,6 +1990,21 @@
             "tests/handlers.test.ts::handleGameSpawnNode"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_set_shader_param": {
@@ -998,6 +2018,21 @@
             "tests/handlers.test.ts::handleGameSetShaderParam"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_audio_play": {
@@ -1018,6 +2053,21 @@
         "resume": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_audio_bus": {
@@ -1033,6 +2083,21 @@
             "tests/handlers.test.ts::handleGameAudioBus"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_navigate_path": {
@@ -1048,6 +2113,21 @@
             "tests/handlers.test.ts::handleGameNavigatePath"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_tilemap": {
@@ -1073,6 +2153,21 @@
             "tests/godot/fixture/test_runner.gd::\"action\": \"get_used_cells\""
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_add_collision": {
@@ -1088,6 +2183,21 @@
             "tests/handlers.test.ts::handleGameAddCollision"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_environment": {
@@ -1107,6 +2217,21 @@
             "tests/godot/fixture/test_runner.gd::\"action\": \"set\""
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_manage_group": {
@@ -1124,6 +2249,21 @@
         "get_groups": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_create_timer": {
@@ -1137,6 +2277,21 @@
             "tests/handlers.test.ts::handleGameCreateTimer"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_set_particles": {
@@ -1150,6 +2305,21 @@
             "tests/handlers.test.ts::handleGameSetParticles"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_create_animation": {
@@ -1163,6 +2333,21 @@
             "tests/handlers.test.ts::handleGameCreateAnimation"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "export_project": {
@@ -1176,6 +2361,21 @@
             "tests/handlers.test.ts::handleExportProject"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "applicable",
+        "security": "applicable"
       }
     },
     "game_serialize_state": {
@@ -1190,6 +2390,21 @@
         "load": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_physics_body": {
@@ -1205,6 +2420,21 @@
             "tests/handlers.test.ts::handleGamePhysicsBody"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_create_joint": {
@@ -1220,6 +2450,21 @@
             "tests/handlers.test.ts::handleGameCreateJoint"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_bone_pose": {
@@ -1237,6 +2482,21 @@
         "set": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_ui_theme": {
@@ -1252,6 +2512,21 @@
             "tests/handlers.test.ts::handleGameUiTheme"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_viewport": {
@@ -1269,6 +2544,21 @@
         "get": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_debug_draw": {
@@ -1294,6 +2584,21 @@
             "tests/godot/fixture/test_runner.gd::\"action\": \"clear\""
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_http_request": {
@@ -1309,6 +2614,21 @@
             "tests/handlers.test.ts::handleGameHttpRequest"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "game_websocket": {
@@ -1332,6 +2652,21 @@
             "tests/godot/fixture/test_runner.gd::\"action\": \"status\""
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "game_multiplayer": {
@@ -1357,6 +2692,21 @@
             "tests/godot/fixture/test_runner.gd::\"action\": \"status\""
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_rpc": {
@@ -1371,6 +2721,21 @@
         "configure": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "game_touch": {
@@ -1389,6 +2754,21 @@
         "drag": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_input_state": {
@@ -1409,6 +2789,21 @@
         "set_mouse_mode": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_input_action": {
@@ -1435,6 +2830,21 @@
             "tests/godot/fixture/test_runner.gd::\"action\": \"list\""
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_list_signals": {
@@ -1450,6 +2860,21 @@
             "tests/handlers.test.ts::handleGameListSignals"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_await_signal": {
@@ -1463,6 +2888,21 @@
             "tests/godot/fixture/test_runner.gd::godot.runtime.await_signal"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_script": {
@@ -1481,6 +2921,21 @@
         "detach": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "game_window": {
@@ -1495,6 +2950,21 @@
         "set": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_os_info": {
@@ -1510,6 +2980,21 @@
             "tests/handlers.test.ts::handleGameOsInfo"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_time_scale": {
@@ -1524,6 +3009,21 @@
         "set": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_process_mode": {
@@ -1539,6 +3039,21 @@
             "tests/handlers.test.ts::handleGameProcessMode"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_world_settings": {
@@ -1553,6 +3068,21 @@
         "set": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_csg": {
@@ -1570,6 +3100,21 @@
             "tests/godot/fixture/test_runner.gd::\"action\": \"configure\""
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_multimesh": {
@@ -1587,6 +3132,21 @@
         "get_info": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_procedural_mesh": {
@@ -1600,6 +3160,21 @@
             "tests/runtime-protocol-contract.test.ts::'procedural_mesh'"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_light_3d": {
@@ -1615,6 +3190,21 @@
         "configure": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_mesh_instance": {
@@ -1630,6 +3220,21 @@
             "tests/handlers.test.ts::handleGameMeshInstance"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_gridmap": {
@@ -1650,6 +3255,21 @@
         "get_used": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_3d_effects": {
@@ -1663,6 +3283,21 @@
             "tests/runtime-protocol-contract.test.ts::'3d_effects'"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_gi": {
@@ -1676,6 +3311,21 @@
             "tests/runtime-protocol-contract.test.ts::'gi'"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_path_3d": {
@@ -1700,6 +3350,21 @@
         "set_points": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_sky": {
@@ -1711,6 +3376,21 @@
         "create": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_camera_attributes": {
@@ -1725,6 +3405,21 @@
         "set": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_navigation_3d": {
@@ -1741,6 +3436,21 @@
         "bake": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_physics_3d": {
@@ -1755,6 +3465,21 @@
         "overlap": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_canvas": {
@@ -1777,6 +3502,21 @@
             "tests/godot/fixture/test_runner.gd::\"action\": \"configure\""
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_canvas_draw": {
@@ -1811,6 +3551,21 @@
             "tests/godot/fixture/test_runner.gd::\"action\": \"clear\""
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_light_2d": {
@@ -1830,6 +3585,21 @@
         "create_occluder": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_parallax": {
@@ -1851,6 +3621,21 @@
         "configure": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_shape_2d": {
@@ -1875,6 +3660,21 @@
             "tests/godot/fixture/test_runner.gd::\"action\": \"get_points\""
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_path_2d": {
@@ -1896,6 +3696,21 @@
         "get_points": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_physics_2d": {
@@ -1920,6 +3735,21 @@
             "tests/godot/fixture/test_runner.gd::\"action\": \"shape_query\""
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_animation_tree": {
@@ -1937,6 +3767,21 @@
         "get_state": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_animation_control": {
@@ -1963,6 +3808,21 @@
             "tests/godot/fixture/test_runner.gd::\"action\": \"get_info\""
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_skeleton_ik": {
@@ -1980,6 +3840,21 @@
         "set_target": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_audio_effect": {
@@ -2000,6 +3875,21 @@
         "configure": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_audio_bus_layout": {
@@ -2023,6 +3913,21 @@
         "set_send": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_audio_spatial": {
@@ -2037,6 +3942,21 @@
         "configure": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "rename_file": {
@@ -2050,6 +3970,21 @@
             "tests/tool-definitions.test.ts::'rename_file'"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "manage_resource": {
@@ -2069,6 +4004,21 @@
             "tests/godot/run-headless-operations.sh::\"action\":\"modify\""
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "validate_script": {
@@ -2082,6 +4032,21 @@
             "tests/validate-script.test.ts::parseGodotScriptDiagnostics"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "applicable",
+        "security": "applicable"
       }
     },
     "validate_scripts": {
@@ -2097,6 +4062,21 @@
             "tests/tool-argument-validation.test.ts::validate_scripts"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "applicable",
+        "security": "applicable"
       }
     },
     "create_script": {
@@ -2110,6 +4090,21 @@
             "tests/index.test.ts::create_script"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "manage_scene_signals": {
@@ -2134,6 +4129,21 @@
             "tests/godot/run-headless-operations.sh::\"action\":\"remove\""
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "manage_layers": {
@@ -2148,6 +4158,21 @@
         "set": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "manage_plugins": {
@@ -2165,6 +4190,21 @@
         "disable": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "manage_shader": {
@@ -2179,6 +4219,21 @@
         "create": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "manage_theme_resource": {
@@ -2203,6 +4258,21 @@
             "tests/godot/run-headless-operations.sh::\"action\":\"modify\""
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "set_main_scene": {
@@ -2216,6 +4286,21 @@
             "tests/tool-definitions.test.ts::'set_main_scene'"
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "manage_scene_structure": {
@@ -2240,6 +4325,21 @@
             "tests/godot/run-headless-operations.sh::\"action\":\"move\""
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "manage_translations": {
@@ -2257,6 +4357,21 @@
         "remove": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "game_locale": {
@@ -2275,6 +4390,21 @@
         "translate": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_ui_control": {
@@ -2300,6 +4430,21 @@
             "tests/godot/fixture/test_runner.gd::\"action\": \"get_info\""
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_ui_text": {
@@ -2326,6 +4471,21 @@
         "bbcode": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_ui_popup": {
@@ -2346,6 +4506,21 @@
         "get_info": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_ui_tree": {
@@ -2360,6 +4535,21 @@
         "add": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_ui_item_list": {
@@ -2387,6 +4577,21 @@
         "clear": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_ui_tabs": {
@@ -2404,6 +4609,21 @@
         "set_title": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_ui_menu": {
@@ -2427,6 +4647,21 @@
         "clear": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_ui_range": {
@@ -2444,6 +4679,21 @@
             "tests/godot/fixture/test_runner.gd::\"action\": \"set\""
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_render_settings": {
@@ -2458,6 +4708,21 @@
         "set": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: takes no path-like parameter",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_resource": {
@@ -2478,6 +4743,21 @@
             "tests/godot/fixture/test_runner.gd::\"action\": \"exists\""
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_visual_shader": {
@@ -2510,6 +4790,21 @@
             "tests/godot/fixture/test_runner.gd::\"action\": \"apply\""
           ]
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_terrain": {
@@ -2530,6 +4825,21 @@
         "paint": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "game_video": {
@@ -2559,6 +4869,21 @@
         "get_status": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
       }
     },
     "manage_ci_pipeline": {
@@ -2575,6 +4900,21 @@
         "read": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     },
     "manage_docker_export": {
@@ -2591,6 +4931,21 @@
         "read": {
           "untested": "baseline-audit"
         }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: does not execute inside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
+        "security": "applicable"
       }
     }
   }

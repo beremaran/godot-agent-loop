@@ -6,6 +6,41 @@ on:
   pull_request:
 
 jobs:
+  typescript:
+    runs-on: ubuntu-latest
+    name: Build, tests, lint, coverage report
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Build
+        run: npm run build
+
+      - name: TypeScript, contract, manifest, and coverage-inventory tests
+        run: npm test
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Verify the generated coverage report is current
+        run: node scripts/generate-coverage-report.js --check
+
+      - name: Publish the coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            docs/coverage/coverage-report.md
+            docs/coverage/tool-coverage.json
+
   godot:
     runs-on: ubuntu-latest
     strategy:
@@ -37,3 +72,24 @@ jobs:
 
       - name: Run the runtime server integration tests
         run: tests/godot/run-integration-tests.sh
+
+      # The suite logs contain the complete raw engine output that the
+      # diagnostics gate inspects; keep them (plus the staged fixtures) so a
+      # failure can be diagnosed without reproducing the run.
+      - name: Preserve Godot logs and fixture state on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: godot-logs-${{ matrix.godot-version }}
+          path: |
+            tests/godot/logs/
+            tests/godot/fixture/
+          if-no-files-found: ignore
+
+      - name: Preserve Godot suite logs
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: godot-suite-logs-${{ matrix.godot-version }}
+          path: tests/godot/logs/
+          if-no-files-found: ignore

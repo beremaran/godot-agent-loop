@@ -60,7 +60,8 @@ Godot workflows users would reasonably expect from a project claiming full
 engine control. It covers:
 
 - all 157 MCP tool definitions;
-- all 96 runtime commands in `docs/runtime-api.schema.json`;
+- all 108 runtime commands in `docs/runtime-api.schema.json` (the audit text
+  originally said 96; the generated denominator from source is 108);
 - all 16 operations exposed by `godot_operations.gd`;
 - TypeScript validation, routing, service, process, and connection layers;
 - Godot 4.4 compatibility-floor and 4.7 primary-target CI;
@@ -114,7 +115,7 @@ applicable” must be recorded explicitly rather than silently skipped.
 The baseline is derived from the repository rather than README claims:
 
 - `src/tool-definitions.ts` is the denominator for the 157 MCP tools.
-- `docs/runtime-api.schema.json` is the denominator for 96 runtime commands.
+- `docs/runtime-api.schema.json` is the denominator for 108 runtime commands.
 - `tests/godot/run-typecheck.sh` parses the shipped GDScript in Godot.
 - `tests/godot/run-headless-operations.sh` invokes the 16 headless operations.
 - `tests/godot/fixture/test_runner.gd` drives the runtime server over TCP.
@@ -123,8 +124,11 @@ The baseline is derived from the repository rather than README claims:
 
 Local verification on Godot 4.7 produced 543/543 TypeScript tests, 16/16 strict
 script parses, 70/70 headless checks, and 315/315 runtime checks. The runtime
-process also reported one leaked `ObjectDB` instance at exit. That warning is a
-release-gate gap even though the test process returned success.
+process also reported one leaked `ObjectDB` instance at exit. That warning was a
+release-gate gap even though the test process returned success. (Since fixed:
+the leaked corpus `Object` is freed, every headless operation frees its
+instantiated scene tree, and the suites now fail on any unexpected engine
+diagnostic; see `tests/godot/allowed-godot-output.tsv`.)
 
 Classification is intentionally conservative:
 
@@ -514,20 +518,33 @@ enable one of these workflows.
 
 ### Phase 0: make the audit enforceable
 
-- [ ] Create a machine-readable manifest containing every MCP tool, mapped
+- [x] Create a machine-readable manifest containing every MCP tool, mapped
   TypeScript handler, downstream operation/runtime command, public actions,
   privilege class, applicable dimensions, and test IDs.
-- [ ] Generate the 157-tool and 96-command denominators from source; fail CI on
-  missing, duplicate, stale, or unmapped entries.
-- [ ] Add action extraction or explicit action declarations so multipurpose
-  commands cannot appear covered after testing only one action.
-- [ ] Add test metadata for `unit`, `contract`, `integration`, and `e2e`; prohibit
-  ambiguous use of “integration” in coverage reports.
-- [ ] Publish a generated coverage report in CI and preserve failing Godot logs
-  and fixture artifacts.
-- [ ] Treat unexpected Godot `ERROR`, `SCRIPT ERROR`, `WARNING`, crash text, and
+  (`src/tool-manifest.ts` + `docs/coverage/tool-coverage.json`, validated by
+  `tests/tool-manifest.test.ts` and `tests/tool-coverage.test.ts`.)
+- [x] Generate the 157-tool and 108-command denominators from source; fail CI on
+  missing, duplicate, stale, or unmapped entries. (Compile-time
+  `Record<ToolName, ...>` completeness, runtime-command bijection, headless
+  registry equality, and `npm run coverage:check` in CI.)
+- [x] Add action extraction or explicit action declarations so multipurpose
+  commands cannot appear covered after testing only one action. (Manifest action
+  lists are cross-checked against GDScript enum readers, match arms, comparison
+  chains, and TypeScript dispatch; every action needs a coverage row.)
+- [x] Add test metadata for `unit`, `contract`, `integration`, and `e2e`; prohibit
+  ambiguous use of “integration” in coverage reports. (`@test-kind` annotations
+  enforced by `tests/test-metadata.test.ts`; integration is reserved for suites
+  that run real Godot.)
+- [x] Publish a generated coverage report in CI and preserve failing Godot logs
+  and fixture artifacts. (`coverage-report` artifact plus per-version
+  `godot-logs-*` artifacts in `.github/workflows/godot-integration.yml`.)
+- [x] Treat unexpected Godot `ERROR`, `SCRIPT ERROR`, `WARNING`, crash text, and
   leak reports as failures, with a narrow allowlist requiring a reason and issue.
-- [ ] Find and remove the current one-instance ObjectDB leak.
+  (`assert_clean_godot_log` in `tests/godot/godot-bin.sh` +
+  `tests/godot/allowed-godot-output.tsv`.)
+- [x] Find and remove the current one-instance ObjectDB leak. (The variant-codec
+  corpus `Object.new()` case; the same gate also exposed and removed scene-tree,
+  resource, and RID leaks in every headless scene operation.)
 
 Exit criteria: CI proves the manifest is complete, reports coverage by tool and
 action, and fails when a new public action has no declared tests.

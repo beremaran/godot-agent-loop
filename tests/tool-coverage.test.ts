@@ -16,6 +16,13 @@ import { repoRoot } from './helpers/manifest-sources.js';
 
 const COVERAGE_LEVELS = ['E2E', 'H', 'G+', 'G-', 'T'] as const;
 
+/** The required test dimensions from TODO.md; "not applicable" must be recorded, never omitted. */
+const REQUIRED_DIMENSIONS = [
+  'happy-path', 'parameters', 'failures', 'repeatability', 'cleanup',
+  'persistence', 'frame-behavior', 'exotic-paths', 'limits',
+  'compatibility', 'platforms', 'build-flavors', 'security',
+] as const;
+
 interface ActionCoverage {
   tests?: string[];
   untested?: string;
@@ -24,6 +31,7 @@ interface ToolCoverage {
   level: (typeof COVERAGE_LEVELS)[number];
   tests: string[];
   actions: Record<string, ActionCoverage>;
+  dimensions: Record<string, string>;
 }
 
 const coverage = JSON.parse(
@@ -90,6 +98,19 @@ describe('tool coverage inventory', () => {
   it('resolves every tool-level test reference', () => {
     for (const [name, tool] of Object.entries(coverage.tools)) {
       assertReferences(name, tool.tests);
+    }
+  });
+
+  it('records every required test dimension as applicable or explicitly not applicable', () => {
+    for (const [name, tool] of Object.entries(coverage.tools)) {
+      expect(Object.keys(tool.dimensions).sort(), `${name} dimension keys`)
+        .toEqual([...REQUIRED_DIMENSIONS].sort());
+      for (const [dimension, status] of Object.entries(tool.dimensions)) {
+        expect(
+          status === 'applicable' || status.startsWith('n/a: '),
+          `${name}.${dimension} must be "applicable" or "n/a: <reason>", got "${status}"`,
+        ).toBe(true);
+      }
     }
   });
 
