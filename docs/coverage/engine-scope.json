@@ -1,0 +1,93 @@
+{
+  "$comment": "Engine classes deliberately outside the support boundary. scripts/engine-surface-audit.js consumes this; anything not matched here and not otherwise reachable is reported as a gap. Rules are grouped by reason on purpose: a single blanket rule (we previously excluded everything with api_type 'editor') is not a decision, it is a way to stop looking. Every rule must match at least one class in the engine dump, so a rule that goes stale across a Godot release fails the audit instead of silently matching nothing. Note what is NOT here: ResourceImporter* and EditorExportPlatform*/EditorExportPreset are api_type 'editor' but back the import and export workflows we do claim, so they are gaps to answer, not scope to dismiss.",
+  "out_of_scope": [
+    {
+      "group": "editor UI",
+      "reason": "editor UI automation is not claimed; the supported boundary is project files plus running games, with editor_control as a narrow authenticated bridge",
+      "classes": [
+        "EditorCommandPalette",
+        "EditorDock",
+        "EditorFileDialog",
+        "EditorInspector",
+        "EditorProperty",
+        "EditorResourcePicker",
+        "EditorResourcePreview",
+        "EditorResourcePreviewGenerator",
+        "EditorScriptPicker",
+        "EditorSpinSlider",
+        "EditorSyntaxHighlighter",
+        "EditorToaster",
+        "FileSystemDock",
+        "GDScriptSyntaxHighlighter",
+        "ScriptCreateDialog",
+        "ScriptEditor",
+        "ScriptEditorBase"
+      ]
+    },
+    {
+      "group": "editor application state",
+      "reason": "the editor's own settings, paths, and filesystem cache are the IDE's state, not the user's project; mutating them would change the developer's machine rather than their game",
+      "classes": [
+        "EditorFeatureProfile",
+        "EditorFileSystem",
+        "EditorFileSystemDirectory",
+        "EditorPaths",
+        "EditorSettings"
+      ]
+    },
+    {
+      "group": "editor plugin authoring",
+      "reason": "these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we install one, in mcp_editor_plugin.gd, but do not expose the authoring surface)",
+      "classes": [
+        "EditorContextMenuPlugin",
+        "EditorExportPlugin",
+        "EditorFileSystemImportFormatSupportQuery",
+        "EditorImportPlugin",
+        "EditorInspectorPlugin",
+        "EditorNode3DGizmo",
+        "EditorNode3DGizmoPlugin",
+        "EditorResourceConversionPlugin",
+        "EditorResourceTooltipPlugin",
+        "EditorSceneFormatImporter",
+        "EditorSceneFormatImporterBlend",
+        "EditorSceneFormatImporterFBX2GLTF",
+        "EditorSceneFormatImporterGLTF",
+        "EditorSceneFormatImporterUFBX",
+        "EditorScenePostImport",
+        "EditorScenePostImportPlugin",
+        "EditorScript",
+        "EditorTranslationParserPlugin",
+        "GridMapEditorPlugin"
+      ]
+    },
+    {
+      "group": "debugger control",
+      "reason": "full debugger control is not claimed; breakpoints, stack inspection, and frame-local evaluation are outside the boundary, and the running-game tools cover pause, frame waits, evaluation, and logs instead",
+      "classes": ["EditorDebuggerPlugin", "EditorDebuggerSession", "EngineDebugger"]
+    },
+    {
+      "group": "GDScript language server",
+      "reason": "the editor's LSP implementation; script diagnostics are served by validate_script through --check-only rather than by driving the language server",
+      "classes": ["GDScriptLanguageProtocol", "GDScriptTextDocument", "GDScriptWorkspace"]
+    },
+    {
+      "group": "version control",
+      "reason": "the editor's VCS plugin interface; version control is the user's own concern and is not mediated through this server",
+      "classes": ["EditorVCSInterface"]
+    },
+    {
+      "group": "GDExtension",
+      "reason": "GDExtension builds are not claimed; analyze_project_integrity inspects declarations and libraries without invoking native toolchains",
+      "prefix": "GDExtension"
+    },
+    {
+      "group": "XR editor tooling",
+      "reason": "XR is not a claimed workflow, and these are its editor-side binding and interaction-profile editors",
+      "classes": [
+        "OpenXRBindingModifierEditor",
+        "OpenXRInteractionProfileEditor",
+        "OpenXRInteractionProfileEditorBase"
+      ]
+    }
+  ]
+}

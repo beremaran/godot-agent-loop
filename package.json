@@ -41,6 +41,7 @@
     "check": "npm test && npm run lint && npm run coverage:check",
     "coverage:report": "npm run build && node scripts/generate-coverage-report.js",
     "coverage:check": "npm run build && node scripts/generate-coverage-report.js --check",
+    "coverage:engine": "node scripts/engine-surface-audit.js",
     "watch": "tsc --watch",
     "test": "vitest run",
     "test:watch": "vitest",

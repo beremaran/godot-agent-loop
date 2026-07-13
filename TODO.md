@@ -76,9 +76,13 @@ engine control. It covers:
 - GDScript, .NET, editor, runtime, import, export, debugging, profiling,
   networking, rendering, and platform concerns.
 
-It does not claim to enumerate every API in the Godot class reference. New
-capabilities must be justified by an agent workflow or a documented product
-promise, rather than by pursuing one MCP wrapper per engine method.
+Every class in the Godot class reference *is* now enumerated, by
+`scripts/engine-surface-audit.js`, against the engine's own
+`--dump-extension-api` output rather than against our sources. That enumeration
+is a gap detector, not a build order: it exists so an unreached class cannot stay
+invisible. New capabilities must still be justified by an agent workflow or a
+documented product promise, rather than by pursuing one MCP wrapper per engine
+method — a class is allowed to sit in the reachable bucket forever.
 
 ### Coverage levels
 
@@ -624,6 +628,78 @@ enable one of these workflows.
   bounded retention, redaction, lifecycle events, and actionable error classes.
   (Full-path evidence in `tests/e2e/representative-path.test.ts`; the published
   event contract is enforced by `tests/runtime-protocol-contract.test.ts`.)
+
+### P4: engine-surface gaps (handle classes)
+
+Unlike the families above, these are derived mechanically rather than authored:
+`scripts/engine-surface-audit.js` classifies every class in Godot's own
+`--dump-extension-api` output, and `docs/coverage/engine-surface.md` is the
+generated result. Of 1,036 classes in Godot 4.7, 218 are named by our sources,
+720 are generically reachable (`ClassDB`-instantiable, so `add_node` and
+`game_eval` construct them; sampled and proven in `tests/e2e/engine-reach.test.ts`),
+and 53 are scoped out in `docs/coverage/engine-scope.json` under eight grouped
+reasons, each of which the audit fails if it stops matching any class.
+
+That leaves 45, in two kinds. Each needs one of three outcomes: a tool, a proof
+that `game_eval` already reaches it, or a line in `engine-scope.json` recording
+why we do not care. The list regenerates from the engine, so it changes when
+Godot does.
+
+#### Editor-context classes (28)
+
+The engine's own import and export configuration objects: `ResourceImporter*`
+(16, one per format) and `EditorExportPlatform*` plus `EditorExportPreset` (12).
+
+These are the sharpest finding in the audit, because we *do* claim both
+workflows. `manage_import_pipeline`, `manage_export_presets`, and
+`verify_export_readiness` drive import and export from the outside — editing
+`export_presets.cfg`, shelling out to `--import` and `--export-release` — and
+never hold the engine object that models the thing they are configuring. So
+import and export settings are reachable only as text we format correctly, not
+as typed engine state we can read back and validate.
+
+They are also genuinely unreachable rather than merely untooled: the API dump
+marks most of them instantiable, but that is an editor-side fact. In a running
+game `ClassDB.instantiate()` returns null for them, so `game_eval` is not a
+fallback. (`tests/e2e/engine-reach.test.ts` proved this by failing on
+`EditorExportPlatformAndroid` when the audit wrongly called them reachable.)
+
+- [ ] Decide whether outside-the-editor configuration is the right seam for an
+  MCP server, or a limitation to close by reaching these through the editor
+  bridge that `editor_control` already establishes.
+
+#### Handle classes (17)
+
+Not `ClassDB`-instantiable, not a singleton, and with no instantiable subclass,
+so the only way to hold one is to be handed it by an engine accessor that no
+tool exposes. Not missing wrappers — missing *doorways*.
+
+- [ ] **Rendering device:** `RenderingDevice` (135 methods). Reached via
+  `RenderingServer.get_rendering_device()` / `create_local_rendering_device()`.
+  The largest single gap by API surface; gates any compute-shader workflow.
+- [ ] **Scene introspection:** `SceneState` (23 methods), via
+  `PackedScene.get_state()`. Would give read-only structural inspection of a
+  packed scene without instantiating it — plausibly useful to `read_scene`.
+- [ ] **Audio stream playbacks:** `AudioStreamGeneratorPlayback`,
+  `AudioStreamPlaybackPolyphonic`, `AudioStreamPlaybackInteractive`,
+  `AudioStreamPlaybackPlaylist`, `AudioStreamPlaybackSynchronized`, and
+  `AudioEffectSpectrumAnalyzerInstance`. All obtained from a player or bus effect
+  after playback starts (`get_stream_playback()`, `get_effect_instance()`).
+  Procedural audio generation and spectrum analysis are unreachable without them.
+- [ ] **Networking handles:** `ENetPacketPeer` (from `ENetMultiplayerPeer`) and
+  `TLSOptions` (from its static constructors). `TLSOptions` in particular gates
+  authenticated/secure transport options on the existing networking tools.
+- [ ] **XR:** `WebXRInterface` and `OpenXRFutureResult`. Both are obtained from
+  `XRServer`. XR is not currently a claimed workflow — these are the strongest
+  candidates for a scope-out line rather than a tool.
+- [ ] **Remaining handles:** `GodotInstance`, `InstancePlaceholder` (from
+  scenes loaded with `load_placeholder`), `SkinReference` (from
+  `MeshInstance3D.get_skin_reference()`), `PackedDataContainerRef`, and
+  `JavaScriptObject` (web-export only, so also a scope-out candidate).
+
+Exit criteria: `docs/coverage/engine-surface.md` reports zero gaps, with every
+class in this list resolved to a tool, a reachability proof, or a recorded
+scope decision.
 
 ## Roadmap
 
