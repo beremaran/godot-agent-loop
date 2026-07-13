@@ -80,6 +80,9 @@ export class LifecycleToolHandlers {
 
       this.context.injectInteractionServer(args.projectPath);
       const commandArgs = ['-d', '--path', args.projectPath];
+      // Display-less environments (CI, the E2E harness) opt in to headless
+      // game processes; the interaction server works the same either way.
+      if (process.env.GODOT_MCP_RUN_HEADLESS === 'true') commandArgs.unshift('--headless');
       if (args.scene && (!this.context.isRelativePathAllowed || this.context.isRelativePathAllowed(args.projectPath, args.scene))) commandArgs.push(args.scene);
 
       this.context.logDebug(`Running Godot project: ${args.projectPath}`);

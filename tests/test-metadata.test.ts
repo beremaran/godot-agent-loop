@@ -33,6 +33,7 @@ function testFiles(directory: string, suffix: string): string[] {
 }
 
 const typescriptSuites = testFiles('tests', '.test.ts');
+const e2eSuites = testFiles('tests/e2e', '.test.ts');
 const godotSuites = testFiles('tests/godot', '.sh').filter(file => !file.endsWith('godot-bin.sh'));
 
 describe('test metadata', () => {
@@ -65,8 +66,11 @@ describe('test metadata', () => {
 
   it('reserves e2e for suites under tests/e2e/', () => {
     for (const file of [...typescriptSuites, ...godotSuites]) {
-      if (file.startsWith('tests/e2e/')) continue;
       expect(declaredKind(file), file).not.toBe('e2e');
+    }
+    expect(e2eSuites.length).toBeGreaterThanOrEqual(1);
+    for (const file of e2eSuites) {
+      expect(declaredKind(file), `${file} drives the built MCP server against real Godot`).toBe('e2e');
     }
   });
 });

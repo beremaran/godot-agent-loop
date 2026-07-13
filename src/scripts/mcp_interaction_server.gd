@@ -67,7 +67,12 @@ var _next_session_id: int = 1
 # Exactly one runtime command executes at a time. Its session owns the request ID
 # and peer until it responds, or disconnects and its eventual response is discarded.
 var _active_session: RuntimeSession = null
-const PORT: int = 9090
+const DEFAULT_PORT: int = 9090
+const PORT_ENVIRONMENT_VARIABLE: String = "GODOT_MCP_RUNTIME_PORT"
+# The listen port. Exported for editor configuration; when the game process is
+# started by the MCP server, GODOT_MCP_RUNTIME_PORT overrides it so parallel
+# sessions (and the E2E harness) each get an isolated loopback port.
+@export var port: int = DEFAULT_PORT
 const PROTOCOL_VERSION: String = "1.0"
 const CAPABILITIES: Array[String] = ["runtime-commands", "godot-json-values"]
 const METHOD_PREFIX: String = "godot.runtime."
@@ -108,11 +113,26 @@ func _ready() -> void:
 	_register_domains()
 	_register_commands()
 	_server = TCPServer.new()
-	var err: int = _server.listen(PORT, "127.0.0.1")
+	port = _resolve_port()
+	var err: int = _server.listen(port, "127.0.0.1")
 	if err != OK:
-		push_error("McpInteractionServer: Failed to listen on port %d, error: %d" % [PORT, err])
+		push_error("McpInteractionServer: Failed to listen on port %d, error: %d" % [port, err])
 		return
-	print("McpInteractionServer: Listening on 127.0.0.1:%d" % PORT)
+	print("McpInteractionServer: Listening on 127.0.0.1:%d" % port)
+
+
+# The environment override wins over the export so the process that launched
+# the game controls where it must connect.
+func _resolve_port() -> int:
+	var configured: String = OS.get_environment(PORT_ENVIRONMENT_VARIABLE)
+	if configured.is_valid_int():
+		var parsed: int = int(configured)
+		if parsed > 0 and parsed < 65536:
+			return parsed
+		push_warning("McpInteractionServer: Ignoring out-of-range %s=%s" % [PORT_ENVIRONMENT_VARIABLE, configured])
+	elif not configured.is_empty():
+		push_warning("McpInteractionServer: Ignoring non-numeric %s=%s" % [PORT_ENVIRONMENT_VARIABLE, configured])
+	return port
 
 
 func _process(_delta: float) -> void:

@@ -39,6 +39,23 @@ import { ProjectSupport } from './project-support.js';
 const DEBUG_MODE: boolean = process.env.DEBUG === 'true';
 const ALLOW_PRIVILEGED_COMMANDS: boolean = process.env.GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS === 'true';
 
+/**
+ * The loopback port shared with the in-game interaction server. The spawned
+ * game process inherits this environment variable, so both ends agree; the
+ * override exists so parallel server instances (and the E2E harness) can each
+ * use an isolated port.
+ */
+function resolveRuntimePort(): number {
+  const configured = process.env.GODOT_MCP_RUNTIME_PORT;
+  if (!configured) return 9090;
+  const parsed = Number(configured);
+  if (!Number.isInteger(parsed) || parsed <= 0 || parsed >= 65536) {
+    console.error(`[SERVER] Ignoring invalid GODOT_MCP_RUNTIME_PORT=${configured}; using 9090`);
+    return 9090;
+  }
+  return parsed;
+}
+
 const pathSecurity = new PathSecurity();
 
 // Derive __filename and __dirname in ESM
@@ -94,7 +111,7 @@ export class GodotServer {
   private readonly gameCommands: GameCommandService;
   private strictPathValidation = false;
   private readonly tcpGameConnection = new GameConnection({
-    port: 9090,
+    port: resolveRuntimePort(),
     allowPrivilegedCommands: ALLOW_PRIVILEGED_COMMANDS,
     log: message => { this.logDebug(message); },
   });

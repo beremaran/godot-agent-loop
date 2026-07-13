@@ -93,6 +93,7 @@ lines.push('| Kind | Suites |');
 lines.push('| --- | --- |');
 const suiteFiles = [
   ...readdirSync(join(root, 'tests')).filter(file => file.endsWith('.test.ts')).map(file => `tests/${file}`),
+  ...readdirSync(join(root, 'tests/e2e')).filter(file => file.endsWith('.test.ts')).map(file => `tests/e2e/${file}`),
   ...readdirSync(join(root, 'tests/godot')).filter(file => file.endsWith('.sh') && file !== 'godot-bin.sh').map(file => `tests/godot/${file}`),
 ];
 const suitesByKind = new Map();
