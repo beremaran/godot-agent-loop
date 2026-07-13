@@ -757,15 +757,33 @@ increasing order of ambition:
   than injecting ourselves into their game, at which point there is nothing to
   inject.
 
-**Rendering does not require the editor, and headless is not the only way to run
-without a human.** `--headless` swaps in the dummy display driver *and* the dummy
-rasterizer, which is why viewport captures come back black; that is a CI
-constraint, not a desktop one. The primary target is a developer workstation with
-a real GPU, so the session runs windowed with a real rendering context. Captures
-go through `get_viewport().get_texture().get_image()`, which reads the
-framebuffer rather than the screen, so the window may be occluded, unfocused, or
-parked offscreen and still produce correct pixels. A persistent session also
-means the window opens once per agent session rather than once per operation.
+**The session is headed. Always.** `--headless` swaps in the dummy display driver
+*and* the dummy rasterizer, so viewport captures return nothing at all. An agent
+that cannot render is an agent that cannot verify what it built, which makes
+headless the wrong default for the only workflow this product exists to serve.
+The session therefore runs headed, and a rendering context becomes a
+prerequisite rather than a capability tier.
+
+Headed does not mean "a human is watching": the context can come from a physical
+display, from Xvfb (which the renderer CI jobs already use to capture and compare
+real pixels), or from a nested compositor. Captures go through
+`get_viewport().get_texture().get_image()`, which reads the framebuffer and not
+the screen, so the window may be occluded, unfocused, or parked offscreen and
+still produce correct pixels — proven at `--position 5000,5000`. Fast mode and
+watch mode are therefore not process modes at all; they differ only in where the
+window is.
+
+The deliberate cost: an environment with no display at all — a bare container, a
+remote shell — can no longer run the agent loop. That case is scoped out rather
+than degraded, because supporting it means maintaining a second execution mode in
+which the product's central promise silently does not work.
+
+**"Headless" currently names two unrelated things and must stop.** In
+`src/tool-manifest.ts`, `backend: { kind: 'headless' }` means *one-shot CLI
+subprocess* and says nothing about displays, while the README support statement
+means *no rendering context*. Phase 6 removes the first and scopes out the second,
+so leaving both called "headless" makes every review in this phase ambiguous.
+Rename the backend kind to `subprocess`.
 
 **Human observability is a push, not a path.** `GameConnection` already emits
 structured lifecycle events with correlation IDs. Fan them out over the existing
@@ -1011,9 +1029,15 @@ recorded under "Validated assumptions".
   as a fallback until parity is proven.
 - [ ] Add `--fixed-fps` and time-scale control so "wait N frames, then capture"
   means the same thing on every run. Determinism is miserable to retrofit.
-- [ ] Branch the capture path on display availability rather than awaiting
-  `RenderingServer.frame_post_draw`, which never fires under `--headless` and
-  deadlocks the session instead of failing.
+- [ ] Launch the session headed, and fail fast with an actionable error when no
+  rendering context is reachable. Do not await `RenderingServer.frame_post_draw`
+  without one: under `--headless` it never fires, so the session deadlocks instead
+  of failing.
+- [ ] Rename `ToolBackend`'s `headless` kind to `subprocess`, so "headless" means
+  only "no rendering context" for the rest of this phase.
+- [ ] Retire the headless display tier from the support matrix: update the README
+  support statement and `tests/support-policy.test.ts`, and replace the screenshot
+  limitation path with the fail-fast precondition above.
 - [ ] Benchmark a realistic edit -> run -> observe -> edit cycle against today's
   subprocess-per-operation path; the loop-latency delta is this phase's headline
   result and belongs in the coverage report.
