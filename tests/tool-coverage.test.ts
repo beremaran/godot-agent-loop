@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { toolManifest } from '../src/tool-manifest.js';
-import type { ToolName } from '../src/tool-definitions.js';
+import { toolDefinitions, type ToolName } from '../src/tool-definitions.js';
 import { repoRoot } from './helpers/manifest-sources.js';
 
 /**
@@ -131,6 +131,28 @@ describe('tool coverage inventory', () => {
         allReferences.some(requiredSource[tool.level]),
         `${name} claims ${tool.level} but has no reference into the required suite`,
       ).toBe(true);
+    }
+  });
+
+  it('names every public parameter and enum value in the tool\'s referenced E2E evidence', () => {
+    for (const definition of toolDefinitions) {
+      const tool = coverage.tools[definition.name];
+      const references = [
+        ...tool.tests,
+        ...Object.values(tool.actions).flatMap(row => row.tests ?? []),
+      ].filter(reference => reference.startsWith('tests/e2e/'));
+      const files = [...new Set(references.map(reference => reference.split('::')[0]))];
+      const evidence = files.map(file => referencedFile(file) ?? '').join('\n');
+      for (const [parameter, schema] of Object.entries(definition.inputSchema.properties)) {
+        expect(evidence, `${definition.name}.${parameter} lacks referenced E2E parameter evidence`)
+          .toMatch(new RegExp(`\\b${parameter}\\b`));
+        for (const value of schema.enum ?? []) {
+          expect(
+            evidence.includes(`'${value}'`) || evidence.includes(`"${value}"`),
+            `${definition.name}.${parameter}=${value} lacks referenced E2E enum evidence`,
+          ).toBe(true);
+        }
+      }
     }
   });
 });

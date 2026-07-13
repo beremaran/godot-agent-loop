@@ -50,6 +50,15 @@ function validate(
   issues: string[],
   rejectUnknownProperties = false,
 ): void {
+  if (schema.oneOf) {
+    const matchingBranches = schema.oneOf.filter(branch => {
+      const branchIssues: string[] = [];
+      validate(value, branch, path, branchIssues);
+      return branchIssues.length === 0;
+    });
+    if (matchingBranches.length !== 1) issues.push(`${path} must match exactly one allowed schema`);
+    return;
+  }
   if (!matchesType(value, schema.type)) {
     issues.push(`${path} must be ${schema.type}`);
     return;

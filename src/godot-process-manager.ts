@@ -13,6 +13,7 @@ export interface GodotProcess {
 export interface StartGodotProcessOptions {
   executable: string;
   args: string[];
+  env?: NodeJS.ProcessEnv;
   onExit?: (code: number | null) => void;
   onError?: (error: Error) => void;
 }
@@ -35,19 +36,22 @@ export class GodotProcessManager {
   }
 
   start(options: StartGodotProcessOptions): GodotProcess {
-    const child = this.spawnProcess(options.executable, options.args, { stdio: 'pipe' });
+    const child = this.spawnProcess(options.executable, options.args, {
+      stdio: 'pipe',
+      env: options.env === undefined ? undefined : { ...process.env, ...options.env },
+    });
     const record: GodotProcess = { process: child, output: [], errors: [] };
     this.activeProcess = record;
     this.resetCursors();
 
     child.stdout?.on('data', (data: Buffer) => {
       const lines = data.toString().split('\n');
-      this.appendLines(record.output, lines);
+      this.appendLines(record.output, lines, 'logs');
       for (const line of lines) if (line.trim()) this.log(`[Godot stdout] ${line}`);
     });
     child.stderr?.on('data', (data: Buffer) => {
       const lines = data.toString().split('\n');
-      this.appendLines(record.errors, lines);
+      this.appendLines(record.errors, lines, 'errors');
       for (const line of lines) if (line.trim()) this.log(`[Godot stderr] ${line}`);
     });
     child.on('exit', (code: number | null) => {
@@ -88,18 +92,20 @@ export class GodotProcessManager {
     this.activeProcess = process;
   }
 
-  readNewErrors(): string[] {
-    if (!this.activeProcess) return [];
-    const errors = this.activeProcess.errors.slice(this.lastErrorIndex);
-    this.lastErrorIndex = this.activeProcess.errors.length;
-    return errors;
+  readNewErrors(limit = 1000): { items: string[]; remaining: number } {
+    if (!this.activeProcess) return { items: [], remaining: 0 };
+    const end = Math.min(this.lastErrorIndex + limit, this.activeProcess.errors.length);
+    const items = this.activeProcess.errors.slice(this.lastErrorIndex, end);
+    this.lastErrorIndex = end;
+    return { items, remaining: this.activeProcess.errors.length - end };
   }
 
-  readNewLogs(): string[] {
-    if (!this.activeProcess) return [];
-    const logs = this.activeProcess.output.slice(this.lastLogIndex);
-    this.lastLogIndex = this.activeProcess.output.length;
-    return logs;
+  readNewLogs(limit = 1000): { items: string[]; remaining: number } {
+    if (!this.activeProcess) return { items: [], remaining: 0 };
+    const end = Math.min(this.lastLogIndex + limit, this.activeProcess.output.length);
+    const items = this.activeProcess.output.slice(this.lastLogIndex, end);
+    this.lastLogIndex = end;
+    return { items, remaining: this.activeProcess.output.length - end };
   }
 
   private resetCursors(): void {
@@ -107,9 +113,13 @@ export class GodotProcessManager {
     this.lastLogIndex = 0;
   }
 
-  private appendLines(target: string[], lines: string[]): void {
+  private appendLines(target: string[], lines: string[], stream: 'logs' | 'errors'): void {
     target.push(...lines);
     const excess = target.length - this.logLineLimit;
-    if (excess > 0) target.splice(0, excess);
+    if (excess > 0) {
+      target.splice(0, excess);
+      if (stream === 'logs') this.lastLogIndex = Math.max(0, this.lastLogIndex - excess);
+      else this.lastErrorIndex = Math.max(0, this.lastErrorIndex - excess);
+    }
   }
 }

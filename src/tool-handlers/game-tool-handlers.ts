@@ -1,5 +1,6 @@
 import { createErrorResponse, errorMessage, normalizeParameters, type ToolArguments } from '../utils.js';
 import type { GameCommandService } from '../game-command-service.js';
+import { VisualRegressionService } from './visual-regression-service.js';
 
 export interface GameToolHandlerContext {
   commands: GameCommandService;
@@ -7,8 +8,8 @@ export interface GameToolHandlerContext {
 
 interface GameCommandApi {
   getActiveProcess: () => boolean;
-  readNewErrors: () => string[];
-  readNewLogs: () => string[];
+  readNewErrors: (limit?: number) => { items: string[]; remaining: number };
+  readNewLogs: (limit?: number) => { items: string[]; remaining: number };
   gameCommand: GameCommandService['execute'];
 }
 
@@ -43,6 +44,7 @@ function particleProcessMaterial(source: unknown): Record<string, unknown> {
 /** Implements the tools that operate on a running Godot game. */
 export class GameToolHandlers {
   private readonly context: GameToolHandlerContext & GameCommandApi;
+  private readonly visualRegression: VisualRegressionService;
 
   constructor(context: GameToolHandlerContext) {
     // Keep the per-tool mapping functions local to this handler while the
@@ -50,10 +52,11 @@ export class GameToolHandlers {
     this.context = {
       ...context,
       getActiveProcess: () => context.commands.hasActiveProcess(),
-      readNewErrors: () => context.commands.readNewErrors(),
-      readNewLogs: () => context.commands.readNewLogs(),
+      readNewErrors: limit => context.commands.readNewErrors(limit),
+      readNewLogs: limit => context.commands.readNewLogs(limit),
       gameCommand: context.commands.execute.bind(context.commands),
     };
+    this.visualRegression = new VisualRegressionService(context.commands);
   }
 
   public async handleGameScreenshot() {
@@ -88,6 +91,13 @@ export class GameToolHandlers {
     }
   }
 
+  public async handleGameVisualRegression(args: ToolArguments) {
+    if (args.action !== 'capture_baseline' && args.action !== 'compare') {
+      return createErrorResponse('action must be capture_baseline or compare.');
+    }
+    return this.visualRegression.execute(args);
+  }
+
   public async handleGameClick(args: ToolArguments) {
     return this.context.commands.execute('click', args, a => ({ x: a.x ?? 0, y: a.y ?? 0, button: a.button ?? 1 }));
   }
@@ -116,8 +126,8 @@ export class GameToolHandlers {
     return this.context.gameCommand('get_ui_elements', {}, () => ({}));
   }
 
-  public async handleGameGetSceneTree() {
-    return this.context.gameCommand('get_scene_tree', {}, () => ({}));
+  public async handleGameGetSceneTree(args: ToolArguments) {
+    return this.context.gameCommand('get_scene_tree', args, a => ({ max_nodes: a.maxNodes ?? 1000 }));
   }
 
   public async handleGameEval(args: ToolArguments) {
@@ -266,18 +276,18 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameGetErrors() {
+  public async handleGameGetErrors(args: ToolArguments) {
     if (!this.context.getActiveProcess())
       return createErrorResponse('No active Godot process. Use run_project first.');
-    const errors = this.context.readNewErrors();
-    return { content: [{ type: 'text', text: JSON.stringify({ count: errors.length, errors }, null, 2) }] };
+    const { items: errors, remaining } = this.context.readNewErrors(args?.maxItems ?? 1000);
+    return { content: [{ type: 'text', text: JSON.stringify({ count: errors.length, errors, remaining, hasMore: remaining > 0 }, null, 2) }] };
   }
 
-  public async handleGameGetLogs() {
+  public async handleGameGetLogs(args: ToolArguments) {
     if (!this.context.getActiveProcess())
       return createErrorResponse('No active Godot process. Use run_project first.');
-    const logs = this.context.readNewLogs();
-    return { content: [{ type: 'text', text: JSON.stringify({ count: logs.length, logs }, null, 2) }] };
+    const { items: logs, remaining } = this.context.readNewLogs(args?.maxItems ?? 1000);
+    return { content: [{ type: 'text', text: JSON.stringify({ count: logs.length, logs, remaining, hasMore: remaining > 0 }, null, 2) }] };
   }
 
   // --- Enhanced input handlers ---

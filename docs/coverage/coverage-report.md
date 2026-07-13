@@ -9,26 +9,26 @@ when this file is stale, and the inventory behind it is validated by
 
 | Denominator | Count | Source |
 | --- | ---: | --- |
-| Advertised MCP tools | 157 | `src/tool-definitions.ts` |
+| Advertised MCP tools | 165 | `src/tool-definitions.ts` |
 | Runtime commands | 108 | `src/runtime-protocol.ts` = `docs/runtime-api.schema.json` |
 | Privileged runtime commands | 8 | `src/runtime-protocol.ts` |
 | Headless operations | 16 | `src/scripts/godot_operations.gd` |
-| Public action rows | 312 | `src/tool-manifest.ts` |
+| Public action rows | 335 | `src/tool-manifest.ts` |
 
 ## Coverage by class
 
 | Class | Tools | Meaning |
 | --- | ---: | --- |
-| E2E | 157 | Complete MCP-to-Godot path with independent observation |
+| E2E | 165 | Complete MCP-to-Godot path with independent observation |
 | H | 0 | Headless GDScript operation exercised directly against Godot |
 | G+ | 0 | Runtime command reaches real Godot with at least one successful behavior |
 | G- | 0 | Runtime command reaches real Godot on a negative path only |
 | T | 0 | TypeScript, source-contract, schema, or mocked-transport coverage only |
-| **Total** | **157** | |
+| **Total** | **165** | |
 
 ## Action coverage
 
-312 of 312 action rows declare at least one resolving test
+335 of 335 action rows declare at least one resolving test
 reference; 0 are explicitly recorded as untested.
 
 ## Test suites by declared kind
@@ -40,9 +40,9 @@ engine, never a mocked transport.
 | Kind | Suites |
 | --- | --- |
 | unit | `tests/dotnet.test.ts`, `tests/game-connection.test.ts`, `tests/godot-process-manager.test.ts`, `tests/handler-modules.test.ts`, `tests/handlers.test.ts`, `tests/headless-operation-runner.test.ts`, `tests/headless-operation-service.test.ts`, `tests/index.test.ts`, `tests/interaction-server-installer.test.ts`, `tests/project-support.test.ts`, `tests/tool-argument-validation.test.ts`, `tests/tool-registry.test.ts`, `tests/utils.test.ts`, `tests/validate-script.test.ts` |
-| contract | `tests/runtime-protocol-contract.test.ts`, `tests/source-guardrails.test.ts`, `tests/test-metadata.test.ts`, `tests/tool-coverage.test.ts`, `tests/tool-definitions.test.ts`, `tests/tool-manifest.test.ts`, `tests/variant-codec-corpus.test.ts` |
+| contract | `tests/runtime-protocol-contract.test.ts`, `tests/source-guardrails.test.ts`, `tests/support-policy.test.ts`, `tests/test-metadata.test.ts`, `tests/tool-coverage.test.ts`, `tests/tool-definitions.test.ts`, `tests/tool-manifest.test.ts`, `tests/variant-codec-corpus.test.ts` |
 | integration | `tests/godot/run-headless-operations.sh`, `tests/godot/run-integration-tests.sh`, `tests/godot/run-typecheck.sh` |
-| e2e | `tests/e2e/headless-tools.test.ts`, `tests/e2e/lifecycle-tools.test.ts`, `tests/e2e/observers.test.ts`, `tests/e2e/project-config-tools.test.ts`, `tests/e2e/project-delivery-tools.test.ts`, `tests/e2e/representative-path.test.ts`, `tests/e2e/runtime-2d-tools.test.ts`, `tests/e2e/runtime-3d-scene-tools.test.ts`, `tests/e2e/runtime-3d-tools.test.ts`, `tests/e2e/runtime-audio-animation-tools.test.ts`, `tests/e2e/runtime-camera-rendering-tools.test.ts`, `tests/e2e/runtime-core-tools.test.ts`, `tests/e2e/runtime-input-tools.test.ts`, `tests/e2e/runtime-networking-tools.test.ts`, `tests/e2e/runtime-physics-tools.test.ts`, `tests/e2e/runtime-query-tools.test.ts`, `tests/e2e/runtime-remote-io-tools.test.ts`, `tests/e2e/runtime-rendering-tools.test.ts`, `tests/e2e/runtime-resource-tools.test.ts`, `tests/e2e/runtime-system-tools.test.ts`, `tests/e2e/runtime-ui-tools.test.ts` |
+| e2e | `tests/e2e/addon-management.test.ts`, `tests/e2e/cross-platform-smoke.test.ts`, `tests/e2e/headless-tools.test.ts`, `tests/e2e/import-integrity-workflows.test.ts`, `tests/e2e/lifecycle-tools.test.ts`, `tests/e2e/observers.test.ts`, `tests/e2e/project-config-tools.test.ts`, `tests/e2e/project-delivery-tools.test.ts`, `tests/e2e/project-test-orchestration.test.ts`, `tests/e2e/representative-path.test.ts`, `tests/e2e/runtime-2d-tools.test.ts`, `tests/e2e/runtime-3d-scene-tools.test.ts`, `tests/e2e/runtime-3d-tools.test.ts`, `tests/e2e/runtime-audio-animation-tools.test.ts`, `tests/e2e/runtime-camera-rendering-tools.test.ts`, `tests/e2e/runtime-core-tools.test.ts`, `tests/e2e/runtime-input-tools.test.ts`, `tests/e2e/runtime-networking-tools.test.ts`, `tests/e2e/runtime-physics-tools.test.ts`, `tests/e2e/runtime-query-tools.test.ts`, `tests/e2e/runtime-remote-io-tools.test.ts`, `tests/e2e/runtime-rendering-tools.test.ts`, `tests/e2e/runtime-resource-tools.test.ts`, `tests/e2e/runtime-system-tools.test.ts`, `tests/e2e/runtime-ui-tools.test.ts`, `tests/e2e/tool-schema-failures.test.ts`, `tests/e2e/verification-workflow.test.ts` |
 
 ## Per-tool rollup
 
@@ -50,6 +50,13 @@ engine, never a mocked transport.
 | --- | --- | --- | --- | ---: |
 | `launch_editor` | process | no | E2E | 1/1 |
 | `run_project` | process | no | E2E | 1/1 |
+| `verify_project` | process | no | E2E | 1/1 |
+| `run_project_tests` | godot-cli | no | E2E | 2/2 |
+| `manage_import_pipeline` | godot-cli | no | E2E | 4/4 |
+| `analyze_project_integrity` | local | no | E2E | 2/2 |
+| `verify_export_readiness` | godot-cli | no | E2E | 2/2 |
+| `verify_dotnet_project` | godot-cli | no | E2E | 4/4 |
+| `manage_addon` | godot-cli | no | E2E | 6/6 |
 | `get_debug_output` | process | no | E2E | 1/1 |
 | `stop_project` | process | no | E2E | 1/1 |
 | `get_godot_version` | process | no | E2E | 1/1 |
@@ -63,6 +70,7 @@ engine, never a mocked transport.
 | `get_uid` | headless `get_uid` | no | E2E | 1/1 |
 | `update_project_uids` | headless `resave_resources` | no | E2E | 1/1 |
 | `game_screenshot` | runtime `screenshot` | no | E2E | 1/1 |
+| `game_visual_regression` | local | no | E2E | 2/2 |
 | `game_click` | runtime `click` | no | E2E | 1/1 |
 | `game_key_press` | runtime `key_press` | no | E2E | 1/1 |
 | `game_mouse_move` | runtime `mouse_move` | no | E2E | 1/1 |

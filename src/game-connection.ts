@@ -1,8 +1,8 @@
 import { createConnection, type Socket } from 'net';
-import { CANCEL_METHOD, HANDSHAKE_METHOD, PRIVILEGED_RUNTIME_CAPABILITY, PRIVILEGED_RUNTIME_COMMANDS, RUNTIME_CAPABILITIES, RUNTIME_PROTOCOL_VERSION, commandMethod, isHandshakeResult, isJsonRpcResponse, isRuntimeCommand, type JsonRpcResponse } from './runtime-protocol.js';
+import { CANCEL_METHOD, HANDSHAKE_METHOD, PRIVILEGED_RUNTIME_CAPABILITY, PRIVILEGED_RUNTIME_COMMANDS, PRIVILEGED_RUNTIME_COMMAND_GROUPS, RUNTIME_CAPABILITIES, RUNTIME_PROTOCOL_VERSION, SESSION_AUTHENTICATION_CAPABILITY, commandMethod, isHandshakeResult, isJsonRpcResponse, isRuntimeCommand, privilegedGroupCapability, type JsonRpcResponse, type PrivilegedRuntimeGroup } from './runtime-protocol.js';
 
 export interface GameConnectionOptions {
-  port?: number; host?: string; initialDelayMs?: number; retryDelayMs?: number; maxAttempts?: number; log?: (message: string) => void; allowPrivilegedCommands?: boolean;
+  port?: number; host?: string; initialDelayMs?: number; retryDelayMs?: number; maxAttempts?: number; log?: (message: string) => void; allowPrivilegedCommands?: boolean; allowedPrivilegedGroups?: readonly PrivilegedRuntimeGroup[]; authSecret?: string;
 }
 
 export type GameResponse = JsonRpcResponse;
@@ -25,6 +25,8 @@ export class GameConnection {
   private readonly maxAttempts: number;
   private readonly log: (message: string) => void;
   private readonly allowPrivilegedCommands: boolean;
+  private readonly allowedPrivilegedGroups: ReadonlySet<PrivilegedRuntimeGroup>;
+  private readonly authSecret: string | undefined;
   private runtimeCapabilities: string[] = [];
   private connectionGeneration = 0;
   private connectingSocket: Socket | null = null;
@@ -38,6 +40,8 @@ export class GameConnection {
     this.maxAttempts = options.maxAttempts ?? 10;
     this.log = options.log ?? (() => undefined);
     this.allowPrivilegedCommands = options.allowPrivilegedCommands ?? false;
+    this.allowedPrivilegedGroups = new Set(options.allowedPrivilegedGroups ?? []);
+    this.authSecret = options.authSecret;
   }
 
   get interactionPort(): number { return this.port; }
@@ -69,18 +73,24 @@ export class GameConnection {
     if (!await this.delay(this.initialDelayMs, generation)) return;
     for (let attempt = 1; attempt <= this.maxAttempts; attempt++) {
       if (!this.isCurrentGeneration(generation)) return;
-      if (!isProcessActive()) { this.log('Game process no longer running, aborting connection'); return; }
+      if (!isProcessActive()) { this.logEvent('connection_aborted', { reason: 'process_not_running' }); return; }
       try {
         const connected = await this.connectOnce(attempt, generation);
         if (!connected || !this.isCurrentGeneration(generation)) return;
         return;
       } catch {
         if (!this.isCurrentGeneration(generation)) return;
-        this.log(`Connection attempt ${attempt}/${this.maxAttempts} failed, retrying in ${this.retryDelayMs}ms...`);
+        this.logEvent('connection_retry', {
+          attempt, max_attempts: this.maxAttempts, retry_delay_ms: this.retryDelayMs,
+        });
         if (!await this.delay(this.retryDelayMs, generation)) return;
       }
     }
-    if (this.isCurrentGeneration(generation)) console.error(`[SERVER] Failed to connect to game interaction server after ${this.maxAttempts} attempts`);
+    if (this.isCurrentGeneration(generation)) {
+      console.error(JSON.stringify({
+        component: 'godot-mcp-server', event: 'connection_failed', attempts: this.maxAttempts,
+      }));
+    }
   }
 
   disconnect(): void {
@@ -104,8 +114,17 @@ export class GameConnection {
   async send(command: string, params: Record<string, unknown> = {}, timeoutMs = 10000): Promise<GameResponse> {
     if (!isRuntimeCommand(command)) throw new Error(`'${command}' is not a runtime command in the published contract`);
     const isPrivileged = PRIVILEGED_RUNTIME_COMMANDS.includes(command as typeof PRIVILEGED_RUNTIME_COMMANDS[number]);
-    if (isPrivileged && !this.allowPrivilegedCommands && !this.runtimeCapabilities.includes(PRIVILEGED_RUNTIME_CAPABILITY)) {
-      throw new Error(`Privileged runtime command '${command}' is disabled. Set GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS=true to opt in.`);
+    if (isPrivileged) {
+      const privilegedCommand = command as typeof PRIVILEGED_RUNTIME_COMMANDS[number];
+      const group = PRIVILEGED_RUNTIME_COMMAND_GROUPS[privilegedCommand];
+      if (!this.allowPrivilegedCommands && !this.allowedPrivilegedGroups.has(group)) {
+        throw new Error(`Privileged runtime command '${command}' is disabled. Enable group '${group}' with GODOT_MCP_PRIVILEGED_GROUPS or opt in to all privileged commands.`);
+      }
+      const capability = privilegedGroupCapability(group);
+      if (!this.runtimeCapabilities.includes(PRIVILEGED_RUNTIME_CAPABILITY)
+        && !this.runtimeCapabilities.includes(capability)) {
+        throw new Error(`runtime did not authorize privileged group '${group}'`);
+      }
     }
     if (!this.connected || !this.socket) throw new Error('Not connected to game interaction server. Is the game running?');
     return this.request(commandMethod(command), params, timeoutMs);
@@ -113,14 +132,32 @@ export class GameConnection {
 
   private request(method: string, params: Record<string, unknown>, timeoutMs: number): Promise<GameResponse> {
     const id = this.nextRequestId++;
-    const payload = JSON.stringify({ jsonrpc: '2.0', method, params, id }) + '\n';
+    const isCommand = method.startsWith('godot.runtime.')
+      && method !== HANDSHAKE_METHOD && method !== CANCEL_METHOD;
+    const correlationId = isCommand ? `mcp_${id}` : undefined;
+    const wireParams = correlationId === undefined ? params : { ...params, _mcp_correlation_id: correlationId };
+    const payload = JSON.stringify({ jsonrpc: '2.0', method, params: wireParams, id }) + '\n';
+    if (correlationId !== undefined) this.logEvent('request_started', { correlation_id: correlationId, method });
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         if (!this.pendingRequests.delete(id)) return;
         this.requestCancellation(id);
+        if (correlationId !== undefined) {
+          this.logEvent('request_timed_out', { correlation_id: correlationId, method, timeout_ms: timeoutMs });
+        }
         reject(new Error(`Game request '${method}' timed out after ${timeoutMs / 1000}s`));
       }, timeoutMs);
-      this.pendingRequests.set(id, response => { clearTimeout(timeout); resolve(response); });
+      this.pendingRequests.set(id, response => {
+        clearTimeout(timeout);
+        if (correlationId !== undefined) {
+          this.logEvent('request_finished', {
+            correlation_id: correlationId, method,
+            outcome: 'error' in response ? 'error' : 'success',
+            ...('error' in response ? { error_code: response.error.code } : {}),
+          });
+        }
+        resolve(response);
+      });
       this.socket!.write(payload);
     });
   }
@@ -130,14 +167,14 @@ export class GameConnection {
       const socket = createConnection({ host: this.host, port: this.port }, () => {
         if (!this.isCurrentGeneration(generation)) { socket.destroy(); resolve(false); return; }
         this.connectingSocket = null; this.socket = socket; this.connected = true; this.responseBuffer = ''; this.runtimeCapabilities = []; this.pendingRequests.clear();
-        this.log(`Connected to game interaction server (attempt ${attempt})`);
+        this.logEvent('connection_opened', { attempt });
         socket.on('data', data => { if (this.isCurrentSocket(socket, generation)) this.handleData(data); });
         socket.on('close', () => {
-          this.log('Game interaction connection closed');
+          this.logEvent('connection_closed');
           if (!this.isCurrentSocket(socket, generation)) return;
           this.connected = false; this.socket = null; this.rejectAllPending(this.connectionError(null, 'Connection closed'));
         });
-        socket.on('error', err => { this.log(`Game interaction socket error: ${err.message}`); });
+        socket.on('error', () => { this.logEvent('connection_error'); });
         this.negotiateProtocol().then(() => {
           resolve(true);
         }).catch(error => {
@@ -153,16 +190,31 @@ export class GameConnection {
 
   private async negotiateProtocol(): Promise<void> {
     const requestedCapabilities: string[] = [...RUNTIME_CAPABILITIES];
+    if (this.authSecret !== undefined) requestedCapabilities.push(SESSION_AUTHENTICATION_CAPABILITY);
     if (this.allowPrivilegedCommands) requestedCapabilities.push(PRIVILEGED_RUNTIME_CAPABILITY);
-    const response = await this.request(HANDSHAKE_METHOD, { protocolVersion: RUNTIME_PROTOCOL_VERSION, capabilities: requestedCapabilities }, 5000);
+    for (const group of this.allowedPrivilegedGroups) requestedCapabilities.push(privilegedGroupCapability(group));
+    const response = await this.request(HANDSHAKE_METHOD, {
+      protocolVersion: RUNTIME_PROTOCOL_VERSION,
+      capabilities: requestedCapabilities,
+      ...(this.authSecret === undefined ? {} : { secret: this.authSecret }),
+    }, 5000);
     if ('error' in response) throw new Error(response.error.message);
     if (!isHandshakeResult(response.result)) throw new Error('invalid handshake result');
     const handshake = response.result;
     if (handshake.protocolVersion !== RUNTIME_PROTOCOL_VERSION) throw new Error(`unsupported runtime protocol version ${handshake.protocolVersion}`);
     const missing = RUNTIME_CAPABILITIES.filter(capability => !handshake.capabilities.includes(capability));
     if (missing.length > 0) throw new Error(`runtime does not support ${missing.join(', ')}`);
+    if (this.authSecret !== undefined && !handshake.capabilities.includes(SESSION_AUTHENTICATION_CAPABILITY)) {
+      throw new Error('runtime did not confirm session authentication');
+    }
     if (this.allowPrivilegedCommands && !handshake.capabilities.includes(PRIVILEGED_RUNTIME_CAPABILITY)) {
       throw new Error(`runtime does not support privileged runtime commands; enable ${PRIVILEGED_RUNTIME_CAPABILITY} in the Godot interaction server`);
+    }
+    for (const group of this.allowedPrivilegedGroups) {
+      if (!handshake.capabilities.includes(PRIVILEGED_RUNTIME_CAPABILITY)
+        && !handshake.capabilities.includes(privilegedGroupCapability(group))) {
+        throw new Error(`runtime does not support privileged group '${group}'`);
+      }
     }
     this.runtimeCapabilities = handshake.capabilities;
   }
@@ -194,8 +246,13 @@ export class GameConnection {
       const newlinePos = this.responseBuffer.indexOf('\n');
       const line = this.responseBuffer.substring(0, newlinePos).trim(); this.responseBuffer = this.responseBuffer.substring(newlinePos + 1);
       if (!line) continue;
-      try { this.resolveResponse(JSON.parse(line)); } catch { this.log(`Failed to parse game response: ${line}`); }
+      try { this.resolveResponse(JSON.parse(line)); } catch {
+        this.logEvent('response_parse_failed', { response_bytes: Buffer.byteLength(line) });
+      }
     }
+  }
+  private logEvent(event: string, details: Record<string, unknown> = {}): void {
+    this.log(JSON.stringify({ component: 'godot-mcp-server', event, ...details }));
   }
   private connectionError(id: number | null, message: string): GameResponse { return { jsonrpc: '2.0', id, error: { code: -32000, message } }; }
 }

@@ -9,10 +9,12 @@ import { ToolRegistry } from '../src/tool-registry.js';
 import type { ToolName } from '../src/tool-definitions.js';
 
 const ALL_TOOL_NAMES = [
-  'launch_editor', 'run_project', 'get_debug_output', 'stop_project',
+  'launch_editor', 'run_project', 'verify_project', 'run_project_tests',
+  'manage_import_pipeline', 'analyze_project_integrity', 'verify_export_readiness',
+  'verify_dotnet_project', 'manage_addon', 'get_debug_output', 'stop_project',
   'get_godot_version', 'list_projects', 'get_project_info', 'create_scene',
   'add_node', 'load_sprite', 'export_mesh_library', 'save_scene',
-  'get_uid', 'update_project_uids', 'game_screenshot', 'game_click',
+  'get_uid', 'update_project_uids', 'game_screenshot', 'game_visual_regression', 'game_click',
   'game_key_press', 'game_mouse_move', 'game_get_ui', 'game_get_scene_tree',
   'game_eval', 'game_get_property', 'game_set_property', 'game_call_method',
   'game_get_node_info', 'game_instantiate_scene', 'game_remove_node',
@@ -109,8 +111,8 @@ const registry = new ToolRegistry(createToolHandlers({
 }));
 
 describe('Tool definitions', () => {
-  it('defines exactly 157 tools', () => {
-    expect(toolDefinitions).toHaveLength(157);
+  it('defines exactly 165 tools', () => {
+    expect(toolDefinitions).toHaveLength(165);
     expect(ALL_TOOL_NAMES).toHaveLength(toolDefinitions.length);
   });
 

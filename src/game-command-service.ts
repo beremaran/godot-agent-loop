@@ -17,12 +17,16 @@ export class GameCommandService {
     return this.connection.isConnected;
   }
 
-  public readNewErrors(): string[] {
-    return this.processManager.readNewErrors();
+  public connectedProjectPath(): string | null {
+    return this.connection.connectedProjectPath;
   }
 
-  public readNewLogs(): string[] {
-    return this.processManager.readNewLogs();
+  public readNewErrors(limit?: number): { items: string[]; remaining: number } {
+    return this.processManager.readNewErrors(limit);
+  }
+
+  public readNewLogs(limit?: number): { items: string[]; remaining: number } {
+    return this.processManager.readNewLogs(limit);
   }
 
   public send(command: string, params: Record<string, unknown> = {}, timeoutMs = 10000): Promise<GameResponse> {

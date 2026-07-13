@@ -23,7 +23,8 @@ cp "$ROOT_DIR/tests/variant-codec-corpus.json" "$FIXTURE_DIR/variant-codec-corpu
 # fail the suite even when every check passed.
 init_godot_log runtime
 set +e
-"$GODOT" --headless --path "$FIXTURE_DIR" --script res://test_runner.gd 2>&1 | tee "$GODOT_SUITE_LOG"
+GODOT_MCP_RUNTIME_SECRET="godot-runtime-integration-secret" \
+  "$GODOT" --headless --path "$FIXTURE_DIR" --script res://test_runner.gd 2>&1 | tee "$GODOT_SUITE_LOG"
 status=${PIPESTATUS[0]}
 set -e
 if [[ "$status" -ne 0 ]]; then

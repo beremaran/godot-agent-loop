@@ -41,6 +41,21 @@ describe('runtime query G+ tools through MCP', () => {
     expect(payload(first.text)).toEqual(payload(second.text));
   });
 
+  it('game_get_scene_tree bounds large trees with deterministic pre-order truncation', async () => {
+    const game = await startedGame({ privileged: true });
+    const created = await game.call('game_eval', {
+      code: 'for i in range(20):\n\tvar node = Node.new()\n\tnode.name = "Bounded_%02d" % i\n\tget_tree().root.get_node("Main").add_child(node)\nreturn true',
+    });
+    expect(created.isError, created.text).toBe(false);
+
+    const first = await game.call('game_get_scene_tree', { maxNodes: 5 });
+    const second = await game.call('game_get_scene_tree', { maxNodes: 5 });
+    expect(first.isError, first.text).toBe(false);
+    expect(payload(first.text)).toEqual(payload(second.text));
+    expect(payload(first.text)).toMatchObject({ node_count: 5, max_nodes: 5, truncated: true });
+    expect(first.text.length).toBeLessThan(2000);
+  });
+
   it('game_eval executes privileged code and its mutation is observed separately', async () => {
     const game = await startedGame({ privileged: true });
     const evaluated = await game.call('game_eval', {

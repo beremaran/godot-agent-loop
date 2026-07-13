@@ -28,18 +28,33 @@ func register_commands() -> void:
 	register_command("await_signal", _cmd_await_signal)
 
 
-func _cmd_get_scene_tree(_params: Dictionary) -> void:
-	var tree: Dictionary = _build_tree_node(get_tree().root)
-	respond({"success": true, "tree": tree})
+func _cmd_get_scene_tree(params: Dictionary) -> void:
+	var reader: CommandParams = CommandParams.new(params)
+	var max_nodes: int = reader.optional_int("max_nodes", 1000, 1, 10000)
+	if params_invalid(reader):
+		return
+	var traversal: Dictionary = {"count": 0, "truncated": false, "max_nodes": max_nodes}
+	var tree: Dictionary = _build_tree_node(get_tree().root, traversal)
+	respond({"success": true, "tree": tree, "node_count": traversal["count"], "truncated": traversal["truncated"], "max_nodes": max_nodes})
 
-func _build_tree_node(node: Node) -> Dictionary:
+func _build_tree_node(node: Node, traversal: Dictionary) -> Dictionary:
+	var count_value: Variant = traversal.get("count", 0)
+	var count: int = count_value if count_value is int else 0
+	traversal["count"] = count + 1
 	var info: Dictionary = {
 		"name": node.name,
 		"type": node.get_class(),
 	}
 	var children_arr: Array = []
 	for child in node.get_children():
-		children_arr.append(_build_tree_node(child))
+		var current_value: Variant = traversal.get("count", 0)
+		var maximum_value: Variant = traversal.get("max_nodes", 1000)
+		var current: int = current_value if current_value is int else 0
+		var maximum: int = maximum_value if maximum_value is int else 1000
+		if current >= maximum:
+			traversal["truncated"] = true
+			break
+		children_arr.append(_build_tree_node(child, traversal))
 	if children_arr.size() > 0:
 		info["children"] = children_arr
 	return info

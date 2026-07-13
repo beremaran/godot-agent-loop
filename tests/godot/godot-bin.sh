@@ -36,7 +36,8 @@ require_godot() {
 # Godot output it captures to a suite log, and asserts the log clean before
 # reporting success. A diagnostic may only be tolerated through an entry in
 # allowed-godot-output.tsv, and only with both a reason and an issue/test
-# reference; anything else fails the suite even when every check passed.
+# reference, owner, and expiry; anything else fails the suite even when every
+# check passed.
 
 GODOT_DIAGNOSTIC_PATTERN='^(ERROR|SCRIPT ERROR|WARNING):|Leaked instance|ObjectDB instances? .*leaked|leaked at exit|Segmentation fault|handle_crash|=== debug print'
 
@@ -63,15 +64,17 @@ assert_clean_godot_log() {
   [[ -z "$offenders" ]] && return 0
 
   local unexpected=""
-  local line allowed entry_suite entry_pattern entry_reason entry_issue
+  local line allowed entry_suite entry_pattern entry_reason entry_issue entry_owner entry_expiry
   while IFS= read -r line; do
     allowed=0
-    while IFS=$'\t' read -r entry_suite entry_pattern entry_reason entry_issue; do
+    while IFS=$'\t' read -r entry_suite entry_pattern entry_reason entry_issue entry_owner entry_expiry; do
       [[ -z "$entry_suite" || "$entry_suite" == \#* ]] && continue
       [[ "$entry_suite" != "$suite" && "$entry_suite" != "*" ]] && continue
-      # Reason and issue are mandatory: an allowlist entry without a documented
-      # justification does not suppress anything.
-      [[ -z "$entry_reason" || -z "$entry_issue" ]] && continue
+      # Every suppression must be accountable and temporary. Expired or
+      # incomplete entries deliberately stop suppressing the diagnostic.
+      [[ -z "$entry_reason" || -z "$entry_issue" || -z "$entry_owner" ]] && continue
+      [[ ! "$entry_expiry" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] && continue
+      [[ "$entry_expiry" < "$(date -u +%F)" ]] && continue
       if [[ "$line" =~ $entry_pattern ]]; then
         allowed=1
         break
@@ -87,7 +90,7 @@ assert_clean_godot_log() {
     printf '%s' "$unexpected" | sed 's/^/  | /' >&2
     echo "Godot ERROR/WARNING/leak output fails the suite. If a diagnostic is" >&2
     echo "genuinely expected, add a line to tests/godot/allowed-godot-output.tsv" >&2
-    echo "with the suite, a pattern, the reason, and an issue/test reference." >&2
+    echo "with suite, pattern, reason, issue/test, owner, and future expiry." >&2
     return 1
   fi
 }

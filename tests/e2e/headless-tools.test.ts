@@ -321,13 +321,22 @@ describe('resource tools', () => {
       nodeName: 'Block',
       properties: { mesh: 'res://resources/box.tres' },
     });
+    await call('add_node', {
+      scenePath: 'scenes/blocks.tscn',
+      nodeType: 'MeshInstance3D',
+      nodeName: 'Excluded',
+      properties: { mesh: 'res://resources/box.tres' },
+    });
     const exported = await call('export_mesh_library', {
       scenePath: 'scenes/blocks.tscn',
       outputPath: 'resources/blocks.tres',
+      meshItemNames: ['Block'],
     });
     expect(exported.isError, exported.text).toBe(false);
     expect(exported.text).toMatch(/exported successfully with 1 items/i);
     expect(projectFile('resources/blocks.tres')).toContain('MeshLibrary');
+    expect(projectFile('resources/blocks.tres')).toContain('Block');
+    expect(projectFile('resources/blocks.tres')).not.toContain('Excluded');
   });
 });
 

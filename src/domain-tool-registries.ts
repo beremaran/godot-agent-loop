@@ -60,6 +60,7 @@ export function createLifecycleToolRegistry(
   return {
       'launch_editor': args => handlers.handleLaunchEditor(args),
       'run_project': args => handlers.handleRunProject(args),
+      'verify_project': args => handlers.handleVerifyProject(args),
       'get_debug_output': () => handlers.handleGetDebugOutput(),
       'stop_project': () => handlers.handleStopProject(),
       'get_godot_version': () => handlers.handleGetGodotVersion(),
@@ -70,6 +71,12 @@ export function createProjectToolRegistry(
   handlers: ProjectToolHandlers,
 ): ToolHandlerRegistry {
   return {
+      'run_project_tests': args => handlers.handleRunProjectTests(args),
+      'manage_import_pipeline': args => handlers.handleManageImportPipeline(args),
+      'analyze_project_integrity': args => handlers.handleAnalyzeProjectIntegrity(args),
+      'verify_export_readiness': args => handlers.handleVerifyExportReadiness(args),
+      'verify_dotnet_project': args => handlers.handleVerifyDotnetProject(args),
+      'manage_addon': args => handlers.handleManageAddon(args),
       'list_projects': args => handlers.handleListProjects(args),
       'get_project_info': args => handlers.handleGetProjectInfo(args),
       'create_scene': args => handlers.handleCreateScene(args),
@@ -120,11 +127,12 @@ export function createGameToolRegistry(
 ): ToolHandlerRegistry {
   return {
       'game_screenshot': () => handlers.handleGameScreenshot(),
+      'game_visual_regression': args => handlers.handleGameVisualRegression(args),
       'game_click': args => handlers.handleGameClick(args),
       'game_key_press': args => handlers.handleGameKeyPress(args),
       'game_mouse_move': args => handlers.handleGameMouseMove(args),
       'game_get_ui': () => handlers.handleGameGetUi(),
-      'game_get_scene_tree': () => handlers.handleGameGetSceneTree(),
+      'game_get_scene_tree': args => handlers.handleGameGetSceneTree(args),
       'game_eval': args => handlers.handleGameEval(args),
       'game_get_property': args => handlers.handleGameGetProperty(args),
       'game_set_property': args => handlers.handleGameSetProperty(args),
@@ -144,8 +152,8 @@ export function createGameToolRegistry(
       'game_get_nodes_in_group': args => handlers.handleGameGetNodesInGroup(args),
       'game_find_nodes_by_class': args => handlers.handleGameFindNodesByClass(args),
       'game_reparent_node': args => handlers.handleGameReparentNode(args),
-      'game_get_errors': () => handlers.handleGameGetErrors(),
-      'game_get_logs': () => handlers.handleGameGetLogs(),
+      'game_get_errors': args => handlers.handleGameGetErrors(args),
+      'game_get_logs': args => handlers.handleGameGetLogs(args),
       'game_key_hold': args => handlers.handleGameKeyHold(args),
       'game_key_release': args => handlers.handleGameKeyRelease(args),
       'game_scroll': args => handlers.handleGameScroll(args),

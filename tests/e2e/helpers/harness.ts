@@ -79,6 +79,7 @@ export function createTempProject(options: TempProjectOptions = {}): { root: str
   const root = mkdtempSync(join(tmpdir(), 'godot-mcp-e2e-'));
   const projectPath = join(root, options.name ?? 'project');
   mkdirSync(projectPath, { recursive: true });
+  const renderer = process.env.GODOT_MCP_E2E_RENDERER;
   writeFileSync(join(projectPath, 'project.godot'), [
     'config_version=5',
     '',
@@ -88,6 +89,13 @@ export function createTempProject(options: TempProjectOptions = {}): { root: str
     'run/main_scene="res://main.tscn"',
     'config/features=PackedStringArray("4.4")',
     '',
+    ...(renderer ? [
+      '[rendering]',
+      '',
+      `renderer/rendering_method=${JSON.stringify(renderer)}`,
+      `renderer/rendering_method.mobile=${JSON.stringify(renderer)}`,
+      '',
+    ] : []),
   ].join('\n'));
   // The root script provides unprivileged observation hooks: a signal handler
   // that tags nodes with a group (readable via game_get_nodes_in_group) and a
@@ -155,6 +163,12 @@ export function createTempProject(options: TempProjectOptions = {}): { root: str
     '',
     '[node name="Main" type="Node2D"]',
     'script = ExtResource("1")',
+    '',
+    '[node name="DeterministicBackground" type="ColorRect" parent="."]',
+    'offset_right = 1152.0',
+    'offset_bottom = 648.0',
+    'mouse_filter = 2',
+    'color = Color(0.2, 0.4, 0.6, 1)',
     '',
     '[node name="Anchor" type="Node2D" parent="."]',
     '',
@@ -258,8 +272,8 @@ export function writeOgvFixture(projectPath: string, relativePath: string): void
 
 /**
  * Run Godot's import step over a project so binary assets (PNG textures) are
- * loadable by later engine invocations. Test fixture preparation only — the
- * MCP surface has no import tool yet (a tracked P1 capability gap).
+ * loadable before the MCP server starts. Product-level import behavior is
+ * covered separately through manage_import_pipeline.
  */
 export async function importProjectResources(projectPath: string): Promise<void> {
   await execFileAsync(resolveGodotBinary(), ['--headless', '--path', projectPath, '--import'], { timeout: 60_000 })
@@ -271,6 +285,8 @@ export interface E2EServer {
   runtimePort: number;
   root: string;
   projectPath: string;
+  /** Live redacted stderr lines emitted by the MCP server process. */
+  serverLogs: string[];
   /** Tool-call helper that returns the text payload and error flag. */
   call(name: string, args?: Record<string, unknown>): Promise<{ text: string; isError: boolean; raw: unknown }>;
   /** Poll a runtime-backed tool until the game connection is live. */
@@ -296,10 +312,14 @@ export async function startServer(options: StartServerOptions = {}): Promise<E2E
     args: [join(repoRoot, 'build/index.js')],
     env: {
       ...getDefaultEnvironment(),
+      ...(process.env.DISPLAY ? { DISPLAY: process.env.DISPLAY } : {}),
+      ...(process.env.WAYLAND_DISPLAY ? { WAYLAND_DISPLAY: process.env.WAYLAND_DISPLAY } : {}),
+      ...(process.env.XAUTHORITY ? { XAUTHORITY: process.env.XAUTHORITY } : {}),
+      ...(process.env.XDG_RUNTIME_DIR ? { XDG_RUNTIME_DIR: process.env.XDG_RUNTIME_DIR } : {}),
       GODOT_PATH: godotBinary,
       GODOT_MCP_RUNTIME_PORT: String(runtimePort),
       GODOT_MCP_ALLOWED_DIRS: project.root,
-      GODOT_MCP_RUN_HEADLESS: 'true',
+      GODOT_MCP_RUN_HEADLESS: process.env.GODOT_MCP_E2E_HEADLESS ?? 'true',
       // Isolate user:// so parallel/leftover state cannot bleed between tests.
       XDG_DATA_HOME: join(userDataDir, 'data'),
       XDG_CONFIG_HOME: join(userDataDir, 'config'),
@@ -312,6 +332,10 @@ export async function startServer(options: StartServerOptions = {}): Promise<E2E
 
   const client = new Client({ name: 'godot-mcp-e2e', version: '0.0.0' });
   await client.connect(transport);
+  const serverLogs: string[] = [];
+  transport.stderr?.on('data', (data: Buffer) => {
+    serverLogs.push(...data.toString().split('\n').filter(Boolean));
+  });
 
   const call: E2EServer['call'] = async (name, args = {}) => {
     const result = await client.callTool({ name, arguments: args });
@@ -328,7 +352,10 @@ export async function startServer(options: StartServerOptions = {}): Promise<E2E
       if (!/Not connected|No active Godot process/i.test(result.text)) {
         throw new Error(`Unexpected error while waiting for the game connection: ${result.text}`);
       }
-      if (Date.now() > deadline) throw new Error(`Game connection never became ready: ${result.text}`);
+      if (Date.now() > deadline) {
+        const diagnostics = serverLogs.slice(-40).join('\n');
+        throw new Error(`Game connection never became ready: ${result.text}${diagnostics ? `\nMCP diagnostics:\n${diagnostics}` : ''}`);
+      }
       await new Promise(resolve => setTimeout(resolve, 500));
     }
   };
@@ -342,7 +369,10 @@ export async function startServer(options: StartServerOptions = {}): Promise<E2E
     }
   };
 
-  return { client, runtimePort, root: project.root, projectPath: project.projectPath, call, waitForGameConnection, close };
+  return {
+    client, runtimePort, root: project.root, projectPath: project.projectPath,
+    serverLogs, call, waitForGameConnection, close,
+  };
 }
 
 /**
@@ -359,11 +389,26 @@ export async function assertNoLeakedGodotProcesses(rootDir: string): Promise<voi
     survivors = await findProcesses(rootDir);
   }
   if (survivors.length === 0) return;
-  await execFileAsync('pkill', ['-9', '-f', rootDir]).catch(() => undefined);
+  await killMatchingProcesses(rootDir);
   throw new Error(`Leaked Godot processes for ${rootDir}:\n${survivors.join('\n')}`);
 }
 
 async function findProcesses(needle: string): Promise<string[]> {
+  if (process.platform === 'win32') {
+    try {
+      const script = [
+        '$needle = $env:GODOT_MCP_PROCESS_NEEDLE',
+        'Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -and $_.CommandLine.Contains($needle) } |',
+        'ForEach-Object { "{0} {1}" -f $_.ProcessId, $_.CommandLine }',
+      ].join('; ');
+      const { stdout } = await execFileAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
+        env: { ...process.env, GODOT_MCP_PROCESS_NEEDLE: needle },
+      });
+      return stdout.split(/\r?\n/).filter(line => line.trim() !== '');
+    } catch {
+      return [];
+    }
+  }
   try {
     const { stdout } = await execFileAsync('pgrep', ['-af', needle]);
     return stdout.split('\n').filter(line => line.trim() !== '');
@@ -371,4 +416,19 @@ async function findProcesses(needle: string): Promise<string[]> {
     // pgrep exits 1 when nothing matches.
     return [];
   }
+}
+
+async function killMatchingProcesses(needle: string): Promise<void> {
+  if (process.platform === 'win32') {
+    const script = [
+      '$needle = $env:GODOT_MCP_PROCESS_NEEDLE',
+      'Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -and $_.CommandLine.Contains($needle) } |',
+      'ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }',
+    ].join('; ');
+    await execFileAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
+      env: { ...process.env, GODOT_MCP_PROCESS_NEEDLE: needle },
+    }).catch(() => undefined);
+    return;
+  }
+  await execFileAsync('pkill', ['-9', '-f', needle]).catch(() => undefined);
 }

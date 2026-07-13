@@ -1,4 +1,5 @@
 import { spawn } from 'child_process';
+import { createHash } from 'crypto';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { execFile } from 'child_process';
@@ -8,6 +9,7 @@ import { createErrorResponse, normalizeParameters, validatePath, type ToolArgume
 import type { GodotProcess } from '../godot-process-manager.js';
 import type { GodotExecutableService } from '../godot-executable.js';
 import { GODOT_VERSION_OPTIONS } from '../godot-subprocess.js';
+import type { GameResponse } from '../game-connection.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -17,7 +19,7 @@ export interface LifecycleToolHandlerContext {
   isPathAllowed: (projectPath: string) => boolean;
   isRelativePathAllowed?: (projectPath: string, relativePath: string) => boolean;
   logDebug: (message: string) => void;
-  startProjectProcess: (executable: string, args: string[], onExit: () => void) => void;
+  startProjectProcess: (executable: string, args: string[], onExit: () => void, env?: NodeJS.ProcessEnv) => void;
   stopProjectProcess: () => GodotProcess | null;
   connectToGame: (projectPath: string) => Promise<void>;
   disconnectFromGame: () => void;
@@ -26,6 +28,9 @@ export interface LifecycleToolHandlerContext {
   getConnectedProjectPath: () => string | null;
   clearConnectedProjectPath: () => void;
   getInteractionPort: () => number;
+  getRuntimeEnvironment: () => NodeJS.ProcessEnv;
+  isGameConnected: () => boolean;
+  sendGameCommand: (command: string, params?: Record<string, unknown>, timeoutMs?: number) => Promise<GameResponse>;
 }
 
 /** Implements editor launch, project runtime, and Godot version tools. */
@@ -50,7 +55,9 @@ export class LifecycleToolHandlers {
       // Display-less environments (CI, the E2E harness) opt in to a headless
       // editor process, same as run_project.
       if (process.env.GODOT_MCP_RUN_HEADLESS === 'true') editorArgs.unshift('--headless');
-      const editorProcess = spawn(godotPath, editorArgs, { stdio: 'pipe' });
+      const editorProcess = spawn(godotPath, editorArgs, {
+        stdio: 'pipe', env: { ...process.env, ...this.context.getRuntimeEnvironment() },
+      });
       editorProcess.on('error', (err: Error) => { console.error('Failed to start Godot editor:', err); });
       return { content: [{ type: 'text', text: `Godot editor launched successfully for project at ${args.projectPath}.` }] };
     } catch (error: unknown) {
@@ -100,7 +107,9 @@ export class LifecycleToolHandlers {
       if (args.scene && (!this.context.isRelativePathAllowed || this.context.isRelativePathAllowed(args.projectPath, args.scene))) commandArgs.push(args.scene);
 
       this.context.logDebug(`Running Godot project: ${args.projectPath}`);
-      this.context.startProjectProcess(godotPath, commandArgs, () => { this.handleProjectExit(); });
+      this.context.startProjectProcess(
+        godotPath, commandArgs, () => { this.handleProjectExit(); }, this.context.getRuntimeEnvironment(),
+      );
       this.context.connectToGame(args.projectPath).catch(error => {
         this.context.logDebug(`Failed to connect to game interaction server: ${error}`);
       });
@@ -114,6 +123,102 @@ export class LifecycleToolHandlers {
     } catch (error: unknown) {
       return createErrorResponse(`Failed to run Godot project: ${this.errorMessage(error)}`);
     }
+  }
+
+  public async handleVerifyProject(args: ToolArguments) {
+    args = normalizeParameters(args || {});
+    const teardown = args.teardown !== false;
+    const started = await this.handleRunProject({ projectPath: args.projectPath, ...(args.scene ? { scene: args.scene } : {}) });
+    if (started.isError === true) return started;
+
+    const evidence: Record<string, unknown> = {
+      project_path: args.projectPath,
+      started: true,
+      assertions: [],
+      screenshot: null,
+      teardown,
+    };
+    let passed = true;
+    try {
+      const deadline = Date.now() + 60_000;
+      while (!this.context.isGameConnected()) {
+        if (!this.context.getActiveProcess()) throw new Error('Godot exited before the verification runtime connected');
+        if (Date.now() > deadline) throw new Error('Timed out waiting for the verification runtime connection');
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
+      const waited = await this.context.sendGameCommand('wait', {
+        frames: args.waitFrames ?? 2, frame_type: 'render',
+      }, 30_000);
+      if ('error' in waited) throw new Error(`Frame wait failed: ${waited.error.message}`);
+
+      const assertionEvidence = evidence.assertions as Record<string, unknown>[];
+      for (const assertion of (args.assertions ?? []) as ToolArguments[]) {
+        const result = await this.evaluateVerificationAssertion(assertion);
+        assertionEvidence.push(result);
+        if (result.passed !== true) passed = false;
+      }
+
+      if (args.captureScreenshot === true) {
+        const screenshot = await this.context.sendGameCommand('screenshot', {}, 30_000);
+        if ('error' in screenshot) {
+          evidence.screenshot = { captured: false, error: screenshot.error.message };
+          passed = false;
+        } else {
+          const result = screenshot.result as { data?: string; width?: number; height?: number };
+          const bytes = Buffer.from(result.data ?? '', 'base64');
+          evidence.screenshot = {
+            captured: bytes.length > 0,
+            width: result.width,
+            height: result.height,
+            bytes: bytes.length,
+            sha256: createHash('sha256').update(bytes).digest('hex'),
+          };
+          if (bytes.length === 0) passed = false;
+        }
+      }
+    } catch (error: unknown) {
+      passed = false;
+      evidence.workflow_error = error instanceof Error ? error.message : String(error);
+    } finally {
+      if (teardown && this.context.getActiveProcess()) {
+        const stopped = await this.handleStopProject();
+        evidence.stopped = stopped.isError !== true;
+        if (stopped.isError === true) passed = false;
+      }
+    }
+
+    evidence.passed = passed;
+    return {
+      content: [{ type: 'text', text: JSON.stringify(evidence, null, 2) }],
+      ...(passed ? {} : { isError: true }),
+    };
+  }
+
+  private async evaluateVerificationAssertion(assertion: ToolArguments): Promise<Record<string, unknown>> {
+    if (assertion.kind === 'node_exists') {
+      if (!assertion.nodePath) return { ...assertion, passed: false, error: 'nodePath is required' };
+      const response = await this.context.sendGameCommand('get_node_info', { node_path: assertion.nodePath });
+      return 'error' in response
+        ? { ...assertion, passed: false, error: response.error.message }
+        : { ...assertion, passed: true };
+    }
+    if (assertion.kind === 'group_count') {
+      if (!assertion.group || assertion.count === undefined) {
+        return { ...assertion, passed: false, error: 'group and count are required' };
+      }
+      const response = await this.context.sendGameCommand('get_nodes_in_group', { group: assertion.group });
+      if ('error' in response) return { ...assertion, passed: false, error: response.error.message };
+      const result = response.result as { nodes?: unknown[] };
+      const actual = result.nodes?.length ?? 0;
+      return { ...assertion, actual, passed: actual === assertion.count };
+    }
+    if (assertion.kind === 'log_contains') {
+      if (typeof assertion.text !== 'string') return { ...assertion, passed: false, error: 'text is required' };
+      const output = this.context.getActiveProcess()?.output.join('\n') ?? '';
+      return { ...assertion, passed: output.includes(assertion.text) };
+    }
+    return { ...assertion, passed: false, error: `Unknown assertion kind: ${String(assertion.kind)}` };
   }
 
   public async handleGetDebugOutput() {

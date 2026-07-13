@@ -65,6 +65,169 @@
         "security": "applicable"
       }
     },
+    "verify_project": {
+      "level": "E2E",
+      "tests": [
+        "tests/e2e/verification-workflow.test.ts::'verify_project'",
+        "tests/e2e/verification-workflow.test.ts::compound verification workflow through MCP"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/e2e/verification-workflow.test.ts::'verify_project'",
+            "tests/e2e/verification-workflow.test.ts::compound verification workflow through MCP"
+          ]
+        }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: verifies running state without authoring project resources",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: verification protocol is language-independent",
+        "security": "applicable"
+      }
+    },
+    "run_project_tests": {
+      "level": "E2E",
+      "tests": [
+        "tests/e2e/project-test-orchestration.test.ts::'run_project_tests'",
+        "tests/e2e/project-test-orchestration.test.ts::structured project test orchestration through MCP"
+      ],
+      "actions": {
+        "discover": {
+          "tests": [
+            "tests/e2e/project-test-orchestration.test.ts::action: 'discover'"
+          ]
+        },
+        "run": {
+          "tests": [
+            "tests/e2e/project-test-orchestration.test.ts::action: 'run'"
+          ]
+        }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: test execution does not author project resources",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "applicable",
+        "security": "applicable"
+      }
+    },
+    "manage_import_pipeline": {
+      "level": "E2E",
+      "tests": [
+        "tests/e2e/import-integrity-workflows.test.ts::'manage_import_pipeline'",
+        "tests/e2e/import-integrity-workflows.test.ts::import pipeline and project integrity workflows through MCP"
+      ],
+      "actions": {
+        "inspect": { "tests": ["tests/e2e/import-integrity-workflows.test.ts::action: 'inspect'"] },
+        "change": { "tests": ["tests/e2e/import-integrity-workflows.test.ts::action: 'change'"] },
+        "reimport": { "tests": ["tests/e2e/import-integrity-workflows.test.ts::action: 'reimport'"] },
+        "dependencies": { "tests": ["tests/e2e/import-integrity-workflows.test.ts::action: 'dependencies'"] }
+      },
+      "dimensions": {
+        "happy-path": "applicable", "parameters": "applicable", "failures": "applicable",
+        "repeatability": "applicable", "cleanup": "applicable", "persistence": "applicable",
+        "frame-behavior": "n/a: editor import work does not run in a game frame",
+        "exotic-paths": "applicable", "limits": "applicable", "compatibility": "applicable",
+        "platforms": "applicable", "build-flavors": "applicable", "security": "applicable"
+      }
+    },
+    "analyze_project_integrity": {
+      "level": "E2E",
+      "tests": [
+        "tests/e2e/import-integrity-workflows.test.ts::'analyze_project_integrity'",
+        "tests/e2e/import-integrity-workflows.test.ts::import pipeline and project integrity workflows through MCP"
+      ],
+      "actions": {
+        "analyze": { "tests": ["tests/e2e/import-integrity-workflows.test.ts::action: 'analyze'"] },
+        "preview_rename": { "tests": ["tests/e2e/import-integrity-workflows.test.ts::action: 'preview_rename'"] }
+      },
+      "dimensions": {
+        "happy-path": "applicable", "parameters": "applicable", "failures": "applicable",
+        "repeatability": "applicable", "cleanup": "applicable",
+        "persistence": "n/a: analysis and previews never mutate project files",
+        "frame-behavior": "n/a: static analysis does not run in a game frame",
+        "exotic-paths": "applicable", "limits": "applicable", "compatibility": "applicable",
+        "platforms": "applicable", "build-flavors": "applicable", "security": "applicable"
+      }
+    },
+    "verify_export_readiness": {
+      "level": "E2E",
+      "tests": [
+        "tests/e2e/project-delivery-tools.test.ts::'verify_export_readiness'",
+        "tests/e2e/project-delivery-tools.test.ts::export_project creates release/debug artifacts"
+      ],
+      "actions": {
+        "inspect": { "tests": ["tests/e2e/project-delivery-tools.test.ts::action: 'inspect'"] },
+        "export_smoke": { "tests": ["tests/e2e/project-delivery-tools.test.ts::action: 'export_smoke'"] }
+      },
+      "dimensions": {
+        "happy-path": "applicable", "parameters": "applicable", "failures": "applicable",
+        "repeatability": "applicable", "cleanup": "applicable", "persistence": "applicable",
+        "frame-behavior": "n/a: export runs outside the game loop", "exotic-paths": "applicable",
+        "limits": "applicable", "compatibility": "applicable", "platforms": "applicable",
+        "build-flavors": "applicable", "security": "applicable"
+      }
+    },
+    "verify_dotnet_project": {
+      "level": "E2E",
+      "tests": [
+        "tests/e2e/project-delivery-tools.test.ts::'verify_dotnet_project'",
+        "tests/e2e/project-delivery-tools.test.ts::create_project produces engine-loadable GDScript and .NET projects"
+      ],
+      "actions": {
+        "inspect": { "tests": ["tests/e2e/project-delivery-tools.test.ts::action: 'inspect'"] },
+        "restore": { "tests": ["tests/e2e/project-delivery-tools.test.ts::action: 'restore'"] },
+        "build": { "tests": ["tests/e2e/project-delivery-tools.test.ts::action: 'build'"] },
+        "run": { "tests": ["tests/e2e/project-delivery-tools.test.ts::action: 'run'"] }
+      },
+      "dimensions": {
+        "happy-path": "applicable", "parameters": "applicable", "failures": "applicable",
+        "repeatability": "applicable", "cleanup": "applicable", "persistence": "applicable",
+        "frame-behavior": "applicable", "exotic-paths": "applicable", "limits": "applicable",
+        "compatibility": "applicable", "platforms": "applicable", "build-flavors": "applicable",
+        "security": "applicable"
+      }
+    },
+    "manage_addon": {
+      "level": "E2E",
+      "tests": [
+        "tests/e2e/addon-management.test.ts::'manage_addon'",
+        "tests/e2e/addon-management.test.ts::pinned add-on management through MCP"
+      ],
+      "actions": {
+        "inspect": { "tests": ["tests/e2e/addon-management.test.ts::action: 'inspect'"] },
+        "install": { "tests": ["tests/e2e/addon-management.test.ts::action: 'install'"] },
+        "update": { "tests": ["tests/e2e/addon-management.test.ts::action: 'update'"] },
+        "remove": { "tests": ["tests/e2e/addon-management.test.ts::action: 'remove'"] },
+        "enable": { "tests": ["tests/e2e/addon-management.test.ts::action: 'enable'"] },
+        "disable": { "tests": ["tests/e2e/addon-management.test.ts::action: 'disable'"] }
+      },
+      "dimensions": {
+        "happy-path": "applicable", "parameters": "applicable", "failures": "applicable",
+        "repeatability": "applicable", "cleanup": "applicable", "persistence": "applicable",
+        "frame-behavior": "n/a: editor add-on lifecycle runs outside the game loop",
+        "exotic-paths": "applicable", "limits": "applicable", "compatibility": "applicable",
+        "platforms": "applicable", "build-flavors": "applicable", "security": "applicable"
+      }
+    },
     "get_debug_output": {
       "level": "E2E",
       "tests": [
@@ -477,6 +640,24 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      }
+    },
+    "game_visual_regression": {
+      "level": "E2E",
+      "tests": [
+        "tests/e2e/runtime-system-tools.test.ts::'game_visual_regression'",
+        "tests/e2e/runtime-system-tools.test.ts::game_visual_regression retains baseline, diff, tolerance, mask, and renderer evidence"
+      ],
+      "actions": {
+        "capture_baseline": { "tests": ["tests/e2e/runtime-system-tools.test.ts::action: 'capture_baseline'"] },
+        "compare": { "tests": ["tests/e2e/runtime-system-tools.test.ts::action: 'compare'"] }
+      },
+      "dimensions": {
+        "happy-path": "applicable", "parameters": "applicable", "failures": "applicable",
+        "repeatability": "applicable", "cleanup": "applicable", "persistence": "applicable",
+        "frame-behavior": "applicable", "exotic-paths": "applicable", "limits": "applicable",
+        "compatibility": "applicable", "platforms": "applicable",
+        "build-flavors": "n/a: PNG comparison is language-independent", "security": "applicable"
       }
     },
     "game_click": {
@@ -4505,7 +4686,7 @@
       "tests": [
         "tests/index.test.ts::validate_scripts",
         "tests/tool-argument-validation.test.ts::validate_scripts",
-        "tests/e2e/project-config-tools.test.ts::validate_scripts covers explicit, all, and invalid scopes against real Godot",
+        "tests/e2e/project-config-tools.test.ts::validate_scripts covers explicit, changed, all, and invalid scopes against real Godot",
         "tests/e2e/project-config-tools.test.ts::exposes every configuration tool through MCP discovery"
       ],
       "actions": {
@@ -4513,7 +4694,7 @@
           "tests": [
             "tests/index.test.ts::validate_scripts",
             "tests/tool-argument-validation.test.ts::validate_scripts",
-            "tests/e2e/project-config-tools.test.ts::validate_scripts covers explicit, all, and invalid scopes against real Godot"
+            "tests/e2e/project-config-tools.test.ts::validate_scripts covers explicit, changed, all, and invalid scopes against real Godot"
           ]
         }
       },

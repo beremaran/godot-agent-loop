@@ -292,6 +292,11 @@ describe('runtime G+ input tools through MCP', () => {
     const hidden = await game.call('game_input_state', { action: 'set_mouse_mode', mouseMode: 'hidden' });
     expect(hidden.isError).toBe(true);
     expect(hidden.text).toMatch(/headless display driver/i);
+    for (const mouseMode of ['captured', 'confined'] as const) {
+      const unsupported = await game.call('game_input_state', { action: 'set_mouse_mode', mouseMode });
+      expect(unsupported.isError).toBe(true);
+      expect(unsupported.text).toMatch(/headless display driver/i);
+    }
     const restored = await game.call('game_input_state', {
       action: 'set_mouse_mode', mouseMode: 'visible',
     });

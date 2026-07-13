@@ -20,6 +20,7 @@ extends SceneTree
 
 const PORT: int = 9090
 const READ_TIMEOUT_MS: int = 10000
+const RUNTIME_SECRET_ENVIRONMENT_VARIABLE: String = "GODOT_MCP_RUNTIME_SECRET"
 
 var _server: Node
 var _checks: int = 0
@@ -149,6 +150,7 @@ func _run() -> void:
 	await process_frame
 	await process_frame
 
+	_test_cancellable_registry()
 	await _test_variant_codec()
 	await _test_privileged_policy()
 	await _test_handshake_and_id_correlation()
@@ -179,6 +181,20 @@ func _run() -> void:
 	quit(1 if _failures > 0 else 0)
 
 
+func _test_cancellable_registry() -> void:
+	var commands: Dictionary = _server.get("_commands")
+	var expected: Array[String] = ["wait", "await_signal", "resource", "http_request"]
+	for command: String in expected:
+		var descriptor: Variant = commands.get(command)
+		_check("cancellation registry: %s is registered as cancellable" % command,
+			descriptor != null and descriptor.get("cancellable") == true, descriptor)
+	for command: Variant in commands:
+		var descriptor: Variant = commands[command]
+		if descriptor.get("cancellable") == true:
+			_check("cancellation registry: %s is published in the protocol contract" % command,
+				expected.has(str(command)), descriptor)
+
+
 func _check(name: String, condition: bool, context: Variant = null) -> void:
 	_checks += 1
 	if condition:
@@ -189,6 +205,18 @@ func _check(name: String, condition: bool, context: Variant = null) -> void:
 
 
 func _open_client(name: String) -> Client:
+	var client: Client = await _open_raw_client(name)
+	client.send_request("auto-auth", "godot.runtime.handshake", {
+		"protocolVersion": "1.0",
+		"secret": OS.get_environment(RUNTIME_SECRET_ENVIRONMENT_VARIABLE),
+	})
+	var message: Variant = await client.read_message()
+	_check("%s: session authenticates" % name,
+		_error_code(message) == 0 and (_result_of(message).get("capabilities", []) as Array).has("session-authentication"), message)
+	return client
+
+
+func _open_raw_client(name: String) -> Client:
 	var client: Client = Client.new(self)
 	_check("%s: client connects" % name, await client.open(PORT))
 	return client
@@ -229,6 +257,37 @@ func _test_privileged_policy() -> void:
 	_check("privileged policy: opted-in eval remains available",
 		_error_code(message) == 0 and _result_of(message).get("result") == 42, message)
 	enabled_client.close()
+
+	_server.allow_privileged_commands = false
+	OS.set_environment("GODOT_MCP_PRIVILEGED_GROUPS", "reflection")
+	var grouped_client: Client = await _open_client("privileged-policy-grouped")
+	grouped_client.send_request("policy-group-hs", "godot.runtime.handshake", {"protocolVersion": "1.0"})
+	message = await grouped_client.read_message()
+	capabilities = _result_of(message).get("capabilities", [])
+	_check("privileged policy: reflection group is negotiated independently",
+		capabilities.has("privileged-reflection") and not capabilities.has("privileged-code-execution")
+		and not capabilities.has("privileged-network") and not capabilities.has("privileged-commands"), message)
+	grouped_client.send_request("policy-group-reflection", "godot.runtime.get_property", {
+		"node_path": "/root/McpServer", "property": "name",
+	})
+	message = await grouped_client.read_message()
+	_check("privileged policy: enabled reflection command succeeds",
+		_error_code(message) == 0 and _result_of(message).get("value") == "McpServer", message)
+	grouped_client.send_request("policy-group-code", "godot.runtime.eval", {"code": "return 'group-secret'"})
+	message = await grouped_client.read_message()
+	_check("privileged policy: code execution stays denied and redacted",
+		_error_code(message) == -32007 and _error_data(message).get("group") == "code-execution"
+		and str(message).find("group-secret") < 0, message)
+	grouped_client.send_request("policy-group-network", "godot.runtime.http_request", {"url": "https://group-secret.invalid"})
+	message = await grouped_client.read_message()
+	_check("privileged policy: network stays denied and redacted",
+		_error_code(message) == -32007 and _error_data(message).get("group") == "network"
+		and str(message).find("group-secret") < 0, message)
+	grouped_client.close()
+	OS.unset_environment("GODOT_MCP_PRIVILEGED_GROUPS")
+	# Later domain/parameter suites exercise privileged positive and validation
+	# paths, matching the pre-grouping fixture state.
+	_server.allow_privileged_commands = true
 
 
 func _error_code(message: Variant) -> int:
@@ -469,9 +528,24 @@ func _codec_has_type(value: Variant, type_hint: String) -> bool:
 
 # --- Handshake, method routing, and response-ID correlation ---
 func _test_handshake_and_id_correlation() -> void:
+	var unauthenticated: Client = await _open_raw_client("handshake-unauthenticated")
+	unauthenticated.send_request("no-auth-command", "godot.runtime.wait", {"frames": 1, "secret": "must-not-leak"})
+	var denied: Variant = await unauthenticated.read_message()
+	_check("handshake: commands before authentication are denied and redacted",
+		_error_code(denied) == -32008 and str(denied).find("must-not-leak") < 0, denied)
+	unauthenticated.send_request("bad-auth", "godot.runtime.handshake", {
+		"protocolVersion": "1.0", "secret": "wrong-secret-must-not-leak",
+	})
+	denied = await unauthenticated.read_message()
+	_check("handshake: wrong secret is denied and redacted",
+		_error_code(denied) == -32008 and str(denied).find("wrong-secret-must-not-leak") < 0, denied)
+	unauthenticated.close()
+
 	var client: Client = await _open_client("handshake")
 
-	client.send_request("hs-1", "godot.runtime.handshake", {"protocolVersion": "1.0"})
+	client.send_request("hs-1", "godot.runtime.handshake", {
+		"protocolVersion": "1.0", "secret": OS.get_environment(RUNTIME_SECRET_ENVIRONMENT_VARIABLE),
+	})
 	var message: Variant = await client.read_message()
 	_check("handshake: response correlates to request id", _message_id(message) == "hs-1", message)
 	var result: Dictionary = _result_of(message)
@@ -750,8 +824,8 @@ func _test_oversized_response() -> void:
 		fillers.append(filler)
 
 	var original_response_limit: int = _server.max_response_bytes
-	_server.max_response_bytes = 200
 	var client: Client = await _open_client("oversize")
+	_server.max_response_bytes = 200
 	client.send_request("big-1", "godot.runtime.get_scene_tree", {})
 	var message: Variant = await client.read_message()
 	_check("response limit: oversized result replaced by -32006 error",
@@ -1411,8 +1485,7 @@ func _test_audio_animation_domain() -> void:
 	player.add_animation_library("", library)
 	player.play("idle")
 
-	var client := Client.new(self)
-	_check("audio/animation domain: client connects", await client.open(PORT), null)
+	var client: Client = await _open_client("audio/animation domain")
 	_check("audio/animation domain: server attaches the domain node as a child",
 		_server.get_node_or_null("audio_animation_domain") != null, _server.get_children())
 

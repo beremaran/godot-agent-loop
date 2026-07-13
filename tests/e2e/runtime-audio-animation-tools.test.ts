@@ -67,7 +67,9 @@ describe('runtime animation and audio layout tools through MCP', () => {
       ],
     });
     expect(created.isError, created.text).toBe(false);
-    expect(payload(created.text)).toMatchObject({ animation_name: 'agent_demo', track_count: 4, length: 0.2 });
+    const createdAnimation = payload(created.text) as { animation_name: string; track_count: number; length: number };
+    expect(createdAnimation).toMatchObject({ animation_name: 'agent_demo', track_count: 4 });
+    expect(createdAnimation.length).toBeCloseTo(0.2, 6);
     expect(await evalResult(game, [
       'var animation := (get_node("/root/Main/TrackPlayer") as AnimationPlayer).get_animation("agent_demo")',
       'return {',
@@ -383,6 +385,15 @@ describe('runtime animation and audio layout tools through MCP', () => {
     expect((await game.call('game_audio_play', { nodePath: '/root/Main/PlainAudio', action: 'stop' })).isError).toBe(false);
     expect(await evalResult(game, 'return (get_node("/root/Main/PlainAudio") as AudioStreamPlayer).playing')).toBe(false);
 
+    for (const attenuationModel of ['inverse', 'inverse_square'] as const) {
+      expect((await game.call('game_audio_spatial', {
+        nodePath: '/root/Main/Audio3D', action: 'configure', attenuationModel,
+      })).isError).toBe(false);
+      const model = payload((await game.call('game_audio_spatial', {
+        nodePath: '/root/Main/Audio3D', action: 'get_info',
+      })).text) as { attenuation_model: string };
+      expect(model.attenuation_model).toBe(attenuationModel);
+    }
     expect((await game.call('game_audio_spatial', {
       nodePath: '/root/Main/Audio3D', action: 'configure', maxDistance: 75, unitSize: 2.5, maxDb: 6, attenuationModel: 'logarithmic',
     })).isError).toBe(false);

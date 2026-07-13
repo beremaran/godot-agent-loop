@@ -182,6 +182,35 @@ describe('runtime G+ physics tools through MCP', () => {
     expect(badEndpoint.text).toMatch(/endpoint is not a matching physics body/i);
   });
 
+  it('game_add_collision constructs the remaining capsule, cylinder, and segment enum shapes', async () => {
+    const game = await startedGame();
+    await game.call('game_spawn_node', { type: 'StaticBody3D', name: 'CapsuleOwner', parentPath: '/root/Main/Physics3D' });
+    await game.call('game_spawn_node', { type: 'StaticBody3D', name: 'CylinderOwner', parentPath: '/root/Main/Physics3D' });
+    await game.call('game_spawn_node', { type: 'StaticBody2D', name: 'SegmentOwner', parentPath: '/root/Main/Physics2D' });
+    expect((await game.call('game_add_collision', {
+      parentPath: '/root/Main/Physics3D/CapsuleOwner', shapeType: 'capsule', shapeParams: { radius: 0.4, height: 1.8 },
+    })).isError).toBe(false);
+    expect((await game.call('game_add_collision', {
+      parentPath: '/root/Main/Physics3D/CylinderOwner', shapeType: 'cylinder', shapeParams: { radius: 0.7, height: 2.5 },
+    })).isError).toBe(false);
+    expect((await game.call('game_add_collision', {
+      parentPath: '/root/Main/Physics2D/SegmentOwner', shapeType: 'segment', shapeParams: { a_x: -2, a_y: 1, b_x: 3, b_y: 4 },
+    })).isError).toBe(false);
+    const observed = await evalResult(game, [
+      'var capsule = get_node("/root/Main/Physics3D/CapsuleOwner").get_child(0).shape',
+      'var cylinder = get_node("/root/Main/Physics3D/CylinderOwner").get_child(0).shape',
+      'var segment = get_node("/root/Main/Physics2D/SegmentOwner").get_child(0).shape',
+      'return [capsule.get_class(), capsule.radius, capsule.height, cylinder.get_class(), cylinder.radius, cylinder.height, segment.get_class(), segment.a, segment.b]',
+    ].join('\n')) as [string, number, number, string, number, number, string, { x: number; y: number }, { x: number; y: number }];
+    expect(observed[0]).toBe('CapsuleShape3D');
+    expect(observed[1]).toBeCloseTo(0.4);
+    expect(observed[2]).toBeCloseTo(1.8);
+    expect(observed[3]).toBe('CylinderShape3D');
+    expect(observed[4]).toBeCloseTo(0.7);
+    expect(observed[5]).toBeCloseTo(2.5);
+    expect(observed.slice(6)).toEqual(['SegmentShape2D', { x: -2, y: 1 }, { x: 3, y: 4 }]);
+  });
+
   it('game_navigation_3d bakes geometry and game_navigate_path produces an actual 2D path', async () => {
     const game = await startedGame();
     const create = await game.call('game_navigation_3d', {

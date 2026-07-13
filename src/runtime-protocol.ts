@@ -4,8 +4,11 @@ export const RUNTIME_CAPABILITIES = ['runtime-commands', 'godot-json-values'] as
 export const HANDSHAKE_METHOD = 'godot.runtime.handshake';
 export const COMMAND_METHOD_PREFIX = 'godot.runtime.';
 export const CANCEL_METHOD = 'godot.runtime.cancel';
-export const CANCELLABLE_RUNTIME_COMMANDS = ['wait', 'await_signal'] as const;
+export const CANCELLABLE_RUNTIME_COMMANDS = ['wait', 'await_signal', 'resource', 'http_request'] as const;
 export const PRIVILEGED_RUNTIME_CAPABILITY = 'privileged-commands' as const;
+export const SESSION_AUTHENTICATION_CAPABILITY = 'session-authentication' as const;
+export const PRIVILEGED_RUNTIME_GROUPS = ['reflection', 'code-execution', 'network'] as const;
+export type PrivilegedRuntimeGroup = (typeof PRIVILEGED_RUNTIME_GROUPS)[number];
 export const PRIVILEGED_RUNTIME_COMMANDS = [
   'call_method',
   'eval',
@@ -16,6 +19,20 @@ export const PRIVILEGED_RUNTIME_COMMANDS = [
   'set_property',
   'websocket',
 ] as const;
+export const PRIVILEGED_RUNTIME_COMMAND_GROUPS: Readonly<Record<(typeof PRIVILEGED_RUNTIME_COMMANDS)[number], PrivilegedRuntimeGroup>> = {
+  call_method: 'reflection',
+  eval: 'code-execution',
+  get_property: 'reflection',
+  http_request: 'network',
+  rpc: 'network',
+  script: 'code-execution',
+  set_property: 'reflection',
+  websocket: 'network',
+};
+
+export function privilegedGroupCapability(group: PrivilegedRuntimeGroup): string {
+  return `privileged-${group}`;
+}
 
 /**
  * Every runtime command in the published contract, sorted. The manifest of

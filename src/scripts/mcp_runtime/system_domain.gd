@@ -33,6 +33,12 @@ func _cmd_window(params: Dictionary) -> void:
 	if action == "get":
 		respond({"success": true, "size": {"x": win.size.x, "y": win.size.y}, "position": {"x": win.position.x, "y": win.position.y}, "fullscreen": win.mode == Window.MODE_FULLSCREEN, "borderless": win.borderless, "title": win.title})
 		return
+	if DisplayServer.get_name() == "headless" and (reader.has_param("borderless") or reader.has_param("vsync")):
+		respond_limit(
+			"borderless and vsync changes are unavailable with Godot's headless display driver",
+			{"reason": "display_feature_unavailable", "display_driver": DisplayServer.get_name()},
+		)
+		return
 	if reader.has_param("width") != reader.has_param("height"):
 		reader.fail("width and height must be provided together", {"param": "width", "reason": "missing_pair", "paired_with": "height"})
 		send_params_error(reader)
@@ -54,7 +60,7 @@ func _cmd_window(params: Dictionary) -> void:
 
 func _cmd_os_info(_params: Dictionary) -> void:
 	var screen_size: Vector2i = DisplayServer.screen_get_size()
-	respond({"success": true, "os_name": OS.get_name(), "locale": OS.get_locale(), "screen_size": {"x": screen_size.x, "y": screen_size.y}, "video_adapter": RenderingServer.get_video_adapter_name(), "processor_count": OS.get_processor_count()})
+	respond({"success": true, "os_name": OS.get_name(), "locale": OS.get_locale(), "screen_size": {"x": screen_size.x, "y": screen_size.y}, "video_adapter": RenderingServer.get_video_adapter_name(), "rendering_method": RenderingServer.get_current_rendering_method(), "processor_count": OS.get_processor_count()})
 
 
 func _cmd_time_scale(params: Dictionary) -> void:

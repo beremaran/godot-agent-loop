@@ -1,5 +1,8 @@
 // @test-kind: e2e
 import { afterEach, describe, expect, it } from 'vitest';
+import { PNG } from 'pngjs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { startServer, type E2EServer } from './helpers/harness.js';
 
 /**
@@ -178,16 +181,23 @@ describe('runtime engine-state tools through MCP', () => {
     expect(before.size.y).toBeGreaterThan(0);
     expect(typeof before.fullscreen).toBe('boolean');
 
-    const set = await game.call('game_window', { action: 'set', width: 640, height: 360, title: 'e2e-window' });
+    const unsupported = await game.call('game_window', {
+      action: 'set', borderless: true, vsync: false,
+    });
+    expect(unsupported.isError).toBe(true);
+    expect(unsupported.text).toMatch(/headless display driver/i);
+    const set = await game.call('game_window', {
+      action: 'set', width: 640, height: 360, title: 'e2e-window', position: { x: 17, y: 19 },
+    });
     expect(set.isError, set.text).toBe(false);
 
     // Independent observation: the engine's root Window reports the new size and
     // title. This holds in headless mode because the root Window still exists.
     const observed = await engineEval(game, [
       'var win = get_tree().root',
-      'return {"width": win.size.x, "height": win.size.y, "title": win.title}',
-    ].join('\n')) as { width: number; height: number; title: string };
-    expect(observed).toEqual({ width: 640, height: 360, title: 'e2e-window' });
+      'return {"width": win.size.x, "height": win.size.y, "title": win.title, "position": win.position}',
+    ].join('\n')) as { width: number; height: number; title: string; position: { x: number; y: number } };
+    expect(observed).toMatchObject({ width: 640, height: 360, title: 'e2e-window', position: { x: 17, y: 19 } });
 
     const readBack = await game.call('game_window', { action: 'get' });
     expect(payload(readBack.text)).toMatchObject({ size: { x: 640, y: 360 }, title: 'e2e-window' });
@@ -276,6 +286,27 @@ describe('runtime engine-state tools through MCP', () => {
     expect(drained.text).not.toContain('marker-boom');
   });
 
+  it('game_get_logs returns bounded pages and reports unread output', async () => {
+    const game = await startedGame({ privileged: true });
+    await game.call('game_get_logs');
+    const printed = await game.call('game_eval', { code: 'for i in range(8):\n\tprint("page-marker-%d" % i)\nreturn true' });
+    expect(printed.isError, printed.text).toBe(false);
+    await game.call('game_wait', { frames: 2 });
+
+    const observed: string[] = [];
+    let hasMore = true;
+    for (let pageIndex = 0; pageIndex < 20 && hasMore; pageIndex++) {
+      const page = await game.call('game_get_logs', { maxItems: 2 });
+      expect(page.isError, page.text).toBe(false);
+      const result = payload(page.text) as { count: number; logs: string[]; hasMore: boolean };
+      expect(result.count).toBeLessThanOrEqual(2);
+      observed.push(...result.logs);
+      hasMore = result.hasMore;
+    }
+    expect(hasMore).toBe(false);
+    for (let i = 0; i < 8; i++) expect(observed.join('\n')).toContain(`page-marker-${i}`);
+  });
+
   it('game_get_ui enumerates live Control nodes', async () => {
     const game = await startedGame({ privileged: true });
 
@@ -299,10 +330,12 @@ describe('runtime engine-state tools through MCP', () => {
   });
 
   it('game_screenshot returns a decodable PNG or a structured headless limitation', async () => {
-    const game = await startedGame();
+    const requireRenderedPixels = process.env.GODOT_MCP_RENDER_TEST === '1';
+    const game = await startedGame({ privileged: requireRenderedPixels });
 
     const result = await game.call('game_screenshot');
     if (result.isError) {
+      expect(requireRenderedPixels, result.text).toBe(false);
       // Headless uses a dummy renderer; the product must explain the limitation
       // rather than crash or return an empty payload.
       expect(result.text).toMatch(/screenshot|viewport|image|failed|limit/i);
@@ -320,5 +353,70 @@ describe('runtime engine-state tools through MCP', () => {
     ].join('\n')) as number[];
     expect(png.readUInt32BE(16)).toBe(size[0]);
     expect(png.readUInt32BE(20)).toBe(size[1]);
+    if (requireRenderedPixels) {
+      const decoded = PNG.sync.read(png);
+      const offset = (10 * decoded.width + 10) * 4;
+      const actual = Array.from(decoded.data.subarray(offset, offset + 4));
+      const expected = [51, 102, 153, 255];
+      for (let channel = 0; channel < expected.length; channel++) {
+        expect(Math.abs(actual[channel] - expected[channel]), `pixel channel ${channel}: ${actual}`).toBeLessThanOrEqual(8);
+      }
+      expect(await engineEval(game, 'return RenderingServer.get_current_rendering_method()'))
+        .toBe(process.env.GODOT_MCP_E2E_RENDERER);
+    }
+  });
+
+  it('game_visual_regression retains baseline, diff, tolerance, mask, and renderer evidence', async () => {
+    const requireRenderedPixels = process.env.GODOT_MCP_RENDER_TEST === '1';
+    const game = await startedGame({ privileged: true });
+    const baseline = await game.call('game_visual_regression', {
+      action: 'capture_baseline', baselinePath: 'artifacts/baseline.png',
+    });
+    if (baseline.isError) {
+      expect(requireRenderedPixels, baseline.text).toBe(false);
+      expect(baseline.text).toMatch(/screenshot|viewport|image|failed|limit/i);
+      return;
+    }
+    const baselineResult = payload(baseline.text) as { width: number; height: number; renderer: object };
+    expect(baselineResult.renderer).toEqual(expect.any(Object));
+    if (process.env.GODOT_MCP_E2E_RENDERER) {
+      expect(baselineResult.renderer).toMatchObject({ rendering_method: process.env.GODOT_MCP_E2E_RENDERER });
+    }
+    expect(existsSync(join(game.projectPath, 'artifacts', 'baseline.png'))).toBe(true);
+
+    const equal = await game.call('game_visual_regression', {
+      action: 'compare', baselinePath: 'artifacts/baseline.png',
+      channelTolerance: 8, maxDifferentPixelRatio: 0,
+    });
+    expect(equal.isError, equal.text).toBe(false);
+    expect(payload(equal.text)).toMatchObject({ passed: true, different_pixels: 0 });
+
+    const changed = await game.call('game_set_property', {
+      nodePath: '/root/Main/DeterministicBackground', property: 'color',
+      value: { r: 0.8, g: 0.1, b: 0.1, a: 1 },
+    });
+    expect(changed.isError, changed.text).toBe(false);
+    await game.call('game_wait', { frames: 2 });
+    const different = await game.call('game_visual_regression', {
+      action: 'compare', baselinePath: 'artifacts/baseline.png',
+      diffArtifactPath: 'artifacts/diff.png', channelTolerance: 8,
+      maxDifferentPixelRatio: 0,
+    });
+    expect(different.isError).toBe(true);
+    expect(payload(different.text)).toMatchObject({ passed: false, diff_artifact_path: 'artifacts/diff.png' });
+    expect(existsSync(join(game.projectPath, 'artifacts', 'diff.png'))).toBe(true);
+    expect(PNG.sync.read(readFileSync(join(game.projectPath, 'artifacts', 'diff.png'))).width)
+      .toBe(baselineResult.width);
+
+    const mask = new PNG({ width: baselineResult.width, height: baselineResult.height });
+    mask.data.fill(0);
+    writeFileSync(join(game.projectPath, 'artifacts', 'mask.png'), PNG.sync.write(mask));
+    const masked = await game.call('game_visual_regression', {
+      action: 'compare', baselinePath: 'artifacts/baseline.png',
+      maskPath: 'artifacts/mask.png', channelTolerance: 0,
+      maxDifferentPixelRatio: 0,
+    });
+    expect(masked.isError, masked.text).toBe(false);
+    expect(payload(masked.text)).toMatchObject({ passed: true, compared_pixels: 0 });
   });
 });

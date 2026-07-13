@@ -55,6 +55,137 @@ export const toolDefinitions = [
   },
 },
 {
+  name: 'verify_project',
+  description: 'Run bounded assertions and capture evidence with deterministic teardown',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      projectPath: { type: 'string', description: 'Godot project path' },
+      scene: { type: 'string', description: 'Optional scene to run' },
+      waitFrames: { type: 'integer', minimum: 1, maximum: 600, description: 'Frames to wait before assertions. Default: 2' },
+      assertions: {
+        type: 'array',
+        maxItems: 32,
+        description: 'Bounded assertions evaluated against the running game',
+        items: {
+          type: 'object',
+          properties: {
+            kind: { type: 'string', enum: ['node_exists', 'group_count', 'log_contains'], description: 'Assertion kind' },
+            nodePath: { type: 'string', description: 'Node path for node_exists' },
+            group: { type: 'string', description: 'Group name for group_count' },
+            count: { type: 'integer', minimum: 0, description: 'Expected group member count' },
+            text: { type: 'string', description: 'Required output substring for log_contains' },
+          },
+          required: ['kind'],
+        },
+      },
+      captureScreenshot: { type: 'boolean', description: 'Capture a screenshot and return its SHA-256 digest. Default: false' },
+      teardown: { type: 'boolean', description: 'Stop the project after verification. Default: true' },
+    },
+    required: ['projectPath'],
+  },
+},
+{
+  name: 'run_project_tests',
+  description: 'Discover or run native, GUT, and GdUnit4 project tests with structured results',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      projectPath: { type: 'string', description: 'Godot project path' },
+      action: { type: 'string', enum: ['discover', 'run'], description: 'Discover tests or run them' },
+      framework: { type: 'string', enum: ['auto', 'native', 'gut', 'gdunit4'], description: 'Test framework. Default: auto' },
+      testPaths: { type: 'array', items: { type: 'string' }, maxItems: 64, description: 'Project-relative test files or directories' },
+      artifactPaths: { type: 'array', items: { type: 'string' }, maxItems: 32, description: 'Project-relative report files to return as artifact metadata' },
+      timeoutSeconds: { type: 'number', minimum: 1, maximum: 300, description: 'Per-run timeout. Default: 60' },
+      failFast: { type: 'boolean', description: 'Stop native execution after the first failed file. Default: false' },
+    },
+    required: ['projectPath', 'action'],
+  },
+},
+{
+  name: 'manage_import_pipeline',
+  description: 'Inspect, change, reimport, and trace imported Godot source assets',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      projectPath: { type: 'string', description: 'Godot project path' },
+      action: { type: 'string', enum: ['inspect', 'change', 'reimport', 'dependencies'], description: 'Import workflow action' },
+      sourcePath: { type: 'string', description: 'Project-relative source asset path' },
+      settings: { type: 'object', description: 'Importer parameter values for change (string, number, or boolean)' },
+      timeoutSeconds: { type: 'number', minimum: 1, maximum: 300, description: 'Reimport timeout. Default: 120' },
+    },
+    required: ['projectPath', 'action'],
+  },
+},
+{
+  name: 'analyze_project_integrity',
+  description: 'Analyze dependencies and integrity or preview a safe resource rename',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      projectPath: { type: 'string', description: 'Godot project path' },
+      action: { type: 'string', enum: ['analyze', 'preview_rename'], description: 'Analysis action' },
+      sourcePath: { type: 'string', description: 'Existing project-relative path for rename preview' },
+      destinationPath: { type: 'string', description: 'Proposed project-relative rename destination' },
+      maxFiles: { type: 'integer', minimum: 1, maximum: 50000, description: 'Resource scan limit. Default: 10000' },
+    },
+    required: ['projectPath', 'action'],
+  },
+},
+{
+  name: 'verify_export_readiness',
+  description: 'Validate presets/templates, export, inspect artifacts, and smoke-run builds',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      projectPath: { type: 'string', description: 'Godot project path' },
+      action: { type: 'string', enum: ['inspect', 'export_smoke'], description: 'Inspect readiness or export and smoke-run' },
+      presetName: { type: 'string', description: 'Export preset name' },
+      outputPath: { type: 'string', description: 'Project-relative or allowed absolute export artifact path' },
+      debug: { type: 'boolean', description: 'Use debug export/templates. Default: false' },
+      smoke: { type: 'boolean', description: 'Smoke-run supported local outputs. Default: true' },
+      expectedOutput: { type: 'string', maxLength: 4096, description: 'Required smoke-run output substring' },
+      timeoutSeconds: { type: 'number', minimum: 1, maximum: 600, description: 'Export timeout. Default: 120' },
+      smokeTimeoutSeconds: { type: 'number', minimum: 1, maximum: 60, description: 'Smoke runtime before quit. Default: 5' },
+    },
+    required: ['projectPath', 'action', 'presetName'],
+  },
+},
+{
+  name: 'verify_dotnet_project',
+  description: 'Inspect, restore, build, and run a project with the matching Godot.NET.Sdk',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      projectPath: { type: 'string', description: 'Godot .NET project path' },
+      action: { type: 'string', enum: ['inspect', 'restore', 'build', 'run'], description: '.NET workflow action' },
+      csprojPath: { type: 'string', description: 'Project-relative .csproj path; auto-detected when unique' },
+      configuration: { type: 'string', enum: ['Debug', 'Release'], description: 'Build configuration. Default: Debug' },
+      expectedOutput: { type: 'string', maxLength: 4096, description: 'Required game-run output substring' },
+      timeoutSeconds: { type: 'number', minimum: 1, maximum: 600, description: 'Restore/build timeout. Default: 120' },
+      runTimeoutSeconds: { type: 'number', minimum: 1, maximum: 60, description: 'Game runtime before quit. Default: 5' },
+    },
+    required: ['projectPath', 'action'],
+  },
+},
+{
+  name: 'manage_addon',
+  description: 'Install and manage hash-pinned local EditorPlugins with reload validation',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      projectPath: { type: 'string', description: 'Godot project path' },
+      action: { type: 'string', enum: ['inspect', 'install', 'update', 'remove', 'enable', 'disable'], description: 'Add-on lifecycle action' },
+      pluginName: { type: 'string', pattern: '^[A-Za-z0-9_.-]{1,80}$', description: 'Target addons directory name' },
+      sourcePath: { type: 'string', description: 'Allowed local source directory for install/update' },
+      expectedSha256: { type: 'string', pattern: '^[a-fA-F0-9]{64}$', description: 'Required deterministic source-tree SHA-256 pin' },
+      enable: { type: 'boolean', description: 'Enable after install/update. Default: false' },
+      expectedOutput: { type: 'string', maxLength: 4096, description: 'Required editor reload output substring' },
+    },
+    required: ['projectPath', 'action', 'pluginName'],
+  },
+},
+{
   name: 'get_debug_output',
   description: 'Get the current debug output and errors',
   inputSchema: {
@@ -288,6 +419,22 @@ export const toolDefinitions = [
   },
 },
 {
+  name: 'game_visual_regression',
+  description: 'Capture or compare rendered PNGs with tolerances, masks, and diff artifacts',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      action: { type: 'string', enum: ['capture_baseline', 'compare'], description: 'Capture a baseline or compare the current frame' },
+      baselinePath: { type: 'string', description: 'Project-relative baseline PNG path' },
+      maskPath: { type: 'string', description: 'Optional PNG mask; transparent pixels are ignored' },
+      diffArtifactPath: { type: 'string', description: 'Optional project-relative output PNG for retained diff evidence' },
+      channelTolerance: { type: 'integer', minimum: 0, maximum: 255, description: 'Maximum per-channel delta. Default: 0' },
+      maxDifferentPixelRatio: { type: 'number', minimum: 0, maximum: 1, description: 'Allowed different-pixel ratio. Default: 0' },
+    },
+    required: ['action', 'baselinePath'],
+  },
+},
+{
   name: 'game_click',
   description: 'Click at a position in the running Godot game window',
   inputSchema: {
@@ -377,7 +524,9 @@ export const toolDefinitions = [
   description: 'Get scene tree structure of the running game',
   inputSchema: {
     type: 'object',
-    properties: {},
+    properties: {
+      maxNodes: { type: 'integer', minimum: 1, maximum: 10000, description: 'Maximum nodes returned in deterministic pre-order. Default: 1000' },
+    },
     required: [],
   },
 },
@@ -687,6 +836,17 @@ export const toolDefinitions = [
         type: 'string',
         description: 'Optional subdirectory to search in (e.g., "scripts/player")',
       },
+      limit: {
+        type: 'integer',
+        minimum: 1,
+        maximum: 1000,
+        description: 'Maximum files returned per page. Default: 1000',
+      },
+      cursor: {
+        type: 'integer',
+        minimum: 0,
+        description: 'Zero-based cursor from a previous response. Default: 0',
+      },
     },
     required: ['projectPath'],
   },
@@ -886,7 +1046,9 @@ export const toolDefinitions = [
   description: 'Get new push_error/push_warning messages since last call',
   inputSchema: {
     type: 'object',
-    properties: {},
+    properties: {
+      maxItems: { type: 'integer', minimum: 1, maximum: 1000, description: 'Maximum unread error lines returned. Default: 1000' },
+    },
     required: [],
   },
 },
@@ -895,7 +1057,9 @@ export const toolDefinitions = [
   description: 'Get new print output from the running game since last call',
   inputSchema: {
     type: 'object',
-    properties: {},
+    properties: {
+      maxItems: { type: 'integer', minimum: 1, maximum: 1000, description: 'Maximum unread log lines returned. Default: 1000' },
+    },
     required: [],
   },
 },

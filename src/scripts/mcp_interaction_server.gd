@@ -37,6 +37,9 @@ class RuntimeSession:
 	var request_command: String = ""
 	var request_state: String = "received"
 	var cancellation_requested: bool = false
+	var authenticated: bool = false
+	var request_correlation_id: String = ""
+	var request_started_msec: int = 0
 
 	func _init(session_id: int, session_peer: StreamPeerTCP) -> void:
 		id = session_id
@@ -64,11 +67,13 @@ class CommandDescriptor:
 var _server: TCPServer
 var _sessions: Dictionary = {}
 var _next_session_id: int = 1
+var _next_correlation_id: int = 1
 # Exactly one runtime command executes at a time. Its session owns the request ID
 # and peer until it responds, or disconnects and its eventual response is discarded.
 var _active_session: RuntimeSession = null
 const DEFAULT_PORT: int = 9090
 const PORT_ENVIRONMENT_VARIABLE: String = "GODOT_MCP_RUNTIME_PORT"
+const SECRET_ENVIRONMENT_VARIABLE: String = "GODOT_MCP_RUNTIME_SECRET"
 # The listen port. Exported for editor configuration; when the game process is
 # started by the MCP server, GODOT_MCP_RUNTIME_PORT overrides it so parallel
 # sessions (and the E2E harness) each get an isolated loopback port.
@@ -79,10 +84,12 @@ const METHOD_PREFIX: String = "godot.runtime."
 const CANCELLABLE_COMMANDS: Array[String] = ["wait", "await_signal", "resource", "http_request"]
 const ERROR_LIMIT_EXCEEDED: int = -32006
 const ERROR_PRIVILEGED_COMMAND_DISABLED: int = PrivilegedCommandPolicy.ERROR_CODE
+const ERROR_AUTHENTICATION_REQUIRED: int = -32008
 
-# The interaction server binds only to loopback and has no authentication.
-# Keep commands that can execute code, invoke arbitrary APIs, mutate scripts,
-# call peers, or reach external hosts disabled unless explicitly enabled.
+# The MCP launcher supplies a fresh secret through the child environment. An
+# empty value retains compatibility for a user-managed runtime, but every
+# MCP-owned launch authenticates before any command is accepted.
+@export var runtime_secret: String = ""
 @export var allow_privileged_commands: bool = false
 
 # These limits are exports so a project can tune its local developer runtime
@@ -110,6 +117,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_codec = VariantCodec.new(max_json_nesting_depth, max_json_collection_items)
 	_privileged_policy = PrivilegedCommandPolicy.new()
+	runtime_secret = _resolve_runtime_secret()
 	_register_domains()
 	_register_commands()
 	_server = TCPServer.new()
@@ -133,6 +141,11 @@ func _resolve_port() -> int:
 	elif not configured.is_empty():
 		push_warning("McpInteractionServer: Ignoring non-numeric %s=%s" % [PORT_ENVIRONMENT_VARIABLE, configured])
 	return port
+
+
+func _resolve_runtime_secret() -> String:
+	var configured: String = OS.get_environment(SECRET_ENVIRONMENT_VARIABLE)
+	return configured if not configured.is_empty() else runtime_secret
 
 
 func _process(_delta: float) -> void:
@@ -293,6 +306,11 @@ func _handle_command(session: RuntimeSession, json_str: String) -> void:
 	if method == "godot.runtime.handshake":
 		_handle_handshake(session, req_id, params)
 		return
+	if not session.authenticated:
+		# Never echo the provided secret or any later request parameters.
+		_send_error(session, req_id, ERROR_AUTHENTICATION_REQUIRED,
+			"Runtime session authentication is required", {"reason": "authentication_required"})
+		return
 	if not method.begins_with(METHOD_PREFIX):
 		_send_error(session, req_id, -32601, "Unknown method: %s" % method)
 		return
@@ -305,10 +323,11 @@ func _handle_command(session: RuntimeSession, json_str: String) -> void:
 	if descriptor == null:
 		_send_error(session, req_id, -32601, "Unknown method: %s" % method)
 		return
-	if descriptor.privileged and not _privileged_policy.is_enabled(allow_privileged_commands):
+	if descriptor.privileged and not _privileged_policy.is_enabled(command, allow_privileged_commands):
 		# Do not include params, source, property values, URLs, headers, or engine
 		# error text in this response. The command name and opt-in mechanism are
 		# safe policy metadata; request contents remain private to the caller.
+		_audit_event("authorization_denied", session, command)
 		_send_error(session, req_id, ERROR_PRIVILEGED_COMMAND_DISABLED,
 			"Privileged runtime command is disabled by policy",
 			_privileged_policy.denial_details(command))
@@ -322,7 +341,17 @@ func _handle_command(session: RuntimeSession, json_str: String) -> void:
 	session.request_command = command
 	session.request_state = "running"
 	session.cancellation_requested = false
+	var supplied_correlation: Variant = params.get("_mcp_correlation_id", "")
+	var _correlation_erased: bool = params.erase("_mcp_correlation_id")
+	var correlation_string: String = str(supplied_correlation) if supplied_correlation is String else ""
+	if correlation_string.length() <= 64 and correlation_string.is_valid_identifier():
+		session.request_correlation_id = correlation_string
+	else:
+		session.request_correlation_id = "runtime_%d_%d" % [session.id, _next_correlation_id]
+	_next_correlation_id += 1
+	session.request_started_msec = Time.get_ticks_msec()
 	_active_session = session
+	_audit_request("request_started", session)
 
 	# Synchronous handlers complete before this await resumes; coroutine
 	# handlers suspend here until their own awaits finish.
@@ -376,10 +405,45 @@ func _handle_handshake(session: RuntimeSession, req_id: Variant, params: Diction
 	if params.get("protocolVersion", "") != PROTOCOL_VERSION:
 		_send_error(session, req_id, -32002, "Unsupported protocol version", {"supported": PROTOCOL_VERSION})
 		return
+	if not session.authenticated and not runtime_secret.is_empty() and params.get("secret", "") != runtime_secret:
+		_audit_event("authentication_failed", session)
+		_send_error(session, req_id, ERROR_AUTHENTICATION_REQUIRED,
+			"Runtime session authentication failed", {"reason": "authentication_failed"})
+		return
+	session.authenticated = true
+	_audit_event("authentication_succeeded", session)
+	var capabilities: Array[String] = _privileged_policy.capabilities(CAPABILITIES, allow_privileged_commands)
+	if not runtime_secret.is_empty():
+		capabilities.append("session-authentication")
 	_send_response_raw(session, {"jsonrpc": "2.0", "id": req_id, "result": {
 		"protocolVersion": PROTOCOL_VERSION,
-		"capabilities": _privileged_policy.capabilities(CAPABILITIES, allow_privileged_commands),
+		"capabilities": capabilities,
 	}})
+
+
+func _audit_event(event: String, session: RuntimeSession, command: String = "", details: Dictionary = {}) -> void:
+	var record: Dictionary = {
+		"component": "godot-mcp-runtime",
+		"event": event,
+		"session_id": session.id,
+		"unix_time": int(Time.get_unix_time_from_system()),
+	}
+	if not command.is_empty():
+		record["command"] = command
+	for key: Variant in details:
+		record[key] = details[key]
+	print(JSON.stringify(record))
+
+
+func _audit_request(event: String, session: RuntimeSession, error_code: int = 0) -> void:
+	var details: Dictionary = {
+		"correlation_id": session.request_correlation_id,
+		"duration_ms": max(0, Time.get_ticks_msec() - session.request_started_msec),
+		"state": session.request_state,
+	}
+	if error_code != 0:
+		details["error_code"] = error_code
+	_audit_event(event, session, session.request_command, details)
 
 
 # Cancellation is cooperative: only commands that regularly yield to the scene
@@ -398,6 +462,7 @@ func _handle_cancel(session: RuntimeSession, req_id: Variant, params: Dictionary
 		_send_error(session, req_id, -32005, "Request is not cancellable", {"request_id": target_id, "command": _active_session.request_command})
 		return
 	_active_session.cancellation_requested = true
+	_audit_request("cancellation_requested", _active_session)
 	_send_response_raw(session, {"jsonrpc": "2.0", "id": req_id, "result": {"cancelled": true, "request_id": target_id}})
 
 
@@ -420,14 +485,19 @@ func _send_response(data: Dictionary) -> void:
 	session.request_id = null
 	if session.cancellation_requested:
 		session.request_state = "cancelled"
+		_audit_request("request_cancelled", session, -32003)
 		_send_error(session, id, -32003, "Request cancelled", {"command": session.request_command})
 	elif data.has("error"):
 		session.request_state = "responded"
+		_audit_request("request_failed", session, -32000)
 		_send_error(session, id, -32000, str(data["error"]), data.get("error_data", null))
 	else:
 		session.request_state = "responded"
+		_audit_request("request_completed", session)
 		_send_response_raw(session, {"jsonrpc": "2.0", "id": id, "result": data})
 	session.request_command = ""
+	session.request_correlation_id = ""
+	session.request_started_msec = 0
 	session.cancellation_requested = false
 	if not session.connected:
 		@warning_ignore("return_value_discarded")
@@ -447,7 +517,10 @@ func _send_timeout_response(message: String, details: Dictionary = {}) -> void:
 	var id: Variant = session.request_id
 	session.request_id = null
 	session.request_state = "timed_out"
+	_audit_request("request_timed_out", session, -32004)
 	session.request_command = ""
+	session.request_correlation_id = ""
+	session.request_started_msec = 0
 	session.cancellation_requested = false
 	_send_error(session, id, -32004, message, details)
 	if not session.connected:
@@ -464,7 +537,10 @@ func _send_limit_response(message: String, details: Dictionary = {}) -> void:
 	var id: Variant = session.request_id
 	session.request_id = null
 	session.request_state = "responded"
+	_audit_request("request_failed", session, ERROR_LIMIT_EXCEEDED)
 	session.request_command = ""
+	session.request_correlation_id = ""
+	session.request_started_msec = 0
 	session.cancellation_requested = false
 	_send_error(session, id, ERROR_LIMIT_EXCEEDED, message, details)
 	if not session.connected:
@@ -957,6 +1033,9 @@ func _cmd_script(params: Dictionary) -> void:
 
 
 func _exit_tree() -> void:
+	if _active_session != null and _active_session.request_running:
+		_active_session.request_state = "abandoned"
+		_audit_request("request_abandoned", _active_session)
 	for session: RuntimeSession in _sessions.values():
 		if session.peer != null:
 			session.peer.disconnect_from_host()

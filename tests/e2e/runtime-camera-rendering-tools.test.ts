@@ -421,6 +421,7 @@ describe('sky, global illumination, and video tools through MCP', () => {
 
     const created = await game.call('game_video', {
       action: 'create', parentPath: '/root/Main', videoPath: 'res://clip.ogv', name: 'Movie', volume: 0.5,
+      loop: true, autoplay: false,
     });
     expect(created.isError, created.text).toBe(false);
     expect(payload(created.text)).toMatchObject({ action: 'create', path: '/root/Main/Movie' });
@@ -428,8 +429,8 @@ describe('sky, global illumination, and video tools through MCP', () => {
     // Independent observation: a VideoStreamPlayer holding a real Theora stream.
     expect(await engineEval(game, [
       'var player = get_node("/root/Main/Movie")',
-      'return [player.get_class(), player.stream.get_class()]',
-    ].join('\n'))).toEqual(['VideoStreamPlayer', 'VideoStreamTheora']);
+      'return [player.get_class(), player.stream.get_class(), player.loop, player.autoplay]',
+    ].join('\n'))).toEqual(['VideoStreamPlayer', 'VideoStreamTheora', true, false]);
 
     const played = await game.call('game_video', { action: 'play', nodePath: '/root/Main/Movie' });
     expect(played.isError, played.text).toBe(false);

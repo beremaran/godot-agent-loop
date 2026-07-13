@@ -211,3 +211,147 @@ describe('shutdown behavior across seams', () => {
     rmSync(root, { recursive: true, force: true });
   });
 });
+
+describe('recovery and multi-project isolation', () => {
+  it('correlates structured, redacted MCP and Godot request lifecycle logs', async () => {
+    const secret = 'observability-secret-must-never-appear';
+    server = await startServer({
+      extraEnv: { DEBUG: 'true', GODOT_MCP_RUNTIME_SECRET: secret },
+    });
+    expect((await server.call('run_project', { projectPath: server.projectPath })).isError).toBe(false);
+    await server.waitForGameConnection();
+
+    expect((await server.call('game_wait', { frames: 2 })).isError).toBe(false);
+    const failed = await server.call('game_get_node_info', { nodePath: '/root/Main/MissingForAudit' });
+    expect(failed.isError).toBe(true);
+
+    const parseRecord = (line: string): Record<string, unknown> | null => {
+      const start = line.indexOf('{');
+      if (start < 0) return null;
+      try { return JSON.parse(line.slice(start)) as Record<string, unknown>; } catch { return null; }
+    };
+    const serverRecords = server.serverLogs.map(parseRecord).filter(record => record !== null);
+    const waitStart = serverRecords.find(record =>
+      record.event === 'request_started' && record.method === 'godot.runtime.wait'
+    );
+    expect(waitStart?.correlation_id).toMatch(/^mcp_\d+$/);
+
+    const debug = await server.call('get_debug_output');
+    const processOutput = (JSON.parse(debug.text) as { output: string[] }).output;
+    const runtimeRecords = processOutput.map(parseRecord).filter(record => record !== null);
+    expect(runtimeRecords).toContainEqual(expect.objectContaining({
+      component: 'godot-mcp-runtime', event: 'request_started',
+      command: 'wait', correlation_id: waitStart?.correlation_id,
+    }));
+    expect(runtimeRecords).toContainEqual(expect.objectContaining({
+      component: 'godot-mcp-runtime', event: 'request_completed',
+      command: 'wait', correlation_id: waitStart?.correlation_id,
+      state: 'responded', duration_ms: expect.any(Number),
+    }));
+    expect(runtimeRecords).toContainEqual(expect.objectContaining({
+      component: 'godot-mcp-runtime', event: 'request_failed',
+      command: 'get_node_info', error_code: -32000,
+    }));
+    expect([...server.serverLogs, ...processOutput].join('\n')).not.toContain(secret);
+    expect(processOutput.length).toBeLessThanOrEqual(10_000);
+  });
+
+  it('authenticates with a per-launch secret and emits only redacted audit evidence', async () => {
+    const secret = 'e2e-runtime-secret-must-never-appear';
+    server = await startServer({ extraEnv: { GODOT_MCP_RUNTIME_SECRET: secret } });
+    expect((await server.call('run_project', { projectPath: server.projectPath })).isError).toBe(false);
+    await server.waitForGameConnection();
+
+    const output = await server.call('get_debug_output');
+    expect(output.isError, output.text).toBe(false);
+    const debug = JSON.parse(output.text) as { output: string[] };
+    const audit = debug.output
+      .map(line => { try { return JSON.parse(line) as Record<string, unknown>; } catch { return null; } })
+      .find(record => record?.event === 'authentication_succeeded');
+    expect(audit).toMatchObject({
+      component: 'godot-mcp-runtime', event: 'authentication_succeeded', session_id: 1,
+    });
+    expect(output.text).not.toContain(secret);
+  });
+
+  it('grants only the configured privileged command group through MCP', async () => {
+    server = await startServer({
+      extraEnv: { GODOT_MCP_PRIVILEGED_GROUPS: 'reflection' },
+    });
+    expect((await server.call('run_project', { projectPath: server.projectPath })).isError).toBe(false);
+    await server.waitForGameConnection();
+
+    const reflected = await server.call('game_get_property', {
+      nodePath: '/root/Main', property: 'name',
+    });
+    expect(reflected.isError, reflected.text).toBe(false);
+    expect(reflected.text).toContain('Main');
+
+    const code = await server.call('game_eval', { code: 'return "must-not-run"' });
+    expect(code.isError).toBe(true);
+    expect(code.text).toMatch(/code-execution|privileged|disabled/i);
+    expect(code.text).not.toContain('must-not-run');
+
+    const network = await server.call('game_http_request', {
+      url: 'http://127.0.0.1:1/secret-must-not-leak',
+    });
+    expect(network.isError).toBe(true);
+    expect(network.text).toMatch(/network|privileged|disabled/i);
+    expect(network.text).not.toContain('secret-must-not-leak');
+  });
+
+  it('reconnects after a game restart and invalidates nodes from the old tree', async () => {
+    server = await startServer();
+    expect((await server.call('run_project', { projectPath: server.projectPath })).isError).toBe(false);
+    await server.waitForGameConnection();
+    expect((await server.call('game_spawn_node', {
+      type: 'Node', name: 'OldSessionOnly', parentPath: '/root/Main',
+    })).isError).toBe(false);
+    expect((await server.call('stop_project')).isError).toBe(false);
+    await assertNoLeakedGodotProcesses(server.root);
+
+    expect((await server.call('run_project', { projectPath: server.projectPath })).isError).toBe(false);
+    await server.waitForGameConnection();
+    const tree = await server.call('game_get_scene_tree');
+    expect(tree.isError, tree.text).toBe(false);
+    expect(tree.text).not.toContain('OldSessionOnly');
+    const stale = await server.call('game_get_node_info', { nodePath: '/root/Main/OldSessionOnly' });
+    expect(stale.isError).toBe(true);
+    expect(stale.text).toMatch(/not found/i);
+  });
+
+  it('isolates simultaneous projects, ports, scene trees, and process ownership', async () => {
+    const first = await startServer();
+    const second = await startServer();
+    try {
+      expect(first.runtimePort).not.toBe(second.runtimePort);
+      const [firstRun, secondRun] = await Promise.all([
+        first.call('run_project', { projectPath: first.projectPath }),
+        second.call('run_project', { projectPath: second.projectPath }),
+      ]);
+      expect(firstRun.isError, firstRun.text).toBe(false);
+      expect(secondRun.isError, secondRun.text).toBe(false);
+      await Promise.all([first.waitForGameConnection(), second.waitForGameConnection()]);
+
+      expect((await first.call('game_spawn_node', {
+        type: 'Node', name: 'FirstProjectMarker', parentPath: '/root/Main',
+      })).isError).toBe(false);
+      expect((await second.call('game_spawn_node', {
+        type: 'Node', name: 'SecondProjectMarker', parentPath: '/root/Main',
+      })).isError).toBe(false);
+      const [firstTree, secondTree] = await Promise.all([
+        first.call('game_get_scene_tree'), second.call('game_get_scene_tree'),
+      ]);
+      expect(firstTree.text).toContain('FirstProjectMarker');
+      expect(firstTree.text).not.toContain('SecondProjectMarker');
+      expect(secondTree.text).toContain('SecondProjectMarker');
+      expect(secondTree.text).not.toContain('FirstProjectMarker');
+
+      const crossProject = await first.call('run_project', { projectPath: second.projectPath });
+      expect(crossProject.isError).toBe(true);
+      expect(crossProject.text).toMatch(/allowed roots/i);
+    } finally {
+      await Promise.all([first.close(), second.close()]);
+    }
+  });
+});

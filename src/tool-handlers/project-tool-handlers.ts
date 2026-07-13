@@ -26,6 +26,12 @@ import {
   ProjectConfigurationService,
   ProjectExportService,
   ProjectFileIOService,
+  ImportPipelineService,
+  ProjectIntegrityService,
+  ExportReadinessService,
+  DotnetWorkflowService,
+  AddonManagementService,
+  ProjectTestService,
   SceneOperationService,
   ScriptValidationService,
 } from './project-handler-services.js';
@@ -76,6 +82,12 @@ export class ProjectToolHandlers {
   private readonly scriptValidation: ScriptValidationService;
   private readonly exportService: ProjectExportService;
   private readonly sceneOperations: SceneOperationService;
+  private readonly projectTests: ProjectTestService;
+  private readonly importPipeline: ImportPipelineService;
+  private readonly projectIntegrity: ProjectIntegrityService;
+  private readonly exportReadiness: ExportReadinessService;
+  private readonly dotnetWorkflow: DotnetWorkflowService;
+  private readonly addonManagement: AddonManagementService;
 
   constructor(context: ProjectToolHandlerContext) {
     const pathSecurity = context.pathSecurity ?? new PathSecurity();
@@ -101,6 +113,12 @@ export class ProjectToolHandlers {
     this.scriptValidation = new ScriptValidationService(serviceContext);
     this.exportService = new ProjectExportService(serviceContext);
     this.sceneOperations = new SceneOperationService(serviceContext);
+    this.projectTests = new ProjectTestService(serviceContext);
+    this.importPipeline = new ImportPipelineService(serviceContext);
+    this.projectIntegrity = new ProjectIntegrityService(serviceContext);
+    this.exportReadiness = new ExportReadinessService(serviceContext);
+    this.dotnetWorkflow = new DotnetWorkflowService(serviceContext);
+    this.addonManagement = new AddonManagementService(serviceContext);
   }
 
   private projectRelativePath(projectPath: string, relativePath: string): string {
@@ -838,9 +856,17 @@ export class ProjectToolHandlers {
       };
 
       scanDir(baseDir, args.projectPath);
+      files.sort((left, right) => left.localeCompare(right, 'en'));
+      const cursor = args.cursor ?? 0;
+      const limit = args.limit ?? 1000;
+      const page = files.slice(cursor, cursor + limit);
+      const nextCursor = cursor + page.length < files.length ? cursor + page.length : null;
 
       return {
-        content: [{ type: 'text', text: JSON.stringify({ count: files.length, files }, null, 2) }],
+        content: [{
+          type: 'text',
+          text: JSON.stringify({ count: page.length, total: files.length, files: page, nextCursor }, null, 2),
+        }],
       };
     } catch (error: unknown) {
       return createErrorResponse(`Failed to list project files: ${errorMessage(error)}`);
@@ -1107,6 +1133,48 @@ export class ProjectToolHandlers {
     return this.exportService.export(args);
   }
 
+  public async handleRunProjectTests(args: ToolArguments) {
+    if (args.action !== 'discover' && args.action !== 'run') {
+      return createErrorResponse('action must be discover or run.');
+    }
+    return this.projectTests.execute(args);
+  }
+
+  public async handleManageImportPipeline(args: ToolArguments) {
+    if (!['inspect', 'change', 'reimport', 'dependencies'].includes(String(args.action))) {
+      return createErrorResponse('action must be inspect, change, reimport, or dependencies.');
+    }
+    return this.importPipeline.execute(args);
+  }
+
+  public async handleAnalyzeProjectIntegrity(args: ToolArguments) {
+    if (args.action !== 'analyze' && args.action !== 'preview_rename') {
+      return createErrorResponse('action must be analyze or preview_rename.');
+    }
+    return this.projectIntegrity.execute(args);
+  }
+
+  public async handleVerifyExportReadiness(args: ToolArguments) {
+    if (args.action !== 'inspect' && args.action !== 'export_smoke') {
+      return createErrorResponse('action must be inspect or export_smoke.');
+    }
+    return this.exportReadiness.execute(args);
+  }
+
+  public async handleVerifyDotnetProject(args: ToolArguments) {
+    if (!['inspect', 'restore', 'build', 'run'].includes(String(args.action))) {
+      return createErrorResponse('action must be inspect, restore, build, or run.');
+    }
+    return this.dotnetWorkflow.execute(args);
+  }
+
+  public async handleManageAddon(args: ToolArguments) {
+    if (!['inspect', 'install', 'update', 'remove', 'enable', 'disable'].includes(String(args.action))) {
+      return createErrorResponse('action must be inspect, install, update, remove, enable, or disable.');
+    }
+    return this.addonManagement.execute(args);
+  }
+
   public async handleRenameFile(args: ToolArguments) {
     return this.fileIO.rename(args);
   }
@@ -1296,12 +1364,9 @@ export class ProjectToolHandlers {
     try {
       let content = readFileSync(projectFile, 'utf8');
       if (args.action === 'list') {
-        const pluginRegex = /(\w+)\/enabled=true/g;
-        const plugins: string[] = [];
-        let match;
-        while ((match = pluginRegex.exec(content)) !== null) {
-          plugins.push(match[1]);
-        }
+        const enabledSetting = /\[editor_plugins\][\s\S]*?^enabled=PackedStringArray\(([^\n]*)\)/m.exec(content)?.[1] ?? '';
+        const plugins = [...enabledSetting.matchAll(/"res:\/\/addons\/([^/]+)\/plugin\.cfg"/g)]
+          .map(match => match[1]);
         const addonsDir = join(args.projectPath, 'addons');
         const available: string[] = [];
         if (existsSync(addonsDir)) {
@@ -1313,14 +1378,21 @@ export class ProjectToolHandlers {
         return { content: [{ type: 'text', text: JSON.stringify({ enabled: plugins, available }, null, 2) }] };
       } else if (args.action === 'enable' || args.action === 'disable') {
         if (!args.pluginName) return createErrorResponse('pluginName is required.');
-        const key = `${args.pluginName}/enabled`;
-        const val = args.action === 'enable' ? 'true' : 'false';
-        const existingRegex = new RegExp(`${args.pluginName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\/enabled=\\w+`);
-        if (existingRegex.test(content)) {
-          content = content.replace(existingRegex, `${key}=${val}`);
-        } else {
-          if (!content.includes('[editor_plugins]')) content += '\n[editor_plugins]\n';
-          content = content.replace('[editor_plugins]', `[editor_plugins]\n${key}=${val}`);
+        const pluginPath = `res://addons/${args.pluginName}/plugin.cfg`;
+        const sectionPattern = /\[editor_plugins\][\s\S]*?(?=\n\[|$)/;
+        const section = sectionPattern.exec(content);
+        const current = section
+          ? [...section[0].matchAll(/"(res:\/\/addons\/[^"]+\/plugin\.cfg)"/g)].map(match => match[1])
+          : [];
+        const enabled = current.filter(value => value !== pluginPath);
+        if (args.action === 'enable') enabled.push(pluginPath);
+        const setting = `enabled=PackedStringArray(${[...new Set(enabled)].sort().map(value => JSON.stringify(value)).join(', ')})`;
+        if (!section) content += `\n[editor_plugins]\n\n${setting}\n`;
+        else {
+          const replacement = /^enabled=.*$/m.test(section[0])
+            ? section[0].replace(/^enabled=.*$/m, setting)
+            : `${section[0].trimEnd()}\n${setting}\n`;
+          content = content.slice(0, section.index) + replacement + content.slice(section.index + section[0].length);
         }
         writeFileSync(projectFile, content, 'utf8');
         return { content: [{ type: 'text', text: `Plugin ${args.pluginName} ${args.action}d.` }] };

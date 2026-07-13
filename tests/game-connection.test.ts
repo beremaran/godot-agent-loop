@@ -5,7 +5,10 @@ import { GameConnection } from '../src/game-connection.js';
 
 const servers: Server[] = [];
 
-async function startServer(capabilities = ['runtime-commands', 'godot-json-values']): Promise<{ server: Server; port: number; sockets: import('node:net').Socket[] }> {
+async function startServer(
+  capabilities = ['runtime-commands', 'godot-json-values'],
+  authenticationSecret?: string,
+): Promise<{ server: Server; port: number; sockets: import('node:net').Socket[] }> {
   const sockets: import('node:net').Socket[] = [];
   const server = createServer(socket => {
     sockets.push(socket);
@@ -17,6 +20,10 @@ async function startServer(capabilities = ['runtime-commands', 'godot-json-value
         const request = JSON.parse(buffer.slice(0, newline));
         buffer = buffer.slice(newline + 1);
         if (request.method === 'godot.runtime.handshake') {
+          if (authenticationSecret !== undefined && request.params.secret !== authenticationSecret) {
+            socket.write(`${JSON.stringify({ jsonrpc: '2.0', id: request.id, error: { code: -32008, message: 'Runtime session authentication failed' } })}\n`);
+            continue;
+          }
           socket.write(`${JSON.stringify({ jsonrpc: '2.0', id: request.id, result: { protocolVersion: '1.0', capabilities } })}\n`);
         } else {
           socket.write(`${JSON.stringify({ jsonrpc: '2.0', id: request.id, result: { success: true } })}\n`);
@@ -102,7 +109,10 @@ describe('GameConnection lifecycle', () => {
     });
 
     const connecting = connection.connect('/project', () => true);
-    await waitFor(() => logs.some(message => message.includes('Connection attempt 1/2 failed')));
+    await waitFor(() => logs.some(message => {
+      const event = JSON.parse(message) as Record<string, unknown>;
+      return event.event === 'connection_retry' && event.attempt === 1 && event.max_attempts === 2;
+    }));
     connection.disconnect();
     await Promise.race([
       connecting,
@@ -131,6 +141,55 @@ describe('GameConnection lifecycle', () => {
     await connection.connect('/project', () => true);
     await expect(connection.send('eval', { code: 'return 1' })).resolves.toEqual({ jsonrpc: '2.0', id: 2, result: { success: true } });
     connection.disconnect();
+  });
+
+  it('negotiates only configured least-privilege command groups', async () => {
+    const { port } = await startServer([
+      'runtime-commands', 'godot-json-values', 'privileged-reflection',
+    ]);
+    const connection = new GameConnection({
+      port, initialDelayMs: 0, allowedPrivilegedGroups: ['reflection'],
+    });
+
+    await connection.connect('/project', () => true);
+    await expect(connection.send('get_property', { node_path: '/root', property: 'name' }))
+      .resolves.toEqual({ jsonrpc: '2.0', id: 2, result: { success: true } });
+    await expect(connection.send('eval', { code: 'return 1' }))
+      .rejects.toThrow("Enable group 'code-execution'");
+    await expect(connection.send('http_request', { url: 'http://localhost' }))
+      .rejects.toThrow("Enable group 'network'");
+    connection.disconnect();
+  });
+
+  it('authenticates the handshake without logging or attaching the secret to commands', async () => {
+    const secret = 'unit-test-secret-that-must-not-leak';
+    const { port } = await startServer(
+      ['runtime-commands', 'godot-json-values', 'session-authentication'], secret,
+    );
+    const connection = new GameConnection({ port, initialDelayMs: 0, authSecret: secret });
+
+    await connection.connect('/project', () => true);
+    await expect(connection.send('click', { x: 1, y: 2 }))
+      .resolves.toEqual({ jsonrpc: '2.0', id: 2, result: { success: true } });
+    connection.disconnect();
+  });
+
+  it('refuses a runtime that rejects or does not confirm authentication', async () => {
+    const rejected = await startServer(
+      ['runtime-commands', 'godot-json-values', 'session-authentication'], 'correct-secret',
+    );
+    const wrong = new GameConnection({
+      port: rejected.port, initialDelayMs: 0, retryDelayMs: 1, maxAttempts: 1, authSecret: 'wrong-secret',
+    });
+    await wrong.connect('/project', () => true);
+    expect(wrong.isConnected).toBe(false);
+
+    const unconfirmed = await startServer();
+    const connection = new GameConnection({
+      port: unconfirmed.port, initialDelayMs: 0, retryDelayMs: 1, maxAttempts: 1, authSecret: 'secret',
+    });
+    await connection.connect('/project', () => true);
+    expect(connection.isConnected).toBe(false);
   });
 
   it('requests cooperative cancellation when a runtime request times out', async () => {

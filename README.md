@@ -1,14 +1,23 @@
 
 <img width="2752" height="1536" alt="godot_mcp_header" src="https://github.com/user-attachments/assets/ed7ac605-8fb5-4a5f-adf8-4b6912cbc18c" />
 
-# Godot MCP - Full Control
+# Godot MCP - Engine Automation
 
 [![MCP Server](https://badge.mcpx.dev?type=server 'MCP Server')](https://modelcontextprotocol.io/introduction)
 [![Made with Godot](https://img.shields.io/badge/Made%20with-Godot-478CBF?style=flat&logo=godot%20engine&logoColor=white)](https://godotengine.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white 'TypeScript')](https://www.typescriptlang.org/)
 [![MIT License](https://img.shields.io/badge/License-MIT-red.svg 'MIT License')](https://opensource.org/licenses/MIT)
 
-A comprehensive [Model Context Protocol](https://modelcontextprotocol.io/introduction) (MCP) server that gives AI assistants **full control** over the Godot game engine. **157 tools** spanning networking, 3D/2D rendering, UI controls, audio effects, animation trees, file I/O, runtime code execution, property inspection, scene manipulation, signal management, physics, project creation, and more.
+A [Model Context Protocol](https://modelcontextprotocol.io/introduction) (MCP)
+server for project-file authoring, headless engine operations,
+and inspection or mutation of running Godot games. Every advertised tool and
+public action has a full MCP-to-Godot test, but support is intentionally bounded
+by the environment matrix below; editor UI automation, debugger control, native
+extension builds, and cross-platform guarantees are not yet included.
+
+<!-- generated-coverage-badge:start -->
+[![E2E tools: 165/165](https://img.shields.io/badge/E2E_tools-165%2F165-brightgreen)](docs/coverage/coverage-report.md)
+<!-- generated-coverage-badge:end -->
 
 ## Acknowledgments
 
@@ -16,7 +25,9 @@ This project is built upon and extends [godot-mcp](https://github.com/Coding-Sol
 
 ## What's New (Improvements Over Original)
 
-The original godot-mcp provided 20 tools for basic project management and scene creation. This fork extends it to **157 tools** with the following major additions:
+The original godot-mcp provided 20 tools for basic project management and scene
+creation. This fork substantially extends that surface with the following major
+additions:
 
 ### New in 3.0
 
@@ -71,7 +82,13 @@ The original godot-mcp provided 20 tools for basic project management and scene 
 
 - **`read_project_settings`** - Parse project.godot as structured JSON
 - **`modify_project_settings`** - Change project settings programmatically
-- **`list_project_files`** - List and filter project files by extension
+- **`list_project_files`** - Paginate project files with extension/subdirectory filters
+- **`run_project_tests`** - Discover or run native, GUT, and GdUnit4 tests with structured results
+- **`manage_import_pipeline`** - Inspect/change import metadata, synchronously reimport, and trace imported files
+- **`analyze_project_integrity`** - Find dependency/integrity defects and preview rename impact without mutation
+- **`verify_export_readiness`** - Validate templates/presets, export, inspect artifacts, and smoke-run supported builds
+- **`verify_dotnet_project`** - Detect managed prerequisites, restore/build, report diagnostics, and run C# projects
+- **`manage_addon`** - Install and manage hash-pinned local EditorPlugins with rollback and reload validation
 
 ### File I/O
 
@@ -237,19 +254,56 @@ The original godot-mcp provided 20 tools for basic project management and scene 
 - **PackedArray serialization** - Proper JSON arrays instead of string fallback
 - **Graceful error handling** - Scene read fallback to raw .tscn text on missing dependencies
 
-## All 157 Tools
+## Tool inventory
 
-### Project Management (7 tools)
+### Project Management (14 tools)
 
 | Tool | Description |
 | ------ | ------------- |
 | `launch_editor` | Launch Godot editor for a project |
 | `run_project` | Run a Godot project and capture output |
+| `verify_project` | Run, assert bounded runtime evidence, optionally capture, and tear down |
+| `run_project_tests` | Discover or run native, GUT, and GdUnit4 tests with structured cases and logs |
+| `manage_import_pipeline` | Inspect/change importer settings, reimport, and query generated dependencies |
+| `analyze_project_integrity` | Analyze resource graphs and preview non-mutating rename impact |
+| `verify_export_readiness` | Validate export prerequisites and return artifact plus smoke-run evidence |
+| `verify_dotnet_project` | Inspect, restore, build, and run against the matching Godot.NET.Sdk |
+| `manage_addon` | Inspect/install/update/remove and toggle hash-pinned local EditorPlugins |
 | `stop_project` | Stop the running project |
 | `get_debug_output` | Get console output and errors |
 | `get_godot_version` | Get installed Godot version |
 | `list_projects` | Find Godot projects in a directory |
 | `get_project_info` | Get project metadata |
+
+Import changes require an editor-capable Godot binary. `reimport` runs Godot's
+bounded `--import` workflow and returns diagnostics; it may rewrite `.import`
+metadata and `.godot/imported` cache files. Integrity analysis is read-only,
+skips generated/vendor directories, defaults to 10,000 resource files, and
+labels unreferenced resources as candidates because dynamic loads cannot be
+proven statically. Use `preview_rename` before moving a resource; it reports
+direct textual dependents, destination conflicts, and UID sidecars but never
+changes files.
+
+Export readiness recognizes the bounded Linux, Windows, macOS, and Web template
+filenames for the active Godot version. Local smoke execution is intentionally
+limited to Linux exports on Linux; other targets are inspected but not claimed
+as locally runnable. Export writes the requested artifact and companion files,
+returns bounded process output and SHA-256 evidence, and classifies missing
+templates, unsupported platforms, invalid output paths, timeouts, export errors,
+missing artifacts, and smoke failures.
+
+The managed workflow requires both a .NET-enabled Godot editor and a 64-bit
+.NET SDK. It verifies that the versioned `Godot.NET.Sdk` in the unique or
+selected `.csproj` matches the active engine, returns bounded structured MSBuild
+diagnostics, and hashes the resulting assembly. Standard Godot builds return a
+controlled `dotnet_editor_required` result and do not attempt restore or build.
+
+Add-on installation is deliberately offline and provenance-first: `sourcePath`
+must be an allowed local directory and `expectedSha256` must match its authored
+tree before any write. Symlinks, oversized trees, malformed `plugin.cfg`,
+non-`@tool` scripts, incompatible minimum Godot versions, and traversal are
+rejected. Replacement is staged atomically, editor reload is mandatory, and a
+parse/load failure restores the prior version and plugin configuration.
 
 ### Scene Management (7 tools)
 
@@ -279,13 +333,14 @@ The original godot-mcp provided 20 tools for basic project management and scene 
 | ------ | ------------- |
 | `read_project_settings` | Parse project.godot as JSON |
 | `modify_project_settings` | Change a project setting |
-| `list_project_files` | List/filter project files |
+| `list_project_files` | Paginate/filter project files |
 
-### Runtime Input (4 tools)
+### Runtime Input (5 tools)
 
 | Tool | Description |
 | ------ | ------------- |
 | `game_screenshot` | Capture a screenshot (base64 PNG) |
+| `game_visual_regression` | Capture baselines or compare frames with masks, tolerances, and retained PNG diffs |
 | `game_click` | Click at a position |
 | `game_key_press` | Send key press or input action |
 | `game_mouse_move` | Move the mouse |
@@ -538,10 +593,23 @@ the last compatible release remains available, and an older-version maintenance
 branch will be created only when user demand justifies maintaining it. Such a
 branch would receive critical fixes rather than new features.
 
+### Verified support boundary
+
+| Area | Status | Evidence or limitation |
+| --- | --- | --- |
+| Linux headless, Godot 4.4 and 4.7 | Verified in CI | Full MCP E2E, direct runtime, headless operations, and strict script parsing |
+| GDScript project and running-game workflows | Verified for advertised tools | See the generated [coverage report](docs/coverage/coverage-report.md) |
+| Privileged runtime commands | Opt-in only | Disabled by default; intended for trusted localhost development |
+| Godot .NET/C# | Scaffold, compile, and editor-load verification | Godot .NET 4.4 and 4.7 with .NET SDK 8 |
+| Linux exports | Release/debug template export and smoke-run verification | Godot 4.4 and 4.7 installed templates; other targets are not claimed |
+| Rendering and screenshots | Headless limitations plus virtual-display pixel verification | Compatibility and Forward+ on Linux software rendering |
+| Windows and macOS | Portable acceptance verified | Godot 4.7 process, Unicode path, runtime input, window query, and teardown workflows |
+| Editor UI, debugger, profiler, imports, GDExtension | Not implemented | These workflow gaps remain tracked in `TODO.md` |
+
 ## Installation
 
 ```bash
-git clone https://github.com/tugcantopaloglu/godot-mcp.git
+git clone https://github.com/beremaran/godot-mcp.git
 cd godot-mcp
 npm install
 npm run build
@@ -607,9 +675,24 @@ To use the `game_*` runtime tools, your Godot project needs the MCP interaction 
 2. In Godot: **Project > Project Settings > Autoload**
 3. Add the script with the name `McpInteractionServer`
 
-The server listens on `127.0.0.1:9090` and accepts JSON commands over TCP when the game is running.
+The server listens on `127.0.0.1:9090`. Each MCP server launch generates a
+cryptographic runtime secret, passes it only to the Godot child process, and
+authenticates it during capability negotiation before any runtime command is
+accepted. A manually managed runtime should set the same
+`GODOT_MCP_RUNTIME_SECRET` value in both processes; leaving it unset retains
+legacy unauthenticated behavior and is suitable only for a trusted machine.
 
-The runtime endpoint has no authentication. Commands that execute arbitrary GDScript, invoke arbitrary node properties or methods, mutate scripts, call multiplayer peers, or make HTTP/WebSocket connections are disabled by default. Enable them only for a trusted local developer workflow by setting `GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS=true`; the Godot script also exposes the equivalent `allow_privileged_commands` export. The client and runtime negotiate the `privileged-commands` capability before these commands can be sent. Policy denials do not echo request parameters, source, property values, URLs, headers, or engine error text.
+Commands that execute arbitrary GDScript, invoke arbitrary node properties or
+methods, mutate scripts, call multiplayer peers, or make HTTP/WebSocket
+connections remain disabled by default even after authentication. Grant only
+the required group with `GODOT_MCP_PRIVILEGED_GROUPS`: `reflection` enables
+arbitrary property/method access, `code-execution` enables eval/script control,
+and `network` enables RPC, HTTP, and WebSocket. The legacy
+`GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS=true` grants all three groups. Use either
+only for a trusted local developer workflow. Authentication and policy denials
+never echo secrets, source, property values, URLs, headers, or engine errors.
+Authentication success/failure emits a structured audit event containing only
+the event name, runtime component, numeric session ID, and timestamp.
 
 ## Environment Variables
 
@@ -618,7 +701,32 @@ The runtime endpoint has no authentication. Commands that execute arbitrary GDSc
 | `GODOT_PATH` | Path to the Godot executable (overrides auto-detection) |
 | `DEBUG` | Set to `"true"` for detailed server-side logging. This also runs the headless operations script with `--debug-godot`, which logs diagnostics and writes a temporary write-access probe file into the project (removed again on every branch). Parameter values are summarized by type and size in both logs, never printed. |
 | `GODOT_MCP_ALLOWED_DIRS` | Optional. Restrict `run_project` to projects under these roots (`;`, `,`, or `:` separated). When unset, any project path is allowed. |
+| `GODOT_MCP_RUNTIME_SECRET` | Optional explicit shared runtime secret. The MCP server generates a fresh 256-bit value when omitted and passes it only to Godot processes it launches. Set the same value manually only when connecting to a separately launched runtime. |
+| `GODOT_MCP_PRIVILEGED_GROUPS` | Optional comma-separated least-privilege grants: `reflection`, `code-execution`, and/or `network`. All are denied by default. |
 | `GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS` | Optional, default `false`. Explicitly enable runtime `eval`, arbitrary property/method access, script control, RPC, HTTP, and WebSocket commands for a trusted localhost developer workflow. |
+
+### Structured runtime evidence
+
+With `DEBUG=true`, the MCP server emits JSON request lifecycle events to
+stderr. The Godot runtime emits matching events to its captured stdout. Both
+use an internal `mcp_<number>` correlation ID and controlled event fields;
+parameters, response values, secrets, source, URLs, and malformed payloads are
+never copied into logs. Runtime process output is capped at the latest 1,000
+stdout and stderr lines. Stable JSON-RPC error codes remain the authoritative
+machine-readable failure classification.
+
+### Large-project response limits
+
+Large responses are bounded rather than allowed to grow with project size.
+`list_project_files` returns deterministic cursor pages of at most 1,000 files;
+`game_get_scene_tree` returns deterministic pre-order trees of 1,000 nodes by
+default (configurable up to 10,000) and reports truncation. `game_get_logs` and
+`game_get_errors` return at most 1,000 unread lines per call with `hasMore` and
+`remaining`, while retaining the latest 1,000 lines per stream. Runtime JSON
+responses are capped at 8 MiB, screenshots additionally enforce pixel and
+6 MiB PNG limits, and short-lived headless/import commands cap captured output
+at 16 MiB. Limit failures are explicit; callers can narrow resource/import
+queries instead of receiving partial unlabelled data.
 
 ## Architecture
 
@@ -640,18 +748,14 @@ The server uses two communication channels:
 
 ## Testing
 
-The project uses [Vitest](https://vitest.dev/) with 446 tests across 5 files:
-
-| File | Tests | What it covers |
-| ------ | ------- | ---------------- |
-| `tests/utils.test.ts` | 31 | Parameter mappings, normalization, path validation, error responses, version detection |
-| `tests/tool-definitions.test.ts` | 163 | All 155 tools defined, schemas valid, names unique, descriptions < 80 chars |
-| `tests/handlers.test.ts` | 225 | Game command arg transforms, required-param validation, headless op path checks, source structure |
-| `tests/dotnet.test.ts` | 20 | .NET feature flag, .csproj generation, C# script template generation, identifier validation |
-| `tests/validate-script.test.ts` | 12 | GDScript diagnostic parsing + git-changed file collection |
+The project uses Vitest plus direct Godot and full MCP-to-Godot suites. The
+source-derived tool, action, command, and suite inventory is published in the
+[coverage report](docs/coverage/coverage-report.md).
 
 ```bash
-npm test          # run once
+npm run check       # TypeScript tests, lint, build, and coverage drift
+npm run test:e2e    # built MCP server through a real client and Godot
+npm run test:godot  # strict parsing, headless operations, runtime protocol
 npm run test:watch  # watch mode
 ```
 
@@ -706,4 +810,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Credits
 
 - **Original project**: [godot-mcp](https://github.com/Coding-Solo/godot-mcp) by [Solomon Elias (Coding-Solo)](https://github.com/Coding-Solo) - provided the foundational MCP server architecture, headless operations system, and TCP interaction framework
-- **Extended by**: [Tugcan Topaloglu](https://github.com/tugcantopaloglu) - extended to 157 tools covering networking, 3D/2D rendering, UI controls, audio effects, animation trees, file I/O, runtime code execution, node manipulation, signals, project creation, camera control, physics, and comprehensive type conversion
+- **Inherited from**: [Tugcan Topaloglu](https://github.com/tugcantopaloglu)'s repository, which extended the original project across networking, 3D/2D rendering, UI controls, audio,
+  animation, file I/O, runtime code execution, project creation, and physics
+- **Maintained and further extended by**: [Berke Arslan](https://github.com/beremaran)

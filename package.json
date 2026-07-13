@@ -1,7 +1,7 @@
 {
-  "name": "@tugcantopaloglu/godot-mcp",
+  "name": "@beremaran/godot-mcp",
   "version": "3.0.0",
-  "description": "MCP server for full Godot 4.x engine control with 157 tools for AI-driven game development",
+  "description": "MCP server with 165 tools for tested Godot project and runtime automation",
   "keywords": [
     "godot",
     "mcp",
@@ -13,17 +13,17 @@
     "runtime",
     "model-context-protocol"
   ],
-  "homepage": "https://github.com/tugcantopaloglu/godot-mcp",
+  "homepage": "https://github.com/beremaran/godot-mcp",
   "bugs": {
-    "url": "https://github.com/tugcantopaloglu/godot-mcp/issues"
+    "url": "https://github.com/beremaran/godot-mcp/issues"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/tugcantopaloglu/godot-mcp.git"
+    "url": "https://github.com/beremaran/godot-mcp.git"
   },
-  "mcpName": "io.github.tugcantopaloglu/godot-mcp",
+  "mcpName": "io.github.beremaran/godot-mcp",
   "license": "MIT",
-  "author": "Tugcan Topaloglu",
+  "author": "Berke Arslan",
   "contributors": [
     "Solomon Elias <solomon@sippy.ai> (https://github.com/Coding-Solo)"
   ],
@@ -59,12 +59,14 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^20.19.43",
+    "@types/pngjs": "^6.0.5",
     "@typescript-eslint/eslint-plugin": "^8.63.0",
     "@typescript-eslint/parser": "^8.63.0",
     "@vitest/coverage-v8": "^4.1.10",
     "eslint": "^10.7.0",
     "husky": "^9.1.7",
     "markdownlint-cli2": "^0.23.0",
+    "pngjs": "^7.0.0",
     "typescript": "^5.3.3",
     "typescript-eslint": "^8.63.0",
     "vitest": "^4.1.10"

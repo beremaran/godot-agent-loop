@@ -43,17 +43,27 @@ describe('3D scene-system tools through MCP', () => {
   it('game_csg creates every shape type and configures boolean operations', async () => {
     const game = await startedGame();
 
+    expect(await engineEval(game, [
+      'var material := StandardMaterial3D.new()',
+      'material.albedo_color = Color(0.2, 0.4, 0.6, 1.0)',
+      'return ResourceSaver.save(material, "res://csg_material.tres")',
+    ].join('\n'))).toBe(0);
+
     const box = await game.call('game_csg', {
       action: 'create', parentPath: '/root/Main', csgType: 'box', name: 'Block',
-      size: { x: 2, y: 3, z: 4 }, operation: 'union',
+      size: { x: 2, y: 3, z: 4 }, operation: 'union', material: 'res://csg_material.tres',
     });
     expect(box.isError, box.text).toBe(false);
     expect(payload(box.text)).toMatchObject({ action: 'create', path: '/root/Main/Block', type: 'box' });
 
     // Independent observation: a real CSGBox3D with the requested extents and
     // OPERATION_UNION (0).
-    expect(await engineEval(game, 'var b = get_node("/root/Main/Block")\nreturn [b.get_class(), b.size.x, b.size.y, b.size.z, b.operation]'))
-      .toEqual(['CSGBox3D', 2, 3, 4, 0]);
+    const observedBox = await engineEval(game, 'var b = get_node("/root/Main/Block")\nreturn [b.get_class(), b.size.x, b.size.y, b.size.z, b.operation, b.material.albedo_color]') as [string, number, number, number, number, { r: number; g: number; b: number; a: number }];
+    expect(observedBox.slice(0, 5)).toEqual(['CSGBox3D', 2, 3, 4, 0]);
+    expect(observedBox[5].r).toBeCloseTo(0.2);
+    expect(observedBox[5].g).toBeCloseTo(0.4);
+    expect(observedBox[5].b).toBeCloseTo(0.6);
+    expect(observedBox[5].a).toBe(1);
 
     const sphere = await game.call('game_csg', {
       action: 'create', parentPath: '/root/Main', csgType: 'sphere', name: 'Ball',
@@ -348,16 +358,20 @@ describe('3D scene-system tools through MCP', () => {
       ['decal', 'Decal'], ['fog_volume', 'FogVolume'], ['reflection_probe', 'ReflectionProbe'],
     ] as const) {
       const created = await game.call('game_3d_effects', {
-        parentPath: '/root/Main', effectType, name: `FX_${effectType}`, size: { x: 3, y: 4, z: 5 },
+        parentPath: '/root/Main', effectType, name: `FX_${effectType}`,
+        size: { x: 3, y: 4, z: 5 }, intensity: 0.35,
       });
       expect(created.isError, created.text).toBe(false);
       expect(payload(created.text)).toMatchObject({ path: `/root/Main/FX_${effectType}`, effect_type: effectType });
 
       // Independent observation: the engine holds the node class and its size.
-      expect(await engineEval(game, [
+      const observed = await engineEval(game, [
         `var node = get_node("/root/Main/FX_${effectType}")`,
-        'return [node.get_class(), node.size.x, node.size.y, node.size.z]',
-      ].join('\n'))).toEqual([className, 3, 4, 5]);
+        'var intensity = node.intensity if node is ReflectionProbe else (node.albedo_mix if node is Decal else node.material.density)',
+        'return [node.get_class(), node.size.x, node.size.y, node.size.z, intensity]',
+      ].join('\n')) as [string, number, number, number, number];
+      expect(observed.slice(0, 4)).toEqual([className, 3, 4, 5]);
+      expect(observed[4]).toBeCloseTo(0.35);
     }
 
     const badType = await game.call('game_3d_effects', { parentPath: '/root/Main', effectType: 'godrays' });

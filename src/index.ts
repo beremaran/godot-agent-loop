@@ -10,6 +10,7 @@
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
 import { join, dirname, normalize } from 'path';
+import { randomBytes } from 'crypto';
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
@@ -34,10 +35,26 @@ import { GameToolHandlers } from './tool-handlers/game-tool-handlers.js';
 import { ProjectToolHandlers } from './tool-handlers/project-tool-handlers.js';
 import { LifecycleToolHandlers } from './tool-handlers/lifecycle-tool-handlers.js';
 import { ProjectSupport } from './project-support.js';
+import { PRIVILEGED_RUNTIME_GROUPS, type PrivilegedRuntimeGroup } from './runtime-protocol.js';
 
 // Check if debug mode is enabled
 const DEBUG_MODE: boolean = process.env.DEBUG === 'true';
 const ALLOW_PRIVILEGED_COMMANDS: boolean = process.env.GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS === 'true';
+const RUNTIME_SECRET = process.env.GODOT_MCP_RUNTIME_SECRET || randomBytes(32).toString('base64url');
+
+function resolvePrivilegedGroups(): PrivilegedRuntimeGroup[] {
+  const configured = process.env.GODOT_MCP_PRIVILEGED_GROUPS ?? '';
+  const requested = configured.split(',').map(value => value.trim()).filter(Boolean);
+  const invalid = requested.filter(value => !PRIVILEGED_RUNTIME_GROUPS.includes(value as PrivilegedRuntimeGroup));
+  if (invalid.length > 0) {
+    console.error(`[SERVER] Ignoring unknown GODOT_MCP_PRIVILEGED_GROUPS values: ${invalid.join(', ')}`);
+  }
+  return [...new Set(requested.filter(
+    (value): value is PrivilegedRuntimeGroup => PRIVILEGED_RUNTIME_GROUPS.includes(value as PrivilegedRuntimeGroup),
+  ))];
+}
+
+const ALLOWED_PRIVILEGED_GROUPS = resolvePrivilegedGroups();
 
 /**
  * The loopback port shared with the in-game interaction server. The spawned
@@ -113,6 +130,8 @@ export class GodotServer {
   private readonly tcpGameConnection = new GameConnection({
     port: resolveRuntimePort(),
     allowPrivilegedCommands: ALLOW_PRIVILEGED_COMMANDS,
+    allowedPrivilegedGroups: ALLOWED_PRIVILEGED_GROUPS,
+    authSecret: RUNTIME_SECRET,
     log: message => { this.logDebug(message); },
   });
   private get gameConnection(): GameConnection {
@@ -191,10 +210,11 @@ export class GodotServer {
       isPathAllowed: projectPath => pathSecurity.isProjectPathAllowed(projectPath),
       isRelativePathAllowed: (projectPath, relativePath) => pathSecurity.isRelativePathAllowed(projectPath, relativePath),
       logDebug: message => { this.logDebug(message); },
-      startProjectProcess: (executable, args, onExit) => {
+      startProjectProcess: (executable, args, onExit, env) => {
         this.processManager.start({
           executable,
           args,
+          env,
           onExit,
           onError: error => { console.error('Failed to start Godot process:', error); },
         });
@@ -207,6 +227,9 @@ export class GodotServer {
       getConnectedProjectPath: () => this.gameConnection.connectedProjectPath,
       clearConnectedProjectPath: () => { this.gameConnection.clearConnectedProject(); },
       getInteractionPort: () => this.gameConnection.interactionPort,
+      getRuntimeEnvironment: () => ({ GODOT_MCP_RUNTIME_SECRET: RUNTIME_SECRET }),
+      isGameConnected: () => this.gameConnection.isConnected,
+      sendGameCommand: (command, params, timeoutMs) => this.gameCommands.send(command, params, timeoutMs),
     });
 
     // Initialize the MCP server

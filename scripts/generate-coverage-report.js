@@ -20,6 +20,7 @@ const { RUNTIME_COMMANDS, PRIVILEGED_RUNTIME_COMMANDS } = await import(join(root
 
 const coverage = JSON.parse(readFileSync(join(root, 'docs/coverage/tool-coverage.json'), 'utf8'));
 const reportPath = join(root, 'docs/coverage/coverage-report.md');
+const readmePath = join(root, 'README.md');
 
 const LEVELS = ['E2E', 'H', 'G+', 'G-', 'T'];
 const LEVEL_MEANING = {
@@ -44,6 +45,14 @@ const headlessOperations = new Set(
 const levelCounts = Object.fromEntries(LEVELS.map(level => [level, tools.filter(tool => tool.entry.level === level).length]));
 const totalActions = tools.reduce((sum, tool) => sum + tool.actions, 0);
 const totalTested = tools.reduce((sum, tool) => sum + tool.testedActions, 0);
+const badgeColor = totalTested === totalActions && levelCounts.E2E === tools.length
+  ? 'brightgreen'
+  : 'yellow';
+const generatedBadge = [
+  '<!-- generated-coverage-badge:start -->',
+  `[![E2E tools: ${levelCounts.E2E}/${tools.length}](https://img.shields.io/badge/E2E_tools-${levelCounts.E2E}%2F${tools.length}-${badgeColor})](docs/coverage/coverage-report.md)`,
+  '<!-- generated-coverage-badge:end -->',
+].join('\n');
 
 function backendLabel(backend) {
   if (backend.kind === 'headless') return `headless \`${backend.operation}\``;
@@ -131,8 +140,19 @@ if (process.argv.includes('--check')) {
     console.error('docs/coverage/coverage-report.md is stale. Run: npm run coverage:report');
     process.exit(1);
   }
+  const readme = readFileSync(readmePath, 'utf8');
+  if (!readme.includes(generatedBadge)) {
+    console.error('README.md coverage badge is stale. Run: npm run coverage:report');
+    process.exit(1);
+  }
   console.log('coverage report is current');
 } else {
   writeFileSync(reportPath, report);
+  const readme = readFileSync(readmePath, 'utf8');
+  const badgePattern = /<!-- generated-coverage-badge:start -->[\s\S]*?<!-- generated-coverage-badge:end -->/;
+  if (!badgePattern.test(readme)) {
+    throw new Error('README.md is missing the generated coverage badge markers');
+  }
+  writeFileSync(readmePath, readme.replace(badgePattern, generatedBadge));
   console.log(`wrote ${reportPath}`);
 }

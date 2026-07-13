@@ -58,6 +58,39 @@ describe('GodotProcessManager', () => {
     expect(record.errors).toEqual(['b', 'c', 'd']);
   });
 
+  it('pages unread output without skipping lines and keeps cursors valid after retention trimming', () => {
+    const child = createChild();
+    const manager = new GodotProcessManager(undefined, 4, undefined, () => child as any);
+    manager.start({ executable: 'godot', args: [] });
+
+    child.emitOutput('stdout', 'one\ntwo\nthree');
+    expect(manager.readNewLogs(2)).toEqual({ items: ['one', 'two'], remaining: 1 });
+    child.emitOutput('stdout', 'four\nfive');
+    expect(manager.readNewLogs(2)).toEqual({ items: ['three', 'four'], remaining: 1 });
+    expect(manager.readNewLogs(2)).toEqual({ items: ['five'], remaining: 0 });
+
+    child.emitOutput('stderr', 'a\nb\nc');
+    expect(manager.readNewErrors(1)).toEqual({ items: ['a'], remaining: 2 });
+    child.emitOutput('stderr', 'd\ne');
+    expect(manager.readNewErrors(3)).toEqual({ items: ['b', 'c', 'd'], remaining: 1 });
+    expect(manager.readNewErrors(3)).toEqual({ items: ['e'], remaining: 0 });
+  });
+
+  it('passes runtime authentication only through the child environment', () => {
+    const child = createChild();
+    const spawnProcess = vi.fn(() => child as any);
+    const manager = new GodotProcessManager(undefined, 3, undefined, spawnProcess as any);
+    manager.start({
+      executable: 'godot', args: ['--path', '/project'],
+      env: { GODOT_MCP_RUNTIME_SECRET: 'child-only-secret' },
+    });
+
+    expect(spawnProcess).toHaveBeenCalledWith('godot', ['--path', '/project'], {
+      stdio: 'pipe',
+      env: expect.objectContaining({ GODOT_MCP_RUNTIME_SECRET: 'child-only-secret' }),
+    });
+  });
+
   it('sends SIGTERM first, then SIGKILL when the process does not exit', () => {
     vi.useFakeTimers();
     const child = createChild();

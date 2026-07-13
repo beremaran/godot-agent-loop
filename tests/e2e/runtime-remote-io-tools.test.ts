@@ -240,6 +240,22 @@ describe('runtime remote I/O tools through MCP', () => {
     await waitFor(() => rpcCalls(peerServer!), calls => calls.length === 2);
     expect((await rpcCalls(peerServer))[1]).toMatchObject({ value: 10, label: 'authority-server', sender: 1 });
 
+    for (const [transferMode, label] of [
+      ['unreliable', 'unreliable-delivery'],
+      ['unreliable_ordered', 'ordered-delivery'],
+    ] as const) {
+      const config = { ...anyPeerConfig, mode: 'any_peer', sync: 'call_remote', transferMode };
+      expect((await server.call('game_rpc', config)).isError).toBe(false);
+      expect((await peerServer.call('game_rpc', config)).isError).toBe(false);
+      expect((await peerServer.call('game_rpc', {
+        nodePath: '/root/Main', action: 'call', method: 'record_rpc', peerId: 1,
+        args: [11, label],
+      })).isError).toBe(false);
+      await waitFor(() => rpcCalls(server!), calls => calls.some(call => call.label === label));
+      expect((await rpcCalls(server)).find(call => call.label === label))
+        .toMatchObject({ value: 11, label, sender: clientId });
+    }
+
     const missingMethod = await server.call('game_rpc', {
       nodePath: '/root/Main', action: 'call', method: 'missing_rpc', args: [],
     });

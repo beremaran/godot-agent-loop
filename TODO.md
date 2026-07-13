@@ -1,16 +1,16 @@
 # Godot MCP Verification and Capability Audit
 
-Current inventory status: all 157 advertised tools are covered through the full
-MCP-to-Godot path, and all 312 public action rows resolve to E2E tests. The
+Current inventory status: all 165 advertised tools are covered through the full
+MCP-to-Godot path, and all 334 public action rows resolve to E2E tests. The
 remaining unchecked items below are broader depth, compatibility, environment,
 workflow, and release-governance work; historical counts are retained as the
 audited baseline that motivated this plan.
 
 ## Technical summary
 
-Godot MCP has a substantial real-engine integration suite, but it cannot yet
-support the claim that all 157 advertised tools work end to end. The current
-tests prove four narrower things:
+At the audited baseline, Godot MCP had a substantial real-engine integration
+suite, but could not support the claim that all 157 advertised tools worked end
+to end. The tests then proved four narrower things:
 
 - 543 TypeScript tests cover schemas, registries, validation, handlers, services,
   process management, and transport behavior.
@@ -65,7 +65,9 @@ This report audits the repository's current advertised surface and the major
 Godot workflows users would reasonably expect from a project claiming full
 engine control. It covers:
 
-- all 157 MCP tool definitions;
+- all 165 MCP tool definitions (157 at the audited baseline plus compound
+  verification, testing, import, and project-integrity workflows added while
+  closing this plan);
 - all 108 runtime commands in `docs/runtime-api.schema.json` (the audit text
   originally said 96; the generated denominator from source is 108);
 - all 16 operations exposed by `godot_operations.gd`;
@@ -120,7 +122,7 @@ applicable” must be recorded explicitly rather than silently skipped.
 
 The baseline is derived from the repository rather than README claims:
 
-- `src/tool-definitions.ts` is the denominator for the 157 MCP tools.
+- `src/tool-definitions.ts` is the denominator for the current 165 MCP tools.
 - `docs/runtime-api.schema.json` is the denominator for 108 runtime commands.
 - `tests/godot/run-typecheck.sh` parses the shipped GDScript in Godot.
 - `tests/godot/run-headless-operations.sh` invokes the 16 headless operations.
@@ -156,6 +158,10 @@ release-level rollup.
 
 - [x] **E2E** `launch_editor`
 - [x] **E2E** `run_project`
+- [x] **E2E** `verify_project`
+- [x] **E2E** `run_project_tests`
+- [x] **E2E** `manage_import_pipeline`
+- [x] **E2E** `analyze_project_integrity`
 - [x] **E2E** `get_debug_output`
 - [x] **E2E** `stop_project`
 - [x] **E2E** `get_godot_version`
@@ -237,6 +243,9 @@ the older format so existing projects are repaired on the next write.
 - [x] **E2E** `create_project`
 - [x] **E2E** `create_csharp_script`
 - [x] **E2E** `export_project`
+- [x] **E2E** `verify_export_readiness`
+- [x] **E2E** `verify_dotnet_project`
+- [x] **E2E** `manage_addon`
 - [x] **E2E** `manage_ci_pipeline`
 - [x] **E2E** `manage_docker_export`
 
@@ -249,6 +258,7 @@ files.
 ### Runtime inspection, mutation, state, and lifecycle
 
 - [x] **E2E** `game_screenshot`
+- [x] **E2E** `game_visual_regression`
 - [x] **E2E** `game_get_ui`
 - [x] **E2E** `game_get_scene_tree`
 - [x] **E2E** `game_eval`
@@ -479,7 +489,7 @@ close, two real ENet peers, authentication and disconnects, RPC success and
 authority rules, port conflicts, cleanup, cancellation, payload bounds, and
 privileged-policy redaction. CI must not depend on public internet services.
 
-## Capability gaps beyond the current 157 tools
+## Capability gaps beyond the current 165 tools
 
 The following catalogue is exhaustive at the workflow-family level for the
 current product claim. Individual Godot APIs should be added only when they
@@ -497,24 +507,42 @@ enable one of these workflows.
 - [ ] **Debugger control:** set/remove breakpoints, pause/continue, step in/over/
   out, enumerate stack frames, inspect locals/members, and evaluate in the
   selected paused frame.
-- [ ] **Test orchestration:** discover and run project-native tests, initially
+- [x] **Test orchestration:** discover and run project-native tests, initially
   Godot scripts plus optional GUT/GdUnit4 adapters, returning structured cases,
-  failures, logs, durations, and artifacts.
-- [ ] **Verification workflows:** provide compound tools for run -> interact ->
+  failures, logs, durations, and artifacts. (`run_project_tests` discovers conventional
+  GDScript test files, invokes native scripts or documented adapter entrypoints,
+  bounds paths/output/time, reports cases and per-process evidence, supports
+  native fail-fast, returns bounded requested report-file metadata and missing
+  artifacts, and has full-path adapter, failure, timeout, and traversal tests.)
+- [x] **Verification workflows:** provide compound tools for run -> interact ->
   assert -> capture -> teardown so agents can prove a change without manually
-  composing fragile low-level calls.
-- [ ] **Import pipeline:** inspect/change import settings, force reimport, await
+  composing fragile low-level calls. (`verify_project` owns the process and
+  runtime connection, waits bounded frames, evaluates bounded node/group/log
+  assertions, optionally returns screenshot dimensions/bytes/SHA-256, always
+  records structured evidence, and tears down by default. Full-path success,
+  assertion failure, cleanup, and rendered capture are acceptance-tested.)
+- [x] **Import pipeline:** inspect/change import settings, force reimport, await
   completion, return importer warnings/errors, and query source/imported-file
-  dependencies.
-- [ ] **Dependency and integrity analysis:** resource dependency graph, broken
+  dependencies. (`manage_import_pipeline` invokes the editor's synchronous
+  `--import` workflow with bounded time/output, exposes typed importer metadata,
+  and is acceptance-tested against a real SVG import.)
+- [x] **Dependency and integrity analysis:** resource dependency graph, broken
   references, UID conflicts, cyclic dependencies, orphan resources/nodes, and
-  safe rename/move impact previews.
-- [ ] **Real .NET workflow:** detect the .NET editor build and SDK, restore,
+  safe rename/move impact previews. (`analyze_project_integrity` performs a
+  bounded read-only scan, distinguishes orphan candidates, and returns direct
+  rename dependents, conflicts, and UID-sidecar impact without mutation.)
+- [x] **Real .NET workflow:** detect the .NET editor build and SDK, restore,
   compile, surface C# diagnostics, run generated projects, and test the supported
-  Godot.NET.Sdk matrix.
-- [ ] **Export readiness:** detect templates, validate preset requirements,
+  Godot.NET.Sdk matrix. (`verify_dotnet_project` validates the versioned SDK and
+  target framework, returns bounded structured MSBuild diagnostics and assembly
+  SHA-256 evidence, and runs generated C# projects. Official 4.4/4.7 Mono builds
+  pass; standard builds return `dotnet_editor_required` without running tools.)
+- [x] **Export readiness:** detect templates, validate preset requirements,
   perform exports, classify engine/export errors, inspect artifacts, and smoke-
-  run locally executable outputs.
+  run locally executable outputs. (`verify_export_readiness` reports the exact
+  versioned template search, validates platform/custom templates, returns
+  bounded classified process evidence plus artifact SHA-256/PCK metadata, and
+  smoke-runs Linux outputs with an expected-output assertion.)
 
 ### P2: capabilities needed for broad engine workflow coverage
 
@@ -522,15 +550,21 @@ enable one of these workflows.
   and network profiling; return time-series and per-function/resource breakdowns.
 - [ ] **Leak and orphan diagnostics:** expose orphan nodes, ObjectDB/resource
   leaks, retained RIDs, unfreed sockets, and teardown deltas as structured data.
-- [ ] **Render capture and visual regression:** deterministic viewport capture,
+- [x] **Render capture and visual regression:** deterministic viewport capture,
   renderer metadata, image diff with tolerances, masks, baselines, and artifact
-  retention.
+  retention. (`game_visual_regression` bounds captures to 16,777,216 pixels,
+  retains baseline/diff PNGs under the connected project, reports SHA-256 and
+  pixel statistics, and passes real Compatibility and Forward+ display tests.)
 - [ ] **Physics/navigation debugging:** collision-shape inspection, contact data,
   navigation map status, avoidance agents, bake progress, and debug captures.
 - [ ] **Asset workflows:** first-class model, texture, animation, audio, font,
   sprite-sheet, atlas, and TileSet import/configuration with provenance.
-- [ ] **Add-on management:** install/update/remove pinned add-ons, inspect plugin
+- [x] **Add-on management:** install/update/remove pinned add-ons, inspect plugin
   metadata and compatibility, enable safely, and validate project reload.
+  (`manage_addon` accepts only allowed local directories with an exact authored-
+  tree SHA-256, rejects symlinks/limits/incompatible metadata, uses canonical
+  editor plugin paths, validates real editor reload, and rolls back failed
+  staged updates and enable changes.)
 - [ ] **GDExtension workflow:** scaffold, configure, build, load, diagnose, and
   test native extensions without pretending arbitrary toolchains are portable.
 - [ ] **Localization workflow:** import CSV/PO, inspect keys and locale coverage,
@@ -543,25 +577,45 @@ enable one of these workflows.
 
 - [ ] **Cross-platform runners:** add Windows and macOS coverage for process,
   path, editor, input, window, and export behavior; document truly Linux-only
-  capabilities.
-- [ ] **Display/render matrix:** cover headless, virtual display, Compatibility,
-  Forward+, and supported GPU-dependent feature gates.
-- [ ] **Engine-version policy automation:** test every claimed floor/target,
+  capabilities. (Windows/macOS jobs run a portable MCP acceptance suite for
+  process ownership, Unicode paths, runtime input, window queries, and teardown.
+  Editor UI, rendering, and exported-artifact support remain explicitly bounded
+  to the Linux jobs rather than being claimed cross-platform, so this broader
+  item remains open.)
+- [x] **Display/render matrix:** cover headless, virtual display, Compatibility,
+  Forward+, and supported GPU-dependent feature gates. (Headless limitation
+  behavior remains in the full matrix; Xvfb jobs select Compatibility and
+  Forward+, require screenshot success, decode the PNG, compare deterministic
+  pixels with tolerance, and assert the engine's active rendering method.)
+- [x] **Engine-version policy automation:** test every claimed floor/target,
   detect API drift, and require an explicit compatibility decision for new APIs.
-- [ ] **Large-project behavior:** bounded scene trees, file lists, logs,
-  screenshots, resources, imports, and responses; pagination or streaming where
-  necessary.
-- [ ] **Session recovery:** reconnect after game/editor restart, re-install or
+  (The full CI matrix runs 4.4 and 4.7;
+  `tests/support-policy.test.ts` prevents the workflow, fixtures,
+  documentation, and PR compatibility declaration from drifting apart.)
+- [x] **Large-project behavior:** bounded scene trees, file lists, logs,
+  screenshots, resources, imports, and responses; pagination or explicit
+  truncation/failure where necessary. (File lists use deterministic cursor
+  pages; scene trees use deterministic node ceilings; logs use lossless bounded
+  pages over bounded retention; transport, screenshots, and headless output have
+  tested byte/pixel limits. Large-fixture E2E coverage lives in
+  `tests/e2e/project-config-tools.test.ts`, `runtime-query-tools.test.ts`, and
+  `runtime-system-tools.test.ts`.)
+- [ ] **Session recovery:** reconnect after game restart (implemented and E2E
+  verified), editor restart, re-install or
   update the runtime server safely, restore capabilities, and clearly invalidate
   stale node/resource handles.
-- [ ] **Multi-project isolation:** simultaneous projects, unique runtime ports,
-  explicit target identity, no cross-project commands, and deterministic process
-  ownership.
-- [ ] **Authentication and authorization:** retain loopback binding but add a
-  per-session secret, capability negotiation, least-privilege command groups,
-  audit events, and secret-safe errors.
-- [ ] **Observability:** structured MCP/server/Godot logs with request correlation,
+- [x] **Multi-project isolation:** simultaneous projects, unique runtime ports,
+  explicit MCP-server target identity, no cross-project commands, and
+  deterministic process ownership. (`tests/e2e/representative-path.test.ts`
+  runs two projects concurrently and independently observes both scene trees.)
+- [x] **Authentication and authorization:** retain loopback binding; per-session
+  secret, capability negotiation, secret-safe errors, and authentication audit
+  events are implemented; reflection, code-execution, and network privileges
+  are independently negotiated and denied by default.
+- [x] **Observability:** structured MCP/server/Godot logs with request correlation,
   bounded retention, redaction, lifecycle events, and actionable error classes.
+  (Full-path evidence in `tests/e2e/representative-path.test.ts`; the published
+  event contract is enforced by `tests/runtime-protocol-contract.test.ts`.)
 
 ## Roadmap
 
@@ -572,7 +626,7 @@ enable one of these workflows.
   privilege class, applicable dimensions, and test IDs.
   (`src/tool-manifest.ts` + `docs/coverage/tool-coverage.json`, validated by
   `tests/tool-manifest.test.ts` and `tests/tool-coverage.test.ts`.)
-- [x] Generate the 157-tool and 108-command denominators from source; fail CI on
+- [x] Generate the tool and 108-command denominators from source; fail CI on
   missing, duplicate, stale, or unmapped entries. (Compile-time
   `Record<ToolName, ...>` completeness, runtime-command bijection, headless
   registry equality, and `npm run coverage:check` in CI.)
@@ -626,7 +680,7 @@ Exit criteria: at least one test crosses every architectural seam, detects a
 planted defect at each seam, and leaves no process, socket, file, input, node, or
 ObjectDB leak.
 
-### Phase 2: close the current 157-tool inventory
+### Phase 2: close the current 165-tool inventory
 
 - [x] Convert all 16 `H` tools to E2E while retaining their focused Godot tests.
   (`tests/e2e/headless-tools.test.ts`: every action, defaults, structured and
@@ -636,22 +690,53 @@ ObjectDB leak.
 - [x] Add successful engine behavior for all 14 `G-` tools, then convert to E2E.
 - [x] Add direct engine behavior and E2E coverage for all 82 `T` tools.
 - [ ] Cover every declared parameter family and required failure class.
+  Parameter names and every declared enum value are now mechanically tied to
+  resolving E2E evidence by `tests/tool-coverage.test.ts`; the audit exposed and
+  fixed previously dead CSG material and 3D-effect intensity parameters. This
+  `tests/e2e/tool-schema-failures.test.ts` also invokes all 165 tools through the
+  built server and exhaustively rejects unknown fields, missing required fields,
+  types, unions, enums, patterns, and declared bounds; every runtime tool has a
+  controlled no-game precondition/lifecycle case. This item remains open until
+  target, engine, timeout, cancellation, and policy classes are equally explicit
+  wherever applicable.
 - [ ] Add persistent-effect and cleanup assertions appropriate to each tool.
-- [ ] Run the completed suite on Godot 4.4 and 4.7.
+- [x] Run the completed suite on Godot 4.4 and 4.7. (Both versions pass 16
+  strict script parses, 70 direct headless checks, 383 runtime checks, and the
+  complete 184-test MCP E2E matrix. The floor run also caught and removed a
+  hard-coded 4.7 SDK assertion and an exact-float assertion.)
 
-Exit criteria: 157/157 tools and every declared action meet the tool definition
+Exit criteria: 165/165 tools and every declared action meet the tool definition
 of done; no result depends solely on a mock, schema assertion, or response echo.
 
 ### Phase 3: cover real environments
 
-- [ ] Add a Godot .NET CI job and compile/run generated C# projects.
-- [ ] Add export-template jobs for a bounded supported target set.
-- [ ] Add deterministic local HTTP, WebSocket, and two-peer ENet fixtures.
-- [ ] Add virtual-display rendering and screenshot comparisons.
-- [ ] Add Windows and macOS jobs for platform-sensitive capabilities.
-- [ ] Add Compatibility/Forward+ coverage and explicit GPU feature skips.
-- [ ] Add paths with spaces, Unicode paths, read-only paths, and large-project
-  fixtures.
+- [x] Add a Godot .NET CI job and compile/run generated C# projects. (The
+  `godot-dotnet` matrix installs matching 4.4/4.7 Mono builds and .NET SDK 8,
+  builds the generated project against its real `Godot.NET.Sdk`, and loads it
+  through the headless editor.)
+- [x] Add export-template jobs for a bounded supported target set. (The bounded
+  target is Linux x86_64. CI installs official 4.4/4.7 templates, performs
+  release and debug exports through MCP without custom-template overrides,
+  inspects the artifacts, and smoke-runs the release.)
+- [x] Add deterministic local HTTP, WebSocket, and two-peer ENet fixtures.
+  (`tests/e2e/runtime-remote-io-tools.test.ts` and
+  `tests/e2e/runtime-networking-tools.test.ts`; all bind ephemeral loopback
+  ports, assert traffic independently, exercise timeout/failure recovery, and
+  tear down their servers and peers.)
+- [x] Add virtual-display rendering and screenshot comparisons. (The renderer
+  jobs run under Xvfb and decode/sample a deterministic viewport capture.)
+- [x] Add Windows and macOS jobs for platform-sensitive capabilities. (The
+  `platform` matrix installs native Godot 4.7 builds and runs the portable
+  acceptance suite; Windows teardown uses process-command-line inspection
+  rather than Unix `pgrep`.)
+- [x] Add Compatibility/Forward+ coverage and explicit GPU feature skips.
+  (Both rendering methods have required software-rendered jobs; hardware-only
+  GI remains explicitly outside the verified support boundary rather than
+  being silently skipped.)
+- [x] Add paths with spaces, Unicode paths, read-only paths, and large-project
+  fixtures. (`tests/e2e/headless-tools.test.ts` uses a non-ASCII project path;
+  `tests/e2e/project-config-tools.test.ts` verifies read-only atomicity and
+  paginates a deterministic 1,205-file fixture.)
 
 Exit criteria: every environment claimed in README has a passing job or an
 explicitly documented and tested limitation.
@@ -660,7 +745,8 @@ explicitly documented and tested limitation.
 
 - [ ] Implement editor integration and undo/redo-aware authoring.
 - [ ] Implement debugger and structured test-runner workflows.
-- [ ] Implement import/dependency/integrity analysis.
+- [x] Implement import/dependency/integrity analysis. (Real editor import plus
+  bounded static graph/integrity fixtures cover the complete MCP path.)
 - [ ] Implement profiler, leak, and visual-regression workflows.
 - [ ] Complete .NET, export, add-on, and GDExtension workflows.
 - [ ] Add cross-platform recovery, isolation, authorization, and observability.
@@ -670,14 +756,17 @@ represented in the manifest, and covered by its own full-path acceptance suite.
 
 ### Phase 5: make and maintain a defensible product claim
 
-- [ ] Replace “full control” with a bounded capability statement until Phases
+- [x] Replace “full control” with a bounded capability statement until Phases
   0-3 are complete.
-- [ ] Generate README tool counts and coverage badges from the manifest.
-- [ ] Require capability documentation, E2E tests, failure tests, cleanup tests,
+- [x] Generate README tool counts and coverage badges from the manifest.
+- [x] Require capability documentation, E2E tests, failure tests, cleanup tests,
   and compatibility declarations in the PR template for every public addition.
-- [ ] Schedule periodic latest-stable and compatibility-floor verification.
-- [ ] Track flaky tests, duration, quarantines, and allowed warnings; a quarantine
+- [x] Schedule periodic latest-stable and compatibility-floor verification.
+- [x] Track flaky tests, duration, quarantines, and allowed warnings; a quarantine
   must have an owner, issue, and expiry.
+  (Vitest and Godot report per-suite duration in named CI steps without retries;
+  `tests/test-metadata.test.ts` prohibits skipped/focused/todo/retried suites and
+  validates owner, issue, and expiry metadata for every allowed diagnostic.)
 
 Exit criteria: published claims match generated evidence and cannot drift when
 tools, actions, or supported environments change.
@@ -720,18 +809,27 @@ A tool may be marked `[x] E2E` only when all applicable items pass:
 
 ### Release gate
 
-- [ ] Build, lint, TypeScript tests, and all Godot suites pass.
-- [ ] The generated manifest has no coverage or routing drift.
-- [ ] No unexpected engine warning, error, crash, sanitizer finding, or leak is
-  present.
-- [ ] No required E2E test is skipped or quarantined.
-- [ ] Compatibility floor and primary target pass.
+- [x] Build, lint, TypeScript tests, and all Godot suites pass. (Locally verified
+  together on Godot 4.7: 601 TypeScript tests, 184 full-path E2E tests, 16 strict
+  script parses, 70 headless checks, and 383 runtime checks.)
+- [x] The generated manifest has no coverage or routing drift. (`npm run check`
+  runs the manifest/coverage contracts and the generated-report freshness gate.)
+- [x] No unexpected engine warning, error, crash, sanitizer finding, or leak is
+  present. (Every Godot runner applies the strict diagnostic allowlist gate.)
+- [x] No required E2E test is skipped or quarantined. (Metadata enforcement
+  rejects skipped, focused, todo, retried, or malformed quarantine entries.)
+- [x] Compatibility floor and primary target pass. (The complete direct-Godot
+  and MCP E2E matrices pass locally on 4.4 and 4.7; CI repeats both versions on
+  pushes, pull requests, manual dispatches, and the weekly schedule.)
 - [ ] Required .NET, renderer, export, and platform jobs pass for the release's
   stated support matrix.
-- [ ] Security-sensitive tests confirm default denial, explicit opt-in,
-  authorization, bounds, and redaction.
-- [ ] README counts, support statements, and limitations are generated or checked
-  against the same manifest.
+- [x] Security-sensitive tests confirm default denial, explicit opt-in,
+  authorization, bounds, and redaction. (Runtime engine tests cover every
+  privileged command; contract and E2E tests cover independent groups,
+  authentication, payload bounds, audit events, and secret-safe failures.)
+- [x] README counts, support statements, and limitations are generated or checked
+  against the same manifest. (`coverage:check` verifies the report and README
+  badge; `tests/support-policy.test.ts` verifies the support statements.)
 
 ## Implementation checklist for every new tool or action
 

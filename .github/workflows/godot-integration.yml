@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    # Re-check both the compatibility floor and primary target every Monday.
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
 
 jobs:
   typescript:
@@ -104,3 +108,179 @@ jobs:
           name: godot-suite-logs-${{ matrix.godot-version }}
           path: tests/godot/logs/
           if-no-files-found: ignore
+
+  godot-dotnet:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        godot-version: ["4.4-stable", "4.7-stable"]
+    name: Godot .NET ${{ matrix.godot-version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Install Godot .NET ${{ matrix.godot-version }}
+        run: |
+          curl -sSL -o godot-mono.zip \
+            "https://github.com/godotengine/godot-builds/releases/download/${{ matrix.godot-version }}/Godot_v${{ matrix.godot-version }}_mono_linux_x86_64.zip"
+          unzip -q godot-mono.zip -d "$HOME/godot-mono"
+          GODOT_DIR="$HOME/godot-mono/Godot_v${{ matrix.godot-version }}_mono_linux_x86_64"
+          chmod +x "$GODOT_DIR/Godot_v${{ matrix.godot-version }}_mono_linux.x86_64"
+          echo "GODOT_BIN=$GODOT_DIR/Godot_v${{ matrix.godot-version }}_mono_linux.x86_64" >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Compile and load generated C# with the matching Godot.NET.Sdk
+        env:
+          GODOT_MCP_DOTNET_TEST: "1"
+        run: >-
+          npm run test:e2e -- --run tests/e2e/project-delivery-tools.test.ts
+          -t "create_project produces engine-loadable GDScript and .NET projects"
+
+  godot-export:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - godot-version: "4.4-stable"
+            template-version: "4.4.stable"
+          - godot-version: "4.7-stable"
+            template-version: "4.7.stable"
+    name: Linux export ${{ matrix.godot-version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Godot and Linux export templates
+        run: |
+          curl -sSL -o godot.zip \
+            "https://github.com/godotengine/godot-builds/releases/download/${{ matrix.godot-version }}/Godot_v${{ matrix.godot-version }}_linux.x86_64.zip"
+          unzip -q godot.zip
+          mkdir -p "$HOME/.local/bin"
+          mv "Godot_v${{ matrix.godot-version }}_linux.x86_64" "$HOME/.local/bin/godot"
+          chmod +x "$HOME/.local/bin/godot"
+          echo "GODOT_BIN=$HOME/.local/bin/godot" >> "$GITHUB_ENV"
+          curl -sSL -o templates.tpz \
+            "https://github.com/godotengine/godot-builds/releases/download/${{ matrix.godot-version }}/Godot_v${{ matrix.godot-version }}_export_templates.tpz"
+          unzip -q templates.tpz
+          TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/${{ matrix.template-version }}"
+          mkdir -p "$TEMPLATE_DIR"
+          mv templates/* "$TEMPLATE_DIR/"
+          echo "GODOT_MCP_EXPORT_XDG_DATA_HOME=$HOME/.local/share" >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Export and smoke-run a Linux artifact with installed templates
+        env:
+          GODOT_MCP_EXPORT_TEMPLATE_TEST: "1"
+        run: >-
+          npm run test:e2e -- --run tests/e2e/project-delivery-tools.test.ts
+          -t "export_project creates release/debug artifacts"
+
+  renderer:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - renderer: gl_compatibility
+            label: Compatibility
+          - renderer: forward_plus
+            label: Forward+
+    name: Renderer ${{ matrix.label }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Godot 4.7 and virtual-display dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb mesa-vulkan-drivers
+          curl -sSL -o godot.zip \
+            "https://github.com/godotengine/godot-builds/releases/download/4.7-stable/Godot_v4.7-stable_linux.x86_64.zip"
+          unzip -q godot.zip
+          mkdir -p "$HOME/.local/bin"
+          mv Godot_v4.7-stable_linux.x86_64 "$HOME/.local/bin/godot"
+          chmod +x "$HOME/.local/bin/godot"
+          echo "GODOT_BIN=$HOME/.local/bin/godot" >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Capture and compare deterministic viewport pixels
+        env:
+          GODOT_MCP_E2E_HEADLESS: "false"
+          GODOT_MCP_E2E_RENDERER: ${{ matrix.renderer }}
+          GODOT_MCP_RENDER_TEST: "1"
+        run: >-
+          xvfb-run -a npm run test:e2e -- --run tests/e2e/runtime-system-tools.test.ts
+          -t "game_(screenshot|visual_regression)"
+
+      - name: Run compound capture and teardown verification
+        env:
+          GODOT_MCP_E2E_HEADLESS: "false"
+          GODOT_MCP_E2E_RENDERER: ${{ matrix.renderer }}
+          GODOT_MCP_RENDER_TEST: "1"
+        run: >-
+          xvfb-run -a npm run test:e2e -- --run tests/e2e/verification-workflow.test.ts
+          -t "captures bounded screenshot evidence"
+
+  platform:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    name: Platform ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Godot 4.7 on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/godotengine/godot-builds/releases/download/4.7-stable/Godot_v4.7-stable_win64.exe.zip" -OutFile godot.zip
+          Expand-Archive godot.zip -DestinationPath godot
+          $binary = (Resolve-Path "godot/Godot_v4.7-stable_win64.exe").Path
+          "GODOT_BIN=$binary" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Install Godot 4.7 on macOS
+        if: runner.os == 'macOS'
+        run: |
+          curl -sSL -o godot.zip \
+            "https://github.com/godotengine/godot-builds/releases/download/4.7-stable/Godot_v4.7-stable_macos.universal.zip"
+          unzip -q godot.zip -d godot
+          GODOT_BIN="$PWD/godot/Godot.app/Contents/MacOS/Godot"
+          chmod +x "$GODOT_BIN"
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Run portable process, path, input, and window acceptance
+        run: npm run test:e2e -- --run tests/e2e/cross-platform-smoke.test.ts

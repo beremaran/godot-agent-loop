@@ -41,6 +41,15 @@ describe('runtime G+ rendering tools through MCP', () => {
       ambientLightEnergy: 1.75,
       fogEnabled: true,
       fogDensity: 0.02,
+      fogLightColor: { r: 0.7, g: 0.6, b: 0.5, a: 1 },
+      glowEnabled: false,
+      glowIntensity: 1.25,
+      glowBloom: 0.15,
+      tonemapMode: 2,
+      ssaoEnabled: false,
+      ssaoRadius: 2.5,
+      ssaoIntensity: 1.4,
+      ssrEnabled: false,
       brightness: 1.1,
       contrast: 0.9,
       saturation: 0.8,
@@ -62,6 +71,15 @@ describe('runtime G+ rendering tools through MCP', () => {
       brightness: number;
       contrast: number;
       saturation: number;
+      fog_light_color: Record<'r' | 'g' | 'b' | 'a', number>;
+      glow_enabled: boolean;
+      glow_intensity: number;
+      glow_bloom: number;
+      tonemap_mode: number;
+      ssao_enabled: boolean;
+      ssao_radius: number;
+      ssao_intensity: number;
+      ssr_enabled: boolean;
     };
     expect(state.background_color.r).toBeCloseTo(0.12);
     expect(state.background_color.g).toBeCloseTo(0.23);
@@ -71,11 +89,20 @@ describe('runtime G+ rendering tools through MCP', () => {
     expect(state.brightness).toBeCloseTo(1.1);
     expect(state.contrast).toBeCloseTo(0.9);
     expect(state.saturation).toBeCloseTo(0.8);
+    expect(state.fog_light_color.r).toBeCloseTo(0.7);
+    expect(state.glow_enabled).toBe(false);
+    expect(state.glow_intensity).toBeCloseTo(1.25);
+    expect(state.glow_bloom).toBeCloseTo(0.15);
+    expect(state.tonemap_mode).toBe(2);
+    expect(state.ssao_enabled).toBe(false);
+    expect(state.ssao_radius).toBeCloseTo(2.5);
+    expect(state.ssao_intensity).toBeCloseTo(1.4);
+    expect(state.ssr_enabled).toBe(false);
 
     const observed = await evalResult(game, [
       'var world := get_tree().root.find_children("*", "WorldEnvironment", true, false)[0] as WorldEnvironment',
       'var env := world.environment',
-      'return {"mode": env.background_mode, "color": env.background_color, "energy": env.ambient_light_energy, "fog": env.fog_enabled, "density": env.fog_density, "adjustment": env.adjustment_enabled}',
+      'return {"mode": env.background_mode, "color": env.background_color, "energy": env.ambient_light_energy, "fog": env.fog_enabled, "density": env.fog_density, "fog_color": env.fog_light_color, "glow_intensity": env.glow_intensity, "tonemap": env.tonemap_mode, "ssao_radius": env.ssao_radius, "adjustment": env.adjustment_enabled}',
     ].join('\n'));
     const resource = observed as {
       mode: number;
@@ -84,6 +111,10 @@ describe('runtime G+ rendering tools through MCP', () => {
       fog: boolean;
       density: number;
       adjustment: boolean;
+      fog_color: Record<'r' | 'g' | 'b' | 'a', number>;
+      glow_intensity: number;
+      tonemap: number;
+      ssao_radius: number;
     };
     expect(resource.mode).toBe(1);
     expect(resource.color.r).toBeCloseTo(0.12);
@@ -94,6 +125,10 @@ describe('runtime G+ rendering tools through MCP', () => {
     expect(resource.fog).toBe(true);
     expect(resource.density).toBeCloseTo(0.02);
     expect(resource.adjustment).toBe(true);
+    expect(resource.fog_color.r).toBeCloseTo(0.7);
+    expect(resource.glow_intensity).toBeCloseTo(1.25);
+    expect(resource.tonemap).toBe(2);
+    expect(resource.ssao_radius).toBeCloseTo(2.5);
 
     await expect(game.client.callTool({
       name: 'game_environment', arguments: { action: 'explode' },
@@ -195,6 +230,12 @@ describe('runtime G+ rendering tools through MCP', () => {
       'var target := get_tree().root.get_node("Main/VisualTarget") as MeshInstance3D',
       'return {"material": target.material_override.get_class(), "shader": target.material_override.shader.get_class(), "mode": target.material_override.shader.get_mode()}',
     ].join('\n'))).toEqual({ material: 'ShaderMaterial', shader: 'VisualShader', mode: 0 });
+
+    const missingTarget = await game.call('game_visual_shader', {
+      action: 'apply', shaderId, nodePath: '/root/Main/DefinitelyMissing',
+    });
+    expect(missingTarget.isError).toBe(true);
+    expect(missingTarget.text).toMatch(/not found/i);
 
     const missingPorts = await game.call('game_visual_shader', {
       action: 'connect', shaderId, fromNode, toNode,

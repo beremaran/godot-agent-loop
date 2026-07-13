@@ -29,6 +29,18 @@ describe('parseToolArguments', () => {
     })).toThrow('arguments.scriptPaths[1] must be string');
   });
 
+  it('enforces advertised oneOf unions', () => {
+    expect(parseToolArguments(tool('game_ui_control'), {
+      nodePath: '/root/Main/Button', action: 'configure', anchorPreset: 'center',
+    })).toBeDefined();
+    expect(parseToolArguments(tool('game_ui_control'), {
+      nodePath: '/root/Main/Button', action: 'configure', anchorPreset: 8,
+    })).toBeDefined();
+    expect(() => parseToolArguments(tool('game_ui_control'), {
+      nodePath: '/root/Main/Button', action: 'configure', anchorPreset: true,
+    })).toThrow('arguments.anchorPreset must match exactly one allowed schema');
+  });
+
   it('enforces advertised numeric and array bounds', () => {
     expect(() => parseToolArguments(tool('game_websocket'), {
       action: 'receive', timeout: -1,
@@ -39,6 +51,21 @@ describe('parseToolArguments', () => {
     expect(() => parseToolArguments(tool('game_input_state'), {
       mouseButtons: [10],
     })).toThrow('arguments.mouseButtons[0] must be at most 9');
+    expect(() => parseToolArguments(tool('list_project_files'), {
+      projectPath: '/project', limit: 1001,
+    })).toThrow('arguments.limit must be at most 1000');
+    expect(() => parseToolArguments(tool('list_project_files'), {
+      projectPath: '/project', cursor: -1,
+    })).toThrow('arguments.cursor must be at least 0');
+    expect(() => parseToolArguments(tool('game_get_scene_tree'), {
+      maxNodes: 10001,
+    })).toThrow('arguments.maxNodes must be at most 10000');
+    expect(() => parseToolArguments(tool('game_get_logs'), {
+      maxItems: 0,
+    })).toThrow('arguments.maxItems must be at least 1');
+    expect(() => parseToolArguments(tool('game_get_errors'), {
+      maxItems: 1001,
+    })).toThrow('arguments.maxItems must be at most 1000');
   });
 
   it('enforces advertised string bounds', () => {

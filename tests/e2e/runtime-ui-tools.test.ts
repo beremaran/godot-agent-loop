@@ -77,6 +77,15 @@ describe('runtime UI tools through MCP', () => {
     });
     expect(payload(focused.text)).toMatchObject({ has_focus: true, tooltip: 'inspect', mouse_filter: 2 });
 
+    for (const [mouseFilter, expected] of [['stop', 0], ['pass', 1]] as const) {
+      expect((await game.call('game_ui_control', {
+        nodePath: '/root/Main/UI/Button', action: 'configure', mouseFilter,
+      })).isError).toBe(false);
+      expect(payload((await game.call('game_ui_control', {
+        nodePath: '/root/Main/UI/Button', action: 'get_info',
+      })).text)).toMatchObject({ mouse_filter: expected });
+    }
+
     const firstLayout = await evalResult(game, [
       'var ui := get_tree().root.get_node("Main/UI") as Control',
       'var button := ui.get_node("Button") as Button',

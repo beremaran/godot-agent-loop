@@ -1,5 +1,6 @@
 // @test-kind: e2e
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { importProjectResources, startServer, type E2EServer } from './helpers/harness.js';
@@ -371,8 +372,8 @@ describe('project settings and configuration tools through MCP', () => {
     expect(disabled.isError, disabled.text).toBe(false);
     expect(payload((await active.call('manage_plugins', { projectPath: active.projectPath, action: 'list' })).text))
       .toEqual({ enabled: [], available: ['sample_plugin'] });
-    // Disabling flips the flag in place instead of appending a second entry.
-    expect(readFileSync(join(active.projectPath, 'project.godot'), 'utf8').match(/sample_plugin\/enabled=/g)).toHaveLength(1);
+    // Disabling removes the canonical plugin.cfg path from one enabled array.
+    expect(readFileSync(join(active.projectPath, 'project.godot'), 'utf8').match(/^enabled=PackedStringArray\(/gm)).toHaveLength(1);
 
     const unknown = await active.call('manage_plugins', { projectPath: active.projectPath, action: 'purge' });
     expect(unknown.isError).toBe(true);
@@ -474,6 +475,23 @@ describe('project file and script tools through MCP', () => {
     expect(missingRename.text).toMatch(/not found/i);
   });
 
+  it('write_file reports a read-only target without corrupting it', async () => {
+    const active = await startedServer();
+    const target = join(active.projectPath, 'locked.txt');
+    writeFileSync(target, 'original');
+    chmodSync(target, 0o444);
+    try {
+      const result = await active.call('write_file', {
+        projectPath: active.projectPath, filePath: 'locked.txt', content: 'replacement',
+      });
+      expect(result.isError).toBe(true);
+      expect(result.text).toMatch(/failed to write file|permission denied/i);
+      expect(readFileSync(target, 'utf8')).toBe('original');
+    } finally {
+      chmodSync(target, 0o644);
+    }
+  });
+
   it('list_project_files filters by extension and subdirectory', async () => {
     const active = await startedServer();
     await active.call('write_file', { projectPath: active.projectPath, filePath: 'src/a.gd', content: 'extends Node\n' });
@@ -500,6 +518,41 @@ describe('project file and script tools through MCP', () => {
     const missing = await active.call('list_project_files', { projectPath: active.projectPath, subdirectory: 'absent' });
     expect(missing.isError).toBe(true);
     expect(missing.text).toMatch(/subdirectory does not exist/i);
+  });
+
+  it('list_project_files paginates a large project deterministically', async () => {
+    const active = await startedServer();
+    const largeDir = join(active.projectPath, 'large');
+    mkdirSync(largeDir);
+    for (let index = 0; index < 1205; index += 1) {
+      writeFileSync(join(largeDir, `asset-${index.toString().padStart(4, '0')}.txt`), 'x');
+    }
+
+    const first = await active.call('list_project_files', {
+      projectPath: active.projectPath, subdirectory: 'large', limit: 1000,
+    });
+    expect(first.isError, first.text).toBe(false);
+    const firstPage = payload(first.text) as {
+      count: number; total: number; files: string[]; nextCursor: number | null;
+    };
+    expect(firstPage).toMatchObject({ count: 1000, total: 1205, nextCursor: 1000 });
+    expect(firstPage.files[0]).toBe('large/asset-0000.txt');
+    expect(firstPage.files.at(-1)).toBe('large/asset-0999.txt');
+
+    const second = await active.call('list_project_files', {
+      projectPath: active.projectPath, subdirectory: 'large', limit: 1000, cursor: firstPage.nextCursor,
+    });
+    const secondPage = payload(second.text) as {
+      count: number; total: number; files: string[]; nextCursor: number | null;
+    };
+    expect(secondPage).toMatchObject({ count: 205, total: 1205, nextCursor: null });
+    expect(secondPage.files[0]).toBe('large/asset-1000.txt');
+    expect(secondPage.files.at(-1)).toBe('large/asset-1204.txt');
+    expect(new Set([...firstPage.files, ...secondPage.files]).size).toBe(1205);
+
+    await expect(active.client.callTool({
+      name: 'list_project_files', arguments: { projectPath: active.projectPath, limit: 1001 },
+    })).rejects.toThrow(/limit must be at most 1000/i);
   });
 
   it('create_script builds source from options and Godot parses the result', async () => {
@@ -570,7 +623,7 @@ describe('project file and script tools through MCP', () => {
     expect(absent.text).toMatch(/does not exist/i);
   });
 
-  it('validate_scripts covers explicit, all, and invalid scopes against real Godot', async () => {
+  it('validate_scripts covers explicit, changed, all, and invalid scopes against real Godot', async () => {
     const active = await startedServer();
     await active.call('create_script', { projectPath: active.projectPath, scriptPath: 'scripts/ok.gd', extends: 'Node' });
     await active.call('write_file', {
@@ -593,6 +646,13 @@ describe('project file and script tools through MCP', () => {
     expect(byPath.get('scripts/bad.gd')).toMatchObject({ checked: true, valid: false });
     expect(byPath.get('scripts/ghost.gd')).toMatchObject({ checked: false, error: 'Script does not exist' });
     expect(byPath.get('main.tscn')).toMatchObject({ checked: false, error: 'Not a valid .gd path' });
+
+    execFileSync('git', ['init', '--quiet'], { cwd: active.projectPath });
+    const changed = await active.call('validate_scripts', { projectPath: active.projectPath, scope: 'changed' });
+    expect(changed.isError, changed.text).toBe(false);
+    const changedResult = payload(changed.text) as { scope: string; results: { scriptPath: string }[] };
+    expect(changedResult.scope).toBe('changed');
+    expect(changedResult.results.map(entry => entry.scriptPath)).toEqual(expect.arrayContaining(['scripts/ok.gd', 'scripts/bad.gd']));
 
     const all = await active.call('validate_scripts', { projectPath: active.projectPath, scope: 'all' });
     expect(all.isError, all.text).toBe(false);

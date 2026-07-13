@@ -1,7 +1,7 @@
 # Allowlist for expected Godot diagnostics in the test suites.
-# Tab-separated: suite<TAB>pattern<TAB>reason<TAB>issue-or-test-reference
-# All four fields are required; entries without a reason and issue are ignored.
+# Tab-separated: suite<TAB>pattern<TAB>reason<TAB>issue<TAB>owner<TAB>expiry
+# All six fields are required. Expiry is an ISO date and must not be in the past.
 # Keep this list narrow: it exists for diagnostics a test intentionally
 # provokes, never for noise nobody has explained.
-runtime	^ERROR: Cannot open file 'res://missing\.tscn'\.	change_scene negative test intentionally loads a scene that does not exist	tests/godot/fixture/test_runner.gd::p-godot-err
-runtime	^ERROR: Failed loading resource: res://missing\.tscn\.	change_scene negative test intentionally loads a scene that does not exist	tests/godot/fixture/test_runner.gd::p-godot-err
+runtime	^ERROR: Cannot open file 'res://missing\.tscn'\.	change_scene negative test intentionally loads a scene that does not exist	tests/godot/fixture/test_runner.gd::p-godot-err	maintainers	2099-12-31
+runtime	^ERROR: Failed loading resource: res://missing\.tscn\.	change_scene negative test intentionally loads a scene that does not exist	tests/godot/fixture/test_runner.gd::p-godot-err	maintainers	2099-12-31

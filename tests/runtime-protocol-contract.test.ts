@@ -3,7 +3,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { CANCELLABLE_RUNTIME_COMMANDS, CANCEL_METHOD, HANDSHAKE_METHOD, PRIVILEGED_RUNTIME_CAPABILITY, PRIVILEGED_RUNTIME_COMMANDS, RUNTIME_CAPABILITIES, RUNTIME_COMMANDS, RUNTIME_PROTOCOL_VERSION, commandMethod } from '../src/runtime-protocol.js';
+import { CANCELLABLE_RUNTIME_COMMANDS, CANCEL_METHOD, HANDSHAKE_METHOD, PRIVILEGED_RUNTIME_CAPABILITY, PRIVILEGED_RUNTIME_COMMANDS, PRIVILEGED_RUNTIME_COMMAND_GROUPS, PRIVILEGED_RUNTIME_GROUPS, RUNTIME_CAPABILITIES, RUNTIME_COMMANDS, RUNTIME_PROTOCOL_VERSION, SESSION_AUTHENTICATION_CAPABILITY, commandMethod } from '../src/runtime-protocol.js';
 
 const root = join(fileURLToPath(new URL('..', import.meta.url)));
 
@@ -56,13 +56,73 @@ describe('runtime protocol contract', () => {
 
     expect(policy.capability).toBe(PRIVILEGED_RUNTIME_CAPABILITY);
     expect(policy.commands).toEqual([...PRIVILEGED_RUNTIME_COMMANDS]);
+    const groupedCommands = Object.values(policy.groups).flat().sort();
+    expect(groupedCommands).toEqual([...PRIVILEGED_RUNTIME_COMMANDS].sort());
+    expect(Object.keys(policy.groups)).toEqual([...PRIVILEGED_RUNTIME_GROUPS]);
+    for (const command of PRIVILEGED_RUNTIME_COMMANDS) {
+      expect(policy.groups[PRIVILEGED_RUNTIME_COMMAND_GROUPS[command]]).toContain(command);
+    }
     expect(policy.default).toBe('deny');
     expect(policy.deniedErrorCode).toBe(-32007);
     expect(server).toContain('@export var allow_privileged_commands: bool = false');
     expect(server).toContain('ERROR_PRIVILEGED_COMMAND_DISABLED');
     expect(server).toContain('_privileged_policy.denial_details(command)');
     expect(policyScript).toContain('GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS');
+    expect(policyScript).toContain('GODOT_MCP_PRIVILEGED_GROUPS');
     expect(policyScript).toContain('"privileged_command_disabled"');
+  });
+
+  it('publishes and enforces per-session authentication', () => {
+    const schema = JSON.parse(readFileSync(join(root, 'docs/runtime-api.schema.json'), 'utf8'));
+    const authentication = schema['x-runtime-contract'].authentication;
+    const server = readFileSync(join(root, 'src/scripts/mcp_interaction_server.gd'), 'utf8');
+
+    expect(authentication.capability).toBe(SESSION_AUTHENTICATION_CAPABILITY);
+    expect(authentication.environment).toBe('GODOT_MCP_RUNTIME_SECRET');
+    expect(authentication.generatedBits).toBe(256);
+    expect(authentication.errorCode).toBe(-32008);
+    expect(server).toContain('var authenticated: bool = false');
+    expect(server).toContain('ERROR_AUTHENTICATION_REQUIRED');
+    expect(server).toContain('"authentication_failed"');
+    expect(server).toContain('"authentication_required"');
+  });
+
+  it('publishes structured, correlated, redacted runtime observability', () => {
+    const schema = JSON.parse(readFileSync(join(root, 'docs/runtime-api.schema.json'), 'utf8'));
+    const observability = schema['x-runtime-contract'].observability;
+    const server = readFileSync(join(root, 'src/scripts/mcp_interaction_server.gd'), 'utf8');
+    const connection = readFileSync(join(root, 'src/game-connection.ts'), 'utf8');
+
+    expect(observability.correlationParam).toBe('_mcp_correlation_id');
+    expect(observability.components).toEqual(['godot-mcp-server', 'godot-mcp-runtime']);
+    for (const event of ['request_started', 'request_completed', 'request_failed', 'request_timed_out']) {
+      expect(observability.events).toContain(event);
+      expect(`${server}\n${connection}`).toMatch(new RegExp(`["']${event}["']`));
+    }
+    expect(observability.redaction).toMatch(/never logged/i);
+    expect(connection).not.toContain('Failed to parse game response: ${line}');
+  });
+
+  it('publishes large-project response and retention bounds', () => {
+    const schema = JSON.parse(readFileSync(join(root, 'docs/runtime-api.schema.json'), 'utf8'));
+    const limits = schema['x-runtime-contract'].limits;
+    const subprocess = readFileSync(join(root, 'src/godot-subprocess.ts'), 'utf8');
+    const manager = readFileSync(join(root, 'src/godot-process-manager.ts'), 'utf8');
+    const core = readFileSync(join(root, 'src/scripts/mcp_runtime/core_domain.gd'), 'utf8');
+
+    expect(limits).toMatchObject({
+      responseBytes: 8 * 1024 * 1024,
+      screenshotPngBytes: 6 * 1024 * 1024,
+      sceneTreeNodesDefault: 1000,
+      sceneTreeNodesMaximum: 10000,
+      processLogLines: 1000,
+      logPageItems: 1000,
+      headlessBufferBytes: 16 * 1024 * 1024,
+    });
+    expect(core).toContain('optional_int("max_nodes", 1000, 1, 10000)');
+    expect(subprocess).toContain('GODOT_PROCESS_LOG_LINE_LIMIT = 1_000');
+    expect(subprocess).toContain('GODOT_COMMAND_MAX_BUFFER_BYTES = 16 * 1024 * 1024');
+    expect(manager).toContain('remaining: this.activeProcess.output.length - end');
   });
 
   it('uses the contract namespace for every runtime command method', () => {
@@ -112,6 +172,16 @@ describe('runtime protocol contract', () => {
     expect(gdscript).not.toContain('var _current_id: Variant');
     expect(gdscript).toContain('var request_state: String = "received"');
     expect(gdscript).toContain('const CANCELLABLE_COMMANDS: Array[String] = ["wait", "await_signal", "resource", "http_request"]');
+  });
+
+  it('keeps every asynchronous cancellable domain cooperatively cancellable', () => {
+    const networking = readFileSync(join(root, 'src/scripts/mcp_runtime/networking_domain.gd'), 'utf8');
+    const system = readFileSync(join(root, 'src/scripts/mcp_runtime/system_domain.gd'), 'utf8');
+
+    expect(networking).toContain('if cancellation_requested():');
+    expect(networking).toContain('_active_http.cancel_request()');
+    expect(system).toContain('if cancellation_requested():');
+    expect(system).toContain('Resource preload cancelled');
   });
 
   it('dispatches runtime commands through a typed registry', () => {

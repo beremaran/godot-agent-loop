@@ -1,5 +1,5 @@
 // @test-kind: contract
-import { readdirSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { readRepoFile, repoRoot } from './helpers/manifest-sources.js';
@@ -37,6 +37,28 @@ const e2eSuites = testFiles('tests/e2e', '.test.ts');
 const godotSuites = testFiles('tests/godot', '.sh').filter(file => !file.endsWith('godot-bin.sh'));
 
 describe('test metadata', () => {
+  it('contains no skipped, focused, todo, or retried test suites', () => {
+    const forbidden = /\b(?:describe|suite|it|test)\.(?:skip|only|todo|concurrent\.skip)\s*\(|\bretry\s*:/;
+    for (const file of [...typescriptSuites, ...e2eSuites]) {
+      expect(readRepoFile(file), `${file} must not quarantine, focus, or retry tests`).not.toMatch(forbidden);
+    }
+  });
+
+  it('requires accountable, unexpired metadata for every allowed Godot diagnostic', () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const rows = readFileSync(join(repoRoot, 'tests/godot/allowed-godot-output.tsv'), 'utf8')
+      .split('\n')
+      .filter(line => line.trim() !== '' && !line.startsWith('#'));
+    for (const row of rows) {
+      const [suite, pattern, reason, issue, owner, expiry, ...extra] = row.split('\t');
+      expect(extra, `unexpected columns in: ${row}`).toEqual([]);
+      expect([suite, pattern, reason, issue, owner, expiry], `six required columns in: ${row}`)
+        .toSatisfy(fields => fields.every(Boolean));
+      expect(expiry, `ISO expiry in: ${row}`).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(expiry >= today, `expired allowed diagnostic: ${row}`).toBe(true);
+    }
+  });
+
   it('declares a valid kind at the top of every TypeScript test file', () => {
     for (const file of typescriptSuites) {
       const kind = declaredKind(file);

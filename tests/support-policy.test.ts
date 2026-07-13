@@ -1,0 +1,82 @@
+// @test-kind: contract
+import { describe, expect, it } from 'vitest';
+import { readRepoFile } from './helpers/manifest-sources.js';
+
+const COMPATIBILITY_FLOOR = '4.4';
+const PRIMARY_TARGET = '4.7';
+
+describe('Godot support policy', () => {
+  it('keeps the workflow matrix aligned with the documented floor and target', () => {
+    const workflow = readRepoFile('.github/workflows/godot-integration.yml');
+    const versions = /godot-version:\s*\[([^\]]+)\]/.exec(workflow)?.[1]
+      .match(/\d+\.\d+-stable/g) ?? [];
+    expect(versions).toEqual([
+      `${COMPATIBILITY_FLOOR}-stable`, `${PRIMARY_TARGET}-stable`,
+    ]);
+
+    const readme = readRepoFile('README.md');
+    expect(readme).toContain(`CI covers Godot ${COMPATIBILITY_FLOOR} and ${PRIMARY_TARGET}`);
+    expect(readme).toContain(`Linux headless, Godot ${COMPATIBILITY_FLOOR} and ${PRIMARY_TARGET}`);
+  });
+
+  it('requires every public change to declare version applicability', () => {
+    const template = readRepoFile('.github/pull_request_template.md');
+    expect(template).toMatch(/Version, platform, renderer, build-flavor, and export applicability/);
+    expect(template).toMatch(/tested limitation when a case is not supported/);
+  });
+
+  it('keeps generated E2E fixtures compatible with the declared floor', () => {
+    const harness = readRepoFile('tests/e2e/helpers/harness.ts');
+    expect(harness).toContain(`config/features=PackedStringArray("${COMPATIBILITY_FLOOR}")`);
+  });
+
+  it('keeps the .NET build-flavor matrix aligned with the engine matrix and documentation', () => {
+    const workflow = readRepoFile('.github/workflows/godot-integration.yml');
+    const dotnetJob = workflow.slice(workflow.indexOf('  godot-dotnet:'));
+    expect(dotnetJob).toContain(`godot-version: ["${COMPATIBILITY_FLOOR}-stable", "${PRIMARY_TARGET}-stable"]`);
+    expect(dotnetJob).toContain('actions/setup-dotnet@v4');
+    expect(dotnetJob).toContain('GODOT_MCP_DOTNET_TEST: "1"');
+
+    const readme = readRepoFile('README.md');
+    expect(readme).toContain('Godot .NET 4.4 and 4.7 with .NET SDK 8');
+  });
+
+  it('keeps the bounded Linux export matrix aligned with support claims', () => {
+    const workflow = readRepoFile('.github/workflows/godot-integration.yml');
+    const exportJob = workflow.slice(workflow.indexOf('  godot-export:'));
+    for (const version of [COMPATIBILITY_FLOOR, PRIMARY_TARGET]) {
+      expect(exportJob).toContain(`godot-version: "${version}-stable"`);
+      expect(exportJob).toContain(`template-version: "${version}.stable"`);
+    }
+    expect(exportJob).toContain('GODOT_MCP_EXPORT_TEMPLATE_TEST: "1"');
+    expect(exportJob).toContain('GODOT_MCP_EXPORT_XDG_DATA_HOME=$HOME/.local/share');
+
+    const readme = readRepoFile('README.md');
+    expect(readme).toContain('Linux exports | Release/debug template export and smoke-run verification');
+    expect(readme).toContain('other targets are not claimed');
+  });
+
+  it('keeps virtual-display renderer jobs aligned with screenshot support claims', () => {
+    const workflow = readRepoFile('.github/workflows/godot-integration.yml');
+    const rendererJob = workflow.slice(workflow.indexOf('  renderer:'));
+    expect(rendererJob).toContain('renderer: gl_compatibility');
+    expect(rendererJob).toContain('renderer: forward_plus');
+    expect(rendererJob).toContain('xvfb-run -a npm run test:e2e');
+    expect(rendererJob).toContain('GODOT_MCP_RENDER_TEST: "1"');
+
+    const readme = readRepoFile('README.md');
+    expect(readme).toContain('Compatibility and Forward+ on Linux software rendering');
+  });
+
+  it('keeps native platform acceptance jobs aligned with their bounded claim', () => {
+    const workflow = readRepoFile('.github/workflows/godot-integration.yml');
+    const platformJob = workflow.slice(workflow.indexOf('  platform:'));
+    expect(platformJob).toContain('os: [windows-latest, macos-latest]');
+    expect(platformJob).toContain('Godot_v4.7-stable_win64.exe.zip');
+    expect(platformJob).toContain('Godot_v4.7-stable_macos.universal.zip');
+    expect(platformJob).toContain('tests/e2e/cross-platform-smoke.test.ts');
+
+    const readme = readRepoFile('README.md');
+    expect(readme).toContain('Godot 4.7 process, Unicode path, runtime input, window query, and teardown workflows');
+  });
+});

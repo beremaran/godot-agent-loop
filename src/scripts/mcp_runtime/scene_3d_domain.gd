@@ -52,6 +52,21 @@ func _cmd_csg(params: Dictionary) -> void:
 				(node as CSGCylinder3D).radius = CommandParams.to_float(params["radius"])
 			if params.has("height"):
 				(node as CSGCylinder3D).height = CommandParams.to_float(params["height"])
+		if params.has("material"):
+			var material_path: String = reader.optional_string("material")
+			if not ResourceLoader.exists(material_path):
+				reader.fail("Material resource not found: %s" % material_path, {"param": "material", "reason": "resource_not_found", "value": material_path})
+			elif not "material" in node:
+				reader.fail("material is not supported by this CSG shape", {"param": "material", "reason": "invalid_value", "csg_type": csg_type})
+			else:
+				var material_resource: Resource = ResourceLoader.load(material_path)
+				if not material_resource is Material:
+					reader.fail("Resource is not a Material: %s" % material_path, {"param": "material", "reason": "invalid_value", "value": material_path})
+				else:
+					node.set("material", material_resource)
+		if params_invalid(reader):
+			node.free()
+			return
 		parent.add_child(node)
 		node.owner = get_tree().edited_scene_root if get_tree().edited_scene_root else get_tree().root
 		respond({"success": true, "action": "create", "path": str(node.get_path()), "type": csg_type})
@@ -358,6 +373,16 @@ func _cmd_3d_effects(params: Dictionary) -> void:
 		if node is ReflectionProbe: (node as ReflectionProbe).size = size_v
 		elif node is Decal: (node as Decal).size = size_v
 		elif node is FogVolume: (node as FogVolume).size = size_v
+	if params.has("intensity"):
+		var intensity: float = CommandParams.to_float(params["intensity"])
+		if node is ReflectionProbe:
+			(node as ReflectionProbe).intensity = intensity
+		elif node is Decal:
+			(node as Decal).albedo_mix = intensity
+		elif node is FogVolume:
+			var fog_material: FogMaterial = FogMaterial.new()
+			fog_material.density = intensity
+			(node as FogVolume).material = fog_material
 	var custom_name: String = CommandParams.json_string(params, "name")
 	if not custom_name.is_empty():
 		node.name = custom_name

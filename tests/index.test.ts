@@ -172,7 +172,9 @@ function getFakeArgsForSchema(schema: any, toolName: string): any {
   const args: any = {};
   for (const [key, prop] of Object.entries(schema.properties) as any[]) {
     let val: any;
-    if (prop.enum && prop.enum.length > 0) {
+    if (prop.oneOf?.length) {
+      val = getFakeArgsForSchema({ properties: { [key]: prop.oneOf[0] } }, toolName)[key];
+    } else if (prop.enum && prop.enum.length > 0) {
       val = prop.enum[0];
     } else if (prop.type === 'string') {
       if (key === 'url') {
@@ -181,6 +183,8 @@ function getFakeArgsForSchema(schema: any, toolName: string): any {
         val = '4.3-stable';
       } else if (key === 'exportPreset') {
         val = 'Linux/X11';
+      } else if (key === 'expectedSha256') {
+        val = '0'.repeat(64);
       } else if (key === 'scriptPath' || key === 'filePath') {
         if (toolName.includes('csharp') || toolName.includes('cs')) {
           val = 'Player.cs';
@@ -295,6 +299,21 @@ describe('GodotServer class tests', () => {
 
     // Mock disconnectFromGame to do nothing during happy paths to prevent disconnecting game connection mid-loop
     const disconnectSpy = vi.spyOn(server as any, 'disconnectFromGame').mockImplementation(() => { /* no-op */ });
+    // The generic registry sweep uses immediately exiting process doubles and
+    // cannot exercise a workflow that intentionally waits for a live runtime.
+    // Its real lifecycle is covered by verification-workflow.test.ts.
+    const verifySpy = vi.spyOn((server as any).lifecycleToolHandlers, 'handleVerifyProject')
+      .mockResolvedValue({ content: [{ type: 'text', text: '{"passed":true}' }] });
+    const integritySpy = vi.spyOn((server as any).projectToolHandlers, 'handleAnalyzeProjectIntegrity')
+      .mockResolvedValue({ content: [{ type: 'text', text: '{"scanned_files":0}' }] });
+    const visualRegressionSpy = vi.spyOn((server as any).gameToolHandlers, 'handleGameVisualRegression')
+      .mockResolvedValue({ content: [{ type: 'text', text: '{"passed":true}' }] });
+    const exportReadinessSpy = vi.spyOn((server as any).projectToolHandlers, 'handleVerifyExportReadiness')
+      .mockResolvedValue({ content: [{ type: 'text', text: '{"ready":true}' }] });
+    const dotnetWorkflowSpy = vi.spyOn((server as any).projectToolHandlers, 'handleVerifyDotnetProject')
+      .mockResolvedValue({ content: [{ type: 'text', text: '{"ready":true}' }] });
+    const addonSpy = vi.spyOn((server as any).projectToolHandlers, 'handleManageAddon')
+      .mockResolvedValue({ content: [{ type: 'text', text: '{"installed":true}' }] });
 
     for (const tool of toolsResult.tools) {
       if (tool.name === 'create_project') {
@@ -320,6 +339,7 @@ describe('GodotServer class tests', () => {
         responseBuffer: '',
         pendingRequests: new Map(),
         runtimeCapabilities: ['runtime-commands', 'godot-json-values', 'privileged-commands'],
+        allowPrivilegedCommands: true,
         projectPath: '/fake/project',
         interactionServerInjectedByUs: true,
       });
@@ -344,6 +364,13 @@ describe('GodotServer class tests', () => {
     }
 
     mockExistsSyncImpl = (_path: string) => true;
+    (server as any).gameConnection.allowPrivilegedCommands = false;
+    verifySpy.mockRestore();
+    integritySpy.mockRestore();
+    visualRegressionSpy.mockRestore();
+    exportReadinessSpy.mockRestore();
+    dotnetWorkflowSpy.mockRestore();
+    addonSpy.mockRestore();
     disconnectSpy.mockRestore();
 
     expect(errors).toEqual([]);
@@ -430,7 +457,7 @@ describe('GodotServer class tests', () => {
       write: vi.fn((data: string) => {
         const request = JSON.parse(data.trim());
         if (request.method === 'godot.runtime.handshake') {
-          setTimeout(() => dataCallback(Buffer.from(`${JSON.stringify({ jsonrpc: '2.0', id: request.id, result: { protocolVersion: '1.0', capabilities: ['runtime-commands', 'godot-json-values'] } })}\n`)), 0);
+          setTimeout(() => dataCallback(Buffer.from(`${JSON.stringify({ jsonrpc: '2.0', id: request.id, result: { protocolVersion: '1.0', capabilities: ['runtime-commands', 'godot-json-values', 'session-authentication'] } })}\n`)), 0);
         }
       }),
       destroy: vi.fn(),
