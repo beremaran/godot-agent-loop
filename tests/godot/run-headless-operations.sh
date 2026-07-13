@@ -329,8 +329,12 @@ expect_file "export_mesh_library wrote the library" "resources/blocks.tres"
 echo
 echo "UID operations"
 
+# The initial --import already generated the sidecar; delete it so this
+# actually tests that resave_resources can generate UIDs, not just read the
+# importer's work back.
+rm -f "$PROJECT/scripts/player.gd.uid"
 run_op get_uid '{"file_path":"scripts/player.gd"}'
-expect_ok "get_uid reports a file's UID" '"file":"res://scripts/player.gd"' '"exists":'
+expect_ok "get_uid reports a missing UID" '"file":"res://scripts/player.gd"' '"exists":false'
 
 run_op resave_resources '{}'
 expect_ok "resave_resources resaves the project" "Resave operation complete"

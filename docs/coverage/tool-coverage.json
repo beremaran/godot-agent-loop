@@ -206,8 +206,9 @@
       }
     },
     "create_scene": {
-      "level": "H",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/headless-tools.test.ts::'create_scene'",
         "tests/godot/run-headless-operations.sh::run_op create_scene",
         "tests/handler-modules.test.ts::handleCreateScene",
         "tests/handlers.test.ts::handleCreateScene",
@@ -216,6 +217,7 @@
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/headless-tools.test.ts::'create_scene'",
             "tests/godot/run-headless-operations.sh::run_op create_scene",
             "tests/handler-modules.test.ts::handleCreateScene",
             "tests/handlers.test.ts::handleCreateScene",
@@ -240,8 +242,9 @@
       }
     },
     "add_node": {
-      "level": "H",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/headless-tools.test.ts::'add_node'",
         "tests/godot/run-headless-operations.sh::run_op add_node",
         "tests/handlers.test.ts::add_node",
         "tests/tool-argument-validation.test.ts::add_node"
@@ -249,6 +252,7 @@
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/headless-tools.test.ts::'add_node'",
             "tests/godot/run-headless-operations.sh::run_op add_node",
             "tests/handlers.test.ts::add_node",
             "tests/tool-argument-validation.test.ts::add_node"
@@ -272,13 +276,15 @@
       }
     },
     "load_sprite": {
-      "level": "H",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/headless-tools.test.ts::'load_sprite'",
         "tests/godot/run-headless-operations.sh::run_op load_sprite"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/headless-tools.test.ts::'load_sprite'",
             "tests/godot/run-headless-operations.sh::run_op load_sprite"
           ]
         }
@@ -300,13 +306,15 @@
       }
     },
     "export_mesh_library": {
-      "level": "H",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/headless-tools.test.ts::'export_mesh_library'",
         "tests/godot/run-headless-operations.sh::run_op export_mesh_library"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/headless-tools.test.ts::'export_mesh_library'",
             "tests/godot/run-headless-operations.sh::run_op export_mesh_library"
           ]
         }
@@ -328,14 +336,16 @@
       }
     },
     "save_scene": {
-      "level": "H",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/headless-tools.test.ts::'save_scene'",
         "tests/godot/run-headless-operations.sh::run_op save_scene",
         "tests/handlers.test.ts::handleSaveScene"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/headless-tools.test.ts::'save_scene'",
             "tests/godot/run-headless-operations.sh::run_op save_scene",
             "tests/handlers.test.ts::handleSaveScene"
           ]
@@ -358,13 +368,15 @@
       }
     },
     "get_uid": {
-      "level": "H",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/headless-tools.test.ts::'get_uid'",
         "tests/godot/run-headless-operations.sh::run_op get_uid"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/headless-tools.test.ts::'get_uid'",
             "tests/godot/run-headless-operations.sh::run_op get_uid"
           ]
         }
@@ -386,14 +398,16 @@
       }
     },
     "update_project_uids": {
-      "level": "H",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/headless-tools.test.ts::'update_project_uids'",
         "tests/godot/run-headless-operations.sh::run_op resave_resources",
         "tests/handlers.test.ts::handleUpdateProjectUids"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/headless-tools.test.ts::'update_project_uids'",
             "tests/godot/run-headless-operations.sh::run_op resave_resources",
             "tests/handlers.test.ts::handleUpdateProjectUids"
           ]
@@ -920,14 +934,16 @@
       }
     },
     "read_scene": {
-      "level": "H",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/headless-tools.test.ts::'read_scene'",
         "tests/godot/run-headless-operations.sh::run_op read_scene",
         "tests/handlers.test.ts::handleReadScene"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/headless-tools.test.ts::'read_scene'",
             "tests/godot/run-headless-operations.sh::run_op read_scene",
             "tests/handlers.test.ts::handleReadScene"
           ]
@@ -950,14 +966,16 @@
       }
     },
     "modify_scene_node": {
-      "level": "H",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/headless-tools.test.ts::'modify_scene_node'",
         "tests/godot/run-headless-operations.sh::run_op modify_node",
         "tests/handlers.test.ts::handleModifySceneNode"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/headless-tools.test.ts::'modify_scene_node'",
             "tests/godot/run-headless-operations.sh::run_op modify_node",
             "tests/handlers.test.ts::handleModifySceneNode"
           ]
@@ -980,14 +998,16 @@
       }
     },
     "remove_scene_node": {
-      "level": "H",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/headless-tools.test.ts::'remove_scene_node'",
         "tests/godot/run-headless-operations.sh::run_op remove_node",
         "tests/handlers.test.ts::handleRemoveSceneNode"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/headless-tools.test.ts::'remove_scene_node'",
             "tests/godot/run-headless-operations.sh::run_op remove_node",
             "tests/handlers.test.ts::handleRemoveSceneNode"
           ]
@@ -1331,8 +1351,9 @@
       }
     },
     "attach_script": {
-      "level": "H",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/headless-tools.test.ts::'attach_script'",
         "tests/godot/run-headless-operations.sh::run_op attach_script",
         "tests/handlers.test.ts::handleAttachScript",
         "tests/headless-operation-runner.test.ts::attach_script"
@@ -1340,6 +1361,7 @@
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/headless-tools.test.ts::'attach_script'",
             "tests/godot/run-headless-operations.sh::run_op attach_script",
             "tests/handlers.test.ts::handleAttachScript",
             "tests/headless-operation-runner.test.ts::attach_script"
@@ -1363,14 +1385,16 @@
       }
     },
     "create_resource": {
-      "level": "H",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/headless-tools.test.ts::'create_resource'",
         "tests/godot/run-headless-operations.sh::run_op create_resource",
         "tests/handlers.test.ts::handleCreateResource"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/headless-tools.test.ts::'create_resource'",
             "tests/godot/run-headless-operations.sh::run_op create_resource",
             "tests/handlers.test.ts::handleCreateResource"
           ]
@@ -3988,19 +4012,22 @@
       }
     },
     "manage_resource": {
-      "level": "H",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/headless-tools.test.ts::'manage_resource'",
         "tests/godot/run-headless-operations.sh::run_op manage_resource",
         "tests/index.test.ts::manage_resource"
       ],
       "actions": {
         "read": {
           "tests": [
+            "tests/e2e/headless-tools.test.ts::action: 'read'",
             "tests/godot/run-headless-operations.sh::\"action\":\"read\""
           ]
         },
         "modify": {
           "tests": [
+            "tests/e2e/headless-tools.test.ts::action: 'modify'",
             "tests/godot/run-headless-operations.sh::\"action\":\"modify\""
           ]
         }
@@ -4108,24 +4135,28 @@
       }
     },
     "manage_scene_signals": {
-      "level": "H",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/headless-tools.test.ts::'manage_scene_signals'",
         "tests/godot/run-headless-operations.sh::run_op manage_scene_signals",
         "tests/index.test.ts::manage_scene_signals"
       ],
       "actions": {
         "list": {
           "tests": [
+            "tests/e2e/headless-tools.test.ts::action: 'list'",
             "tests/godot/run-headless-operations.sh::\"action\":\"list\""
           ]
         },
         "add": {
           "tests": [
+            "tests/e2e/headless-tools.test.ts::action: 'add'",
             "tests/godot/run-headless-operations.sh::\"action\":\"add\""
           ]
         },
         "remove": {
           "tests": [
+            "tests/e2e/headless-tools.test.ts::action: 'remove'",
             "tests/godot/run-headless-operations.sh::\"action\":\"remove\""
           ]
         }
@@ -4237,24 +4268,28 @@
       }
     },
     "manage_theme_resource": {
-      "level": "H",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/headless-tools.test.ts::'manage_theme_resource'",
         "tests/godot/run-headless-operations.sh::run_op manage_theme_resource",
         "tests/index.test.ts::manage_theme_resource"
       ],
       "actions": {
         "create": {
           "tests": [
+            "tests/e2e/headless-tools.test.ts::action: 'create'",
             "tests/godot/run-headless-operations.sh::\"action\":\"create\""
           ]
         },
         "read": {
           "tests": [
+            "tests/e2e/headless-tools.test.ts::action: 'read'",
             "tests/godot/run-headless-operations.sh::\"action\":\"read\""
           ]
         },
         "modify": {
           "tests": [
+            "tests/e2e/headless-tools.test.ts::action: 'modify'",
             "tests/godot/run-headless-operations.sh::\"action\":\"modify\""
           ]
         }
@@ -4304,24 +4339,28 @@
       }
     },
     "manage_scene_structure": {
-      "level": "H",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/headless-tools.test.ts::'manage_scene_structure'",
         "tests/godot/run-headless-operations.sh::run_op manage_scene_structure",
         "tests/index.test.ts::manage_scene_structure"
       ],
       "actions": {
         "rename": {
           "tests": [
+            "tests/e2e/headless-tools.test.ts::action: 'rename'",
             "tests/godot/run-headless-operations.sh::\"action\":\"rename\""
           ]
         },
         "duplicate": {
           "tests": [
+            "tests/e2e/headless-tools.test.ts::action: 'duplicate'",
             "tests/godot/run-headless-operations.sh::\"action\":\"duplicate\""
           ]
         },
         "move": {
           "tests": [
+            "tests/e2e/headless-tools.test.ts::action: 'move'",
             "tests/godot/run-headless-operations.sh::\"action\":\"move\""
           ]
         }

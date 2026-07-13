@@ -19,8 +19,8 @@ when this file is stale, and the inventory behind it is validated by
 
 | Class | Tools | Meaning |
 | --- | ---: | --- |
-| E2E | 0 | Complete MCP-to-Godot path with independent observation |
-| H | 16 | Headless GDScript operation exercised directly against Godot |
+| E2E | 16 | Complete MCP-to-Godot path with independent observation |
+| H | 0 | Headless GDScript operation exercised directly against Godot |
 | G+ | 45 | Runtime command reaches real Godot with at least one successful behavior |
 | G- | 14 | Runtime command reaches real Godot on a negative path only |
 | T | 82 | TypeScript, source-contract, schema, or mocked-transport coverage only |
@@ -42,7 +42,7 @@ engine, never a mocked transport.
 | unit | `tests/dotnet.test.ts`, `tests/game-connection.test.ts`, `tests/godot-process-manager.test.ts`, `tests/handler-modules.test.ts`, `tests/handlers.test.ts`, `tests/headless-operation-runner.test.ts`, `tests/headless-operation-service.test.ts`, `tests/index.test.ts`, `tests/interaction-server-installer.test.ts`, `tests/project-support.test.ts`, `tests/tool-argument-validation.test.ts`, `tests/tool-registry.test.ts`, `tests/utils.test.ts`, `tests/validate-script.test.ts` |
 | contract | `tests/runtime-protocol-contract.test.ts`, `tests/source-guardrails.test.ts`, `tests/test-metadata.test.ts`, `tests/tool-coverage.test.ts`, `tests/tool-definitions.test.ts`, `tests/tool-manifest.test.ts`, `tests/variant-codec-corpus.test.ts` |
 | integration | `tests/godot/run-headless-operations.sh`, `tests/godot/run-integration-tests.sh`, `tests/godot/run-typecheck.sh` |
-| e2e | `tests/e2e/observers.test.ts`, `tests/e2e/representative-path.test.ts` |
+| e2e | `tests/e2e/headless-tools.test.ts`, `tests/e2e/observers.test.ts`, `tests/e2e/representative-path.test.ts` |
 
 ## Per-tool rollup
 
@@ -55,13 +55,13 @@ engine, never a mocked transport.
 | `get_godot_version` | process | no | T | 1/1 |
 | `list_projects` | local | no | T | 1/1 |
 | `get_project_info` | godot-cli | no | T | 1/1 |
-| `create_scene` | headless `create_scene` | no | H | 1/1 |
-| `add_node` | headless `add_node` | no | H | 1/1 |
-| `load_sprite` | headless `load_sprite` | no | H | 1/1 |
-| `export_mesh_library` | headless `export_mesh_library` | no | H | 1/1 |
-| `save_scene` | headless `save_scene` | no | H | 1/1 |
-| `get_uid` | headless `get_uid` | no | H | 1/1 |
-| `update_project_uids` | headless `resave_resources` | no | H | 1/1 |
+| `create_scene` | headless `create_scene` | no | E2E | 1/1 |
+| `add_node` | headless `add_node` | no | E2E | 1/1 |
+| `load_sprite` | headless `load_sprite` | no | E2E | 1/1 |
+| `export_mesh_library` | headless `export_mesh_library` | no | E2E | 1/1 |
+| `save_scene` | headless `save_scene` | no | E2E | 1/1 |
+| `get_uid` | headless `get_uid` | no | E2E | 1/1 |
+| `update_project_uids` | headless `resave_resources` | no | E2E | 1/1 |
 | `game_screenshot` | runtime `screenshot` | no | T | 1/1 |
 | `game_click` | runtime `click` | no | G+ | 1/1 |
 | `game_key_press` | runtime `key_press` | no | G- | 1/1 |
@@ -79,9 +79,9 @@ engine, never a mocked transport.
 | `game_pause` | runtime `pause` | no | T | 1/1 |
 | `game_performance` | runtime `get_performance` | no | T | 1/1 |
 | `game_wait` | runtime `wait` | no | G+ | 1/1 |
-| `read_scene` | headless `read_scene` | no | H | 1/1 |
-| `modify_scene_node` | headless `modify_node` | no | H | 1/1 |
-| `remove_scene_node` | headless `remove_node` | no | H | 1/1 |
+| `read_scene` | headless `read_scene` | no | E2E | 1/1 |
+| `modify_scene_node` | headless `modify_node` | no | E2E | 1/1 |
+| `remove_scene_node` | headless `remove_node` | no | E2E | 1/1 |
 | `read_project_settings` | local | no | T | 1/1 |
 | `modify_project_settings` | local | no | T | 1/1 |
 | `list_project_files` | local | no | T | 1/1 |
@@ -93,8 +93,8 @@ engine, never a mocked transport.
 | `game_get_nodes_in_group` | runtime `get_nodes_in_group` | no | T | 1/1 |
 | `game_find_nodes_by_class` | runtime `find_nodes_by_class` | no | T | 1/1 |
 | `game_reparent_node` | runtime `reparent_node` | no | T | 1/1 |
-| `attach_script` | headless `attach_script` | no | H | 1/1 |
-| `create_resource` | headless `create_resource` | no | H | 1/1 |
+| `attach_script` | headless `attach_script` | no | E2E | 1/1 |
+| `create_resource` | headless `create_resource` | no | E2E | 1/1 |
 | `read_file` | local | no | T | 1/1 |
 | `write_file` | local | no | T | 1/1 |
 | `delete_file` | local | no | T | 1/1 |
@@ -177,17 +177,17 @@ engine, never a mocked transport.
 | `game_audio_bus_layout` | runtime `audio_bus_layout` | no | G+ | 1/4 |
 | `game_audio_spatial` | runtime `audio_spatial` | no | T | 0/2 |
 | `rename_file` | local | no | T | 1/1 |
-| `manage_resource` | headless `manage_resource` | no | H | 2/2 |
+| `manage_resource` | headless `manage_resource` | no | E2E | 2/2 |
 | `validate_script` | godot-cli | no | T | 1/1 |
 | `validate_scripts` | godot-cli | no | T | 1/1 |
 | `create_script` | local | no | T | 1/1 |
-| `manage_scene_signals` | headless `manage_scene_signals` | no | H | 3/3 |
+| `manage_scene_signals` | headless `manage_scene_signals` | no | E2E | 3/3 |
 | `manage_layers` | local | no | T | 0/2 |
 | `manage_plugins` | local | no | T | 0/3 |
 | `manage_shader` | local | no | T | 0/2 |
-| `manage_theme_resource` | headless `manage_theme_resource` | no | H | 3/3 |
+| `manage_theme_resource` | headless `manage_theme_resource` | no | E2E | 3/3 |
 | `set_main_scene` | local | no | T | 1/1 |
-| `manage_scene_structure` | headless `manage_scene_structure` | no | H | 3/3 |
+| `manage_scene_structure` | headless `manage_scene_structure` | no | E2E | 3/3 |
 | `manage_translations` | local | no | T | 0/3 |
 | `game_locale` | runtime `locale` | no | T | 0/3 |
 | `game_ui_control` | runtime `ui_control` | no | G+ | 2/4 |

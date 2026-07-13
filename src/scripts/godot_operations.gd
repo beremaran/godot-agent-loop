@@ -616,7 +616,10 @@ func add_node(params: Dictionary) -> OperationResult:
     new_node.name = node_name
     _apply_properties(new_node, _param_dictionary(params, "properties"))
 
-    parent.add_child(new_node)
+    # force_readable_name matches editor semantics: a duplicate name becomes
+    # Twin2 rather than the transient @Twin@N, which PackedScene will not
+    # persist — without this the second node silently vanished from the file.
+    parent.add_child(new_node, true)
     new_node.owner = scene_root
 
     var save_result := _save_scene_root(scene_root, full_scene_path)
@@ -823,20 +826,21 @@ func resave_resources(params: Dictionary) -> OperationResult:
             continue
 
         missing_uids += 1
-        var resource := load(script_path) as Resource
-        if resource == null:
-            errors.append("Failed to load resource: " + script_path)
+        # ResourceSaver does not write .uid sidecars for scripts outside the
+        # editor's import pipeline (verified on 4.7: resaving a .gd leaves no
+        # sidecar), so create and persist a fresh UID explicitly, matching the
+        # sidecar format the importer writes.
+        var new_id: int = ResourceUID.create_id()
+        var uid_file := FileAccess.open(uid_path, FileAccess.WRITE)
+        if uid_file == null:
+            errors.append("Failed to write UID file: " + uid_path)
             continue
-
-        var save_result := _save_resource(resource, script_path, "resource")
-        if not save_result.ok:
-            errors.append_array(save_result.errors)
-            continue
-
-        # The engine writes the sidecar as part of the save for the resource
-        # types that carry one, so a still-missing .uid is not a failure.
-        if FileAccess.file_exists(uid_path):
-            generated_uids += 1
+        @warning_ignore("return_value_discarded")
+        uid_file.store_line(ResourceUID.id_to_text(new_id))
+        uid_file.close()
+        if not ResourceUID.has_id(new_id):
+            ResourceUID.add_id(new_id, script_path)
+        generated_uids += 1
 
     log_debug("Summary:")
     log_debug("- Scenes processed: " + str(scenes.size()))

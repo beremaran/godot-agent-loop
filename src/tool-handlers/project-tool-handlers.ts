@@ -1556,13 +1556,11 @@ export class ProjectToolHandlers {
         );
       }
 
-      // Prepare parameters for the operation (already in camelCase)
-      const params = {
-        projectPath: args.projectPath,
-      };
-
-      // Execute the operation
-      const result = await this.context.executeOperation('resave_resources', params, args.projectPath);
+      // The operation runs with --path at the project root, so res:// already
+      // covers it. Passing the absolute OS path as project_path used to make
+      // the operation scan res://<absolute-path> — nothing — and report
+      // success while generating no UIDs.
+      const result = await this.context.executeOperation('resave_resources', {}, args.projectPath);
       const failure = this.headlessFailure('Failed to update project UIDs', result);
       if (failure) return failure;
       const { stdout } = result;

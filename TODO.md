@@ -162,22 +162,22 @@ editor versus game processes, and cleanup after MCP server termination.
 
 ### Scene authoring and headless operations
 
-- [ ] **H** `create_scene`
-- [ ] **H** `add_node`
-- [ ] **H** `load_sprite`
-- [ ] **H** `export_mesh_library`
-- [ ] **H** `save_scene`
-- [ ] **H** `get_uid`
-- [ ] **H** `update_project_uids`
-- [ ] **H** `read_scene`
-- [ ] **H** `modify_scene_node`
-- [ ] **H** `remove_scene_node`
-- [ ] **H** `attach_script`
-- [ ] **H** `create_resource`
-- [ ] **H** `manage_resource`
-- [ ] **H** `manage_scene_signals`
-- [ ] **H** `manage_theme_resource`
-- [ ] **H** `manage_scene_structure`
+- [x] **E2E** `create_scene`
+- [x] **E2E** `add_node`
+- [x] **E2E** `load_sprite`
+- [x] **E2E** `export_mesh_library`
+- [x] **E2E** `save_scene`
+- [x] **E2E** `get_uid`
+- [x] **E2E** `update_project_uids`
+- [x] **E2E** `read_scene`
+- [x] **E2E** `modify_scene_node`
+- [x] **E2E** `remove_scene_node`
+- [x] **E2E** `attach_script`
+- [x] **E2E** `create_resource`
+- [x] **E2E** `manage_resource`
+- [x] **E2E** `manage_scene_signals`
+- [x] **E2E** `manage_theme_resource`
+- [x] **E2E** `manage_scene_structure`
 
 Required E2E additions: traverse the MCP server, cover every action, use inherited
 and instantiated scenes, editable children, unique names, external/subresources,
@@ -579,7 +579,10 @@ ObjectDB leak.
 
 ### Phase 2: close the current 157-tool inventory
 
-- [ ] Convert all 16 `H` tools to E2E while retaining their focused Godot tests.
+- [x] Convert all 16 `H` tools to E2E while retaining their focused Godot tests.
+  (`tests/e2e/headless-tools.test.ts`: every action, defaults, structured and
+  resource-typed properties, failure classes, exotic paths, repeatability, and
+  independent reload verification; the focused shell suite still runs.)
 - [ ] Convert all 45 `G+` tools to E2E and expand them to every public action.
 - [ ] Add successful engine behavior for all 14 `G-` tools, then convert to E2E.
 - [ ] Add direct engine behavior and E2E coverage for all 82 `T` tools.

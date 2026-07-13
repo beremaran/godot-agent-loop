@@ -118,6 +118,24 @@ export function createTempProject(options: TempProjectOptions = {}): { root: str
   return { root, projectPath };
 }
 
+/** A 1x1 PNG for texture fixtures; written rather than committed to keep fixtures text-only. */
+export function writePngFixture(projectPath: string, relativePath: string): void {
+  writeFileSync(
+    join(projectPath, relativePath),
+    Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64'),
+  );
+}
+
+/**
+ * Run Godot's import step over a project so binary assets (PNG textures) are
+ * loadable by later engine invocations. Test fixture preparation only — the
+ * MCP surface has no import tool yet (a tracked P1 capability gap).
+ */
+export async function importProjectResources(projectPath: string): Promise<void> {
+  await execFileAsync(resolveGodotBinary(), ['--headless', '--path', projectPath, '--import'], { timeout: 60_000 })
+    .catch(() => undefined); // --import exits non-zero on some versions even after importing.
+}
+
 export interface E2EServer {
   client: Client;
   runtimePort: number;
