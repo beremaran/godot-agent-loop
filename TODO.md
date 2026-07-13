@@ -776,25 +776,43 @@ same harness, the same protocol, and the same code path, differing only in where
 the window goes. Two code paths would invite the failure that matters most here:
 an agent that behaves differently when nobody is looking.
 
-### Unvalidated assumptions
+### Validated assumptions
 
-Phase 6 is gated on these. Each is load-bearing, and each is cheap to settle
-against the engine on this machine rather than by reading documentation.
+Phase 6 was gated on four load-bearing assumptions. All four were spiked directly
+against Godot 4.7 (`5b4e0cb0f`, X11, NVIDIA RTX 4070 Ti SUPER) before any
+production code was written. **The plan survives; one assumption was wrong in the
+project's favor.**
 
-- A non-headless `--script` `SceneTree` renders and returns non-black pixels from
-  `get_viewport().get_texture().get_image()`. **This single result decides the
-  architecture** and should be tested first.
-- `override.cfg` actually overrides `[autoload]`, and the engine tolerates its
-  removal between runs.
-- Replacing the `MainLoop` via `--script` skips the project's own autoloads. If
-  so, the harness must read `[autoload]` from `project.godot` and instantiate them
-  itself, in declaration order — and the resulting fidelity gap between "the game
-  under the agent" and "the game the player runs" is the sharpest risk in this
-  plan, because agents write passing tests against games that are subtly not the
-  shipped game.
-- A windowed session can be parked offscreen, or nested (separate X display;
-  `gamescope`, already present via Steam, exposes a headless backend), without
-  losing the rendering context.
+- **A windowed `--script` `SceneTree` renders.** Confirmed. `DisplayServer` is
+  `X11`, the real GPU is bound, and `root.get_texture().get_image()` returns a
+  1152x648 image whose every sampled pixel is the `ColorRect` red that was added
+  to the tree. The persistent-session design is viable.
+- **Autoloads are *not* skipped under `--script`.** Refuted, and this is the
+  significant result. The plan assumed replacing the `MainLoop` would bypass the
+  project's `[autoload]` entries, forcing the harness to re-implement autoload
+  instantiation and accept a fidelity gap between the game under the agent and the
+  shipped game — recorded above as the sharpest risk in the plan. It does not
+  happen: the project autoload's `_init` and `_ready` both ran, and it is present
+  under `root` as `MyAutoload`. The engine builds autoloads before handing control
+  to the script's `MainLoop`. **The sharpest risk in Phase 6 does not exist**, and
+  the harness-owned main loop is correspondingly more attractive.
+- **`override.cfg` overrides `[autoload]`.** Confirmed, with clean add/remove
+  semantics: absent, the autoload does not load; present, it loads and runs;
+  removed again, it stops loading — and `project.godot` is never touched. This is
+  the injection mechanism for 6b.
+- **An offscreen window still renders.** Confirmed at `--position 5000,5000` and
+  `--position -4000,-4000`, at both default and custom resolutions, with correct
+  pixels. Captures read the framebuffer, not the screen, so no nested display or
+  compositor is needed for the default workstation case; `gamescope` and a separate
+  X display remain available but are no longer on the critical path.
+
+The spike also produced a hazard worth writing down, because it will be
+encountered again by anyone extending the harness: under `--headless`,
+`RenderingServer.frame_post_draw` **never fires**, so `await`ing it deadlocks the
+session permanently rather than failing. `root.get_texture()` is also null there
+(not a black image) and raises `Parameter "t" is null`. Any capture path shared
+between windowed and headless modes must branch on display availability rather
+than awaiting a frame that will never come.
 
 ## Roadmap
 
@@ -959,17 +977,20 @@ direction"; the spikes below settle the assumptions that gate the rest.
 
 #### 6a: settle the assumptions (spikes, no production code)
 
-- [ ] Prove a non-headless `--script` `SceneTree` obtains a rendering context and
-  returns non-black pixels from `get_viewport().get_texture().get_image()`. Every
-  item below depends on this; do it first and stop if it fails.
-- [ ] Prove `override.cfg` overrides `[autoload]` and that removing it restores
-  the project cleanly.
-- [ ] Determine whether `--script` skips project autoloads. If it does, prototype
-  reading `[autoload]` from `project.godot` and instantiating them in declaration
-  order, and characterize what still differs from a normally launched game.
-- [ ] Confirm a windowed session keeps rendering while parked offscreen, and
-  evaluate a nested display (separate X display, or `gamescope --backend
-  headless`) as the isolation story.
+All four are settled against Godot 4.7; results and the deadlock hazard are
+recorded under "Validated assumptions".
+
+- [x] Prove a non-headless `--script` `SceneTree` obtains a rendering context and
+  returns non-black pixels from `get_viewport().get_texture().get_image()`.
+  (Renders on the real GPU; sampled pixels match the added `ColorRect` exactly.)
+- [x] Prove `override.cfg` overrides `[autoload]` and that removing it restores
+  the project cleanly. (Add/remove is clean; `project.godot` is never touched.)
+- [x] Determine whether `--script` skips project autoloads. (**It does not.** The
+  engine instantiates them before handing control to the script's `MainLoop`, so
+  no re-implementation and no fidelity gap. This removes the plan's largest risk.)
+- [x] Confirm a windowed session keeps rendering while parked offscreen, and
+  evaluate a nested display as the isolation story. (Offscreen renders correctly;
+  a nested display is available but is not on the critical path.)
 
 #### 6b: stop mutating the user's project
 
@@ -990,12 +1011,17 @@ direction"; the spikes below settle the assumptions that gate the rest.
   as a fallback until parity is proven.
 - [ ] Add `--fixed-fps` and time-scale control so "wait N frames, then capture"
   means the same thing on every run. Determinism is miserable to retrofit.
+- [ ] Branch the capture path on display availability rather than awaiting
+  `RenderingServer.frame_post_draw`, which never fires under `--headless` and
+  deadlocks the session instead of failing.
 - [ ] Benchmark a realistic edit -> run -> observe -> edit cycle against today's
   subprocess-per-operation path; the loop-latency delta is this phase's headline
   result and belongs in the coverage report.
 - [ ] Decide whether the harness-owned main loop replaces autoload injection
   entirely, or whether inject-and-run survives as a high-fidelity verification
-  mode alongside a fast iteration mode.
+  mode alongside a fast iteration mode. The 6a spike moved this toward *replace*:
+  autoloads run under `--script`, so the fidelity argument for inject-and-run is
+  much weaker than assumed. Confirm against a real game before deciding.
 
 #### 6d: let a human watch
 
