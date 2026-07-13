@@ -450,14 +450,16 @@
       }
     },
     "game_screenshot": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/handlers.test.ts::handleGameScreenshot"
+        "tests/handlers.test.ts::handleGameScreenshot",
+        "tests/e2e/runtime-system-tools.test.ts::game_screenshot returns a decodable PNG or a structured headless limitation"
       ],
       "actions": {
         "*": {
           "tests": [
-            "tests/handlers.test.ts::handleGameScreenshot"
+            "tests/handlers.test.ts::handleGameScreenshot",
+            "tests/e2e/runtime-system-tools.test.ts::game_screenshot returns a decodable PNG or a structured headless limitation"
           ]
         }
       },
@@ -478,8 +480,9 @@
       }
     },
     "game_click": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-input-tools.test.ts::'game_click'",
         "tests/godot/fixture/test_runner.gd::godot.runtime.click",
         "tests/handlers.test.ts::handleGameClick",
         "tests/index.test.ts::game_click",
@@ -488,6 +491,7 @@
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/runtime-input-tools.test.ts::'game_click'",
             "tests/godot/fixture/test_runner.gd::godot.runtime.click",
             "tests/handlers.test.ts::handleGameClick",
             "tests/index.test.ts::game_click",
@@ -512,14 +516,16 @@
       }
     },
     "game_key_press": {
-      "level": "G-",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-input-tools.test.ts::game_key_press",
         "tests/godot/fixture/test_runner.gd::godot.runtime.key_press",
         "tests/handlers.test.ts::handleGameKeyPress"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/runtime-input-tools.test.ts::game_key_press",
             "tests/godot/fixture/test_runner.gd::godot.runtime.key_press",
             "tests/handlers.test.ts::handleGameKeyPress"
           ]
@@ -542,13 +548,15 @@
       }
     },
     "game_mouse_move": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-input-tools.test.ts::game_mouse_move",
         "tests/handlers.test.ts::handleGameMouseMove"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/runtime-input-tools.test.ts::game_mouse_move",
             "tests/handlers.test.ts::handleGameMouseMove"
           ]
         }
@@ -570,14 +578,16 @@
       }
     },
     "game_get_ui": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/handlers.test.ts::handleGameGetUi"
+        "tests/handlers.test.ts::handleGameGetUi",
+        "tests/e2e/runtime-system-tools.test.ts::game_get_ui enumerates live Control nodes"
       ],
       "actions": {
         "*": {
           "tests": [
-            "tests/handlers.test.ts::handleGameGetUi"
+            "tests/handlers.test.ts::handleGameGetUi",
+            "tests/e2e/runtime-system-tools.test.ts::game_get_ui enumerates live Control nodes"
           ]
         }
       },
@@ -598,14 +608,16 @@
       }
     },
     "game_get_scene_tree": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-query-tools.test.ts::'game_get_scene_tree'",
         "tests/godot/fixture/test_runner.gd::godot.runtime.get_scene_tree",
         "tests/handlers.test.ts::handleGameGetSceneTree"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/runtime-query-tools.test.ts::'game_get_scene_tree'",
             "tests/godot/fixture/test_runner.gd::godot.runtime.get_scene_tree",
             "tests/handlers.test.ts::handleGameGetSceneTree"
           ]
@@ -628,14 +640,16 @@
       }
     },
     "game_eval": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-query-tools.test.ts::'game_eval'",
         "tests/godot/fixture/test_runner.gd::godot.runtime.eval",
         "tests/handlers.test.ts::handleGameEval"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/runtime-query-tools.test.ts::'game_eval'",
             "tests/godot/fixture/test_runner.gd::godot.runtime.eval",
             "tests/handlers.test.ts::handleGameEval"
           ]
@@ -658,8 +672,9 @@
       }
     },
     "game_get_property": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-query-tools.test.ts::'game_get_property'",
         "tests/godot/fixture/test_runner.gd::godot.runtime.get_property",
         "tests/handler-modules.test.ts::handleGameGetProperty",
         "tests/handlers.test.ts::handleGameGetProperty"
@@ -667,6 +682,7 @@
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/runtime-query-tools.test.ts::'game_get_property'",
             "tests/godot/fixture/test_runner.gd::godot.runtime.get_property",
             "tests/handler-modules.test.ts::handleGameGetProperty",
             "tests/handlers.test.ts::handleGameGetProperty"
@@ -690,18 +706,22 @@
       }
     },
     "game_set_property": {
-      "level": "G-",
+      "level": "E2E",
       "tests": [
         "tests/godot/fixture/test_runner.gd::\"set_property\"",
         "tests/handler-modules.test.ts::handleGameSetProperty",
-        "tests/handlers.test.ts::handleGameSetProperty"
+        "tests/handlers.test.ts::handleGameSetProperty",
+        "tests/e2e/runtime-core-tools.test.ts::game_set_property writes typed values, honours typeHint, and is denied without privilege",
+        "tests/e2e/runtime-core-tools.test.ts::game_set_property and game_call_method are refused when privileged commands are off"
       ],
       "actions": {
         "*": {
           "tests": [
             "tests/godot/fixture/test_runner.gd::\"set_property\"",
             "tests/handler-modules.test.ts::handleGameSetProperty",
-            "tests/handlers.test.ts::handleGameSetProperty"
+            "tests/handlers.test.ts::handleGameSetProperty",
+            "tests/e2e/runtime-core-tools.test.ts::game_set_property writes typed values, honours typeHint, and is denied without privilege",
+            "tests/e2e/runtime-core-tools.test.ts::game_set_property and game_call_method are refused when privileged commands are off"
           ]
         }
       },
@@ -722,16 +742,20 @@
       }
     },
     "game_call_method": {
-      "level": "G-",
+      "level": "E2E",
       "tests": [
         "tests/godot/fixture/test_runner.gd::\"call_method\"",
-        "tests/handlers.test.ts::handleGameCallMethod"
+        "tests/handlers.test.ts::handleGameCallMethod",
+        "tests/e2e/runtime-core-tools.test.ts::game_call_method invokes fixture methods with arguments and reports missing methods",
+        "tests/e2e/runtime-core-tools.test.ts::game_set_property and game_call_method are refused when privileged commands are off"
       ],
       "actions": {
         "*": {
           "tests": [
             "tests/godot/fixture/test_runner.gd::\"call_method\"",
-            "tests/handlers.test.ts::handleGameCallMethod"
+            "tests/handlers.test.ts::handleGameCallMethod",
+            "tests/e2e/runtime-core-tools.test.ts::game_call_method invokes fixture methods with arguments and reports missing methods",
+            "tests/e2e/runtime-core-tools.test.ts::game_set_property and game_call_method are refused when privileged commands are off"
           ]
         }
       },
@@ -752,14 +776,18 @@
       }
     },
     "game_get_node_info": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/handlers.test.ts::handleGameGetNodeInfo"
+        "tests/handlers.test.ts::handleGameGetNodeInfo",
+        "tests/e2e/runtime-core-tools.test.ts::game_get_node_info reports class, children, signals, and methods",
+        "tests/e2e/runtime-core-tools.test.ts::game_set_property and game_call_method are refused when privileged commands are off"
       ],
       "actions": {
         "*": {
           "tests": [
-            "tests/handlers.test.ts::handleGameGetNodeInfo"
+            "tests/handlers.test.ts::handleGameGetNodeInfo",
+            "tests/e2e/runtime-core-tools.test.ts::game_get_node_info reports class, children, signals, and methods",
+            "tests/e2e/runtime-core-tools.test.ts::game_set_property and game_call_method are refused when privileged commands are off"
           ]
         }
       },
@@ -780,16 +808,18 @@
       }
     },
     "game_instantiate_scene": {
-      "level": "G-",
+      "level": "E2E",
       "tests": [
         "tests/godot/fixture/test_runner.gd::godot.runtime.instantiate_scene",
-        "tests/handlers.test.ts::handleGameInstantiateScene"
+        "tests/handlers.test.ts::handleGameInstantiateScene",
+        "tests/e2e/runtime-core-tools.test.ts::game_instantiate_scene adds a saved scene into the running tree"
       ],
       "actions": {
         "*": {
           "tests": [
             "tests/godot/fixture/test_runner.gd::godot.runtime.instantiate_scene",
-            "tests/handlers.test.ts::handleGameInstantiateScene"
+            "tests/handlers.test.ts::handleGameInstantiateScene",
+            "tests/e2e/runtime-core-tools.test.ts::game_instantiate_scene adds a saved scene into the running tree"
           ]
         }
       },
@@ -810,14 +840,16 @@
       }
     },
     "game_remove_node": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/handlers.test.ts::handleGameRemoveNode"
+        "tests/handlers.test.ts::handleGameRemoveNode",
+        "tests/e2e/runtime-core-tools.test.ts::game_spawn_node creates a configured node and game_remove_node deletes it"
       ],
       "actions": {
         "*": {
           "tests": [
-            "tests/handlers.test.ts::handleGameRemoveNode"
+            "tests/handlers.test.ts::handleGameRemoveNode",
+            "tests/e2e/runtime-core-tools.test.ts::game_spawn_node creates a configured node and game_remove_node deletes it"
           ]
         }
       },
@@ -838,16 +870,18 @@
       }
     },
     "game_change_scene": {
-      "level": "G-",
+      "level": "E2E",
       "tests": [
         "tests/godot/fixture/test_runner.gd::godot.runtime.change_scene",
-        "tests/handlers.test.ts::handleGameChangeScene"
+        "tests/handlers.test.ts::handleGameChangeScene",
+        "tests/e2e/runtime-core-tools.test.ts::game_change_scene swaps the running scene"
       ],
       "actions": {
         "*": {
           "tests": [
             "tests/godot/fixture/test_runner.gd::godot.runtime.change_scene",
-            "tests/handlers.test.ts::handleGameChangeScene"
+            "tests/handlers.test.ts::handleGameChangeScene",
+            "tests/e2e/runtime-core-tools.test.ts::game_change_scene swaps the running scene"
           ]
         }
       },
@@ -868,14 +902,16 @@
       }
     },
     "game_pause": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/handlers.test.ts::handleGamePause"
+        "tests/handlers.test.ts::handleGamePause",
+        "tests/e2e/runtime-system-tools.test.ts::game_pause halts the pausable tree and resuming restarts it"
       ],
       "actions": {
         "*": {
           "tests": [
-            "tests/handlers.test.ts::handleGamePause"
+            "tests/handlers.test.ts::handleGamePause",
+            "tests/e2e/runtime-system-tools.test.ts::game_pause halts the pausable tree and resuming restarts it"
           ]
         }
       },
@@ -896,14 +932,16 @@
       }
     },
     "game_performance": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/handlers.test.ts::handleGamePerformance"
+        "tests/handlers.test.ts::handleGamePerformance",
+        "tests/e2e/runtime-system-tools.test.ts::game_performance reports live engine counters"
       ],
       "actions": {
         "*": {
           "tests": [
-            "tests/handlers.test.ts::handleGamePerformance"
+            "tests/handlers.test.ts::handleGamePerformance",
+            "tests/e2e/runtime-system-tools.test.ts::game_performance reports live engine counters"
           ]
         }
       },
@@ -924,14 +962,16 @@
       }
     },
     "game_wait": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-query-tools.test.ts::'game_wait'",
         "tests/godot/fixture/test_runner.gd::godot.runtime.wait",
         "tests/handlers.test.ts::handleGameWait"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/runtime-query-tools.test.ts::'game_wait'",
             "tests/godot/fixture/test_runner.gd::godot.runtime.wait",
             "tests/handlers.test.ts::handleGameWait"
           ]
@@ -1050,14 +1090,19 @@
       }
     },
     "read_project_settings": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/handlers.test.ts::handleReadProjectSettings"
+        "tests/handlers.test.ts::handleReadProjectSettings",
+        "tests/e2e/project-config-tools.test.ts::read_project_settings parses the real project.godot and modify_project_settings is seen by the engine",
+        "tests/e2e/project-config-tools.test.ts::modify_project_settings creates a missing section and rejects invalid projects",
+        "tests/e2e/project-config-tools.test.ts::exposes every configuration tool through MCP discovery"
       ],
       "actions": {
         "*": {
           "tests": [
-            "tests/handlers.test.ts::handleReadProjectSettings"
+            "tests/handlers.test.ts::handleReadProjectSettings",
+            "tests/e2e/project-config-tools.test.ts::read_project_settings parses the real project.godot and modify_project_settings is seen by the engine",
+            "tests/e2e/project-config-tools.test.ts::modify_project_settings creates a missing section and rejects invalid projects"
           ]
         }
       },
@@ -1078,14 +1123,19 @@
       }
     },
     "modify_project_settings": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/handlers.test.ts::handleModifyProjectSettings"
+        "tests/handlers.test.ts::handleModifyProjectSettings",
+        "tests/e2e/project-config-tools.test.ts::read_project_settings parses the real project.godot and modify_project_settings is seen by the engine",
+        "tests/e2e/project-config-tools.test.ts::modify_project_settings creates a missing section and rejects invalid projects",
+        "tests/e2e/project-config-tools.test.ts::exposes every configuration tool through MCP discovery"
       ],
       "actions": {
         "*": {
           "tests": [
-            "tests/handlers.test.ts::handleModifyProjectSettings"
+            "tests/handlers.test.ts::handleModifyProjectSettings",
+            "tests/e2e/project-config-tools.test.ts::read_project_settings parses the real project.godot and modify_project_settings is seen by the engine",
+            "tests/e2e/project-config-tools.test.ts::modify_project_settings creates a missing section and rejects invalid projects"
           ]
         }
       },
@@ -1106,14 +1156,17 @@
       }
     },
     "list_project_files": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/handlers.test.ts::handleListProjectFiles"
+        "tests/handlers.test.ts::handleListProjectFiles",
+        "tests/e2e/project-config-tools.test.ts::list_project_files filters by extension and subdirectory",
+        "tests/e2e/project-config-tools.test.ts::exposes every configuration tool through MCP discovery"
       ],
       "actions": {
         "*": {
           "tests": [
-            "tests/handlers.test.ts::handleListProjectFiles"
+            "tests/handlers.test.ts::handleListProjectFiles",
+            "tests/e2e/project-config-tools.test.ts::list_project_files filters by extension and subdirectory"
           ]
         }
       },
@@ -1134,14 +1187,16 @@
       }
     },
     "game_connect_signal": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/observers.test.ts::'game_connect_signal'",
         "tests/godot/fixture/test_runner.gd::godot.runtime.connect_signal",
         "tests/handlers.test.ts::handleGameConnectSignal"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/observers.test.ts::'game_connect_signal'",
             "tests/godot/fixture/test_runner.gd::godot.runtime.connect_signal",
             "tests/handlers.test.ts::handleGameConnectSignal"
           ]
@@ -1164,14 +1219,16 @@
       }
     },
     "game_disconnect_signal": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/observers.test.ts::'game_disconnect_signal'",
         "tests/godot/fixture/test_runner.gd::godot.runtime.disconnect_signal",
         "tests/handlers.test.ts::handleGameDisconnectSignal"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/observers.test.ts::'game_disconnect_signal'",
             "tests/godot/fixture/test_runner.gd::godot.runtime.disconnect_signal",
             "tests/handlers.test.ts::handleGameDisconnectSignal"
           ]
@@ -1194,14 +1251,16 @@
       }
     },
     "game_emit_signal": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/observers.test.ts::'game_emit_signal'",
         "tests/godot/fixture/test_runner.gd::godot.runtime.emit_signal",
         "tests/handlers.test.ts::handleGameEmitSignal"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/observers.test.ts::'game_emit_signal'",
             "tests/godot/fixture/test_runner.gd::godot.runtime.emit_signal",
             "tests/handlers.test.ts::handleGameEmitSignal"
           ]
@@ -1224,22 +1283,23 @@
       }
     },
     "game_play_animation": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-audio-animation-tools.test.ts::creates typed animation tracks",
         "tests/handlers.test.ts::handleGamePlayAnimation"
       ],
       "actions": {
         "play": {
-          "untested": "baseline-audit"
+          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'play'"]
         },
         "stop": {
-          "untested": "baseline-audit"
+          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'stop'"]
         },
         "pause": {
-          "untested": "baseline-audit"
+          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'pause'"]
         },
         "get_list": {
-          "untested": "baseline-audit"
+          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'get_list'"]
         }
       },
       "dimensions": {
@@ -1259,13 +1319,15 @@
       }
     },
     "game_tween_property": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-audio-animation-tools.test.ts::completes a property tween",
         "tests/handlers.test.ts::handleGameTweenProperty"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/runtime-audio-animation-tools.test.ts::completes a property tween",
             "tests/handlers.test.ts::handleGameTweenProperty"
           ]
         }
@@ -1287,14 +1349,18 @@
       }
     },
     "game_get_nodes_in_group": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/handlers.test.ts::handleGameGetNodesInGroup"
+        "tests/handlers.test.ts::handleGameGetNodesInGroup",
+        "tests/e2e/runtime-core-tools.test.ts::game_manage_group add/remove/get_groups drives real group membership",
+        "tests/e2e/runtime-core-tools.test.ts::game_call_method invokes fixture methods with arguments and reports missing methods"
       ],
       "actions": {
         "*": {
           "tests": [
-            "tests/handlers.test.ts::handleGameGetNodesInGroup"
+            "tests/handlers.test.ts::handleGameGetNodesInGroup",
+            "tests/e2e/runtime-core-tools.test.ts::game_manage_group add/remove/get_groups drives real group membership",
+            "tests/e2e/runtime-core-tools.test.ts::game_call_method invokes fixture methods with arguments and reports missing methods"
           ]
         }
       },
@@ -1315,14 +1381,16 @@
       }
     },
     "game_find_nodes_by_class": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/handlers.test.ts::handleGameFindNodesByClass"
+        "tests/handlers.test.ts::handleGameFindNodesByClass",
+        "tests/e2e/runtime-core-tools.test.ts::game_find_nodes_by_class searches the tree and honours rootPath"
       ],
       "actions": {
         "*": {
           "tests": [
-            "tests/handlers.test.ts::handleGameFindNodesByClass"
+            "tests/handlers.test.ts::handleGameFindNodesByClass",
+            "tests/e2e/runtime-core-tools.test.ts::game_find_nodes_by_class searches the tree and honours rootPath"
           ]
         }
       },
@@ -1343,14 +1411,16 @@
       }
     },
     "game_reparent_node": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/handlers.test.ts::handleGameReparentNode"
+        "tests/handlers.test.ts::handleGameReparentNode",
+        "tests/e2e/runtime-core-tools.test.ts::game_reparent_node moves a node and can preserve its global transform"
       ],
       "actions": {
         "*": {
           "tests": [
-            "tests/handlers.test.ts::handleGameReparentNode"
+            "tests/handlers.test.ts::handleGameReparentNode",
+            "tests/e2e/runtime-core-tools.test.ts::game_reparent_node moves a node and can preserve its global transform"
           ]
         }
       },
@@ -1437,14 +1507,19 @@
       }
     },
     "read_file": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/handlers.test.ts::handleReadFile"
+        "tests/handlers.test.ts::handleReadFile",
+        "tests/e2e/project-config-tools.test.ts::write_file/read_file/rename_file/delete_file/create_directory round-trip on the real filesystem",
+        "tests/e2e/project-config-tools.test.ts::file tools reject traversal and absolute escapes without touching the filesystem",
+        "tests/e2e/project-config-tools.test.ts::exposes every configuration tool through MCP discovery"
       ],
       "actions": {
         "*": {
           "tests": [
-            "tests/handlers.test.ts::handleReadFile"
+            "tests/handlers.test.ts::handleReadFile",
+            "tests/e2e/project-config-tools.test.ts::write_file/read_file/rename_file/delete_file/create_directory round-trip on the real filesystem",
+            "tests/e2e/project-config-tools.test.ts::file tools reject traversal and absolute escapes without touching the filesystem"
           ]
         }
       },
@@ -1465,14 +1540,19 @@
       }
     },
     "write_file": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/handlers.test.ts::handleWriteFile"
+        "tests/handlers.test.ts::handleWriteFile",
+        "tests/e2e/project-config-tools.test.ts::write_file/read_file/rename_file/delete_file/create_directory round-trip on the real filesystem",
+        "tests/e2e/project-config-tools.test.ts::file tools reject traversal and absolute escapes without touching the filesystem",
+        "tests/e2e/project-config-tools.test.ts::exposes every configuration tool through MCP discovery"
       ],
       "actions": {
         "*": {
           "tests": [
-            "tests/handlers.test.ts::handleWriteFile"
+            "tests/handlers.test.ts::handleWriteFile",
+            "tests/e2e/project-config-tools.test.ts::write_file/read_file/rename_file/delete_file/create_directory round-trip on the real filesystem",
+            "tests/e2e/project-config-tools.test.ts::file tools reject traversal and absolute escapes without touching the filesystem"
           ]
         }
       },
@@ -1493,14 +1573,19 @@
       }
     },
     "delete_file": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/handlers.test.ts::handleDeleteFile"
+        "tests/handlers.test.ts::handleDeleteFile",
+        "tests/e2e/project-config-tools.test.ts::write_file/read_file/rename_file/delete_file/create_directory round-trip on the real filesystem",
+        "tests/e2e/project-config-tools.test.ts::file tools reject traversal and absolute escapes without touching the filesystem",
+        "tests/e2e/project-config-tools.test.ts::exposes every configuration tool through MCP discovery"
       ],
       "actions": {
         "*": {
           "tests": [
-            "tests/handlers.test.ts::handleDeleteFile"
+            "tests/handlers.test.ts::handleDeleteFile",
+            "tests/e2e/project-config-tools.test.ts::write_file/read_file/rename_file/delete_file/create_directory round-trip on the real filesystem",
+            "tests/e2e/project-config-tools.test.ts::file tools reject traversal and absolute escapes without touching the filesystem"
           ]
         }
       },
@@ -1521,14 +1606,17 @@
       }
     },
     "create_directory": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/handlers.test.ts::handleCreateDirectory"
+        "tests/handlers.test.ts::handleCreateDirectory",
+        "tests/e2e/project-config-tools.test.ts::write_file/read_file/rename_file/delete_file/create_directory round-trip on the real filesystem",
+        "tests/e2e/project-config-tools.test.ts::exposes every configuration tool through MCP discovery"
       ],
       "actions": {
         "*": {
           "tests": [
-            "tests/handlers.test.ts::handleCreateDirectory"
+            "tests/handlers.test.ts::handleCreateDirectory",
+            "tests/e2e/project-config-tools.test.ts::write_file/read_file/rename_file/delete_file/create_directory round-trip on the real filesystem"
           ]
         }
       },
@@ -1549,14 +1637,16 @@
       }
     },
     "game_get_errors": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/handlers.test.ts::handleGameGetErrors"
+        "tests/handlers.test.ts::handleGameGetErrors",
+        "tests/e2e/runtime-system-tools.test.ts::game_get_logs and game_get_errors expose cursored engine output"
       ],
       "actions": {
         "*": {
           "tests": [
-            "tests/handlers.test.ts::handleGameGetErrors"
+            "tests/handlers.test.ts::handleGameGetErrors",
+            "tests/e2e/runtime-system-tools.test.ts::game_get_logs and game_get_errors expose cursored engine output"
           ]
         }
       },
@@ -1577,14 +1667,16 @@
       }
     },
     "game_get_logs": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/handlers.test.ts::handleGameGetLogs"
+        "tests/handlers.test.ts::handleGameGetLogs",
+        "tests/e2e/runtime-system-tools.test.ts::game_get_logs and game_get_errors expose cursored engine output"
       ],
       "actions": {
         "*": {
           "tests": [
-            "tests/handlers.test.ts::handleGameGetLogs"
+            "tests/handlers.test.ts::handleGameGetLogs",
+            "tests/e2e/runtime-system-tools.test.ts::game_get_logs and game_get_errors expose cursored engine output"
           ]
         }
       },
@@ -1605,14 +1697,16 @@
       }
     },
     "game_key_hold": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-input-tools.test.ts::'game_key_hold'",
         "tests/godot/fixture/test_runner.gd::godot.runtime.key_hold",
         "tests/handlers.test.ts::handleGameKeyHold"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/runtime-input-tools.test.ts::'game_key_hold'",
             "tests/godot/fixture/test_runner.gd::godot.runtime.key_hold",
             "tests/handlers.test.ts::handleGameKeyHold"
           ]
@@ -1635,14 +1729,16 @@
       }
     },
     "game_key_release": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-input-tools.test.ts::'game_key_release'",
         "tests/godot/fixture/test_runner.gd::godot.runtime.key_release",
         "tests/handlers.test.ts::handleGameKeyRelease"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/runtime-input-tools.test.ts::'game_key_release'",
             "tests/godot/fixture/test_runner.gd::godot.runtime.key_release",
             "tests/handlers.test.ts::handleGameKeyRelease"
           ]
@@ -1665,14 +1761,16 @@
       }
     },
     "game_scroll": {
-      "level": "G-",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-input-tools.test.ts::game_scroll",
         "tests/godot/fixture/test_runner.gd::godot.runtime.scroll",
         "tests/handlers.test.ts::handleGameScroll"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/runtime-input-tools.test.ts::game_scroll",
             "tests/godot/fixture/test_runner.gd::godot.runtime.scroll",
             "tests/handlers.test.ts::handleGameScroll"
           ]
@@ -1695,14 +1793,16 @@
       }
     },
     "game_mouse_drag": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-input-tools.test.ts::'game_mouse_drag'",
         "tests/godot/fixture/test_runner.gd::godot.runtime.mouse_drag",
         "tests/handlers.test.ts::handleGameMouseDrag"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/runtime-input-tools.test.ts::'game_mouse_drag'",
             "tests/godot/fixture/test_runner.gd::godot.runtime.mouse_drag",
             "tests/handlers.test.ts::handleGameMouseDrag"
           ]
@@ -1725,13 +1825,15 @@
       }
     },
     "game_gamepad": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-input-tools.test.ts::game_gamepad",
         "tests/handlers.test.ts::handleGameGamepad"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/runtime-input-tools.test.ts::game_gamepad",
             "tests/handlers.test.ts::handleGameGamepad"
           ]
         }
@@ -1753,16 +1855,18 @@
       }
     },
     "create_project": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
         "tests/handlers.test.ts::handleCreateProject",
-        "tests/index.test.ts::create_project"
+        "tests/index.test.ts::create_project",
+        "tests/e2e/project-delivery-tools.test.ts::create_project produces engine-loadable GDScript and .NET projects and create_csharp_script compiles"
       ],
       "actions": {
         "*": {
           "tests": [
             "tests/handlers.test.ts::handleCreateProject",
-            "tests/index.test.ts::create_project"
+            "tests/index.test.ts::create_project",
+            "tests/e2e/project-delivery-tools.test.ts::create_project produces engine-loadable GDScript and .NET projects and create_csharp_script compiles"
           ]
         }
       },
@@ -1783,14 +1887,16 @@
       }
     },
     "create_csharp_script": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/dotnet.test.ts::generateCsharpScriptSource"
+        "tests/dotnet.test.ts::generateCsharpScriptSource",
+        "tests/e2e/project-delivery-tools.test.ts::create_project produces engine-loadable GDScript and .NET projects and create_csharp_script compiles"
       ],
       "actions": {
         "*": {
           "tests": [
-            "tests/dotnet.test.ts::generateCsharpScriptSource"
+            "tests/dotnet.test.ts::generateCsharpScriptSource",
+            "tests/e2e/project-delivery-tools.test.ts::create_project produces engine-loadable GDScript and .NET projects and create_csharp_script compiles"
           ]
         }
       },
@@ -1811,20 +1917,29 @@
       }
     },
     "manage_autoloads": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
         "tests/handlers.test.ts::handleManageAutoloads",
-        "tests/index.test.ts::manage_autoloads"
+        "tests/index.test.ts::manage_autoloads",
+        "tests/e2e/project-config-tools.test.ts::manage_autoloads list/add/remove is verified by the autoload actually loading in the engine",
+        "tests/e2e/project-config-tools.test.ts::manage_autoloads reports missing arguments and unknown actions",
+        "tests/e2e/project-config-tools.test.ts::exposes every configuration tool through MCP discovery"
       ],
       "actions": {
         "list": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/project-config-tools.test.ts::manage_autoloads list/add/remove is verified by the autoload actually loading in the engine"
+          ]
         },
         "add": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/project-config-tools.test.ts::manage_autoloads list/add/remove is verified by the autoload actually loading in the engine"
+          ]
         },
         "remove": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/project-config-tools.test.ts::manage_autoloads list/add/remove is verified by the autoload actually loading in the engine"
+          ]
         }
       },
       "dimensions": {
@@ -1844,20 +1959,30 @@
       }
     },
     "manage_input_map": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
         "tests/handlers.test.ts::handleManageInputMap",
-        "tests/index.test.ts::manage_input_map"
+        "tests/index.test.ts::manage_input_map",
+        "tests/e2e/project-config-tools.test.ts::manage_input_map add/list/remove is verified through the live InputMap",
+        "tests/e2e/project-config-tools.test.ts::manage_input_map defaults the deadzone and validates arguments",
+        "tests/e2e/project-config-tools.test.ts::exposes every configuration tool through MCP discovery"
       ],
       "actions": {
         "list": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/project-config-tools.test.ts::manage_input_map add/list/remove is verified through the live InputMap"
+          ]
         },
         "add": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/project-config-tools.test.ts::manage_input_map add/list/remove is verified through the live InputMap",
+            "tests/e2e/project-config-tools.test.ts::manage_input_map defaults the deadzone and validates arguments"
+          ]
         },
         "remove": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/project-config-tools.test.ts::manage_input_map add/list/remove is verified through the live InputMap"
+          ]
         }
       },
       "dimensions": {
@@ -1877,20 +2002,28 @@
       }
     },
     "manage_export_presets": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
         "tests/handlers.test.ts::handleManageExportPresets",
-        "tests/index.test.ts::manage_export_presets"
+        "tests/index.test.ts::manage_export_presets",
+        "tests/e2e/project-config-tools.test.ts::manage_export_presets list/add/remove round-trips through export_presets.cfg",
+        "tests/e2e/project-config-tools.test.ts::exposes every configuration tool through MCP discovery"
       ],
       "actions": {
         "list": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/project-config-tools.test.ts::manage_export_presets list/add/remove round-trips through export_presets.cfg"
+          ]
         },
         "add": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/project-config-tools.test.ts::manage_export_presets list/add/remove round-trips through export_presets.cfg"
+          ]
         },
         "remove": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/project-config-tools.test.ts::manage_export_presets list/add/remove round-trips through export_presets.cfg"
+          ]
         }
       },
       "dimensions": {
@@ -1910,14 +2043,18 @@
       }
     },
     "game_get_camera": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/handlers.test.ts::handleGameGetCamera"
+        "tests/handlers.test.ts::handleGameGetCamera",
+        "tests/e2e/runtime-camera-rendering-tools.test.ts::game_get_camera reports no camera, then the active Camera2D after one is added",
+        "tests/e2e/runtime-camera-rendering-tools.test.ts::game_set_camera drives a Camera3D position, rotation, and fov"
       ],
       "actions": {
         "*": {
           "tests": [
-            "tests/handlers.test.ts::handleGameGetCamera"
+            "tests/handlers.test.ts::handleGameGetCamera",
+            "tests/e2e/runtime-camera-rendering-tools.test.ts::game_get_camera reports no camera, then the active Camera2D after one is added",
+            "tests/e2e/runtime-camera-rendering-tools.test.ts::game_set_camera drives a Camera3D position, rotation, and fov"
           ]
         }
       },
@@ -1938,14 +2075,18 @@
       }
     },
     "game_set_camera": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/handlers.test.ts::handleGameSetCamera"
+        "tests/handlers.test.ts::handleGameSetCamera",
+        "tests/e2e/runtime-camera-rendering-tools.test.ts::game_set_camera moves the active Camera2D and its zoom",
+        "tests/e2e/runtime-camera-rendering-tools.test.ts::game_set_camera drives a Camera3D position, rotation, and fov"
       ],
       "actions": {
         "*": {
           "tests": [
-            "tests/handlers.test.ts::handleGameSetCamera"
+            "tests/handlers.test.ts::handleGameSetCamera",
+            "tests/e2e/runtime-camera-rendering-tools.test.ts::game_set_camera moves the active Camera2D and its zoom",
+            "tests/e2e/runtime-camera-rendering-tools.test.ts::game_set_camera drives a Camera3D position, rotation, and fov"
           ]
         }
       },
@@ -1966,14 +2107,16 @@
       }
     },
     "game_raycast": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-physics-tools.test.ts::game_add_collision, game_raycast",
         "tests/godot/fixture/test_runner.gd::godot.runtime.raycast",
         "tests/handlers.test.ts::handleGameRaycast"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/runtime-physics-tools.test.ts::game_raycast',",
             "tests/godot/fixture/test_runner.gd::godot.runtime.raycast",
             "tests/handlers.test.ts::handleGameRaycast"
           ]
@@ -1996,13 +2139,15 @@
       }
     },
     "game_get_audio": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-audio-animation-tools.test.ts::discovers every player type",
         "tests/handlers.test.ts::handleGameGetAudio"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/runtime-audio-animation-tools.test.ts::discovers every player type",
             "tests/handlers.test.ts::handleGameGetAudio"
           ]
         }
@@ -2024,14 +2169,16 @@
       }
     },
     "game_spawn_node": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/handlers.test.ts::handleGameSpawnNode"
+        "tests/handlers.test.ts::handleGameSpawnNode",
+        "tests/e2e/runtime-core-tools.test.ts::game_spawn_node creates a configured node and game_remove_node deletes it"
       ],
       "actions": {
         "*": {
           "tests": [
-            "tests/handlers.test.ts::handleGameSpawnNode"
+            "tests/handlers.test.ts::handleGameSpawnNode",
+            "tests/e2e/runtime-core-tools.test.ts::game_spawn_node creates a configured node and game_remove_node deletes it"
           ]
         }
       },
@@ -2052,14 +2199,16 @@
       }
     },
     "game_set_shader_param": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/handlers.test.ts::handleGameSetShaderParam"
+        "tests/handlers.test.ts::handleGameSetShaderParam",
+        "tests/e2e/runtime-camera-rendering-tools.test.ts::game_set_shader_param writes a uniform on a real ShaderMaterial"
       ],
       "actions": {
         "*": {
           "tests": [
-            "tests/handlers.test.ts::handleGameSetShaderParam"
+            "tests/handlers.test.ts::handleGameSetShaderParam",
+            "tests/e2e/runtime-camera-rendering-tools.test.ts::game_set_shader_param writes a uniform on a real ShaderMaterial"
           ]
         }
       },
@@ -2080,22 +2229,23 @@
       }
     },
     "game_audio_play": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-audio-animation-tools.test.ts::controls audio playback",
         "tests/handlers.test.ts::handleGameAudioPlay"
       ],
       "actions": {
         "play": {
-          "untested": "baseline-audit"
+          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'play'"]
         },
         "stop": {
-          "untested": "baseline-audit"
+          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'stop'"]
         },
         "pause": {
-          "untested": "baseline-audit"
+          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'pause'"]
         },
         "resume": {
-          "untested": "baseline-audit"
+          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'resume'"]
         }
       },
       "dimensions": {
@@ -2115,14 +2265,16 @@
       }
     },
     "game_audio_bus": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-audio-animation-tools.test.ts::bus state, and 3D attenuation",
         "tests/godot/fixture/test_runner.gd::godot.runtime.audio_bus",
         "tests/handlers.test.ts::handleGameAudioBus"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/runtime-audio-animation-tools.test.ts::bus state, and 3D attenuation",
             "tests/godot/fixture/test_runner.gd::godot.runtime.audio_bus",
             "tests/handlers.test.ts::handleGameAudioBus"
           ]
@@ -2145,14 +2297,16 @@
       }
     },
     "game_navigate_path": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-physics-tools.test.ts::game_navigate_path produces an actual 2D path",
         "tests/godot/fixture/test_runner.gd::godot.runtime.navigate_path",
         "tests/handlers.test.ts::handleGameNavigatePath"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/runtime-physics-tools.test.ts::game_navigate_path',",
             "tests/godot/fixture/test_runner.gd::godot.runtime.navigate_path",
             "tests/handlers.test.ts::handleGameNavigatePath"
           ]
@@ -2175,25 +2329,32 @@
       }
     },
     "game_tilemap": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-2d-tools.test.ts::game_tilemap covers set/get/list/erase",
         "tests/godot/fixture/test_runner.gd::godot.runtime.tilemap",
         "tests/handlers.test.ts::handleGameTilemap"
       ],
       "actions": {
         "set_cells": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-2d-tools.test.ts::action: 'set_cells'"
+          ]
         },
         "get_cell": {
           "tests": [
+            "tests/e2e/runtime-2d-tools.test.ts::action: 'get_cell'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"get_cell\""
           ]
         },
         "erase_cells": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-2d-tools.test.ts::action: 'erase_cells'"
+          ]
         },
         "get_used_cells": {
           "tests": [
+            "tests/e2e/runtime-2d-tools.test.ts::action: 'get_used_cells'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"get_used_cells\""
           ]
         }
@@ -2215,14 +2376,16 @@
       }
     },
     "game_add_collision": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-physics-tools.test.ts::game_add_collision, game_raycast",
         "tests/godot/fixture/test_runner.gd::godot.runtime.add_collision",
         "tests/handlers.test.ts::handleGameAddCollision"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/runtime-physics-tools.test.ts::game_add_collision',",
             "tests/godot/fixture/test_runner.gd::godot.runtime.add_collision",
             "tests/handlers.test.ts::handleGameAddCollision"
           ]
@@ -2245,19 +2408,22 @@
       }
     },
     "game_environment": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-rendering-tools.test.ts::game_environment set/get",
         "tests/godot/fixture/test_runner.gd::godot.runtime.environment",
         "tests/handlers.test.ts::handleGameEnvironment"
       ],
       "actions": {
         "get": {
           "tests": [
+            "tests/e2e/runtime-rendering-tools.test.ts::game_environment', { action: 'get'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"get\""
           ]
         },
         "set": {
           "tests": [
+            "tests/e2e/runtime-rendering-tools.test.ts::action: 'set'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"set\""
           ]
         }
@@ -2279,19 +2445,26 @@
       }
     },
     "game_manage_group": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/handlers.test.ts::handleGameManageGroup"
+        "tests/handlers.test.ts::handleGameManageGroup",
+        "tests/e2e/runtime-core-tools.test.ts::game_manage_group add/remove/get_groups drives real group membership"
       ],
       "actions": {
         "add": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-core-tools.test.ts::game_manage_group add/remove/get_groups drives real group membership"
+          ]
         },
         "remove": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-core-tools.test.ts::game_manage_group add/remove/get_groups drives real group membership"
+          ]
         },
         "get_groups": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-core-tools.test.ts::game_manage_group add/remove/get_groups drives real group membership"
+          ]
         }
       },
       "dimensions": {
@@ -2311,14 +2484,16 @@
       }
     },
     "game_create_timer": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/handlers.test.ts::handleGameCreateTimer"
+        "tests/handlers.test.ts::handleGameCreateTimer",
+        "tests/e2e/runtime-core-tools.test.ts::game_create_timer adds a live Timer node with the requested configuration"
       ],
       "actions": {
         "*": {
           "tests": [
-            "tests/handlers.test.ts::handleGameCreateTimer"
+            "tests/handlers.test.ts::handleGameCreateTimer",
+            "tests/e2e/runtime-core-tools.test.ts::game_create_timer adds a live Timer node with the requested configuration"
           ]
         }
       },
@@ -2339,14 +2514,16 @@
       }
     },
     "game_set_particles": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/handlers.test.ts::handleGameSetParticles"
+        "tests/handlers.test.ts::handleGameSetParticles",
+        "tests/e2e/runtime-camera-rendering-tools.test.ts::game_set_particles configures a GPUParticles2D and its process material"
       ],
       "actions": {
         "*": {
           "tests": [
-            "tests/handlers.test.ts::handleGameSetParticles"
+            "tests/handlers.test.ts::handleGameSetParticles",
+            "tests/e2e/runtime-camera-rendering-tools.test.ts::game_set_particles configures a GPUParticles2D and its process material"
           ]
         }
       },
@@ -2367,13 +2544,15 @@
       }
     },
     "game_create_animation": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-audio-animation-tools.test.ts::creates typed animation tracks",
         "tests/handlers.test.ts::handleGameCreateAnimation"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/runtime-audio-animation-tools.test.ts::creates typed animation tracks",
             "tests/handlers.test.ts::handleGameCreateAnimation"
           ]
         }
@@ -2395,14 +2574,16 @@
       }
     },
     "export_project": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/handlers.test.ts::handleExportProject"
+        "tests/handlers.test.ts::handleExportProject",
+        "tests/e2e/project-delivery-tools.test.ts::export_project creates release/debug artifacts and the release boots its packed project"
       ],
       "actions": {
         "*": {
           "tests": [
-            "tests/handlers.test.ts::handleExportProject"
+            "tests/handlers.test.ts::handleExportProject",
+            "tests/e2e/project-delivery-tools.test.ts::export_project creates release/debug artifacts and the release boots its packed project"
           ]
         }
       },
@@ -2423,16 +2604,21 @@
       }
     },
     "game_serialize_state": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/handlers.test.ts::handleGameSerializeState"
+        "tests/handlers.test.ts::handleGameSerializeState",
+        "tests/e2e/runtime-core-tools.test.ts::game_serialize_state saves a subtree and restores it after a mutation"
       ],
       "actions": {
         "save": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-core-tools.test.ts::game_serialize_state saves a subtree and restores it after a mutation"
+          ]
         },
         "load": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-core-tools.test.ts::game_serialize_state saves a subtree and restores it after a mutation"
+          ]
         }
       },
       "dimensions": {
@@ -2452,14 +2638,16 @@
       }
     },
     "game_physics_body": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-physics-tools.test.ts::game_physics_body and game_create_joint",
         "tests/godot/fixture/test_runner.gd::godot.runtime.physics_body",
         "tests/handlers.test.ts::handleGamePhysicsBody"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/runtime-physics-tools.test.ts::game_physics_body',",
             "tests/godot/fixture/test_runner.gd::godot.runtime.physics_body",
             "tests/handlers.test.ts::handleGamePhysicsBody"
           ]
@@ -2482,14 +2670,16 @@
       }
     },
     "game_create_joint": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-physics-tools.test.ts::game_physics_body and game_create_joint",
         "tests/godot/fixture/test_runner.gd::godot.runtime.create_joint",
         "tests/handlers.test.ts::handleGameCreateJoint"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/runtime-physics-tools.test.ts::game_create_joint',",
             "tests/godot/fixture/test_runner.gd::godot.runtime.create_joint",
             "tests/handlers.test.ts::handleGameCreateJoint"
           ]
@@ -2512,19 +2702,20 @@
       }
     },
     "game_bone_pose": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-audio-animation-tools.test.ts::round-trips bone poses",
         "tests/handlers.test.ts::handleGameBonePose"
       ],
       "actions": {
         "list": {
-          "untested": "baseline-audit"
+          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'list'"]
         },
         "get": {
-          "untested": "baseline-audit"
+          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'get'"]
         },
         "set": {
-          "untested": "baseline-audit"
+          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'set'"]
         }
       },
       "dimensions": {
@@ -2544,14 +2735,16 @@
       }
     },
     "game_ui_theme": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-ui-tools.test.ts::game_ui_theme",
         "tests/godot/fixture/test_runner.gd::godot.runtime.ui_theme",
         "tests/handlers.test.ts::handleGameUiTheme"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/runtime-ui-tools.test.ts::game_ui_theme",
             "tests/godot/fixture/test_runner.gd::godot.runtime.ui_theme",
             "tests/handlers.test.ts::handleGameUiTheme"
           ]
@@ -2574,19 +2767,26 @@
       }
     },
     "game_viewport": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/handlers.test.ts::handleGameViewport"
+        "tests/handlers.test.ts::handleGameViewport",
+        "tests/e2e/runtime-camera-rendering-tools.test.ts::game_viewport create/configure/get manages a real SubViewport"
       ],
       "actions": {
         "create": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-camera-rendering-tools.test.ts::game_viewport create/configure/get manages a real SubViewport"
+          ]
         },
         "configure": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-camera-rendering-tools.test.ts::game_viewport create/configure/get manages a real SubViewport"
+          ]
         },
         "get": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-camera-rendering-tools.test.ts::game_viewport create/configure/get manages a real SubViewport"
+          ]
         }
       },
       "dimensions": {
@@ -2606,25 +2806,32 @@
       }
     },
     "game_debug_draw": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-rendering-tools.test.ts::game_debug_draw creates every geometry",
         "tests/godot/fixture/test_runner.gd::godot.runtime.debug_draw",
         "tests/handlers.test.ts::handleGameDebugDraw"
       ],
       "actions": {
         "line": {
           "tests": [
+            "tests/e2e/runtime-rendering-tools.test.ts::action: 'line'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"line\""
           ]
         },
         "sphere": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-rendering-tools.test.ts::action: 'sphere'"
+          ]
         },
         "box": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-rendering-tools.test.ts::action: 'box'"
+          ]
         },
         "clear": {
           "tests": [
+            "tests/e2e/runtime-rendering-tools.test.ts::action: 'clear'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"clear\""
           ]
         }
@@ -2646,14 +2853,16 @@
       }
     },
     "game_http_request": {
-      "level": "G-",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-remote-io-tools.test.ts::game_http_request",
         "tests/godot/fixture/test_runner.gd::\"http_request\"",
         "tests/handlers.test.ts::handleGameHttpRequest"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/runtime-remote-io-tools.test.ts::game_http_request",
             "tests/godot/fixture/test_runner.gd::\"http_request\"",
             "tests/handlers.test.ts::handleGameHttpRequest"
           ]
@@ -2676,23 +2885,36 @@
       }
     },
     "game_websocket": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-networking-tools.test.ts::game_websocket",
         "tests/godot/fixture/test_runner.gd::godot.runtime.websocket",
         "tests/handlers.test.ts::handleGameWebsocket"
       ],
       "actions": {
         "connect": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-networking-tools.test.ts::action: 'connect'"
+          ]
         },
         "disconnect": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-networking-tools.test.ts::action: 'disconnect'"
+          ]
         },
         "send": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-networking-tools.test.ts::action: 'send'"
+          ]
+        },
+        "receive": {
+          "tests": [
+            "tests/e2e/runtime-networking-tools.test.ts::action: 'receive'"
+          ]
         },
         "status": {
           "tests": [
+            "tests/e2e/runtime-networking-tools.test.ts::action: 'status'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"status\""
           ]
         }
@@ -2714,25 +2936,32 @@
       }
     },
     "game_multiplayer": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-networking-tools.test.ts::game_multiplayer",
         "tests/godot/fixture/test_runner.gd::godot.runtime.multiplayer",
         "tests/handlers.test.ts::handleGameMultiplayer"
       ],
       "actions": {
         "create_server": {
           "tests": [
+            "tests/e2e/runtime-networking-tools.test.ts::action: 'create_server'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"create_server\""
           ]
         },
         "create_client": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-networking-tools.test.ts::action: 'create_client'"
+          ]
         },
         "disconnect": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-networking-tools.test.ts::action: 'disconnect'"
+          ]
         },
         "status": {
           "tests": [
+            "tests/e2e/runtime-networking-tools.test.ts::action: 'status'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"status\""
           ]
         }
@@ -2754,16 +2983,21 @@
       }
     },
     "game_rpc": {
-      "level": "G-",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-remote-io-tools.test.ts::game_rpc",
         "tests/godot/fixture/test_runner.gd::\"rpc\""
       ],
       "actions": {
         "call": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-remote-io-tools.test.ts::action: 'call'"
+          ]
         },
         "configure": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-remote-io-tools.test.ts::action: 'configure'"
+          ]
         }
       },
       "dimensions": {
@@ -2783,20 +3017,27 @@
       }
     },
     "game_touch": {
-      "level": "G-",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-input-tools.test.ts::game_touch",
         "tests/godot/fixture/test_runner.gd::godot.runtime.touch",
         "tests/handlers.test.ts::handleGameTouch"
       ],
       "actions": {
         "press": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-input-tools.test.ts::action: 'press'"
+          ]
         },
         "release": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-input-tools.test.ts::action: 'release'"
+          ]
         },
         "drag": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-input-tools.test.ts::action: 'drag'"
+          ]
         }
       },
       "dimensions": {
@@ -2816,22 +3057,29 @@
       }
     },
     "game_input_state": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-input-tools.test.ts::game_input_state",
         "tests/godot/fixture/test_runner.gd::godot.runtime.input_state",
         "tests/handlers.test.ts::handleGameInputState"
       ],
       "actions": {
         "query": {
           "tests": [
+            "tests/e2e/runtime-input-tools.test.ts::action: 'query'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"query\""
           ]
         },
         "warp_mouse": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-input-tools.test.ts::action: 'warp_mouse'",
+            "tests/godot/fixture/test_runner.gd::\"action\": \"warp_mouse\""
+          ]
         },
         "set_mouse_mode": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-input-tools.test.ts::action: 'set_mouse_mode'"
+          ]
         }
       },
       "dimensions": {
@@ -2851,26 +3099,33 @@
       }
     },
     "game_input_action": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-input-tools.test.ts::'game_input_action'",
         "tests/godot/fixture/test_runner.gd::godot.runtime.input_action"
       ],
       "actions": {
         "set_strength": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-input-tools.test.ts::action: 'set_strength'",
+            "tests/godot/fixture/test_runner.gd::\"action\": \"set_strength\""
+          ]
         },
         "add_action": {
           "tests": [
+            "tests/e2e/runtime-input-tools.test.ts::action: 'add_action'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"add_action\""
           ]
         },
         "remove_action": {
           "tests": [
+            "tests/e2e/runtime-input-tools.test.ts::action: 'remove_action'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"remove_action\""
           ]
         },
         "list": {
           "tests": [
+            "tests/e2e/runtime-input-tools.test.ts::action: 'list'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"list\""
           ]
         }
@@ -2892,14 +3147,16 @@
       }
     },
     "game_list_signals": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/observers.test.ts::'game_list_signals'",
         "tests/godot/fixture/test_runner.gd::godot.runtime.list_signals",
         "tests/handlers.test.ts::handleGameListSignals"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/observers.test.ts::'game_list_signals'",
             "tests/godot/fixture/test_runner.gd::godot.runtime.list_signals",
             "tests/handlers.test.ts::handleGameListSignals"
           ]
@@ -2922,13 +3179,15 @@
       }
     },
     "game_await_signal": {
-      "level": "G-",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-input-tools.test.ts::game_await_signal",
         "tests/godot/fixture/test_runner.gd::godot.runtime.await_signal"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/runtime-input-tools.test.ts::game_await_signal",
             "tests/godot/fixture/test_runner.gd::godot.runtime.await_signal"
           ]
         }
@@ -2950,20 +3209,29 @@
       }
     },
     "game_script": {
-      "level": "G-",
+      "level": "E2E",
       "tests": [
         "tests/godot/fixture/test_runner.gd::\"script\"",
-        "tests/handlers.test.ts::handleGameScript"
+        "tests/handlers.test.ts::handleGameScript",
+        "tests/e2e/runtime-core-tools.test.ts::game_script attaches, reads back, and detaches a runtime script",
+        "tests/e2e/runtime-core-tools.test.ts::game_script is denied without privileged commands enabled"
       ],
       "actions": {
         "get_source": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-core-tools.test.ts::game_script attaches, reads back, and detaches a runtime script"
+          ]
         },
         "attach": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-core-tools.test.ts::game_script attaches, reads back, and detaches a runtime script",
+            "tests/e2e/runtime-core-tools.test.ts::game_script is denied without privileged commands enabled"
+          ]
         },
         "detach": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-core-tools.test.ts::game_script attaches, reads back, and detaches a runtime script"
+          ]
         }
       },
       "dimensions": {
@@ -2983,16 +3251,21 @@
       }
     },
     "game_window": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/handlers.test.ts::handleGameWindow"
+        "tests/handlers.test.ts::handleGameWindow",
+        "tests/e2e/runtime-system-tools.test.ts::game_window reports the viewport and applies size changes"
       ],
       "actions": {
         "get": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-system-tools.test.ts::game_window reports the viewport and applies size changes"
+          ]
         },
         "set": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-system-tools.test.ts::game_window reports the viewport and applies size changes"
+          ]
         }
       },
       "dimensions": {
@@ -3012,14 +3285,16 @@
       }
     },
     "game_os_info": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-query-tools.test.ts::'game_os_info'",
         "tests/godot/fixture/test_runner.gd::godot.runtime.os_info",
         "tests/handlers.test.ts::handleGameOsInfo"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/runtime-query-tools.test.ts::'game_os_info'",
             "tests/godot/fixture/test_runner.gd::godot.runtime.os_info",
             "tests/handlers.test.ts::handleGameOsInfo"
           ]
@@ -3042,16 +3317,21 @@
       }
     },
     "game_time_scale": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/handlers.test.ts::handleGameTimeScale"
+        "tests/handlers.test.ts::handleGameTimeScale",
+        "tests/e2e/runtime-system-tools.test.ts::game_time_scale get/set changes the engine clock"
       ],
       "actions": {
         "get": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-system-tools.test.ts::game_time_scale get/set changes the engine clock"
+          ]
         },
         "set": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-system-tools.test.ts::game_time_scale get/set changes the engine clock"
+          ]
         }
       },
       "dimensions": {
@@ -3071,16 +3351,18 @@
       }
     },
     "game_process_mode": {
-      "level": "G-",
+      "level": "E2E",
       "tests": [
         "tests/godot/fixture/test_runner.gd::godot.runtime.process_mode",
-        "tests/handlers.test.ts::handleGameProcessMode"
+        "tests/handlers.test.ts::handleGameProcessMode",
+        "tests/e2e/runtime-system-tools.test.ts::game_process_mode changes how a node behaves while the tree is paused"
       ],
       "actions": {
         "*": {
           "tests": [
             "tests/godot/fixture/test_runner.gd::godot.runtime.process_mode",
-            "tests/handlers.test.ts::handleGameProcessMode"
+            "tests/handlers.test.ts::handleGameProcessMode",
+            "tests/e2e/runtime-system-tools.test.ts::game_process_mode changes how a node behaves while the tree is paused"
           ]
         }
       },
@@ -3101,16 +3383,21 @@
       }
     },
     "game_world_settings": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/handlers.test.ts::handleGameWorldSettings"
+        "tests/handlers.test.ts::handleGameWorldSettings",
+        "tests/e2e/runtime-system-tools.test.ts::game_world_settings applies gravity and gravity direction to the live physics space"
       ],
       "actions": {
         "get": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-system-tools.test.ts::game_world_settings applies gravity and gravity direction to the live physics space"
+          ]
         },
         "set": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-system-tools.test.ts::game_world_settings applies gravity and gravity direction to the live physics space"
+          ]
         }
       },
       "dimensions": {
@@ -3130,17 +3417,21 @@
       }
     },
     "game_csg": {
-      "level": "G-",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-3d-scene-tools.test.ts::game_csg creates every shape type",
         "tests/godot/fixture/test_runner.gd::godot.runtime.csg",
         "tests/handlers.test.ts::handleGameCsg"
       ],
       "actions": {
         "create": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-3d-scene-tools.test.ts::action: 'create'"
+          ]
         },
         "configure": {
           "tests": [
+            "tests/e2e/runtime-3d-scene-tools.test.ts::action: 'configure'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"configure\""
           ]
         }
@@ -3162,19 +3453,20 @@
       }
     },
     "game_multimesh": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-3d-scene-tools.test.ts::game_multimesh creates instances",
         "tests/runtime-protocol-contract.test.ts::'multimesh'"
       ],
       "actions": {
         "create": {
-          "untested": "baseline-audit"
+          "tests": ["tests/e2e/runtime-3d-scene-tools.test.ts::action: 'create'"]
         },
         "set_instance": {
-          "untested": "baseline-audit"
+          "tests": ["tests/e2e/runtime-3d-scene-tools.test.ts::action: 'set_instance'"]
         },
         "get_info": {
-          "untested": "baseline-audit"
+          "tests": ["tests/e2e/runtime-3d-scene-tools.test.ts::action: 'get_info'"]
         }
       },
       "dimensions": {
@@ -3194,13 +3486,15 @@
       }
     },
     "game_procedural_mesh": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-3d-scene-tools.test.ts::game_procedural_mesh builds a surface",
         "tests/runtime-protocol-contract.test.ts::'procedural_mesh'"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/runtime-3d-scene-tools.test.ts::game_procedural_mesh builds a surface",
             "tests/runtime-protocol-contract.test.ts::'procedural_mesh'"
           ]
         }
@@ -3222,17 +3516,18 @@
       }
     },
     "game_light_3d": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-3d-scene-tools.test.ts::game_light_3d creates each light type",
         "tests/handlers.test.ts::handleGameLight3d",
         "tests/tool-registry.test.ts::game_light_3d"
       ],
       "actions": {
         "create": {
-          "untested": "baseline-audit"
+          "tests": ["tests/e2e/runtime-3d-scene-tools.test.ts::action: 'create'"]
         },
         "configure": {
-          "untested": "baseline-audit"
+          "tests": ["tests/e2e/runtime-3d-scene-tools.test.ts::action: 'configure'"]
         }
       },
       "dimensions": {
@@ -3252,14 +3547,16 @@
       }
     },
     "game_mesh_instance": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-3d-tools.test.ts::game_mesh_instance",
         "tests/godot/fixture/test_runner.gd::godot.runtime.mesh_instance",
         "tests/handlers.test.ts::handleGameMeshInstance"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/runtime-3d-tools.test.ts::game_mesh_instance",
             "tests/godot/fixture/test_runner.gd::godot.runtime.mesh_instance",
             "tests/handlers.test.ts::handleGameMeshInstance"
           ]
@@ -3282,22 +3579,23 @@
       }
     },
     "game_gridmap": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-3d-scene-tools.test.ts::game_gridmap sets, reads, lists, and clears cells",
         "tests/runtime-protocol-contract.test.ts::'gridmap'"
       ],
       "actions": {
         "set_cell": {
-          "untested": "baseline-audit"
+          "tests": ["tests/e2e/runtime-3d-scene-tools.test.ts::action: 'set_cell'"]
         },
         "get_cell": {
-          "untested": "baseline-audit"
+          "tests": ["tests/e2e/runtime-3d-scene-tools.test.ts::action: 'get_cell'"]
         },
         "clear": {
-          "untested": "baseline-audit"
+          "tests": ["tests/e2e/runtime-3d-scene-tools.test.ts::action: 'clear'"]
         },
         "get_used": {
-          "untested": "baseline-audit"
+          "tests": ["tests/e2e/runtime-3d-scene-tools.test.ts::action: 'get_used'"]
         }
       },
       "dimensions": {
@@ -3317,13 +3615,15 @@
       }
     },
     "game_3d_effects": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-3d-scene-tools.test.ts::game_3d_effects creates decals",
         "tests/runtime-protocol-contract.test.ts::'3d_effects'"
       ],
       "actions": {
         "*": {
           "tests": [
+            "tests/e2e/runtime-3d-scene-tools.test.ts::game_3d_effects creates decals",
             "tests/runtime-protocol-contract.test.ts::'3d_effects'"
           ]
         }
@@ -3345,14 +3645,16 @@
       }
     },
     "game_gi": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/runtime-protocol-contract.test.ts::'gi'"
+        "tests/runtime-protocol-contract.test.ts::'gi'",
+        "tests/e2e/runtime-camera-rendering-tools.test.ts::game_gi creates each supported global illumination node"
       ],
       "actions": {
         "*": {
           "tests": [
-            "tests/runtime-protocol-contract.test.ts::'gi'"
+            "tests/runtime-protocol-contract.test.ts::'gi'",
+            "tests/e2e/runtime-camera-rendering-tools.test.ts::game_gi creates each supported global illumination node"
           ]
         }
       },
@@ -3373,26 +3675,33 @@
       }
     },
     "game_path_3d": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-3d-tools.test.ts::game_path_3d",
         "tests/godot/fixture/test_runner.gd::godot.runtime.path_3d"
       ],
       "actions": {
         "create": {
           "tests": [
+            "tests/e2e/runtime-3d-tools.test.ts::action: 'create'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"create\""
           ]
         },
         "add_point": {
           "tests": [
+            "tests/e2e/runtime-3d-tools.test.ts::action: 'add_point'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"add_point\""
           ]
         },
         "get_points": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-3d-tools.test.ts::action: 'get_points'"
+          ]
         },
         "set_points": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-3d-tools.test.ts::action: 'set_points'"
+          ]
         }
       },
       "dimensions": {
@@ -3412,13 +3721,16 @@
       }
     },
     "game_sky": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/handlers.test.ts::handleGameSky"
+        "tests/handlers.test.ts::handleGameSky",
+        "tests/e2e/runtime-camera-rendering-tools.test.ts::game_sky creates a procedural sky on the world environment"
       ],
       "actions": {
         "create": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-camera-rendering-tools.test.ts::game_sky creates a procedural sky on the world environment"
+          ]
         }
       },
       "dimensions": {
@@ -3438,16 +3750,21 @@
       }
     },
     "game_camera_attributes": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/runtime-protocol-contract.test.ts::'camera_attributes'"
+        "tests/runtime-protocol-contract.test.ts::'camera_attributes'",
+        "tests/e2e/runtime-camera-rendering-tools.test.ts::game_camera_attributes get/set round-trips depth of field and exposure"
       ],
       "actions": {
         "get": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-camera-rendering-tools.test.ts::game_camera_attributes get/set round-trips depth of field and exposure"
+          ]
         },
         "set": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-camera-rendering-tools.test.ts::game_camera_attributes get/set round-trips depth of field and exposure"
+          ]
         }
       },
       "dimensions": {
@@ -3467,18 +3784,22 @@
       }
     },
     "game_navigation_3d": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-physics-tools.test.ts::game_navigation_3d bakes geometry",
         "tests/godot/fixture/test_runner.gd::godot.runtime.navigation_3d"
       ],
       "actions": {
         "create": {
           "tests": [
+            "tests/e2e/runtime-physics-tools.test.ts::action: 'create'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"create\""
           ]
         },
         "bake": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-physics-tools.test.ts::action: 'bake'"
+          ]
         }
       },
       "dimensions": {
@@ -3498,16 +3819,18 @@
       }
     },
     "game_physics_3d": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-3d-scene-tools.test.ts::game_physics_3d ray hits a real collider",
+        "tests/e2e/runtime-3d-scene-tools.test.ts::game_physics_3d overlap reports bodies",
         "tests/handlers.test.ts::handleGamePhysics3d"
       ],
       "actions": {
         "ray": {
-          "untested": "baseline-audit"
+          "tests": ["tests/e2e/runtime-3d-scene-tools.test.ts::action: 'ray'"]
         },
         "overlap": {
-          "untested": "baseline-audit"
+          "tests": ["tests/e2e/runtime-3d-scene-tools.test.ts::action: 'overlap'"]
         }
       },
       "dimensions": {
@@ -3527,22 +3850,27 @@
       }
     },
     "game_canvas": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-2d-tools.test.ts::game_canvas and all game_canvas_draw actions",
         "tests/godot/fixture/test_runner.gd::godot.runtime.canvas",
         "tests/handlers.test.ts::handleGameCanvas"
       ],
       "actions": {
         "create_layer": {
           "tests": [
+            "tests/e2e/runtime-2d-tools.test.ts::action: 'create_layer'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"create_layer\""
           ]
         },
         "create_modulate": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-2d-tools.test.ts::action: 'create_modulate'"
+          ]
         },
         "configure": {
           "tests": [
+            "tests/e2e/runtime-2d-tools.test.ts::action: 'configure'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"configure\""
           ]
         }
@@ -3564,34 +3892,43 @@
       }
     },
     "game_canvas_draw": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-2d-tools.test.ts::all game_canvas_draw actions",
         "tests/godot/fixture/test_runner.gd::godot.runtime.canvas_draw"
       ],
       "actions": {
         "line": {
           "tests": [
+            "tests/e2e/runtime-2d-tools.test.ts::action: 'line'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"line\""
           ]
         },
         "rect": {
           "tests": [
+            "tests/e2e/runtime-2d-tools.test.ts::action: 'rect'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"rect\""
           ]
         },
         "circle": {
           "tests": [
+            "tests/e2e/runtime-2d-tools.test.ts::action: 'circle'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"circle\""
           ]
         },
         "polygon": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-2d-tools.test.ts::action: 'polygon'"
+          ]
         },
         "text": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-2d-tools.test.ts::action: 'text'"
+          ]
         },
         "clear": {
           "tests": [
+            "tests/e2e/runtime-2d-tools.test.ts::action: 'clear'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"clear\""
           ]
         }
@@ -3613,21 +3950,27 @@
       }
     },
     "game_light_2d": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-2d-tools.test.ts::game_light_2d and game_parallax",
         "tests/godot/fixture/test_runner.gd::godot.runtime.light_2d"
       ],
       "actions": {
         "create_point": {
           "tests": [
+            "tests/e2e/runtime-2d-tools.test.ts::action: 'create_point'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"create_point\""
           ]
         },
         "create_directional": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-2d-tools.test.ts::action: 'create_directional'"
+          ]
         },
         "create_occluder": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-2d-tools.test.ts::action: 'create_occluder'"
+          ]
         }
       },
       "dimensions": {
@@ -3647,23 +3990,28 @@
       }
     },
     "game_parallax": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-2d-tools.test.ts::game_light_2d and game_parallax",
         "tests/godot/fixture/test_runner.gd::godot.runtime.parallax"
       ],
       "actions": {
         "create_background": {
           "tests": [
+            "tests/e2e/runtime-2d-tools.test.ts::action: 'create_background'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"create_background\""
           ]
         },
         "add_layer": {
           "tests": [
+            "tests/e2e/runtime-2d-tools.test.ts::action: 'add_layer'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"add_layer\""
           ]
         },
         "configure": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-2d-tools.test.ts::action: 'configure'"
+          ]
         }
       },
       "dimensions": {
@@ -3683,24 +4031,31 @@
       }
     },
     "game_shape_2d": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-2d-tools.test.ts::game_shape_2d and game_path_2d",
         "tests/godot/fixture/test_runner.gd::godot.runtime.shape_2d"
       ],
       "actions": {
         "add_point": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-2d-tools.test.ts::action: 'add_point'"
+          ]
         },
         "set_points": {
           "tests": [
+            "tests/e2e/runtime-2d-tools.test.ts::action: 'set_points'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"set_points\""
           ]
         },
         "clear": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-2d-tools.test.ts::action: 'clear'"
+          ]
         },
         "get_points": {
           "tests": [
+            "tests/e2e/runtime-2d-tools.test.ts::action: 'get_points'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"get_points\""
           ]
         }
@@ -3722,23 +4077,28 @@
       }
     },
     "game_path_2d": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-2d-tools.test.ts::game_shape_2d and game_path_2d",
         "tests/godot/fixture/test_runner.gd::godot.runtime.path_2d"
       ],
       "actions": {
         "create": {
           "tests": [
+            "tests/e2e/runtime-2d-tools.test.ts::action: 'create'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"create\""
           ]
         },
         "add_point": {
           "tests": [
+            "tests/e2e/runtime-2d-tools.test.ts::action: 'add_point'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"add_point\""
           ]
         },
         "get_points": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-2d-tools.test.ts::action: 'get_points'"
+          ]
         }
       },
       "dimensions": {
@@ -3758,24 +4118,31 @@
       }
     },
     "game_physics_2d": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-physics-tools.test.ts::every game_physics_2d query",
         "tests/godot/fixture/test_runner.gd::godot.runtime.physics_2d"
       ],
       "actions": {
         "ray": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-physics-tools.test.ts::action: 'ray'"
+          ]
         },
         "overlap": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-physics-tools.test.ts::action: 'overlap'"
+          ]
         },
         "point_query": {
           "tests": [
+            "tests/e2e/runtime-physics-tools.test.ts::action: 'point_query'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"point_query\""
           ]
         },
         "shape_query": {
           "tests": [
+            "tests/e2e/runtime-physics-tools.test.ts::action: 'shape_query'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"shape_query\""
           ]
         }
@@ -3797,19 +4164,20 @@
       }
     },
     "game_animation_tree": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-audio-animation-tools.test.ts::travels an AnimationTree state machine",
         "tests/handlers.test.ts::handleGameAnimationTree"
       ],
       "actions": {
         "travel": {
-          "untested": "baseline-audit"
+          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'travel'"]
         },
         "set_param": {
-          "untested": "baseline-audit"
+          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'set_param'"]
         },
         "get_state": {
-          "untested": "baseline-audit"
+          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'get_state'"]
         }
       },
       "dimensions": {
@@ -3829,26 +4197,36 @@
       }
     },
     "game_animation_control": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-audio-animation-tools.test.ts::game_animation_control",
         "tests/godot/fixture/test_runner.gd::godot.runtime.animation_control",
         "tests/handlers.test.ts::handleGameAnimationControl"
       ],
       "actions": {
         "seek": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-audio-animation-tools.test.ts::action: 'seek'"
+          ]
         },
         "queue": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-audio-animation-tools.test.ts::action: 'queue'"
+          ]
         },
         "set_speed": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-audio-animation-tools.test.ts::action: 'set_speed'"
+          ]
         },
         "stop": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-audio-animation-tools.test.ts::action: 'stop'"
+          ]
         },
         "get_info": {
           "tests": [
+            "tests/e2e/runtime-audio-animation-tools.test.ts::action: 'get_info'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"get_info\""
           ]
         }
@@ -3870,19 +4248,20 @@
       }
     },
     "game_skeleton_ik": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-audio-animation-tools.test.ts::drives SkeletonIK3D lifecycle",
         "tests/runtime-protocol-contract.test.ts::'skeleton_ik'"
       ],
       "actions": {
         "start": {
-          "untested": "baseline-audit"
+          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'start'"]
         },
         "stop": {
-          "untested": "baseline-audit"
+          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'stop'"]
         },
         "set_target": {
-          "untested": "baseline-audit"
+          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'set_target'"]
         }
       },
       "dimensions": {
@@ -3902,22 +4281,23 @@
       }
     },
     "game_audio_effect": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-audio-animation-tools.test.ts::adds every supported audio effect",
         "tests/handlers.test.ts::handleGameAudioEffect"
       ],
       "actions": {
         "list": {
-          "untested": "baseline-audit"
+          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'list'"]
         },
         "add": {
-          "untested": "baseline-audit"
+          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'add'"]
         },
         "remove": {
-          "untested": "baseline-audit"
+          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'remove'"]
         },
         "configure": {
-          "untested": "baseline-audit"
+          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'configure'"]
         }
       },
       "dimensions": {
@@ -3937,25 +4317,38 @@
       }
     },
     "game_audio_bus_layout": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-audio-animation-tools.test.ts::game_audio_bus_layout",
         "tests/godot/fixture/test_runner.gd::godot.runtime.audio_bus_layout",
         "tests/handlers.test.ts::handleGameAudioBusLayout"
       ],
       "actions": {
         "list": {
           "tests": [
+            "tests/e2e/runtime-audio-animation-tools.test.ts::action: 'list'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"list\""
           ]
         },
         "add": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-audio-animation-tools.test.ts::action: 'add'"
+          ]
         },
         "remove": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-audio-animation-tools.test.ts::action: 'remove'"
+          ]
+        },
+        "move": {
+          "tests": [
+            "tests/e2e/runtime-audio-animation-tools.test.ts::action: 'move'"
+          ]
         },
         "set_send": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-audio-animation-tools.test.ts::action: 'set_send'"
+          ]
         }
       },
       "dimensions": {
@@ -3975,16 +4368,17 @@
       }
     },
     "game_audio_spatial": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-audio-animation-tools.test.ts::3D attenuation",
         "tests/runtime-protocol-contract.test.ts::'audio_spatial'"
       ],
       "actions": {
         "get_info": {
-          "untested": "baseline-audit"
+          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'get_info'"]
         },
         "configure": {
-          "untested": "baseline-audit"
+          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'configure'"]
         }
       },
       "dimensions": {
@@ -4004,14 +4398,19 @@
       }
     },
     "rename_file": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/tool-definitions.test.ts::'rename_file'"
+        "tests/tool-definitions.test.ts::'rename_file'",
+        "tests/e2e/project-config-tools.test.ts::write_file/read_file/rename_file/delete_file/create_directory round-trip on the real filesystem",
+        "tests/e2e/project-config-tools.test.ts::file tools reject traversal and absolute escapes without touching the filesystem",
+        "tests/e2e/project-config-tools.test.ts::exposes every configuration tool through MCP discovery"
       ],
       "actions": {
         "*": {
           "tests": [
-            "tests/tool-definitions.test.ts::'rename_file'"
+            "tests/tool-definitions.test.ts::'rename_file'",
+            "tests/e2e/project-config-tools.test.ts::write_file/read_file/rename_file/delete_file/create_directory round-trip on the real filesystem",
+            "tests/e2e/project-config-tools.test.ts::file tools reject traversal and absolute escapes without touching the filesystem"
           ]
         }
       },
@@ -4069,14 +4468,19 @@
       }
     },
     "validate_script": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/validate-script.test.ts::parseGodotScriptDiagnostics"
+        "tests/validate-script.test.ts::parseGodotScriptDiagnostics",
+        "tests/e2e/project-config-tools.test.ts::validate_script reports real Godot parse errors and rejects non-GDScript",
+        "tests/e2e/project-config-tools.test.ts::create_script builds source from options and Godot parses the result",
+        "tests/e2e/project-config-tools.test.ts::exposes every configuration tool through MCP discovery"
       ],
       "actions": {
         "*": {
           "tests": [
-            "tests/validate-script.test.ts::parseGodotScriptDiagnostics"
+            "tests/validate-script.test.ts::parseGodotScriptDiagnostics",
+            "tests/e2e/project-config-tools.test.ts::validate_script reports real Godot parse errors and rejects non-GDScript",
+            "tests/e2e/project-config-tools.test.ts::create_script builds source from options and Godot parses the result"
           ]
         }
       },
@@ -4097,16 +4501,19 @@
       }
     },
     "validate_scripts": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
         "tests/index.test.ts::validate_scripts",
-        "tests/tool-argument-validation.test.ts::validate_scripts"
+        "tests/tool-argument-validation.test.ts::validate_scripts",
+        "tests/e2e/project-config-tools.test.ts::validate_scripts covers explicit, all, and invalid scopes against real Godot",
+        "tests/e2e/project-config-tools.test.ts::exposes every configuration tool through MCP discovery"
       ],
       "actions": {
         "*": {
           "tests": [
             "tests/index.test.ts::validate_scripts",
-            "tests/tool-argument-validation.test.ts::validate_scripts"
+            "tests/tool-argument-validation.test.ts::validate_scripts",
+            "tests/e2e/project-config-tools.test.ts::validate_scripts covers explicit, all, and invalid scopes against real Godot"
           ]
         }
       },
@@ -4127,14 +4534,17 @@
       }
     },
     "create_script": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/index.test.ts::create_script"
+        "tests/index.test.ts::create_script",
+        "tests/e2e/project-config-tools.test.ts::create_script builds source from options and Godot parses the result",
+        "tests/e2e/project-config-tools.test.ts::exposes every configuration tool through MCP discovery"
       ],
       "actions": {
         "*": {
           "tests": [
-            "tests/index.test.ts::create_script"
+            "tests/index.test.ts::create_script",
+            "tests/e2e/project-config-tools.test.ts::create_script builds source from options and Godot parses the result"
           ]
         }
       },
@@ -4198,16 +4608,22 @@
       }
     },
     "manage_layers": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/index.test.ts::manage_layers"
+        "tests/index.test.ts::manage_layers",
+        "tests/e2e/project-config-tools.test.ts::manage_layers set/list is verified through the engine layer names",
+        "tests/e2e/project-config-tools.test.ts::exposes every configuration tool through MCP discovery"
       ],
       "actions": {
         "list": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/project-config-tools.test.ts::manage_layers set/list is verified through the engine layer names"
+          ]
         },
         "set": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/project-config-tools.test.ts::manage_layers set/list is verified through the engine layer names"
+          ]
         }
       },
       "dimensions": {
@@ -4227,19 +4643,27 @@
       }
     },
     "manage_plugins": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/index.test.ts::manage_plugins"
+        "tests/index.test.ts::manage_plugins",
+        "tests/e2e/project-config-tools.test.ts::manage_plugins list/enable/disable round-trips through project.godot",
+        "tests/e2e/project-config-tools.test.ts::exposes every configuration tool through MCP discovery"
       ],
       "actions": {
         "list": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/project-config-tools.test.ts::manage_plugins list/enable/disable round-trips through project.godot"
+          ]
         },
         "enable": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/project-config-tools.test.ts::manage_plugins list/enable/disable round-trips through project.godot"
+          ]
         },
         "disable": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/project-config-tools.test.ts::manage_plugins list/enable/disable round-trips through project.godot"
+          ]
         }
       },
       "dimensions": {
@@ -4259,16 +4683,22 @@
       }
     },
     "manage_shader": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/tool-definitions.test.ts::'manage_shader'"
+        "tests/tool-definitions.test.ts::'manage_shader'",
+        "tests/e2e/project-config-tools.test.ts::manage_shader create/read produces a shader the engine compiles",
+        "tests/e2e/project-config-tools.test.ts::exposes every configuration tool through MCP discovery"
       ],
       "actions": {
         "read": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/project-config-tools.test.ts::manage_shader create/read produces a shader the engine compiles"
+          ]
         },
         "create": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/project-config-tools.test.ts::manage_shader create/read produces a shader the engine compiles"
+          ]
         }
       },
       "dimensions": {
@@ -4331,14 +4761,17 @@
       }
     },
     "set_main_scene": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/tool-definitions.test.ts::'set_main_scene'"
+        "tests/tool-definitions.test.ts::'set_main_scene'",
+        "tests/e2e/project-config-tools.test.ts::set_main_scene changes which scene the engine actually boots",
+        "tests/e2e/project-config-tools.test.ts::exposes every configuration tool through MCP discovery"
       ],
       "actions": {
         "*": {
           "tests": [
-            "tests/tool-definitions.test.ts::'set_main_scene'"
+            "tests/tool-definitions.test.ts::'set_main_scene'",
+            "tests/e2e/project-config-tools.test.ts::set_main_scene changes which scene the engine actually boots"
           ]
         }
       },
@@ -4402,19 +4835,27 @@
       }
     },
     "manage_translations": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/index.test.ts::manage_translations"
+        "tests/index.test.ts::manage_translations",
+        "tests/e2e/project-config-tools.test.ts::manage_translations add/list/remove is verified through the engine locale list",
+        "tests/e2e/project-config-tools.test.ts::exposes every configuration tool through MCP discovery"
       ],
       "actions": {
         "list": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/project-config-tools.test.ts::manage_translations add/list/remove is verified through the engine locale list"
+          ]
         },
         "add": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/project-config-tools.test.ts::manage_translations add/list/remove is verified through the engine locale list"
+          ]
         },
         "remove": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/project-config-tools.test.ts::manage_translations add/list/remove is verified through the engine locale list"
+          ]
         }
       },
       "dimensions": {
@@ -4434,20 +4875,27 @@
       }
     },
     "game_locale": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
         "tests/godot/fixture/test_runner.gd::godot.runtime.locale",
-        "tests/handlers.test.ts::handleGameLocale"
+        "tests/handlers.test.ts::handleGameLocale",
+        "tests/e2e/runtime-system-tools.test.ts::game_locale get/set/translate drives the TranslationServer"
       ],
       "actions": {
         "get": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-system-tools.test.ts::game_locale get/set/translate drives the TranslationServer"
+          ]
         },
         "set": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-system-tools.test.ts::game_locale get/set/translate drives the TranslationServer"
+          ]
         },
         "translate": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-system-tools.test.ts::game_locale get/set/translate drives the TranslationServer"
+          ]
         }
       },
       "dimensions": {
@@ -4467,25 +4915,32 @@
       }
     },
     "game_ui_control": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-ui-tools.test.ts::game_ui_control",
         "tests/godot/fixture/test_runner.gd::godot.runtime.ui_control",
         "tests/handlers.test.ts::handleGameUiControl"
       ],
       "actions": {
         "grab_focus": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-ui-tools.test.ts::action: 'grab_focus'"
+          ]
         },
         "release_focus": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-ui-tools.test.ts::action: 'release_focus'"
+          ]
         },
         "configure": {
           "tests": [
+            "tests/e2e/runtime-ui-tools.test.ts::action: 'configure'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"configure\""
           ]
         },
         "get_info": {
           "tests": [
+            "tests/e2e/runtime-ui-tools.test.ts::action: 'get_info'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"get_info\""
           ]
         }
@@ -4507,28 +4962,38 @@
       }
     },
     "game_ui_text": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-ui-tools.test.ts::game_ui_text",
         "tests/godot/fixture/test_runner.gd::godot.runtime.ui_text",
         "tests/handlers.test.ts::handleGameUiText"
       ],
       "actions": {
         "get": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-ui-tools.test.ts::action: 'get'"
+          ]
         },
         "set": {
           "tests": [
+            "tests/e2e/runtime-ui-tools.test.ts::action: 'set'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"set\""
           ]
         },
         "append": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-ui-tools.test.ts::action: 'append'"
+          ]
         },
         "clear": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-ui-tools.test.ts::action: 'clear'"
+          ]
         },
         "bbcode": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-ui-tools.test.ts::action: 'bbcode'"
+          ]
         }
       },
       "dimensions": {
@@ -4548,22 +5013,31 @@
       }
     },
     "game_ui_popup": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-ui-tools.test.ts::game_ui_popup",
         "tests/handlers.test.ts::handleGameUiPopup"
       ],
       "actions": {
         "popup_centered": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-ui-tools.test.ts::action: 'popup_centered'"
+          ]
         },
         "popup": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-ui-tools.test.ts::action: 'popup'"
+          ]
         },
         "hide": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-ui-tools.test.ts::action: 'hide'"
+          ]
         },
         "get_info": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-ui-tools.test.ts::action: 'get_info'"
+          ]
         }
       },
       "dimensions": {
@@ -4583,16 +5057,41 @@
       }
     },
     "game_ui_tree": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-ui-tools.test.ts::game_ui_tree",
         "tests/runtime-protocol-contract.test.ts::'ui_tree'"
       ],
       "actions": {
         "get_items": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-ui-tools.test.ts::action: 'get_items'"
+          ]
         },
         "add": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-ui-tools.test.ts::action: 'add'"
+          ]
+        },
+        "select": {
+          "tests": [
+            "tests/e2e/runtime-ui-tools.test.ts::action: 'select'"
+          ]
+        },
+        "collapse": {
+          "tests": [
+            "tests/e2e/runtime-ui-tools.test.ts::action: 'collapse'"
+          ]
+        },
+        "expand": {
+          "tests": [
+            "tests/e2e/runtime-ui-tools.test.ts::action: 'expand'"
+          ]
+        },
+        "remove": {
+          "tests": [
+            "tests/e2e/runtime-ui-tools.test.ts::action: 'remove'"
+          ]
         }
       },
       "dimensions": {
@@ -4612,29 +5111,38 @@
       }
     },
     "game_ui_item_list": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-ui-tools.test.ts::game_ui_item_list",
         "tests/godot/fixture/test_runner.gd::godot.runtime.ui_item_list"
       ],
       "actions": {
         "get_items": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-ui-tools.test.ts::action: 'get_items'"
+          ]
         },
         "select": {
           "tests": [
+            "tests/e2e/runtime-ui-tools.test.ts::action: 'select'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"select\""
           ]
         },
         "add": {
           "tests": [
+            "tests/e2e/runtime-ui-tools.test.ts::action: 'add'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"add\""
           ]
         },
         "remove": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-ui-tools.test.ts::action: 'remove'"
+          ]
         },
         "clear": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-ui-tools.test.ts::action: 'clear'"
+          ]
         }
       },
       "dimensions": {
@@ -4654,19 +5162,26 @@
       }
     },
     "game_ui_tabs": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-ui-tools.test.ts::game_ui_tabs",
         "tests/runtime-protocol-contract.test.ts::'ui_tabs'"
       ],
       "actions": {
         "get_tabs": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-ui-tools.test.ts::action: 'get_tabs'"
+          ]
         },
         "set_current": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-ui-tools.test.ts::action: 'set_current'"
+          ]
         },
         "set_title": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-ui-tools.test.ts::action: 'set_title'"
+          ]
         }
       },
       "dimensions": {
@@ -4686,25 +5201,36 @@
       }
     },
     "game_ui_menu": {
-      "level": "G-",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-ui-tools.test.ts::game_ui_menu",
         "tests/godot/fixture/test_runner.gd::godot.runtime.ui_menu"
       ],
       "actions": {
         "get_items": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-ui-tools.test.ts::action: 'get_items'"
+          ]
         },
         "add": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-ui-tools.test.ts::action: 'add'"
+          ]
         },
         "remove": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-ui-tools.test.ts::action: 'remove'"
+          ]
         },
         "set_checked": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-ui-tools.test.ts::action: 'set_checked'"
+          ]
         },
         "clear": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-ui-tools.test.ts::action: 'clear'"
+          ]
         }
       },
       "dimensions": {
@@ -4724,17 +5250,21 @@
       }
     },
     "game_ui_range": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-ui-tools.test.ts::game_ui_range",
         "tests/godot/fixture/test_runner.gd::godot.runtime.ui_range",
         "tests/handlers.test.ts::handleGameUiRange"
       ],
       "actions": {
         "get": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-ui-tools.test.ts::action: 'get'"
+          ]
         },
         "set": {
           "tests": [
+            "tests/e2e/runtime-ui-tools.test.ts::action: 'set'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"set\""
           ]
         }
@@ -4756,16 +5286,21 @@
       }
     },
     "game_render_settings": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/handlers.test.ts::handleGameRenderSettings"
+        "tests/handlers.test.ts::handleGameRenderSettings",
+        "tests/e2e/runtime-camera-rendering-tools.test.ts::game_render_settings get/set drives the real viewport"
       ],
       "actions": {
         "get": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-camera-rendering-tools.test.ts::game_render_settings get/set drives the real viewport"
+          ]
         },
         "set": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-camera-rendering-tools.test.ts::game_render_settings get/set drives the real viewport"
+          ]
         }
       },
       "dimensions": {
@@ -4785,20 +5320,31 @@
       }
     },
     "game_resource": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-resource-tools.test.ts::game_resource",
         "tests/godot/fixture/test_runner.gd::godot.runtime.resource",
         "tests/handlers.test.ts::handleGameResource"
       ],
       "actions": {
         "load": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-resource-tools.test.ts::action: 'load'"
+          ]
+        },
+        "preload": {
+          "tests": [
+            "tests/e2e/runtime-resource-tools.test.ts::action: 'preload'"
+          ]
         },
         "save": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-resource-tools.test.ts::action: 'save'"
+          ]
         },
         "exists": {
           "tests": [
+            "tests/e2e/runtime-resource-tools.test.ts::action: 'exists'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"exists\""
           ]
         }
@@ -4809,43 +5355,56 @@
         "failures": "applicable",
         "repeatability": "applicable",
         "cleanup": "applicable",
-        "persistence": "n/a: effect lives in the running game process, not in saved project files",
+        "persistence": "applicable",
         "frame-behavior": "applicable",
         "exotic-paths": "applicable",
         "limits": "applicable",
         "compatibility": "applicable",
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
-        "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+        "security": "applicable"
       }
     },
     "game_visual_shader": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-rendering-tools.test.ts::game_visual_shader covers graph edits",
         "tests/godot/fixture/test_runner.gd::godot.runtime.visual_shader",
         "tests/handlers.test.ts::handleGameVisualShader"
       ],
       "actions": {
+        "create": {
+          "tests": [
+            "tests/e2e/runtime-rendering-tools.test.ts::action: 'create'",
+            "tests/godot/fixture/test_runner.gd::\"action\": \"create\""
+          ]
+        },
         "add_node": {
           "tests": [
+            "tests/e2e/runtime-rendering-tools.test.ts::action: 'add_node'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"add_node\""
           ]
         },
         "connect": {
           "tests": [
+            "tests/e2e/runtime-rendering-tools.test.ts::action: 'connect'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"connect\""
           ]
         },
         "disconnect": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-rendering-tools.test.ts::action: 'disconnect'"
+          ]
         },
         "get_nodes": {
           "tests": [
+            "tests/e2e/runtime-rendering-tools.test.ts::action: 'get_nodes'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"get_nodes\""
           ]
         },
         "apply": {
           "tests": [
+            "tests/e2e/runtime-rendering-tools.test.ts::action: 'apply'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"apply\""
           ]
         }
@@ -4867,22 +5426,34 @@
       }
     },
     "game_terrain": {
-      "level": "G+",
+      "level": "E2E",
       "tests": [
+        "tests/e2e/runtime-3d-tools.test.ts::game_terrain",
         "tests/godot/fixture/test_runner.gd::godot.runtime.terrain",
         "tests/handlers.test.ts::handleGameTerrain"
       ],
       "actions": {
+        "create": {
+          "tests": [
+            "tests/e2e/runtime-3d-tools.test.ts::action: 'create'",
+            "tests/godot/fixture/test_runner.gd::\"action\": \"create\""
+          ]
+        },
         "get_height": {
           "tests": [
+            "tests/e2e/runtime-3d-tools.test.ts::action: 'get_height'",
             "tests/godot/fixture/test_runner.gd::\"action\": \"get_height\""
           ]
         },
         "modify": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-3d-tools.test.ts::action: 'modify'"
+          ]
         },
         "paint": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-3d-tools.test.ts::action: 'paint'"
+          ]
         }
       },
       "dimensions": {
@@ -4902,31 +5473,46 @@
       }
     },
     "game_video": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
-        "tests/handlers.test.ts::handleGameVideo"
+        "tests/handlers.test.ts::handleGameVideo",
+        "tests/e2e/runtime-camera-rendering-tools.test.ts::game_video drives a real Theora stream through every action"
       ],
       "actions": {
         "create": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-camera-rendering-tools.test.ts::game_video drives a real Theora stream through every action"
+          ]
         },
         "play": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-camera-rendering-tools.test.ts::game_video drives a real Theora stream through every action"
+          ]
         },
         "pause": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-camera-rendering-tools.test.ts::game_video drives a real Theora stream through every action"
+          ]
         },
         "resume": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-camera-rendering-tools.test.ts::game_video drives a real Theora stream through every action"
+          ]
         },
         "stop": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-camera-rendering-tools.test.ts::game_video drives a real Theora stream through every action"
+          ]
         },
         "seek": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-camera-rendering-tools.test.ts::game_video drives a real Theora stream through every action"
+          ]
         },
         "get_status": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/runtime-camera-rendering-tools.test.ts::game_video drives a real Theora stream through every action"
+          ]
         }
       },
       "dimensions": {
@@ -4946,18 +5532,23 @@
       }
     },
     "manage_ci_pipeline": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
         "tests/handler-modules.test.ts::handleManageCiPipeline",
         "tests/handlers.test.ts::handleManageCiPipeline",
-        "tests/tool-argument-validation.test.ts::manage_ci_pipeline"
+        "tests/tool-argument-validation.test.ts::manage_ci_pipeline",
+        "tests/e2e/project-delivery-tools.test.ts::manage_ci_pipeline and manage_docker_export create and read validated automation artifacts"
       ],
       "actions": {
         "create": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/project-delivery-tools.test.ts::manage_ci_pipeline and manage_docker_export create and read validated automation artifacts"
+          ]
         },
         "read": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/project-delivery-tools.test.ts::manage_ci_pipeline and manage_docker_export create and read validated automation artifacts"
+          ]
         }
       },
       "dimensions": {
@@ -4977,18 +5568,23 @@
       }
     },
     "manage_docker_export": {
-      "level": "T",
+      "level": "E2E",
       "tests": [
         "tests/handler-modules.test.ts::handleManageDockerExport",
         "tests/handlers.test.ts::handleManageDockerExport",
-        "tests/tool-argument-validation.test.ts::manage_docker_export"
+        "tests/tool-argument-validation.test.ts::manage_docker_export",
+        "tests/e2e/project-delivery-tools.test.ts::manage_ci_pipeline and manage_docker_export create and read validated automation artifacts"
       ],
       "actions": {
         "create": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/project-delivery-tools.test.ts::manage_ci_pipeline and manage_docker_export create and read validated automation artifacts"
+          ]
         },
         "read": {
-          "untested": "baseline-audit"
+          "tests": [
+            "tests/e2e/project-delivery-tools.test.ts::manage_ci_pipeline and manage_docker_export create and read validated automation artifacts"
+          ]
         }
       },
       "dimensions": {

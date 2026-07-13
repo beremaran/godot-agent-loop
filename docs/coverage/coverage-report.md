@@ -13,23 +13,23 @@ when this file is stale, and the inventory behind it is validated by
 | Runtime commands | 108 | `src/runtime-protocol.ts` = `docs/runtime-api.schema.json` |
 | Privileged runtime commands | 8 | `src/runtime-protocol.ts` |
 | Headless operations | 16 | `src/scripts/godot_operations.gd` |
-| Public action rows | 303 | `src/tool-manifest.ts` |
+| Public action rows | 312 | `src/tool-manifest.ts` |
 
 ## Coverage by class
 
 | Class | Tools | Meaning |
 | --- | ---: | --- |
-| E2E | 23 | Complete MCP-to-Godot path with independent observation |
+| E2E | 157 | Complete MCP-to-Godot path with independent observation |
 | H | 0 | Headless GDScript operation exercised directly against Godot |
-| G+ | 45 | Runtime command reaches real Godot with at least one successful behavior |
-| G- | 14 | Runtime command reaches real Godot on a negative path only |
-| T | 75 | TypeScript, source-contract, schema, or mocked-transport coverage only |
+| G+ | 0 | Runtime command reaches real Godot with at least one successful behavior |
+| G- | 0 | Runtime command reaches real Godot on a negative path only |
+| T | 0 | TypeScript, source-contract, schema, or mocked-transport coverage only |
 | **Total** | **157** | |
 
 ## Action coverage
 
-146 of 303 action rows declare at least one resolving test
-reference; 157 are explicitly recorded as untested.
+312 of 312 action rows declare at least one resolving test
+reference; 0 are explicitly recorded as untested.
 
 ## Test suites by declared kind
 
@@ -42,7 +42,7 @@ engine, never a mocked transport.
 | unit | `tests/dotnet.test.ts`, `tests/game-connection.test.ts`, `tests/godot-process-manager.test.ts`, `tests/handler-modules.test.ts`, `tests/handlers.test.ts`, `tests/headless-operation-runner.test.ts`, `tests/headless-operation-service.test.ts`, `tests/index.test.ts`, `tests/interaction-server-installer.test.ts`, `tests/project-support.test.ts`, `tests/tool-argument-validation.test.ts`, `tests/tool-registry.test.ts`, `tests/utils.test.ts`, `tests/validate-script.test.ts` |
 | contract | `tests/runtime-protocol-contract.test.ts`, `tests/source-guardrails.test.ts`, `tests/test-metadata.test.ts`, `tests/tool-coverage.test.ts`, `tests/tool-definitions.test.ts`, `tests/tool-manifest.test.ts`, `tests/variant-codec-corpus.test.ts` |
 | integration | `tests/godot/run-headless-operations.sh`, `tests/godot/run-integration-tests.sh`, `tests/godot/run-typecheck.sh` |
-| e2e | `tests/e2e/headless-tools.test.ts`, `tests/e2e/lifecycle-tools.test.ts`, `tests/e2e/observers.test.ts`, `tests/e2e/representative-path.test.ts` |
+| e2e | `tests/e2e/headless-tools.test.ts`, `tests/e2e/lifecycle-tools.test.ts`, `tests/e2e/observers.test.ts`, `tests/e2e/project-config-tools.test.ts`, `tests/e2e/project-delivery-tools.test.ts`, `tests/e2e/representative-path.test.ts`, `tests/e2e/runtime-2d-tools.test.ts`, `tests/e2e/runtime-3d-scene-tools.test.ts`, `tests/e2e/runtime-3d-tools.test.ts`, `tests/e2e/runtime-audio-animation-tools.test.ts`, `tests/e2e/runtime-camera-rendering-tools.test.ts`, `tests/e2e/runtime-core-tools.test.ts`, `tests/e2e/runtime-input-tools.test.ts`, `tests/e2e/runtime-networking-tools.test.ts`, `tests/e2e/runtime-physics-tools.test.ts`, `tests/e2e/runtime-query-tools.test.ts`, `tests/e2e/runtime-remote-io-tools.test.ts`, `tests/e2e/runtime-rendering-tools.test.ts`, `tests/e2e/runtime-resource-tools.test.ts`, `tests/e2e/runtime-system-tools.test.ts`, `tests/e2e/runtime-ui-tools.test.ts` |
 
 ## Per-tool rollup
 
@@ -62,146 +62,146 @@ engine, never a mocked transport.
 | `save_scene` | headless `save_scene` | no | E2E | 1/1 |
 | `get_uid` | headless `get_uid` | no | E2E | 1/1 |
 | `update_project_uids` | headless `resave_resources` | no | E2E | 1/1 |
-| `game_screenshot` | runtime `screenshot` | no | T | 1/1 |
-| `game_click` | runtime `click` | no | G+ | 1/1 |
-| `game_key_press` | runtime `key_press` | no | G- | 1/1 |
-| `game_mouse_move` | runtime `mouse_move` | no | T | 1/1 |
-| `game_get_ui` | runtime `get_ui_elements` | no | T | 1/1 |
-| `game_get_scene_tree` | runtime `get_scene_tree` | no | G+ | 1/1 |
-| `game_eval` | runtime `eval` | yes | G+ | 1/1 |
-| `game_get_property` | runtime `get_property` | yes | G+ | 1/1 |
-| `game_set_property` | runtime `set_property` | yes | G- | 1/1 |
-| `game_call_method` | runtime `call_method` | yes | G- | 1/1 |
-| `game_get_node_info` | runtime `get_node_info` | no | T | 1/1 |
-| `game_instantiate_scene` | runtime `instantiate_scene` | no | G- | 1/1 |
-| `game_remove_node` | runtime `remove_node` | no | T | 1/1 |
-| `game_change_scene` | runtime `change_scene` | no | G- | 1/1 |
-| `game_pause` | runtime `pause` | no | T | 1/1 |
-| `game_performance` | runtime `get_performance` | no | T | 1/1 |
-| `game_wait` | runtime `wait` | no | G+ | 1/1 |
+| `game_screenshot` | runtime `screenshot` | no | E2E | 1/1 |
+| `game_click` | runtime `click` | no | E2E | 1/1 |
+| `game_key_press` | runtime `key_press` | no | E2E | 1/1 |
+| `game_mouse_move` | runtime `mouse_move` | no | E2E | 1/1 |
+| `game_get_ui` | runtime `get_ui_elements` | no | E2E | 1/1 |
+| `game_get_scene_tree` | runtime `get_scene_tree` | no | E2E | 1/1 |
+| `game_eval` | runtime `eval` | yes | E2E | 1/1 |
+| `game_get_property` | runtime `get_property` | yes | E2E | 1/1 |
+| `game_set_property` | runtime `set_property` | yes | E2E | 1/1 |
+| `game_call_method` | runtime `call_method` | yes | E2E | 1/1 |
+| `game_get_node_info` | runtime `get_node_info` | no | E2E | 1/1 |
+| `game_instantiate_scene` | runtime `instantiate_scene` | no | E2E | 1/1 |
+| `game_remove_node` | runtime `remove_node` | no | E2E | 1/1 |
+| `game_change_scene` | runtime `change_scene` | no | E2E | 1/1 |
+| `game_pause` | runtime `pause` | no | E2E | 1/1 |
+| `game_performance` | runtime `get_performance` | no | E2E | 1/1 |
+| `game_wait` | runtime `wait` | no | E2E | 1/1 |
 | `read_scene` | headless `read_scene` | no | E2E | 1/1 |
 | `modify_scene_node` | headless `modify_node` | no | E2E | 1/1 |
 | `remove_scene_node` | headless `remove_node` | no | E2E | 1/1 |
-| `read_project_settings` | local | no | T | 1/1 |
-| `modify_project_settings` | local | no | T | 1/1 |
-| `list_project_files` | local | no | T | 1/1 |
-| `game_connect_signal` | runtime `connect_signal` | no | G+ | 1/1 |
-| `game_disconnect_signal` | runtime `disconnect_signal` | no | G+ | 1/1 |
-| `game_emit_signal` | runtime `emit_signal` | no | G+ | 1/1 |
-| `game_play_animation` | runtime `play_animation` | no | T | 0/4 |
-| `game_tween_property` | runtime `tween_property` | no | T | 1/1 |
-| `game_get_nodes_in_group` | runtime `get_nodes_in_group` | no | T | 1/1 |
-| `game_find_nodes_by_class` | runtime `find_nodes_by_class` | no | T | 1/1 |
-| `game_reparent_node` | runtime `reparent_node` | no | T | 1/1 |
+| `read_project_settings` | local | no | E2E | 1/1 |
+| `modify_project_settings` | local | no | E2E | 1/1 |
+| `list_project_files` | local | no | E2E | 1/1 |
+| `game_connect_signal` | runtime `connect_signal` | no | E2E | 1/1 |
+| `game_disconnect_signal` | runtime `disconnect_signal` | no | E2E | 1/1 |
+| `game_emit_signal` | runtime `emit_signal` | no | E2E | 1/1 |
+| `game_play_animation` | runtime `play_animation` | no | E2E | 4/4 |
+| `game_tween_property` | runtime `tween_property` | no | E2E | 1/1 |
+| `game_get_nodes_in_group` | runtime `get_nodes_in_group` | no | E2E | 1/1 |
+| `game_find_nodes_by_class` | runtime `find_nodes_by_class` | no | E2E | 1/1 |
+| `game_reparent_node` | runtime `reparent_node` | no | E2E | 1/1 |
 | `attach_script` | headless `attach_script` | no | E2E | 1/1 |
 | `create_resource` | headless `create_resource` | no | E2E | 1/1 |
-| `read_file` | local | no | T | 1/1 |
-| `write_file` | local | no | T | 1/1 |
-| `delete_file` | local | no | T | 1/1 |
-| `create_directory` | local | no | T | 1/1 |
-| `game_get_errors` | runtime-buffer | no | T | 1/1 |
-| `game_get_logs` | runtime-buffer | no | T | 1/1 |
-| `game_key_hold` | runtime `key_hold` | no | G+ | 1/1 |
-| `game_key_release` | runtime `key_release` | no | G+ | 1/1 |
-| `game_scroll` | runtime `scroll` | no | G- | 1/1 |
-| `game_mouse_drag` | runtime `mouse_drag` | no | G+ | 1/1 |
-| `game_gamepad` | runtime `gamepad` | no | T | 1/1 |
-| `create_project` | local | no | T | 1/1 |
-| `create_csharp_script` | local | no | T | 1/1 |
-| `manage_autoloads` | local | no | T | 0/3 |
-| `manage_input_map` | local | no | T | 0/3 |
-| `manage_export_presets` | local | no | T | 0/3 |
-| `game_get_camera` | runtime `get_camera` | no | T | 1/1 |
-| `game_set_camera` | runtime `set_camera` | no | T | 1/1 |
-| `game_raycast` | runtime `raycast` | no | G+ | 1/1 |
-| `game_get_audio` | runtime `get_audio` | no | T | 1/1 |
-| `game_spawn_node` | runtime `spawn_node` | no | T | 1/1 |
-| `game_set_shader_param` | runtime `set_shader_param` | no | T | 1/1 |
-| `game_audio_play` | runtime `audio_play` | no | T | 0/4 |
-| `game_audio_bus` | runtime `audio_bus` | no | T | 1/1 |
-| `game_navigate_path` | runtime `navigate_path` | no | G+ | 1/1 |
-| `game_tilemap` | runtime `tilemap` | no | G+ | 2/4 |
-| `game_add_collision` | runtime `add_collision` | no | G+ | 1/1 |
-| `game_environment` | runtime `environment` | no | G+ | 2/2 |
-| `game_manage_group` | runtime `manage_group` | no | T | 0/3 |
-| `game_create_timer` | runtime `create_timer` | no | T | 1/1 |
-| `game_set_particles` | runtime `set_particles` | no | T | 1/1 |
-| `game_create_animation` | runtime `create_animation` | no | T | 1/1 |
-| `export_project` | godot-cli | no | T | 1/1 |
-| `game_serialize_state` | runtime `serialize_state` | no | T | 0/2 |
-| `game_physics_body` | runtime `physics_body` | no | G+ | 1/1 |
-| `game_create_joint` | runtime `create_joint` | no | G+ | 1/1 |
-| `game_bone_pose` | runtime `bone_pose` | no | T | 0/3 |
-| `game_ui_theme` | runtime `ui_theme` | no | G+ | 1/1 |
-| `game_viewport` | runtime `viewport` | no | T | 0/3 |
-| `game_debug_draw` | runtime `debug_draw` | no | G+ | 2/4 |
-| `game_http_request` | runtime `http_request` | yes | G- | 1/1 |
-| `game_websocket` | runtime `websocket` | yes | G+ | 1/4 |
-| `game_multiplayer` | runtime `multiplayer` | no | G+ | 2/4 |
-| `game_rpc` | runtime `rpc` | yes | G- | 0/2 |
-| `game_touch` | runtime `touch` | no | G- | 0/3 |
-| `game_input_state` | runtime `input_state` | no | G+ | 1/3 |
-| `game_input_action` | runtime `input_action` | no | G+ | 3/4 |
-| `game_list_signals` | runtime `list_signals` | no | G+ | 1/1 |
-| `game_await_signal` | runtime `await_signal` | no | G- | 1/1 |
-| `game_script` | runtime `script` | yes | G- | 0/3 |
-| `game_window` | runtime `window` | no | T | 0/2 |
-| `game_os_info` | runtime `os_info` | no | G+ | 1/1 |
-| `game_time_scale` | runtime `time_scale` | no | T | 0/2 |
-| `game_process_mode` | runtime `process_mode` | no | G- | 1/1 |
-| `game_world_settings` | runtime `world_settings` | no | T | 0/2 |
-| `game_csg` | runtime `csg` | no | G- | 1/2 |
-| `game_multimesh` | runtime `multimesh` | no | T | 0/3 |
-| `game_procedural_mesh` | runtime `procedural_mesh` | no | T | 1/1 |
-| `game_light_3d` | runtime `light_3d` | no | T | 0/2 |
-| `game_mesh_instance` | runtime `mesh_instance` | no | G+ | 1/1 |
-| `game_gridmap` | runtime `gridmap` | no | T | 0/4 |
-| `game_3d_effects` | runtime `3d_effects` | no | T | 1/1 |
-| `game_gi` | runtime `gi` | no | T | 1/1 |
-| `game_path_3d` | runtime `path_3d` | no | G+ | 2/4 |
-| `game_sky` | runtime `sky` | no | T | 0/1 |
-| `game_camera_attributes` | runtime `camera_attributes` | no | T | 0/2 |
-| `game_navigation_3d` | runtime `navigation_3d` | no | G+ | 1/2 |
-| `game_physics_3d` | runtime `physics_3d` | no | T | 0/2 |
-| `game_canvas` | runtime `canvas` | no | G+ | 2/3 |
-| `game_canvas_draw` | runtime `canvas_draw` | no | G+ | 4/6 |
-| `game_light_2d` | runtime `light_2d` | no | G+ | 1/3 |
-| `game_parallax` | runtime `parallax` | no | G+ | 2/3 |
-| `game_shape_2d` | runtime `shape_2d` | no | G+ | 2/4 |
-| `game_path_2d` | runtime `path_2d` | no | G+ | 2/3 |
-| `game_physics_2d` | runtime `physics_2d` | no | G+ | 2/4 |
-| `game_animation_tree` | runtime `animation_tree` | no | T | 0/3 |
-| `game_animation_control` | runtime `animation_control` | no | G+ | 1/5 |
-| `game_skeleton_ik` | runtime `skeleton_ik` | no | T | 0/3 |
-| `game_audio_effect` | runtime `audio_effect` | no | T | 0/4 |
-| `game_audio_bus_layout` | runtime `audio_bus_layout` | no | G+ | 1/4 |
-| `game_audio_spatial` | runtime `audio_spatial` | no | T | 0/2 |
-| `rename_file` | local | no | T | 1/1 |
+| `read_file` | local | no | E2E | 1/1 |
+| `write_file` | local | no | E2E | 1/1 |
+| `delete_file` | local | no | E2E | 1/1 |
+| `create_directory` | local | no | E2E | 1/1 |
+| `game_get_errors` | runtime-buffer | no | E2E | 1/1 |
+| `game_get_logs` | runtime-buffer | no | E2E | 1/1 |
+| `game_key_hold` | runtime `key_hold` | no | E2E | 1/1 |
+| `game_key_release` | runtime `key_release` | no | E2E | 1/1 |
+| `game_scroll` | runtime `scroll` | no | E2E | 1/1 |
+| `game_mouse_drag` | runtime `mouse_drag` | no | E2E | 1/1 |
+| `game_gamepad` | runtime `gamepad` | no | E2E | 1/1 |
+| `create_project` | local | no | E2E | 1/1 |
+| `create_csharp_script` | local | no | E2E | 1/1 |
+| `manage_autoloads` | local | no | E2E | 3/3 |
+| `manage_input_map` | local | no | E2E | 3/3 |
+| `manage_export_presets` | local | no | E2E | 3/3 |
+| `game_get_camera` | runtime `get_camera` | no | E2E | 1/1 |
+| `game_set_camera` | runtime `set_camera` | no | E2E | 1/1 |
+| `game_raycast` | runtime `raycast` | no | E2E | 1/1 |
+| `game_get_audio` | runtime `get_audio` | no | E2E | 1/1 |
+| `game_spawn_node` | runtime `spawn_node` | no | E2E | 1/1 |
+| `game_set_shader_param` | runtime `set_shader_param` | no | E2E | 1/1 |
+| `game_audio_play` | runtime `audio_play` | no | E2E | 4/4 |
+| `game_audio_bus` | runtime `audio_bus` | no | E2E | 1/1 |
+| `game_navigate_path` | runtime `navigate_path` | no | E2E | 1/1 |
+| `game_tilemap` | runtime `tilemap` | no | E2E | 4/4 |
+| `game_add_collision` | runtime `add_collision` | no | E2E | 1/1 |
+| `game_environment` | runtime `environment` | no | E2E | 2/2 |
+| `game_manage_group` | runtime `manage_group` | no | E2E | 3/3 |
+| `game_create_timer` | runtime `create_timer` | no | E2E | 1/1 |
+| `game_set_particles` | runtime `set_particles` | no | E2E | 1/1 |
+| `game_create_animation` | runtime `create_animation` | no | E2E | 1/1 |
+| `export_project` | godot-cli | no | E2E | 1/1 |
+| `game_serialize_state` | runtime `serialize_state` | no | E2E | 2/2 |
+| `game_physics_body` | runtime `physics_body` | no | E2E | 1/1 |
+| `game_create_joint` | runtime `create_joint` | no | E2E | 1/1 |
+| `game_bone_pose` | runtime `bone_pose` | no | E2E | 3/3 |
+| `game_ui_theme` | runtime `ui_theme` | no | E2E | 1/1 |
+| `game_viewport` | runtime `viewport` | no | E2E | 3/3 |
+| `game_debug_draw` | runtime `debug_draw` | no | E2E | 4/4 |
+| `game_http_request` | runtime `http_request` | yes | E2E | 1/1 |
+| `game_websocket` | runtime `websocket` | yes | E2E | 5/5 |
+| `game_multiplayer` | runtime `multiplayer` | no | E2E | 4/4 |
+| `game_rpc` | runtime `rpc` | yes | E2E | 2/2 |
+| `game_touch` | runtime `touch` | no | E2E | 3/3 |
+| `game_input_state` | runtime `input_state` | no | E2E | 3/3 |
+| `game_input_action` | runtime `input_action` | no | E2E | 4/4 |
+| `game_list_signals` | runtime `list_signals` | no | E2E | 1/1 |
+| `game_await_signal` | runtime `await_signal` | no | E2E | 1/1 |
+| `game_script` | runtime `script` | yes | E2E | 3/3 |
+| `game_window` | runtime `window` | no | E2E | 2/2 |
+| `game_os_info` | runtime `os_info` | no | E2E | 1/1 |
+| `game_time_scale` | runtime `time_scale` | no | E2E | 2/2 |
+| `game_process_mode` | runtime `process_mode` | no | E2E | 1/1 |
+| `game_world_settings` | runtime `world_settings` | no | E2E | 2/2 |
+| `game_csg` | runtime `csg` | no | E2E | 2/2 |
+| `game_multimesh` | runtime `multimesh` | no | E2E | 3/3 |
+| `game_procedural_mesh` | runtime `procedural_mesh` | no | E2E | 1/1 |
+| `game_light_3d` | runtime `light_3d` | no | E2E | 2/2 |
+| `game_mesh_instance` | runtime `mesh_instance` | no | E2E | 1/1 |
+| `game_gridmap` | runtime `gridmap` | no | E2E | 4/4 |
+| `game_3d_effects` | runtime `3d_effects` | no | E2E | 1/1 |
+| `game_gi` | runtime `gi` | no | E2E | 1/1 |
+| `game_path_3d` | runtime `path_3d` | no | E2E | 4/4 |
+| `game_sky` | runtime `sky` | no | E2E | 1/1 |
+| `game_camera_attributes` | runtime `camera_attributes` | no | E2E | 2/2 |
+| `game_navigation_3d` | runtime `navigation_3d` | no | E2E | 2/2 |
+| `game_physics_3d` | runtime `physics_3d` | no | E2E | 2/2 |
+| `game_canvas` | runtime `canvas` | no | E2E | 3/3 |
+| `game_canvas_draw` | runtime `canvas_draw` | no | E2E | 6/6 |
+| `game_light_2d` | runtime `light_2d` | no | E2E | 3/3 |
+| `game_parallax` | runtime `parallax` | no | E2E | 3/3 |
+| `game_shape_2d` | runtime `shape_2d` | no | E2E | 4/4 |
+| `game_path_2d` | runtime `path_2d` | no | E2E | 3/3 |
+| `game_physics_2d` | runtime `physics_2d` | no | E2E | 4/4 |
+| `game_animation_tree` | runtime `animation_tree` | no | E2E | 3/3 |
+| `game_animation_control` | runtime `animation_control` | no | E2E | 5/5 |
+| `game_skeleton_ik` | runtime `skeleton_ik` | no | E2E | 3/3 |
+| `game_audio_effect` | runtime `audio_effect` | no | E2E | 4/4 |
+| `game_audio_bus_layout` | runtime `audio_bus_layout` | no | E2E | 5/5 |
+| `game_audio_spatial` | runtime `audio_spatial` | no | E2E | 2/2 |
+| `rename_file` | local | no | E2E | 1/1 |
 | `manage_resource` | headless `manage_resource` | no | E2E | 2/2 |
-| `validate_script` | godot-cli | no | T | 1/1 |
-| `validate_scripts` | godot-cli | no | T | 1/1 |
-| `create_script` | local | no | T | 1/1 |
+| `validate_script` | godot-cli | no | E2E | 1/1 |
+| `validate_scripts` | godot-cli | no | E2E | 1/1 |
+| `create_script` | local | no | E2E | 1/1 |
 | `manage_scene_signals` | headless `manage_scene_signals` | no | E2E | 3/3 |
-| `manage_layers` | local | no | T | 0/2 |
-| `manage_plugins` | local | no | T | 0/3 |
-| `manage_shader` | local | no | T | 0/2 |
+| `manage_layers` | local | no | E2E | 2/2 |
+| `manage_plugins` | local | no | E2E | 3/3 |
+| `manage_shader` | local | no | E2E | 2/2 |
 | `manage_theme_resource` | headless `manage_theme_resource` | no | E2E | 3/3 |
-| `set_main_scene` | local | no | T | 1/1 |
+| `set_main_scene` | local | no | E2E | 1/1 |
 | `manage_scene_structure` | headless `manage_scene_structure` | no | E2E | 3/3 |
-| `manage_translations` | local | no | T | 0/3 |
-| `game_locale` | runtime `locale` | no | T | 0/3 |
-| `game_ui_control` | runtime `ui_control` | no | G+ | 2/4 |
-| `game_ui_text` | runtime `ui_text` | no | G+ | 1/5 |
-| `game_ui_popup` | runtime `ui_popup` | no | T | 0/4 |
-| `game_ui_tree` | runtime `ui_tree` | no | T | 0/2 |
-| `game_ui_item_list` | runtime `ui_item_list` | no | G+ | 2/5 |
-| `game_ui_tabs` | runtime `ui_tabs` | no | T | 0/3 |
-| `game_ui_menu` | runtime `ui_menu` | no | G- | 0/5 |
-| `game_ui_range` | runtime `ui_range` | no | G+ | 1/2 |
-| `game_render_settings` | runtime `render_settings` | no | T | 0/2 |
-| `game_resource` | runtime `resource` | no | G+ | 1/3 |
-| `game_visual_shader` | runtime `visual_shader` | no | G+ | 4/5 |
-| `game_terrain` | runtime `terrain` | no | G+ | 1/3 |
-| `game_video` | runtime `video` | no | T | 0/7 |
-| `manage_ci_pipeline` | local | no | T | 0/2 |
-| `manage_docker_export` | local | no | T | 0/2 |
+| `manage_translations` | local | no | E2E | 3/3 |
+| `game_locale` | runtime `locale` | no | E2E | 3/3 |
+| `game_ui_control` | runtime `ui_control` | no | E2E | 4/4 |
+| `game_ui_text` | runtime `ui_text` | no | E2E | 5/5 |
+| `game_ui_popup` | runtime `ui_popup` | no | E2E | 4/4 |
+| `game_ui_tree` | runtime `ui_tree` | no | E2E | 6/6 |
+| `game_ui_item_list` | runtime `ui_item_list` | no | E2E | 5/5 |
+| `game_ui_tabs` | runtime `ui_tabs` | no | E2E | 3/3 |
+| `game_ui_menu` | runtime `ui_menu` | no | E2E | 5/5 |
+| `game_ui_range` | runtime `ui_range` | no | E2E | 2/2 |
+| `game_render_settings` | runtime `render_settings` | no | E2E | 2/2 |
+| `game_resource` | runtime `resource` | no | E2E | 4/4 |
+| `game_visual_shader` | runtime `visual_shader` | no | E2E | 6/6 |
+| `game_terrain` | runtime `terrain` | no | E2E | 4/4 |
+| `game_video` | runtime `video` | no | E2E | 7/7 |
+| `manage_ci_pipeline` | local | no | E2E | 2/2 |
+| `manage_docker_export` | local | no | E2E | 2/2 |

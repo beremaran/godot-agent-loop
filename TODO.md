@@ -1,5 +1,11 @@
 # Godot MCP Verification and Capability Audit
 
+Current inventory status: all 157 advertised tools are covered through the full
+MCP-to-Godot path, and all 312 public action rows resolve to E2E tests. The
+remaining unchecked items below are broader depth, compatibility, environment,
+workflow, and release-governance work; historical counts are retained as the
+audited baseline that motivated this plan.
+
 ## Technical summary
 
 Godot MCP has a substantial real-engine integration suite, but it cannot yet
@@ -186,25 +192,25 @@ and verify save/reload invariants independently.
 
 ### Project settings, files, scripts, and editor configuration
 
-- [ ] **T** `read_project_settings`
-- [ ] **T** `modify_project_settings`
-- [ ] **T** `list_project_files`
-- [ ] **T** `read_file`
-- [ ] **T** `write_file`
-- [ ] **T** `delete_file`
-- [ ] **T** `create_directory`
-- [ ] **T** `rename_file`
-- [ ] **T** `validate_script`
-- [ ] **T** `validate_scripts`
-- [ ] **T** `create_script`
-- [ ] **T** `manage_autoloads`
-- [ ] **T** `manage_input_map`
-- [ ] **T** `manage_export_presets`
-- [ ] **T** `manage_layers`
-- [ ] **T** `manage_plugins`
-- [ ] **T** `manage_shader`
-- [ ] **T** `set_main_scene`
-- [ ] **T** `manage_translations`
+- [x] **E2E** `read_project_settings`
+- [x] **E2E** `modify_project_settings`
+- [x] **E2E** `list_project_files`
+- [x] **E2E** `read_file`
+- [x] **E2E** `write_file`
+- [x] **E2E** `delete_file`
+- [x] **E2E** `create_directory`
+- [x] **E2E** `rename_file`
+- [x] **E2E** `validate_script`
+- [x] **E2E** `validate_scripts`
+- [x] **E2E** `create_script`
+- [x] **E2E** `manage_autoloads`
+- [x] **E2E** `manage_input_map`
+- [x] **E2E** `manage_export_presets`
+- [x] **E2E** `manage_layers`
+- [x] **E2E** `manage_plugins`
+- [x] **E2E** `manage_shader`
+- [x] **E2E** `set_main_scene`
+- [x] **E2E** `manage_translations`
 
 Required E2E additions: validate resulting configuration by reopening it through
 Godot, test import-triggering file changes, UID/reference preservation, encoding
@@ -212,13 +218,27 @@ and line endings, symlink and traversal rejection, read-only files, atomic
 writes, plugin lifecycle, autoload order, real shader compilation, and
 translation loading.
 
+Reopening the configuration through Godot (rather than re-reading the handler's
+own output) exposed two settings that the engine never resolved, each of which
+the tool's own `list` action reported as present:
+
+- `manage_layers` wrote `layer_names/<type>/layer_<n>` *inside* the
+  `[layer_names]` section, so the engine saw
+  `layer_names/layer_names/<type>/layer_<n>`.
+- `manage_translations` wrote a bare `translations=` key, but the engine reads
+  `internationalization/locale/translations`.
+
+Both are fixed, both are regression-tested against a live engine in
+`tests/e2e/project-config-tools.test.ts`, and both still list projects written by
+the older format so existing projects are repaired on the next write.
+
 ### Project creation, .NET, export, and delivery automation
 
-- [ ] **T** `create_project`
-- [ ] **T** `create_csharp_script`
-- [ ] **T** `export_project`
-- [ ] **T** `manage_ci_pipeline`
-- [ ] **T** `manage_docker_export`
+- [x] **E2E** `create_project`
+- [x] **E2E** `create_csharp_script`
+- [x] **E2E** `export_project`
+- [x] **E2E** `manage_ci_pipeline`
+- [x] **E2E** `manage_docker_export`
 
 Required E2E additions: create both GDScript and .NET projects, import and run
 them, compile generated C# with the matching Godot.NET.Sdk, validate diagnostics,
@@ -228,36 +248,36 @@ files.
 
 ### Runtime inspection, mutation, state, and lifecycle
 
-- [ ] **T** `game_screenshot`
-- [ ] **T** `game_get_ui`
-- [ ] **G+** `game_get_scene_tree`
-- [ ] **G+** `game_eval`
-- [ ] **G+** `game_get_property`
-- [ ] **G-** `game_set_property`
-- [ ] **G-** `game_call_method`
-- [ ] **T** `game_get_node_info`
-- [ ] **G-** `game_instantiate_scene`
-- [ ] **T** `game_remove_node`
-- [ ] **G-** `game_change_scene`
-- [ ] **T** `game_pause`
-- [ ] **T** `game_performance`
-- [ ] **G+** `game_wait`
-- [ ] **T** `game_get_nodes_in_group`
-- [ ] **T** `game_find_nodes_by_class`
-- [ ] **T** `game_reparent_node`
-- [ ] **T** `game_get_errors`
-- [ ] **T** `game_get_logs`
-- [ ] **T** `game_spawn_node`
-- [ ] **T** `game_manage_group`
-- [ ] **T** `game_create_timer`
-- [ ] **T** `game_serialize_state`
-- [ ] **G-** `game_script`
-- [ ] **T** `game_time_scale`
-- [ ] **G-** `game_process_mode`
-- [ ] **T** `game_world_settings`
-- [ ] **G+** `game_os_info`
-- [ ] **T** `game_window`
-- [ ] **T** `game_locale`
+- [x] **E2E** `game_screenshot`
+- [x] **E2E** `game_get_ui`
+- [x] **E2E** `game_get_scene_tree`
+- [x] **E2E** `game_eval`
+- [x] **E2E** `game_get_property`
+- [x] **E2E** `game_set_property`
+- [x] **E2E** `game_call_method`
+- [x] **E2E** `game_get_node_info`
+- [x] **E2E** `game_instantiate_scene`
+- [x] **E2E** `game_remove_node`
+- [x] **E2E** `game_change_scene`
+- [x] **E2E** `game_pause`
+- [x] **E2E** `game_performance`
+- [x] **E2E** `game_wait`
+- [x] **E2E** `game_get_nodes_in_group`
+- [x] **E2E** `game_find_nodes_by_class`
+- [x] **E2E** `game_reparent_node`
+- [x] **E2E** `game_get_errors`
+- [x] **E2E** `game_get_logs`
+- [x] **E2E** `game_spawn_node`
+- [x] **E2E** `game_manage_group`
+- [x] **E2E** `game_create_timer`
+- [x] **E2E** `game_serialize_state`
+- [x] **E2E** `game_script`
+- [x] **E2E** `game_time_scale`
+- [x] **E2E** `game_process_mode`
+- [x] **E2E** `game_world_settings`
+- [x] **E2E** `game_os_info`
+- [x] **E2E** `game_window`
+- [x] **E2E** `game_locale`
 
 Required E2E additions: successful privileged mutations, typed values across the
 codec corpus, absolute and scene-relative paths, scene transitions, freed-node
@@ -265,24 +285,38 @@ races, pause/time-scale behavior, log/error cursors, state save/load fidelity,
 window/display limitations in headless mode, and screenshots checked by decoded
 dimensions plus deterministic pixel fixtures.
 
+Driving these tools over the real path (`tests/e2e/runtime-core-tools.test.ts`,
+`tests/e2e/runtime-system-tools.test.ts`) exposed two further defects that the
+runtime fixture's negative-only coverage had hidden:
+
+- `run_project` launched the game with `-d`, Godot's *local stdout debugger*. Any
+  script error — including a `game_script` attach whose source does not compile —
+  broke into an interactive `debug>` prompt, froze the main loop, and made every
+  later runtime command time out. The flag is gone; a compile error now returns a
+  structured error and the game keeps serving requests, which is asserted directly.
+- `game_world_settings` accepted a `gravityDirection` that the runtime never read,
+  and wrote gravity only to `ProjectSettings`, which does not retune the running
+  physics space. Both are now applied to the live space and proven by observing a
+  `RigidBody3D` accelerate along the requested axis.
+
 ### Signals and input
 
-- [ ] **G+** `game_connect_signal`
-- [ ] **G+** `game_disconnect_signal`
-- [ ] **G+** `game_emit_signal`
-- [ ] **G+** `game_list_signals`
-- [ ] **G-** `game_await_signal`
-- [ ] **G+** `game_click`
-- [ ] **G-** `game_key_press`
-- [ ] **T** `game_mouse_move`
-- [ ] **G+** `game_key_hold`
-- [ ] **G+** `game_key_release`
-- [ ] **G-** `game_scroll`
-- [ ] **G+** `game_mouse_drag`
-- [ ] **T** `game_gamepad`
-- [ ] **G-** `game_touch`
-- [ ] **G+** `game_input_state`
-- [ ] **G+** `game_input_action`
+- [x] **E2E** `game_connect_signal`
+- [x] **E2E** `game_disconnect_signal`
+- [x] **E2E** `game_emit_signal`
+- [x] **E2E** `game_list_signals`
+- [x] **E2E** `game_await_signal`
+- [x] **E2E** `game_click`
+- [x] **E2E** `game_key_press`
+- [x] **E2E** `game_mouse_move`
+- [x] **E2E** `game_key_hold`
+- [x] **E2E** `game_key_release`
+- [x] **E2E** `game_scroll`
+- [x] **E2E** `game_mouse_drag`
+- [x] **E2E** `game_gamepad`
+- [x] **E2E** `game_touch`
+- [x] **E2E** `game_input_state`
+- [x] **E2E** `game_input_action`
 
 Required E2E additions: successful await with arguments, one-shot and duplicate
 connections, bound callables, node deletion while awaiting, physical key versus
@@ -292,19 +326,19 @@ release of all injected state on timeout, disconnect, stop, and crash.
 
 ### Camera, rendering, shaders, environment, and video
 
-- [ ] **T** `game_get_camera`
-- [ ] **T** `game_set_camera`
-- [ ] **T** `game_set_shader_param`
-- [ ] **G+** `game_environment`
-- [ ] **T** `game_set_particles`
-- [ ] **T** `game_viewport`
-- [ ] **G+** `game_debug_draw`
-- [ ] **T** `game_render_settings`
-- [ ] **G+** `game_visual_shader`
-- [ ] **T** `game_video`
-- [ ] **T** `game_sky`
-- [ ] **T** `game_gi`
-- [ ] **T** `game_camera_attributes`
+- [x] **E2E** `game_get_camera`
+- [x] **E2E** `game_set_camera`
+- [x] **E2E** `game_set_shader_param`
+- [x] **E2E** `game_environment`
+- [x] **E2E** `game_set_particles`
+- [x] **E2E** `game_viewport`
+- [x] **E2E** `game_debug_draw`
+- [x] **E2E** `game_render_settings`
+- [x] **E2E** `game_visual_shader`
+- [x] **E2E** `game_video`
+- [x] **E2E** `game_sky`
+- [x] **E2E** `game_gi`
+- [x] **E2E** `game_camera_attributes`
 
 Required E2E additions: Compatibility and Forward+ renderers, headless limitations,
 2D/3D active-camera selection, shader type conversion and compile failures,
@@ -312,16 +346,31 @@ material ownership, viewport textures, render-setting readback, deterministic
 image comparisons with tolerances, particle lifecycle, supported video codecs,
 and GI features that may be unavailable on CI hardware.
 
+`tests/e2e/runtime-camera-rendering-tools.test.ts` drives a real Theora clip
+(a small `.ogv` embedded in the harness, so CI needs no codec tooling) and
+uncovered three more advertised-but-dead parameters:
+
+- `game_gi` accepted `reflection_probe` through validation but had no branch for
+  it in the runtime, so the type could only ever fail. It now builds a real
+  `ReflectionProbe`.
+- `game_camera_attributes` dropped `exposureMultiplier` and `autoExposureScale`,
+  and its `get` returned only `has_attributes` — so no client could confirm a
+  `set`. It now applies and reports every field.
+- `game_set_particles` forwarded `processMaterial` through camelCase
+  normalization while the runtime read snake_case, making `initialVelocityMin`,
+  `initialVelocityMax`, `scaleMin`, and `scaleMax` unreachable under any
+  spelling. The handler now translates them.
+
 ### Physics, navigation, and collision
 
-- [ ] **G+** `game_raycast`
-- [ ] **G+** `game_navigate_path`
-- [ ] **G+** `game_add_collision`
-- [ ] **G+** `game_physics_body`
-- [ ] **G+** `game_create_joint`
-- [ ] **G+** `game_navigation_3d`
-- [ ] **G+** `game_physics_2d`
-- [ ] **T** `game_physics_3d`
+- [x] **E2E** `game_raycast`
+- [x] **E2E** `game_navigate_path`
+- [x] **E2E** `game_add_collision`
+- [x] **E2E** `game_physics_body`
+- [x] **E2E** `game_create_joint`
+- [x] **E2E** `game_navigation_3d`
+- [x] **E2E** `game_physics_2d`
+- [x] **E2E** `game_physics_3d`
 
 Required E2E additions: positive hit/query cases rather than only empty-space
 misses, collision layers/masks and exclusions, every supported shape/joint type,
@@ -330,13 +379,13 @@ region baking, unreachable targets, 2D/3D parity, and resource cleanup.
 
 ### 2D scene systems
 
-- [ ] **G+** `game_tilemap`
-- [ ] **G+** `game_canvas`
-- [ ] **G+** `game_canvas_draw`
-- [ ] **G+** `game_light_2d`
-- [ ] **G+** `game_parallax`
-- [ ] **G+** `game_shape_2d`
-- [ ] **G+** `game_path_2d`
+- [x] **E2E** `game_tilemap`
+- [x] **E2E** `game_canvas`
+- [x] **E2E** `game_canvas_draw`
+- [x] **E2E** `game_light_2d`
+- [x] **E2E** `game_parallax`
+- [x] **E2E** `game_shape_2d`
+- [x] **E2E** `game_path_2d`
 
 Required E2E additions: every public action, TileMapLayer source/atlas/alternative
 coordinates, terrain connections, texture-backed lights, occluders, polygon and
@@ -345,15 +394,15 @@ and cleanup after server removal.
 
 ### 3D scene systems
 
-- [ ] **G-** `game_csg`
-- [ ] **T** `game_multimesh`
-- [ ] **T** `game_procedural_mesh`
-- [ ] **T** `game_light_3d`
-- [ ] **G+** `game_mesh_instance`
-- [ ] **T** `game_gridmap`
-- [ ] **T** `game_3d_effects`
-- [ ] **G+** `game_path_3d`
-- [ ] **G+** `game_terrain`
+- [x] **E2E** `game_csg`
+- [x] **E2E** `game_multimesh`
+- [x] **E2E** `game_procedural_mesh`
+- [x] **E2E** `game_light_3d`
+- [x] **E2E** `game_mesh_instance`
+- [x] **E2E** `game_gridmap`
+- [x] **E2E** `game_3d_effects`
+- [x] **E2E** `game_path_3d`
+- [x] **E2E** `game_terrain`
 
 Required E2E additions: successful CSG operations, all primitive types, mesh
 surface validation, normals/UVs/indices, MultiMesh transforms/colors/custom data,
@@ -363,13 +412,13 @@ level independent assertions.
 
 ### Animation, skeletons, and tweening
 
-- [ ] **T** `game_play_animation`
-- [ ] **T** `game_tween_property`
-- [ ] **T** `game_create_animation`
-- [ ] **T** `game_bone_pose`
-- [ ] **T** `game_animation_tree`
-- [ ] **G+** `game_animation_control`
-- [ ] **T** `game_skeleton_ik`
+- [x] **E2E** `game_play_animation`
+- [x] **E2E** `game_tween_property`
+- [x] **E2E** `game_create_animation`
+- [x] **E2E** `game_bone_pose`
+- [x] **E2E** `game_animation_tree`
+- [x] **E2E** `game_animation_control`
+- [x] **E2E** `game_skeleton_ik`
 
 Required E2E additions: create/play/seek/queue/stop flows, each track type,
 keyframe interpolation, AnimationTree parameters and state transitions, tween
@@ -378,12 +427,12 @@ advancement, and invalid animation/resource cases.
 
 ### Audio
 
-- [ ] **T** `game_get_audio`
-- [ ] **T** `game_audio_play`
-- [ ] **T** `game_audio_bus`
-- [ ] **T** `game_audio_effect`
-- [ ] **G+** `game_audio_bus_layout`
-- [ ] **T** `game_audio_spatial`
+- [x] **E2E** `game_get_audio`
+- [x] **E2E** `game_audio_play`
+- [x] **E2E** `game_audio_bus`
+- [x] **E2E** `game_audio_effect`
+- [x] **E2E** `game_audio_bus_layout`
+- [x] **E2E** `game_audio_spatial`
 
 Required E2E additions: real imported audio fixtures, playback state across
 frames, stream completion, bus add/remove/reorder/send, every supported effect
@@ -393,15 +442,15 @@ audible output in CI.
 
 ### UI controls and themes
 
-- [ ] **G+** `game_ui_theme`
-- [ ] **G+** `game_ui_control`
-- [ ] **G+** `game_ui_text`
-- [ ] **T** `game_ui_popup`
-- [ ] **T** `game_ui_tree`
-- [ ] **G+** `game_ui_item_list`
-- [ ] **T** `game_ui_tabs`
-- [ ] **G-** `game_ui_menu`
-- [ ] **G+** `game_ui_range`
+- [x] **E2E** `game_ui_theme`
+- [x] **E2E** `game_ui_control`
+- [x] **E2E** `game_ui_text`
+- [x] **E2E** `game_ui_popup`
+- [x] **E2E** `game_ui_tree`
+- [x] **E2E** `game_ui_item_list`
+- [x] **E2E** `game_ui_tabs`
+- [x] **E2E** `game_ui_menu`
+- [x] **E2E** `game_ui_range`
 
 Required E2E additions: each supported Control subclass and action, anchors and
 offsets, focus traversal, mouse filters, text selection/editing, RichTextLabel
@@ -411,7 +460,7 @@ or layout assertions at multiple viewport sizes.
 
 ### Runtime resources
 
-- [ ] **G+** `game_resource`
+- [x] **E2E** `game_resource`
 
 Required E2E additions: load/preload/save actions, cache behavior, typed resource
 round trips, subresources, binary and text formats, missing/corrupt resources,
@@ -419,10 +468,10 @@ external-reference preservation, and safe project-bound paths.
 
 ### Networking and remote I/O
 
-- [ ] **G-** `game_http_request`
-- [ ] **G+** `game_websocket`
-- [ ] **G+** `game_multiplayer`
-- [ ] **G-** `game_rpc`
+- [x] **E2E** `game_http_request`
+- [x] **E2E** `game_websocket`
+- [x] **E2E** `game_multiplayer`
+- [x] **E2E** `game_rpc`
 
 Required E2E additions: local deterministic HTTP and WebSocket fixtures, request
 methods/headers/bodies/status/errors/timeouts, WebSocket connect/send/receive/
@@ -583,9 +632,9 @@ ObjectDB leak.
   (`tests/e2e/headless-tools.test.ts`: every action, defaults, structured and
   resource-typed properties, failure classes, exotic paths, repeatability, and
   independent reload verification; the focused shell suite still runs.)
-- [ ] Convert all 45 `G+` tools to E2E and expand them to every public action.
-- [ ] Add successful engine behavior for all 14 `G-` tools, then convert to E2E.
-- [ ] Add direct engine behavior and E2E coverage for all 82 `T` tools.
+- [x] Convert all 45 `G+` tools to E2E and expand them to every public action.
+- [x] Add successful engine behavior for all 14 `G-` tools, then convert to E2E.
+- [x] Add direct engine behavior and E2E coverage for all 82 `T` tools.
 - [ ] Cover every declared parameter family and required failure class.
 - [ ] Add persistent-effect and cleanup assertions appropriate to each tool.
 - [ ] Run the completed suite on Godot 4.4 and 4.7.
