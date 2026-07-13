@@ -612,6 +612,7 @@ branch would receive critical fixes rather than new features.
 | Linux exports | Release/debug template export and smoke-run verification | Godot 4.4 and 4.7 installed templates; other targets are not claimed |
 | Rendering and screenshots | Headless limitations plus virtual-display pixel verification | Compatibility and Forward+ on Linux software rendering |
 | Windows and macOS | Portable acceptance verified | Godot 4.7 process, Unicode path, runtime input, window query, and teardown workflows |
+| Windows/macOS editor UI, rendering, and exports | Not claimed | Verified on Linux only; Windows/macOS support is bounded to the portable acceptance suite |
 | Editor state and undo/redo bridge | Verified in MCP E2E | Headless editor bridge is authenticated and uses `EditorInterface` plus `EditorUndoRedoManager` |
 | Full debugger control | Not claimed | Breakpoints, stack inspection, and frame-local evaluation remain outside the supported boundary |
 | Profiler, leak, asset, localization, and accessibility audits | Verified in MCP E2E | `game_performance` and `analyze_project_integrity` return bounded live/static evidence; native extension builds remain unsupported |
