@@ -1069,6 +1069,84 @@ rather than engine startup; the project tree it worked in contains only the game
 and a human watching the addon dock can say what the agent did and why without
 reading a log.
 
+### Phase 7: make the surface usable by an agent
+
+Every phase so far measured whether *tools work*. None measured whether an *agent
+can use them*, and the audit's own conservatism makes the omission conspicuous: in
+1,100 lines of plan, the agent is the subject of exactly one sentence, in Phase
+6's exit criteria. "An agent can build games with this" is the only claim in the
+repository with no evidence behind it.
+
+Three measured facts define the gap:
+
+- The server sends **no MCP `instructions`**. An agent receives a toolbox and no
+  method. Phase 4 built compound workflows (`verify_project`, `run_project_tests`)
+  precisely so agents would not hand-compose fragile call sequences, and then
+  nothing tells the agent they exist.
+- The tool list is **166 tools, 92,928 bytes, roughly 23,000 tokens**, sent before
+  the agent reads a word of the user's request. That is a selection problem as much
+  as a budget one: `game_light_2d`, `game_light_3d`, `game_environment`, `game_sky`,
+  and `game_gi` are near-neighbors an agent must discriminate from schema text
+  alone, and there are 166 of them.
+- Nothing anywhere **composes** the tools. Coverage proves each call reaches the
+  engine; no test proves a sequence of them produces a game.
+
+The user-facing goal this phase serves: *install the MCP server, point an agent at
+a project, build a game.* Note that this needs no Godot AssetLib step — the runtime
+reaches the game through a generated `override.cfg` and the observation dock is
+installed by `EditorPluginInstaller`, so the user installs nothing inside Godot.
+
+#### 7a: ship a method, not just tools
+
+- [ ] Populate the MCP `instructions` field: the author -> run -> observe -> assert
+  loop, when to reach for a compound tool instead of composing primitives, the
+  privileged-command policy and how to enable it, and the fact that runtime
+  injection and cleanup are automatic.
+- [ ] Keep `instructions` short enough to earn its place in every context window;
+  anything procedural and long belongs in 7c, not here.
+
+#### 7b: progressive disclosure of the tool surface
+
+- [ ] Establish the token cost of the tool list as a tracked denominator, in the
+  same spirit as the coverage denominators, and add a budget gate that fails when
+  it regresses. The audit's discipline is that unmeasured things drift.
+- [ ] Cut the default surface an agent sees. Candidates, cheapest first: tighten
+  descriptions and schemas; group tools by domain and expose a core set plus an
+  explicit expansion tool; move reference detail out of schemas and into MCP
+  **resources** the agent fetches on demand.
+- [ ] Verify what MCP clients actually support before designing around it —
+  dynamic tool lists (`notifications/tools/list_changed`) and resource support vary
+  by client, and a disclosure scheme that only works in one client is not shippable.
+
+#### 7c: skills, so the agent lands on its feet
+
+- [ ] Ship the server as a plugin bundling **skills** alongside the MCP config, so
+  procedural knowledge travels with the tools instead of living in a README the
+  agent never reads.
+- [ ] Author the skills the end goal actually needs: building a game from nothing,
+  verifying a change against the running game, and debugging a game that misbehaves.
+  Each should name the tools it uses and the order to use them in.
+- [ ] Confirm the plugin/skill packaging mechanism against current Claude Code
+  documentation rather than assumption; treat the bundling format as unverified
+  until checked.
+
+#### 7d: prove it, or it is not true
+
+- [ ] Build the golden acceptance test: from a cold start, an agent builds a small
+  but real playable game through the MCP server alone — scene, script, input,
+  win/lose state — and the harness independently asserts it runs, responds to
+  injected input, and renders the expected result.
+- [ ] Make that build a release gate. It is the only test in the repository where
+  the agent is the subject, and it is the one that matches the product claim.
+- [ ] Record the agent's tool-selection failures from that run as findings. Wrong
+  tool chosen, tool not found, compound tool ignored in favor of a fragile manual
+  sequence: each is a 7a/7b/7c defect, and this is the only place they surface.
+
+Exit criteria: a cold agent, given only the MCP server and a project path, builds a
+working game without human correction; the tool-surface budget is enforced; and the
+skills, instructions, and compound tools are justified by observed agent behavior
+rather than by our expectations of it.
+
 ## Definition of done
 
 ### Per tool
