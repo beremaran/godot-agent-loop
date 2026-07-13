@@ -594,6 +594,11 @@ enable one of these workflows.
   Editor UI, rendering, and exported-artifact support remain explicitly bounded
   to the Linux jobs rather than being claimed cross-platform, so this broader
   item remains open.)
+- [ ] Split the item above into its bounded part (portable acceptance suite —
+  done) and its open part (editor UI, rendering, and exported-artifact coverage
+  on Windows/macOS), so the checkbox and the parenthetical stop contradicting
+  each other. Track the open part as its own unchecked item or an explicit
+  scope-out in the support policy.
 - [x] **Display/render matrix:** cover headless, virtual display, Compatibility,
   Forward+, and supported GPU-dependent feature gates. (Headless limitation
   behavior remains in the full matrix; Xvfb jobs select Compatibility and
@@ -644,6 +649,13 @@ That leaves 45, in two kinds. Each needs one of three outcomes: a tool, a proof
 that `game_eval` already reaches it, or a line in `engine-scope.json` recording
 why we do not care. The list regenerates from the engine, so it changes when
 Godot does.
+
+- [ ] Assign this section's exit criteria to a phase; it is currently the only
+  open work owned by no phase. The editor-context decision below depends on the
+  editor bridge that 6d extends, and `RenderingDevice`/`SceneState` interact
+  with the seams 6c freezes (the persistent session and `read_scene`), so the
+  decision — though not necessarily the implementation — must land before 6c
+  completes.
 
 #### Editor-context classes (28)
 
@@ -1012,6 +1024,13 @@ recorded under "Validated assumptions".
 
 #### 6b: stop mutating the user's project
 
+Dependency note: 6c's final item may retire autoload injection entirely in
+favor of the harness-owned main loop. If it does, the `override.cfg` mechanism
+below becomes machinery for a retired path; the stale-installation reaper and
+the SIGKILL byte-identity test remain valuable regardless, because
+`run_project`'s inject-and-run mode survives at least as a verification mode
+until that decision is confirmed against a real game.
+
 - [ ] Move runtime-server injection from rewriting `project.godot` to a generated
   `override.cfg`, keeping the existing ownership/cleanup semantics.
 - [ ] Add a stale-installation reaper: on startup, detect and remove artifacts an
@@ -1146,6 +1165,29 @@ Exit criteria: a cold agent, given only the MCP server and a project path, build
 working game without human correction; the tool-surface budget is enforced; and the
 skills, instructions, and compound tools are justified by observed agent behavior
 rather than by our expectations of it.
+
+### Plan hygiene: keep this document truthful
+
+The audit's discipline is that unmeasured things drift; the same applies to the
+plan itself. These items fix places where the document now contradicts the
+repository or itself.
+
+- [ ] Rewrite the stale CI bullet in "Limitations and robustness notes": it
+  still claims CI does not span operating systems, renderers, .NET builds,
+  export templates, or GPU capabilities, all five of which Phase 3 closed with
+  evidenced jobs. Restate what genuinely remains outside CI (hardware-only GI,
+  editor UI on non-Linux platforms, audible output).
+- [ ] Close out "Further questions to resolve before Phase 3": Phase 3 is
+  complete and most questions were answered by implementation. Mark each
+  resolved with a pointer to the deciding test, job, or doc, or carry the
+  genuinely open ones (latency/size budgets, third-party trust boundary) into a
+  live phase.
+- [ ] Label the audited-baseline table in the technical summary as historical
+  on the table itself, so a reader who skims it before the intro does not take
+  "0 E2E" for the current state.
+- [ ] Move the fully-checked material (Phases 0-5, the closed inventory
+  detail) into an archive under `docs/`, leaving this file as the working plan
+  for 6b-6d, Phase 7, and the P4 engine-surface decisions.
 
 ## Definition of done
 
