@@ -26,7 +26,7 @@ export const PARAMETER_MAPPINGS: Record<string, string> = {
   'relative_y': 'relative_y',
 };
 
-const OPAQUE_PARAMETER_OBJECTS = new Set(['properties', 'shapeParams', 'overrides']);
+const OPAQUE_PARAMETER_OBJECTS = new Set(['properties', 'shapeParams', 'overrides', 'headers', 'args']);
 
 export const REVERSE_PARAMETER_MAPPINGS: Record<string, string> = Object.fromEntries(
   Object.entries(PARAMETER_MAPPINGS).map(([snake, camel]) => [camel, snake])
@@ -46,13 +46,23 @@ export function normalizeParameters(params: OperationParams | null | undefined):
     if (Object.prototype.hasOwnProperty.call(params, key)) {
       const normalizedKey = PARAMETER_MAPPINGS[key] || key.replace(/_([a-z0-9])/g, (_, letter: string) => letter.toUpperCase());
       const value = params[key];
-      result[normalizedKey] = OPAQUE_PARAMETER_OBJECTS.has(normalizedKey) ? value : Array.isArray(value)
-        ? value.map(item => item && typeof item === 'object' ? normalizeParameters(item) : item)
-        : value && typeof value === 'object' ? normalizeParameters(value as OperationParams) : value;
+      result[normalizedKey] = OPAQUE_PARAMETER_OBJECTS.has(normalizedKey) ? value : normalizeValue(value);
     }
   }
 
   return result;
+}
+
+/**
+ * Normalize a value of any shape. Arrays must stay arrays at every depth: a
+ * nested array is still `typeof "object"`, so treating it as a record turned
+ * mesh buffers like `[[x, y, z], ...]` into `[{"0": x, "1": y, "2": z}, ...]`
+ * and the engine read them as empty.
+ */
+function normalizeValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(normalizeValue);
+  if (value && typeof value === 'object') return normalizeParameters(value as OperationParams);
+  return value;
 }
 
 export function convertCamelToSnakeCase(params: OperationParams): OperationParams {
@@ -63,13 +73,20 @@ export function convertCamelToSnakeCase(params: OperationParams): OperationParam
       const snakeKey = REVERSE_PARAMETER_MAPPINGS[key] || key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
 
       const value = params[key];
-      result[snakeKey] = Array.isArray(value)
-        ? value.map(item => item && typeof item === 'object' ? convertCamelToSnakeCase(item) : item)
-        : value && typeof value === 'object' ? convertCamelToSnakeCase(value as OperationParams) : value;
+      result[snakeKey] = OPAQUE_PARAMETER_OBJECTS.has(key) || OPAQUE_PARAMETER_OBJECTS.has(snakeKey)
+        ? value
+        : snakeCaseValue(value);
     }
   }
 
   return result;
+}
+
+/** Mirrors normalizeValue: nested arrays stay arrays, so mesh buffers survive. */
+function snakeCaseValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(snakeCaseValue);
+  if (value && typeof value === 'object') return convertCamelToSnakeCase(value as OperationParams);
+  return value;
 }
 
 export function validatePath(path: string): boolean {

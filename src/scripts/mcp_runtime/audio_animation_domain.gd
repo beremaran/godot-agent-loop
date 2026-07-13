@@ -212,6 +212,9 @@ func _cmd_create_animation(params: Dictionary) -> void:
 		lib = AnimationLibrary.new()
 		@warning_ignore("return_value_discarded")
 		anim_player.add_animation_library(lib_name, lib)
+	if lib.has_animation(anim_name):
+		respond({"error": "Animation already exists: %s" % anim_name})
+		return
 	@warning_ignore("return_value_discarded")
 	lib.add_animation(anim_name, anim)
 
@@ -341,22 +344,33 @@ func _cmd_animation_control(params: Dictionary) -> void:
 	var player: AnimationPlayer = node as AnimationPlayer
 	match action:
 		"seek":
-			var pos: float = CommandParams.json_float(params, "position", 0)
+			if player.current_animation.is_empty():
+				reader.fail("Cannot seek without a current animation", {"param": "node_path", "reason": "invalid_state"})
+			var max_position: float = player.current_animation_length if not player.current_animation.is_empty() else INF
+			var pos: float = reader.required_number("position", 0.0, max_position)
+			if params_invalid(reader):
+				return
 			player.seek(pos)
 			respond({"success": true, "action": "seek", "position": pos})
 		"queue":
-			var anim: String = params.get("animation_name", "")
+			var anim: String = reader.required_string("animation_name")
+			if not player.has_animation(anim):
+				reader.fail("Animation not found: %s" % anim, {"param": "animation_name", "reason": "not_found", "value": anim})
+			if params_invalid(reader):
+				return
 			player.queue(anim)
 			respond({"success": true, "action": "queue", "animation": anim})
 		"set_speed":
-			player.speed_scale = CommandParams.json_float(params, "speed", 1.0)
+			player.speed_scale = reader.required_number("speed")
+			if params_invalid(reader):
+				return
 			respond({"success": true, "action": "set_speed", "speed": player.speed_scale})
 		"stop":
 			player.stop()
 			respond({"success": true, "action": "stop"})
 		"get_info":
 			var anims: PackedStringArray = player.get_animation_list()
-			respond({"success": true, "action": "get_info", "current": player.current_animation, "playing": player.is_playing(), "animations": Array(anims), "speed_scale": player.speed_scale, "position": player.current_animation_position})
+			respond({"success": true, "action": "get_info", "current": player.current_animation, "playing": player.is_playing(), "animations": Array(anims), "queued": Array(player.get_queue()), "speed_scale": player.speed_scale, "position": player.current_animation_position})
 		_:
 			respond({"error": "Unknown animation_control action: %s" % action})
 
@@ -380,7 +394,9 @@ func _cmd_skeleton_ik(params: Dictionary) -> void:
 			ik.stop()
 			respond({"success": true, "action": "stop"})
 		"set_target":
-			var t: Dictionary = params.get("target", {})
+			var t: Dictionary = reader.required_dictionary("target")
+			if params_invalid(reader):
+				return
 			var target_tf: Transform3D = Transform3D.IDENTITY
 			target_tf.origin = Vector3(CommandParams.json_float(t, "x", 0), CommandParams.json_float(t, "y", 0), CommandParams.json_float(t, "z", 0))
 			ik.target = target_tf
@@ -423,6 +439,9 @@ func _cmd_audio_effect(params: Dictionary) -> void:
 			respond({"success": true, "action": "add", "effect_type": effect_type, "index": AudioServer.get_bus_effect_count(bus_idx) - 1})
 		"remove":
 			var idx: int = CommandParams.json_int(params, "index", 0)
+			if idx < 0 or idx >= AudioServer.get_bus_effect_count(bus_idx):
+				respond({"error": "Effect index out of range: %d" % idx})
+				return
 			AudioServer.remove_bus_effect(bus_idx, idx)
 			respond({"success": true, "action": "remove", "index": idx})
 		"configure":
@@ -446,7 +465,7 @@ func _cmd_audio_effect(params: Dictionary) -> void:
 
 func _cmd_audio_bus_layout(params: Dictionary) -> void:
 	var reader := CommandParams.new(params)
-	var action: String = reader.optional_enum("action", "list", ["list", "add", "remove", "set_send"])
+	var action: String = reader.optional_enum("action", "list", ["list", "add", "remove", "move", "set_send"])
 	if params_invalid(reader):
 		return
 	match action:
@@ -456,25 +475,47 @@ func _cmd_audio_bus_layout(params: Dictionary) -> void:
 				buses.append({"index": i, "name": AudioServer.get_bus_name(i), "volume": AudioServer.get_bus_volume_db(i), "mute": AudioServer.is_bus_mute(i), "solo": AudioServer.is_bus_solo(i), "send": AudioServer.get_bus_send(i), "effect_count": AudioServer.get_bus_effect_count(i)})
 			respond({"success": true, "action": "list", "buses": buses})
 		"add":
-			var bus_name: String = params.get("bus_name", "New Bus")
+			var bus_name: String = reader.required_string("bus_name")
+			if bus_name.is_empty():
+				reader.fail("bus_name must not be empty", {"param": "bus_name", "reason": "invalid_value"})
+			if AudioServer.get_bus_index(bus_name) >= 0:
+				reader.fail("Audio bus already exists: %s" % bus_name, {"param": "bus_name", "reason": "already_exists", "value": bus_name})
+			if params_invalid(reader):
+				return
 			AudioServer.add_bus()
 			var idx: int = AudioServer.bus_count - 1
 			AudioServer.set_bus_name(idx, bus_name)
 			respond({"success": true, "action": "add", "bus_name": bus_name, "index": idx})
 		"remove":
-			var bus_name: String = params.get("bus_name", "")
+			var bus_name: String = reader.required_string("bus_name")
 			var idx: int = AudioServer.get_bus_index(bus_name)
 			if idx <= 0:
-				respond({"error": "Cannot remove bus: %s" % bus_name})
+				reader.fail("Cannot remove bus: %s" % bus_name, {"param": "bus_name", "reason": "not_found_or_protected", "value": bus_name})
+				send_params_error(reader)
 				return
 			AudioServer.remove_bus(idx)
 			respond({"success": true, "action": "remove", "bus_name": bus_name})
+		"move":
+			var bus_name: String = reader.required_string("bus_name")
+			var from_index: int = AudioServer.get_bus_index(bus_name)
+			var to_index: int = reader.required_int("index", 1, AudioServer.bus_count - 1)
+			if from_index <= 0:
+				reader.fail("Cannot move bus: %s" % bus_name, {"param": "bus_name", "reason": "not_found_or_protected", "value": bus_name})
+			if params_invalid(reader):
+				return
+			AudioServer.move_bus(from_index, to_index)
+			respond({"success": true, "action": "move", "bus_name": bus_name, "index": AudioServer.get_bus_index(bus_name)})
 		"set_send":
-			var bus_name: String = params.get("bus_name", "")
-			var send_to: String = params.get("send_to", "Master")
+			var bus_name: String = reader.required_string("bus_name")
+			var send_to: String = reader.required_string("send_to")
 			var idx: int = AudioServer.get_bus_index(bus_name)
-			if idx < 0:
-				respond({"error": "Bus not found: %s" % bus_name})
+			if idx <= 0:
+				reader.fail("Bus not found or protected: %s" % bus_name, {"param": "bus_name", "reason": "not_found_or_protected", "value": bus_name})
+			if AudioServer.get_bus_index(send_to) < 0:
+				reader.fail("Send target not found: %s" % send_to, {"param": "send_to", "reason": "not_found", "value": send_to})
+			if bus_name == send_to:
+				reader.fail("An audio bus cannot send to itself", {"param": "send_to", "reason": "invalid_value", "value": send_to})
+			if params_invalid(reader):
 				return
 			AudioServer.set_bus_send(idx, send_to)
 			respond({"success": true, "action": "set_send", "bus": bus_name, "send_to": send_to})
@@ -494,7 +535,7 @@ func _cmd_audio_spatial(params: Dictionary) -> void:
 		return
 	var player: AudioStreamPlayer3D = node as AudioStreamPlayer3D
 	if action == "get_info":
-		respond({"success": true, "max_distance": player.max_distance, "unit_size": player.unit_size, "max_db": player.max_db, "playing": player.playing})
+		respond({"success": true, "max_distance": player.max_distance, "unit_size": player.unit_size, "max_db": player.max_db, "attenuation_model": _attenuation_model_name(player.attenuation_model), "playing": player.playing})
 		return
 	if params.has("max_distance"):
 		player.max_distance = CommandParams.to_float(params["max_distance"])
@@ -502,7 +543,24 @@ func _cmd_audio_spatial(params: Dictionary) -> void:
 		player.unit_size = CommandParams.to_float(params["unit_size"])
 	if params.has("max_db"):
 		player.max_db = CommandParams.to_float(params["max_db"])
+	if params.has("attenuation_model"):
+		var attenuation_model: String = CommandParams.json_string(params, "attenuation_model")
+		match attenuation_model:
+			"inverse": player.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
+			"inverse_square": player.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_SQUARE_DISTANCE
+			"logarithmic": player.attenuation_model = AudioStreamPlayer3D.ATTENUATION_LOGARITHMIC
+			_:
+				respond({"error": "Unknown attenuation model: %s" % attenuation_model})
+				return
 	respond({"success": true, "action": "configure"})
+
+
+func _attenuation_model_name(model: AudioStreamPlayer3D.AttenuationModel) -> String:
+	match model:
+		AudioStreamPlayer3D.ATTENUATION_INVERSE_SQUARE_DISTANCE: return "inverse_square"
+		AudioStreamPlayer3D.ATTENUATION_LOGARITHMIC: return "logarithmic"
+		AudioStreamPlayer3D.ATTENUATION_DISABLED: return "disabled"
+		_: return "inverse"
 
 
 # ==========================================================================

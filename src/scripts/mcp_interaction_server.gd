@@ -76,7 +76,7 @@ const PORT_ENVIRONMENT_VARIABLE: String = "GODOT_MCP_RUNTIME_PORT"
 const PROTOCOL_VERSION: String = "1.0"
 const CAPABILITIES: Array[String] = ["runtime-commands", "godot-json-values"]
 const METHOD_PREFIX: String = "godot.runtime."
-const CANCELLABLE_COMMANDS: Array[String] = ["wait", "await_signal"]
+const CANCELLABLE_COMMANDS: Array[String] = ["wait", "await_signal", "resource", "http_request"]
 const ERROR_LIMIT_EXCEEDED: int = -32006
 const ERROR_PRIVILEGED_COMMAND_DISABLED: int = PrivilegedCommandPolicy.ERROR_CODE
 
@@ -681,8 +681,11 @@ func _cmd_get_performance(_params: Dictionary) -> void:
 
 # --- Wait N Frames ---
 func _cmd_wait(params: Dictionary) -> void:
-	var frames: int = CommandParams.to_int(params.get("frames"), 1)
-	var frame_type: String = str(params.get("frame_type", "render")).to_lower()
+	var reader := CommandParams.new(params)
+	var frames: int = reader.optional_int("frames", 1, 1)
+	var frame_type: String = reader.optional_enum("frame_type", "render", ["render", "physics"])
+	if _params_invalid(reader):
+		return
 	var use_physics: bool = frame_type == "physics" or CommandParams.to_bool(params.get("physics"), false)
 	for i: int in frames:
 		if use_physics:

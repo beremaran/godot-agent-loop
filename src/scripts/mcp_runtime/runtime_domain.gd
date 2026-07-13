@@ -100,3 +100,9 @@ func cancellation_requested() -> bool:
 
 func respond_timeout(message: String, details: Dictionary = {}) -> void:
 	_server._send_timeout_response(message, details)
+
+
+# A capability the active engine build cannot provide (rather than a bad request).
+# Returning this keeps the caller from believing a silently-dropped write landed.
+func respond_limit(message: String, details: Dictionary = {}) -> void:
+	_server._send_limit_response(message, details)

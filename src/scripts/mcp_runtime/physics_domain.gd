@@ -50,9 +50,12 @@ func _apply_optional_name(reader: CommandParams, node: Node) -> void:
 # --- Raycast (2D or 3D depending on whether z is present) ---
 func _cmd_raycast(params: Dictionary) -> void:
 	var reader: CommandParams = CommandParams.new(params)
-	var from_dict: Dictionary = reader.optional_dictionary("from")
-	var to_dict: Dictionary = reader.optional_dictionary("to")
+	var from_dict: Dictionary = reader.required_dictionary("from")
+	var to_dict: Dictionary = reader.required_dictionary("to")
 	var collision_mask: int = reader.optional_int("collision_mask", 0xFFFFFFFF)
+	if not reader.failed() and (from_dict.is_empty() or to_dict.is_empty()):
+		var empty_name: String = "from" if from_dict.is_empty() else "to"
+		reader.fail("%s must be a position object" % empty_name, {"param": empty_name, "reason": "invalid_value"})
 	if params_invalid(reader):
 		return
 
@@ -117,6 +120,7 @@ func _cmd_navigate_path(params: Dictionary) -> void:
 
 	if start.has("z") or end.has("z"):
 		var map_rid: RID = get_tree().root.get_world_3d().get_navigation_map()
+		NavigationServer3D.map_force_update(map_rid)
 		var path: PackedVector3Array = NavigationServer3D.map_get_path(map_rid, _vector3_from(start), _vector3_from(end), optimize)
 		var total_length: float = 0.0
 		for i: int in range(1, path.size()):
@@ -124,6 +128,7 @@ func _cmd_navigate_path(params: Dictionary) -> void:
 		respond({"success": true, "mode": "3d", "path": variant_to_json(path), "point_count": path.size(), "total_length": total_length})
 	else:
 		var map_rid: RID = get_tree().root.get_world_2d().get_navigation_map()
+		NavigationServer2D.map_force_update(map_rid)
 		var path: PackedVector2Array = NavigationServer2D.map_get_path(map_rid, _vector2_from(start), _vector2_from(end), optimize)
 		var total_length: float = 0.0
 		for i: int in range(1, path.size()):
@@ -140,7 +145,9 @@ func _cmd_add_collision(params: Dictionary) -> void:
 	var disabled: bool = reader.optional_bool("disabled", false)
 	var collision_layer: int = reader.optional_int("collision_layer", 0)
 	var collision_mask: int = reader.optional_int("collision_mask", 0)
-	var is_3d: bool = parent != null and (parent.get_class().ends_with("3D") or parent is PhysicsBody3D or parent is Area3D)
+	if parent != null and not (parent is CollisionObject2D or parent is CollisionObject3D):
+		_require_class(reader, parent, "CollisionObject2D or CollisionObject3D")
+	var is_3d: bool = parent is CollisionObject3D
 	if not reader.failed():
 		var allowed: Array = SHAPE_TYPES_3D if is_3d else SHAPE_TYPES_2D
 		if not allowed.has(shape_type):
@@ -349,6 +356,16 @@ func _cmd_create_joint(params: Dictionary) -> void:
 	if not node_b.is_empty():
 		joint.set("node_b", NodePath(node_b))
 	parent.add_child(joint)
+	var expects_3d: bool = joint is Joint3D
+	for endpoint: String in [node_a, node_b]:
+		if endpoint.is_empty():
+			continue
+		var body: Node = joint.get_node_or_null(NodePath(endpoint))
+		var valid_body: bool = body is PhysicsBody3D if expects_3d else body is PhysicsBody2D
+		if not valid_body:
+			joint.queue_free()
+			respond({"error": "Joint endpoint is not a matching physics body: %s" % endpoint})
+			return
 	respond({"success": true, "joint_type": joint_type, "name": joint.name, "path": str(joint.get_path())})
 
 
@@ -377,6 +394,12 @@ func _cmd_navigation_3d(params: Dictionary) -> void:
 				region.navigation_mesh.agent_height = agent_height
 			_apply_optional_name(reader, region)
 			parent.add_child(region)
+			var map_rid: RID = get_viewport().world_3d.get_navigation_map()
+			NavigationServer3D.map_set_active(map_rid, true)
+			if reader.has_param("cell_size"):
+				NavigationServer3D.map_set_cell_size(map_rid, cell_size)
+			region.set_navigation_map(map_rid)
+			NavigationServer3D.region_set_map(region.get_rid(), map_rid)
 			respond({"success": true, "action": "create", "path": str(region.get_path())})
 		"bake":
 			var node: Node = require_node(reader)
@@ -384,9 +407,12 @@ func _cmd_navigation_3d(params: Dictionary) -> void:
 				_require_class(reader, node, "NavigationRegion3D")
 			if params_invalid(reader):
 				return
-			(node as NavigationRegion3D).bake_navigation_mesh()
-			await get_tree().process_frame
-			await get_tree().process_frame
+			var region: NavigationRegion3D = node
+			region.bake_navigation_mesh(false)
+			NavigationServer3D.region_set_navigation_mesh(region.get_rid(), region.navigation_mesh)
+			var map_rid: RID = region.get_navigation_map()
+			NavigationServer3D.region_set_map(region.get_rid(), map_rid)
+			NavigationServer3D.map_force_update(map_rid)
 			respond({"success": true, "action": "bake"})
 
 
@@ -399,8 +425,8 @@ func _cmd_physics_3d(params: Dictionary) -> void:
 
 	match action:
 		"ray":
-			var from_dict: Dictionary = reader.optional_dictionary("from")
-			var to_dict: Dictionary = reader.optional_dictionary("to")
+			var from_dict: Dictionary = reader.required_dictionary("from")
+			var to_dict: Dictionary = reader.required_dictionary("to")
 			var collision_mask: int = reader.optional_int("collision_mask", 0)
 			if params_invalid(reader):
 				return
@@ -419,11 +445,11 @@ func _cmd_physics_3d(params: Dictionary) -> void:
 				_require_class(reader, node, "Area3D")
 			if params_invalid(reader):
 				return
+			# `physics_frame` is emitted before the physics step. Wait for the
+			# following process frame so the direct space state is current.
 			await get_tree().physics_frame
-			var bodies: Array = (node as Area3D).get_overlapping_bodies()
-			var out: Array = []
-			for body: Node in bodies:
-				out.append({"name": body.name, "path": str(body.get_path())})
+			await get_tree().process_frame
+			var out: Array = _query_area_3d_bodies(node as Area3D)
 			respond({"success": true, "action": "overlap", "bodies": out})
 
 
@@ -456,14 +482,15 @@ func _cmd_physics_2d(params: Dictionary) -> void:
 				_require_class(reader, node, "Area2D")
 			if params_invalid(reader):
 				return
+			# Complete a physics step before reading the direct space state.
 			await get_tree().physics_frame
-			var bodies: Array = (node as Area2D).get_overlapping_bodies()
-			var out: Array = []
-			for body: Node in bodies:
-				out.append({"name": body.name, "path": str(body.get_path())})
+			await get_tree().process_frame
+			var out: Array = _query_area_2d_bodies(node as Area2D)
 			respond({"success": true, "action": "overlap", "bodies": out})
 		"point_query":
 			var position: Dictionary = reader.optional_dictionary("position", reader.optional_dictionary("point"))
+			if not reader.failed() and position.is_empty():
+				reader.fail("position must be a position object", {"param": "position", "reason": "missing"})
 			var collide_with_areas: bool = reader.optional_bool("collide_with_areas", true)
 			var collide_with_bodies: bool = reader.optional_bool("collide_with_bodies", true)
 			var collision_mask: int = reader.optional_int("collision_mask", 0)
@@ -517,3 +544,75 @@ func _cmd_physics_2d(params: Dictionary) -> void:
 			for hit: Dictionary in hits:
 				out.append({"collider": str(hit.get("collider", "")), "rid": str(hit.get("rid", ""))})
 			respond({"success": true, "action": "shape_query", "count": out.size(), "results": out})
+
+
+# Area overlap caches can lag behind the command loop depending on frame
+# scheduling. Direct-space queries provide deterministic current-state reads.
+func _query_area_3d_bodies(area: Area3D) -> Array:
+	var out: Array = []
+	if not area.monitoring:
+		return out
+	var seen: Dictionary = {}
+	var space_state: PhysicsDirectSpaceState3D = area.get_world_3d().direct_space_state
+	for child: Node in area.get_children():
+		if not child is CollisionShape3D:
+			continue
+		var collision_shape: CollisionShape3D = child as CollisionShape3D
+		if collision_shape.disabled or collision_shape.shape == null:
+			continue
+		var query := PhysicsShapeQueryParameters3D.new()
+		query.shape = collision_shape.shape
+		query.transform = collision_shape.global_transform
+		query.collision_mask = area.collision_mask
+		query.exclude = [area.get_rid()]
+		query.collide_with_areas = false
+		query.collide_with_bodies = true
+		for hit: Dictionary in space_state.intersect_shape(query, 256):
+			var collider: Variant = hit.get("collider")
+			if not collider is PhysicsBody3D:
+				continue
+			@warning_ignore("unsafe_cast")
+			var body: PhysicsBody3D = collider as PhysicsBody3D
+			if body.collision_mask & area.collision_layer == 0:
+				continue
+			var id: int = body.get_instance_id()
+			if seen.has(id):
+				continue
+			seen[id] = true
+			out.append({"name": body.name, "path": str(body.get_path())})
+	return out
+
+
+func _query_area_2d_bodies(area: Area2D) -> Array:
+	var out: Array = []
+	if not area.monitoring:
+		return out
+	var seen: Dictionary = {}
+	var space_state: PhysicsDirectSpaceState2D = area.get_world_2d().direct_space_state
+	for child: Node in area.get_children():
+		if not child is CollisionShape2D:
+			continue
+		var collision_shape: CollisionShape2D = child as CollisionShape2D
+		if collision_shape.disabled or collision_shape.shape == null:
+			continue
+		var query := PhysicsShapeQueryParameters2D.new()
+		query.shape = collision_shape.shape
+		query.transform = collision_shape.global_transform
+		query.collision_mask = area.collision_mask
+		query.exclude = [area.get_rid()]
+		query.collide_with_areas = false
+		query.collide_with_bodies = true
+		for hit: Dictionary in space_state.intersect_shape(query, 256):
+			var collider: Variant = hit.get("collider")
+			if not collider is PhysicsBody2D:
+				continue
+			@warning_ignore("unsafe_cast")
+			var body: PhysicsBody2D = collider as PhysicsBody2D
+			if body.collision_mask & area.collision_layer == 0:
+				continue
+			var id: int = body.get_instance_id()
+			if seen.has(id):
+				continue
+			seen[id] = true
+			out.append({"name": body.name, "path": str(body.get_path())})
+	return out

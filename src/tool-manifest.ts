@@ -666,7 +666,7 @@ export const toolManifest: Record<ToolName, ToolManifestEntry> = {
     domain: 'game',
     handler: 'handleGameWebsocket',
     backend: { kind: 'runtime', command: 'websocket' },
-    actions: ['connect', 'disconnect', 'send', 'status'],
+    actions: ['connect', 'disconnect', 'send', 'receive', 'status'],
     privileged: true,
   },
   game_multiplayer: {
@@ -932,7 +932,7 @@ export const toolManifest: Record<ToolName, ToolManifestEntry> = {
     domain: 'game',
     handler: 'handleGameAudioBusLayout',
     backend: { kind: 'runtime', command: 'audio_bus_layout' },
-    actions: ['list', 'add', 'remove', 'set_send'],
+    actions: ['list', 'add', 'remove', 'move', 'set_send'],
     privileged: false,
   },
   game_audio_spatial: {
@@ -1065,7 +1065,7 @@ export const toolManifest: Record<ToolName, ToolManifestEntry> = {
     domain: 'game',
     handler: 'handleGameUiTree',
     backend: { kind: 'runtime', command: 'ui_tree' },
-    actions: ['get_items', 'add'],
+    actions: ['get_items', 'add', 'select', 'collapse', 'expand', 'remove'],
     privileged: false,
   },
   game_ui_item_list: {
@@ -1107,21 +1107,21 @@ export const toolManifest: Record<ToolName, ToolManifestEntry> = {
     domain: 'game',
     handler: 'handleGameResource',
     backend: { kind: 'runtime', command: 'resource' },
-    actions: ['load', 'save', 'exists'],
+    actions: ['load', 'preload', 'save', 'exists'],
     privileged: false,
   },
   game_visual_shader: {
     domain: 'game',
     handler: 'handleGameVisualShader',
     backend: { kind: 'runtime', command: 'visual_shader' },
-    actions: ['add_node', 'connect', 'disconnect', 'get_nodes', 'apply'],
+    actions: ['create', 'add_node', 'connect', 'disconnect', 'get_nodes', 'apply'],
     privileged: false,
   },
   game_terrain: {
     domain: 'game',
     handler: 'handleGameTerrain',
     backend: { kind: 'runtime', command: 'terrain' },
-    actions: ['get_height', 'modify', 'paint'],
+    actions: ['create', 'get_height', 'modify', 'paint'],
     privileged: false,
   },
   game_video: {

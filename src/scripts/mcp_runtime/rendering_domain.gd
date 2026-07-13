@@ -21,6 +21,24 @@ func register_commands() -> void:
 
 func _exit_tree() -> void:
 	_clear_debug_draw()
+	_visual_shaders.clear()
+
+
+func _process(_delta: float) -> void:
+	for index in range(_debug_meshes.size() - 1, -1, -1):
+		var entry: Dictionary = _debug_meshes[index]
+		var frames_left: int = entry.get("frames_left", 0)
+		if frames_left <= 0:
+			continue
+		frames_left -= 1
+		if frames_left == 0:
+			var drawn: Variant = entry.get("node")
+			if drawn is Node and is_instance_valid(drawn):
+				var node: Node = drawn
+				node.queue_free()
+			_debug_meshes.remove_at(index)
+		else:
+			entry["frames_left"] = frames_left
 
 
 func _as_environment(value: Variant) -> Environment:
@@ -152,9 +170,9 @@ const VISUAL_SHADER_MODES: Dictionary = {
 }
 
 func _cmd_visual_shader(params: Dictionary) -> void:
-	var action: String = params.get("action", "")
-	if action.is_empty():
-		respond({"error": "action is required"})
+	var reader := CommandParams.new(params)
+	var action: String = reader.required_enum("action", ["create", "add_node", "connect", "disconnect", "get_nodes", "apply"])
+	if params_invalid(reader):
 		return
 
 	if action == "create":
@@ -173,7 +191,9 @@ func _cmd_visual_shader(params: Dictionary) -> void:
 
 	# Every other action edits an existing graph: the one named by shader_id,
 	# or the most recently created one.
-	var target_id: int = CommandParams.json_int(params, "shader_id", _next_visual_shader_id - 1)
+	var target_id: int = reader.optional_int("shader_id", _next_visual_shader_id - 1, 1)
+	if params_invalid(reader):
+		return
 	var shader: VisualShader = _visual_shaders.get(target_id)
 	if shader == null:
 		respond({"error": "No visual shader with id %s; use action create first" % target_id})
@@ -181,9 +201,8 @@ func _cmd_visual_shader(params: Dictionary) -> void:
 
 	match action:
 		"add_node":
-			var node_class: String = params.get("node_class", "")
-			if node_class.is_empty():
-				respond({"error": "node_class is required for add_node"})
+			var node_class: String = reader.required_string("node_class")
+			if params_invalid(reader):
 				return
 			if not ClassDB.class_exists(node_class) or not ClassDB.is_parent_class(node_class, "VisualShaderNode"):
 				respond({"error": "Class '%s' is not a VisualShaderNode type" % node_class})
@@ -198,13 +217,28 @@ func _cmd_visual_shader(params: Dictionary) -> void:
 			shader.add_node(VisualShader.TYPE_FRAGMENT, graph_node, CommandParams.to_vector2(position), node_id)
 			respond({"success": true, "shader_id": target_id, "node_id": node_id, "node_class": node_class})
 		"connect":
-			var err: int = shader.connect_nodes(VisualShader.TYPE_FRAGMENT, CommandParams.json_int(params, "from_node", -1), CommandParams.json_int(params, "from_port", 0), CommandParams.json_int(params, "to_node", -1), CommandParams.json_int(params, "to_port", 0))
+			var from_node: int = reader.required_int("from_node", 0)
+			var from_port: int = reader.required_int("from_port", 0)
+			var to_node: int = reader.required_int("to_node", 0)
+			var to_port: int = reader.required_int("to_port", 0)
+			if params_invalid(reader):
+				return
+			var err: int = shader.connect_nodes(VisualShader.TYPE_FRAGMENT, from_node, from_port, to_node, to_port)
 			if err != OK:
 				respond({"error": "Failed to connect nodes (error %d)" % err})
 				return
 			respond({"success": true, "shader_id": target_id})
 		"disconnect":
-			shader.disconnect_nodes(VisualShader.TYPE_FRAGMENT, CommandParams.json_int(params, "from_node", -1), CommandParams.json_int(params, "from_port", 0), CommandParams.json_int(params, "to_node", -1), CommandParams.json_int(params, "to_port", 0))
+			var from_node: int = reader.required_int("from_node", 0)
+			var from_port: int = reader.required_int("from_port", 0)
+			var to_node: int = reader.required_int("to_node", 0)
+			var to_port: int = reader.required_int("to_port", 0)
+			if params_invalid(reader):
+				return
+			if not shader.is_node_connection(VisualShader.TYPE_FRAGMENT, from_node, from_port, to_node, to_port):
+				respond({"error": "Visual shader connection does not exist"})
+				return
+			shader.disconnect_nodes(VisualShader.TYPE_FRAGMENT, from_node, from_port, to_node, to_port)
 			respond({"success": true, "shader_id": target_id})
 		"get_nodes":
 			var nodes: Array = []
@@ -214,9 +248,8 @@ func _cmd_visual_shader(params: Dictionary) -> void:
 				nodes.append({"id": node_id, "class": graph_node.get_class(), "position": {"x": node_position.x, "y": node_position.y}})
 			respond({"success": true, "shader_id": target_id, "nodes": nodes})
 		"apply":
-			var node_path: String = params.get("node_path", "")
-			if node_path.is_empty():
-				respond({"error": "node_path is required for apply"})
+			var node_path: String = reader.required_node_path("node_path")
+			if params_invalid(reader):
 				return
 			var node: Node = get_tree().root.get_node_or_null(node_path)
 			if node == null:
@@ -485,12 +518,11 @@ var _debug_meshes: Array = []
 func _cmd_debug_draw(params: Dictionary) -> void:
 	var reader := CommandParams.new(params)
 	var action: String = reader.optional_enum("action", "line", ["line", "sphere", "box", "clear"])
+	var duration: int = reader.optional_int("duration", 0, 0)
 	if params_invalid(reader):
 		return
 	var color_dict: Dictionary = params.get("color", {"r": 1.0, "g": 0.0, "b": 0.0})
 	var color: Color = Color(CommandParams.json_float(color_dict, "r", 1), CommandParams.json_float(color_dict, "g", 0), CommandParams.json_float(color_dict, "b", 0), CommandParams.json_float(color_dict, "a", 1))
-	var duration: int = CommandParams.json_int(params, "duration", 0)
-
 	if action == "clear":
 		_clear_debug_draw()
 		respond({"success": true, "action": "clear"})
@@ -527,7 +559,13 @@ func _cmd_debug_draw(params: Dictionary) -> void:
 		"sphere":
 			var center_dict: Dictionary = params.get("center", {})
 			var center: Vector3 = Vector3(CommandParams.json_float(center_dict, "x", 0), CommandParams.json_float(center_dict, "y", 0), CommandParams.json_float(center_dict, "z", 0))
-			var radius: float = CommandParams.json_float(params, "radius", 0.5)
+			var radius: float = reader.optional_number("radius", 0.5, 0.0)
+			if params_invalid(reader):
+				return
+			if radius <= 0.0:
+				reader.fail("radius must be greater than zero", {"param": "radius", "reason": "out_of_range", "min_exclusive": 0})
+				send_params_error(reader)
+				return
 			var sphere_mesh: SphereMesh = SphereMesh.new()
 			sphere_mesh.radius = radius
 			sphere_mesh.height = radius * 2.0
@@ -566,12 +604,17 @@ func _cmd_gi(params: Dictionary) -> void:
 	match gi_type:
 		"voxel_gi": node = VoxelGI.new()
 		"lightmap_gi": node = LightmapGI.new()
+		"reflection_probe": node = ReflectionProbe.new()
 		_:
 			respond({"error": "Unknown GI type: %s" % gi_type})
 			return
-	if params.has("size") and node is VoxelGI:
+	if params.has("size"):
 		var s: Dictionary = params["size"]
-		(node as VoxelGI).size = Vector3(CommandParams.json_float(s, "x", 10), CommandParams.json_float(s, "y", 10), CommandParams.json_float(s, "z", 10))
+		var extents := Vector3(CommandParams.json_float(s, "x", 10), CommandParams.json_float(s, "y", 10), CommandParams.json_float(s, "z", 10))
+		if node is VoxelGI:
+			(node as VoxelGI).size = extents
+		elif node is ReflectionProbe:
+			(node as ReflectionProbe).size = extents
 	var custom_name: String = CommandParams.json_string(params, "name")
 	if not custom_name.is_empty():
 		node.name = custom_name
@@ -635,11 +678,17 @@ func _cmd_camera_attributes(params: Dictionary) -> void:
 		respond({"error": "No Camera3D found in viewport"})
 		return
 	if action == "get":
-		var info: Dictionary = {"success": true, "action": "get"}
-		if cam.attributes != null:
-			info["has_attributes"] = true
-		else:
-			info["has_attributes"] = false
+		var current: CameraAttributesPractical = cam.attributes as CameraAttributesPractical
+		var info: Dictionary = {"success": true, "action": "get", "has_attributes": cam.attributes != null}
+		# Report the values, not just their presence: without them a client cannot
+		# confirm that a preceding `set` actually landed.
+		if current != null:
+			info["dof_blur_far"] = current.dof_blur_far_distance
+			info["dof_blur_near"] = current.dof_blur_near_distance
+			info["dof_blur_amount"] = current.dof_blur_amount
+			info["exposure_multiplier"] = current.exposure_multiplier
+			info["auto_exposure"] = current.auto_exposure_enabled
+			info["auto_exposure_scale"] = current.auto_exposure_scale
 		respond(info)
 		return
 	# set
@@ -657,8 +706,12 @@ func _cmd_camera_attributes(params: Dictionary) -> void:
 		attr.dof_blur_near_distance = CommandParams.to_float(params["dof_blur_near"])
 	if params.has("dof_blur_amount"):
 		attr.dof_blur_amount = CommandParams.to_float(params["dof_blur_amount"])
+	if params.has("exposure_multiplier"):
+		attr.exposure_multiplier = CommandParams.to_float(params["exposure_multiplier"])
 	if params.has("auto_exposure"):
 		attr.auto_exposure_enabled = CommandParams.to_bool(params["auto_exposure"])
+	if params.has("auto_exposure_scale"):
+		attr.auto_exposure_scale = CommandParams.to_float(params["auto_exposure_scale"])
 	respond({"success": true, "action": "set"})
 
 

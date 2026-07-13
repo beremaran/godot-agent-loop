@@ -2,6 +2,11 @@ extends "res://mcp_runtime/runtime_domain.gd"
 
 # Window, engine, localization, and resource/project-state commands.
 
+const MAX_RESOURCE_PATH_BYTES: int = 4096
+const MAX_THREADED_LOAD_FRAMES: int = 600
+
+var _preloaded_resources: Dictionary = {}
+
 func register_commands() -> void:
 	register_command("window", _cmd_window)
 	register_command("os_info", _cmd_os_info)
@@ -86,15 +91,37 @@ func _cmd_world_settings(params: Dictionary) -> void:
 	var reader := CommandParams.new(params)
 	var action: String = reader.optional_enum("action", "get", ["get", "set"])
 	var gravity: float = reader.optional_number("gravity", 9.8, 0.0)
+	var gravity_direction: Dictionary = reader.optional_dictionary("gravity_direction")
 	var physics_fps: int = reader.optional_int("physics_fps", 60, 1)
 	if params_invalid(reader):
 		return
+
+	# ProjectSettings alone only seeds *new* worlds; the running space keeps the
+	# gravity it was created with. Both are written so the change is observable
+	# in the live simulation and still survives into any later-created world.
+	var space: RID = get_viewport().find_world_3d().space
 	if action == "set":
 		if reader.has_param("gravity"):
 			ProjectSettings.set_setting("physics/3d/default_gravity", gravity)
+			PhysicsServer3D.area_set_param(space, PhysicsServer3D.AREA_PARAM_GRAVITY, gravity)
+		if reader.has_param("gravity_direction"):
+			var direction := Vector3(
+				CommandParams.json_float(gravity_direction, "x"),
+				CommandParams.json_float(gravity_direction, "y"),
+				CommandParams.json_float(gravity_direction, "z"),
+			)
+			ProjectSettings.set_setting("physics/3d/default_gravity_vector", direction)
+			PhysicsServer3D.area_set_param(space, PhysicsServer3D.AREA_PARAM_GRAVITY_VECTOR, direction)
 		if reader.has_param("physics_fps"):
 			Engine.physics_ticks_per_second = physics_fps
-	respond({"success": true, "gravity": ProjectSettings.get_setting("physics/3d/default_gravity"), "physics_fps": Engine.physics_ticks_per_second})
+
+	var vector: Vector3 = ProjectSettings.get_setting("physics/3d/default_gravity_vector", Vector3(0, -1, 0))
+	respond({
+		"success": true,
+		"gravity": ProjectSettings.get_setting("physics/3d/default_gravity"),
+		"gravity_direction": {"x": vector.x, "y": vector.y, "z": vector.z},
+		"physics_fps": Engine.physics_ticks_per_second,
+	})
 
 
 func _cmd_locale(params: Dictionary) -> void:
@@ -118,25 +145,63 @@ func _cmd_locale(params: Dictionary) -> void:
 
 func _cmd_resource(params: Dictionary) -> void:
 	var reader := CommandParams.new(params)
-	var action: String = reader.optional_enum("action", "load", ["load", "save", "exists"])
+	var action: String = reader.optional_enum("action", "load", ["load", "preload", "save", "exists"])
 	var resource_path: String = reader.required_resource_path("path")
+	_validate_project_resource_path(reader, resource_path)
 	if params_invalid(reader):
 		return
 	match action:
 		"load":
-			if not ResourceLoader.exists(resource_path):
-				reader.fail("Resource not found", {"param": "path", "reason": "resource_not_found", "value": resource_path})
-				send_params_error(reader)
+			if not _require_existing_resource(reader, resource_path):
 				return
+			var cached_before: bool = ResourceLoader.has_cached(resource_path)
 			var resource: Resource = ResourceLoader.load(resource_path)
 			if resource == null:
 				respond({"error": "Failed to load resource: %s" % resource_path})
 				return
-			respond({"success": true, "action": action, "path": resource_path, "type": resource.get_class()})
+			respond(_resource_result(action, resource_path, resource, cached_before))
+		"preload":
+			if not _require_existing_resource(reader, resource_path):
+				return
+			var cached_before: bool = ResourceLoader.has_cached(resource_path)
+			var request_error: int = ResourceLoader.load_threaded_request(
+				resource_path, "", true, ResourceLoader.CACHE_MODE_REUSE
+			)
+			if request_error != OK:
+				reader.fail("Failed to start threaded resource load", godot_error_data(request_error))
+				send_params_error(reader)
+				return
+			var status: int = ResourceLoader.load_threaded_get_status(resource_path)
+			var waited_frames: int = 0
+			while status == ResourceLoader.THREAD_LOAD_IN_PROGRESS and waited_frames < MAX_THREADED_LOAD_FRAMES:
+				if cancellation_requested():
+					respond({"error": "Resource preload cancelled", "error_data": {"path": resource_path}})
+					return
+				await get_tree().process_frame
+				waited_frames += 1
+				status = ResourceLoader.load_threaded_get_status(resource_path)
+			if status == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
+				respond_timeout("Resource preload timed out", {"path": resource_path})
+				return
+			if status != ResourceLoader.THREAD_LOAD_LOADED:
+				respond({"error": "Failed to preload resource: %s" % resource_path, "error_data": {"path": resource_path, "status": status}})
+				return
+			var resource: Resource = ResourceLoader.load_threaded_get(resource_path)
+			if resource == null:
+				respond({"error": "Failed to preload resource: %s" % resource_path})
+				return
+			_preloaded_resources[resource_path] = resource
+			var result: Dictionary = _resource_result(action, resource_path, resource, cached_before)
+			result["waited_frames"] = waited_frames
+			respond(result)
 		"save":
 			var node: Node = require_node(reader)
 			var property: String = reader.required_string("property")
 			if params_invalid(reader):
+				return
+			if not _object_has_property(node, property):
+				reader.fail("Property not found", {"param": "property", "reason": "property_not_found", "value": property})
+				send_params_error(reader)
 				return
 			var property_value: Variant = node.get(property)
 			if not property_value is Resource:
@@ -149,6 +214,45 @@ func _cmd_resource(params: Dictionary) -> void:
 				reader.fail("Failed to save resource", godot_error_data(err))
 				send_params_error(reader)
 				return
-			respond({"success": true, "action": action, "path": resource_path})
+			respond(_resource_result(action, resource_path, resource, ResourceLoader.has_cached(resource_path)))
 		"exists":
 			respond({"success": true, "action": action, "path": resource_path, "exists": ResourceLoader.exists(resource_path)})
+
+
+func _validate_project_resource_path(reader: CommandParams, resource_path: String) -> void:
+	if reader.failed():
+		return
+	var relative_path: String = resource_path.trim_prefix("res://")
+	var segments: PackedStringArray = relative_path.replace("\\", "/").split("/", false)
+	if not resource_path.begins_with("res://") or relative_path.is_empty() or segments.has(".."):
+		reader.fail("path must stay within the project", {"param": "path", "reason": "path_outside_project", "value": resource_path})
+		return
+	if resource_path.to_utf8_buffer().size() > MAX_RESOURCE_PATH_BYTES:
+		reader.fail("path exceeds the resource path limit", {"param": "path", "reason": "limit_exceeded", "max_bytes": MAX_RESOURCE_PATH_BYTES})
+
+
+func _require_existing_resource(reader: CommandParams, resource_path: String) -> bool:
+	if ResourceLoader.exists(resource_path):
+		return true
+	reader.fail("Resource not found", {"param": "path", "reason": "resource_not_found", "value": resource_path})
+	send_params_error(reader)
+	return false
+
+
+func _object_has_property(object: Object, property: String) -> bool:
+	for property_info: Dictionary in object.get_property_list():
+		if str(property_info.get("name", "")) == property:
+			return true
+	return false
+
+
+func _resource_result(action: String, resource_path: String, resource: Resource, cached_before: bool) -> Dictionary:
+	return {
+		"success": true,
+		"action": action,
+		"path": resource_path,
+		"type": resource.get_class(),
+		"resource_name": resource.resource_name,
+		"cached_before": cached_before,
+		"cached_after": ResourceLoader.has_cached(resource_path),
+	}

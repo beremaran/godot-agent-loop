@@ -1,4 +1,4 @@
-import { dirname, join } from 'path';
+import { dirname, isAbsolute, join, resolve } from 'path';
 import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'fs';
 
 import { createErrorResponse, errorMessage, normalizeParameters, validatePath, type OperationParams, type ToolArguments, type ToolResponse, PathSecurity } from '../utils.js';
@@ -172,12 +172,17 @@ export class ProjectExportService {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.presetName || !args.outputPath) return createErrorResponse('projectPath, presetName, and outputPath are required.');
     if (!validProject(this.context, args.projectPath)) return createErrorResponse('Invalid project path.');
+    const outputPath = isAbsolute(args.outputPath)
+      ? (this.context.pathSecurity.isProjectPathAllowed(args.outputPath, true) ? resolve(args.outputPath) : null)
+      : this.context.pathSecurity.resolveProjectPath(args.projectPath, args.outputPath);
+    if (!outputPath) return createErrorResponse('Invalid output path.');
     if (!this.context.executable.path) await this.context.executable.detect();
     if (!this.context.executable.path) return createErrorResponse('Could not find Godot executable.');
     try {
+      mkdirSync(dirname(outputPath), { recursive: true });
       const flag = args.debug ? '--export-debug' : '--export-release';
-      const { stdout } = await execFileAsync(this.context.executable.path, ['--headless', '--path', args.projectPath, flag, args.presetName, args.outputPath], GODOT_EXPORT_OPTIONS);
-      return { content: [{ type: 'text', text: `Export succeeded.\n\nOutput: ${stdout || args.outputPath}` }] };
+      const { stdout } = await execFileAsync(this.context.executable.path, ['--headless', '--path', args.projectPath, flag, args.presetName, outputPath], GODOT_EXPORT_OPTIONS);
+      return { content: [{ type: 'text', text: `Export succeeded.\n\nOutput: ${stdout || outputPath}` }] };
     } catch (error: unknown) {
       if (error instanceof Error && 'code' in error) {
         const processError = error as Error & { code?: number | string; signal?: NodeJS.Signals | null; stdout?: string; stderr?: string };

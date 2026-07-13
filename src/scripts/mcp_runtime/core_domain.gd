@@ -4,6 +4,9 @@ extends "res://mcp_runtime/runtime_domain.gd"
 # scene-tree mutation and introspection while transport lifecycle stays in the
 # composition root.
 
+var _await_signal_received: bool = false
+var _await_signal_args: Array = []
+
 func register_commands() -> void:
 	register_command("get_scene_tree", _cmd_get_scene_tree)
 	register_command("get_property", _cmd_get_property)
@@ -48,6 +51,10 @@ func _cmd_get_property(params: Dictionary) -> void:
 	var property: String = reader.required_string("property")
 	var node: Node = require_node(reader)
 	if params_invalid(reader):
+		return
+	if not property in node:
+		reader.fail("Property not found: %s on node %s" % [property, node_path], {"param": "property", "reason": "property_not_found", "value": property})
+		send_params_error(reader)
 		return
 
 	var value: Variant = node.get(property)
@@ -203,12 +210,16 @@ func _cmd_change_scene(params: Dictionary) -> void:
 # --- Pause ---
 
 func _cmd_connect_signal(params: Dictionary) -> void:
-	var node_path: String = params.get("node_path", "")
-	var signal_name: String = params.get("signal_name", "")
-	var target_path: String = params.get("target_path", "")
-	var method_name: String = params.get("method", "")
-	if node_path.is_empty() or signal_name.is_empty() or target_path.is_empty() or method_name.is_empty():
-		respond({"error": "node_path, signal_name, target_path, and method are required"})
+	var reader := CommandParams.new(params)
+	var node_path: String = reader.required_node_path()
+	var signal_name: String = reader.required_string("signal_name")
+	var target_path: String = reader.required_node_path("target_path")
+	var method_name: String = reader.required_string("method")
+	var binds: Array = reader.optional_array("binds")
+	var deferred: bool = reader.optional_bool("deferred", false)
+	var one_shot: bool = reader.optional_bool("one_shot", false)
+	var reference_counted: bool = reader.optional_bool("reference_counted", false)
+	if params_invalid(reader):
 		return
 
 	var node: Node = get_tree().root.get_node_or_null(node_path)
@@ -229,24 +240,35 @@ func _cmd_connect_signal(params: Dictionary) -> void:
 		respond({"error": "Method '%s' not found on target %s" % [method_name, target_path]})
 		return
 
-	if node.is_connected(signal_name, Callable(target, method_name)):
+	var callable: Callable = Callable(target, method_name).bindv(binds)
+	if node.is_connected(signal_name, callable) and not reference_counted:
 		respond({"error": "Signal already connected"})
 		return
 
-	@warning_ignore("return_value_discarded")
-	node.connect(signal_name, Callable(target, method_name))
-	respond({"success": true, "signal": signal_name, "from": node_path, "to": target_path, "method": method_name})
+	var flags: int = 0
+	if deferred:
+		flags |= CONNECT_DEFERRED
+	if one_shot:
+		flags |= CONNECT_ONE_SHOT
+	if reference_counted:
+		flags |= CONNECT_REFERENCE_COUNTED
+	var err: int = node.connect(signal_name, callable, flags)
+	if err != OK:
+		respond({"error": "Failed to connect signal: %s" % error_string(err), "error_data": godot_error_data(err)})
+		return
+	respond({"success": true, "signal": signal_name, "from": node_path, "to": target_path, "method": method_name, "bind_count": binds.size(), "flags": flags})
 
 
 # --- Disconnect Signal ---
 
 func _cmd_disconnect_signal(params: Dictionary) -> void:
-	var node_path: String = params.get("node_path", "")
-	var signal_name: String = params.get("signal_name", "")
-	var target_path: String = params.get("target_path", "")
-	var method_name: String = params.get("method", "")
-	if node_path.is_empty() or signal_name.is_empty() or target_path.is_empty() or method_name.is_empty():
-		respond({"error": "node_path, signal_name, target_path, and method are required"})
+	var reader := CommandParams.new(params)
+	var node_path: String = reader.required_node_path()
+	var signal_name: String = reader.required_string("signal_name")
+	var target_path: String = reader.required_node_path("target_path")
+	var method_name: String = reader.required_string("method")
+	var binds: Array = reader.optional_array("binds")
+	if params_invalid(reader):
 		return
 
 	var node: Node = get_tree().root.get_node_or_null(node_path)
@@ -259,7 +281,7 @@ func _cmd_disconnect_signal(params: Dictionary) -> void:
 		respond({"error": "Target node not found: %s" % target_path})
 		return
 
-	var callable: Callable = Callable(target, method_name)
+	var callable: Callable = Callable(target, method_name).bindv(binds)
 	if not node.is_connected(signal_name, callable):
 		respond({"error": "Signal is not connected"})
 		return
@@ -478,32 +500,77 @@ func _cmd_list_signals(params: Dictionary) -> void:
 	respond({"success": true, "node_path": node_path, "signals": signals})
 
 func _cmd_await_signal(params: Dictionary) -> void:
-	var node_path: String = params.get("node_path", "")
-	var signal_name: String = params.get("signal_name", "")
-	var timeout: float = CommandParams.to_float(params.get("timeout"), 10.0)
-	var node: Node = get_tree().root.get_node_or_null(node_path)
-	if node == null:
-		respond({"error": "Node not found: %s" % node_path})
+	var reader := CommandParams.new(params)
+	var node_path: String = reader.required_node_path()
+	var signal_name: String = reader.required_string("signal_name")
+	var timeout: float = reader.optional_number("timeout", 10.0, 0.01, 30.0)
+	var node: Node = require_node(reader)
+	if params_invalid(reader):
 		return
 	if not node.has_signal(signal_name):
-		respond({"error": "Signal not found: %s on %s" % [signal_name, node_path]})
+		reader.fail("Signal not found", {"param": "signal_name", "reason": "signal_not_found", "value": signal_name})
+		send_params_error(reader)
+		return
+	var argument_count: int = 0
+	for signal_info: Dictionary in node.get_signal_list():
+		if CommandParams.json_string(signal_info, "name") == signal_name:
+			argument_count = CommandParams.json_array(signal_info, "args").size()
+			break
+	if argument_count > 8:
+		reader.fail("Signal has too many arguments to await", {"param": "signal_name", "reason": "limit_exceeded", "max_args": 8, "actual_args": argument_count})
+		send_params_error(reader)
 		return
 	var timer: SceneTreeTimer = get_tree().create_timer(timeout)
-	var result: Array = [false, []]
-	var cb: Callable = func() -> void:
-		result[0] = true
+	_await_signal_received = false
+	_await_signal_args = []
+	var cb := Callable(self, "_capture_signal_%d" % argument_count)
 	@warning_ignore("return_value_discarded")
 	node.connect(signal_name, cb, CONNECT_ONE_SHOT)
-	while not result[0] and timer.time_left > 0:
+	while not _await_signal_received and timer.time_left > 0:
 		await get_tree().process_frame
 		if cancellation_requested():
 			break
-	if node.is_connected(signal_name, cb):
+		if not is_instance_valid(node):
+			respond({"error": "Node was freed while awaiting signal", "error_data": {"reason": "node_freed", "node_path": node_path, "signal_name": signal_name}})
+			return
+	if is_instance_valid(node) and node.is_connected(signal_name, cb):
 		node.disconnect(signal_name, cb)
 	if cancellation_requested():
 		respond({})
 		return
-	if result[0]:
-		respond({"success": true, "signal_name": signal_name, "received": true})
+	if _await_signal_received:
+		respond({"success": true, "signal_name": signal_name, "received": true, "args": variant_to_json(_await_signal_args)})
 	else:
 		respond_timeout("Signal wait timed out", {"command": "await_signal", "timeout_seconds": timeout})
+
+
+func _capture_signal_0() -> void:
+	_capture_signal_args([])
+
+func _capture_signal_1(a: Variant) -> void:
+	_capture_signal_args([a])
+
+func _capture_signal_2(a: Variant, b: Variant) -> void:
+	_capture_signal_args([a, b])
+
+func _capture_signal_3(a: Variant, b: Variant, c: Variant) -> void:
+	_capture_signal_args([a, b, c])
+
+func _capture_signal_4(a: Variant, b: Variant, c: Variant, d: Variant) -> void:
+	_capture_signal_args([a, b, c, d])
+
+func _capture_signal_5(a: Variant, b: Variant, c: Variant, d: Variant, e: Variant) -> void:
+	_capture_signal_args([a, b, c, d, e])
+
+func _capture_signal_6(a: Variant, b: Variant, c: Variant, d: Variant, e: Variant, f: Variant) -> void:
+	_capture_signal_args([a, b, c, d, e, f])
+
+func _capture_signal_7(a: Variant, b: Variant, c: Variant, d: Variant, e: Variant, f: Variant, g: Variant) -> void:
+	_capture_signal_args([a, b, c, d, e, f, g])
+
+func _capture_signal_8(a: Variant, b: Variant, c: Variant, d: Variant, e: Variant, f: Variant, g: Variant, h: Variant) -> void:
+	_capture_signal_args([a, b, c, d, e, f, g, h])
+
+func _capture_signal_args(args: Array) -> void:
+	_await_signal_received = true
+	_await_signal_args = args

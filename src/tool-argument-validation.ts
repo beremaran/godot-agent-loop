@@ -16,8 +16,9 @@ export class ToolArgumentValidationError extends Error {
  * Parses untrusted MCP arguments using the same schema advertised in list_tools.
  * The supported JSON Schema subset intentionally matches the project tool
  * definitions: object properties, required fields, primitive types, enums,
- * string patterns, and homogeneous arrays. Objects without declared properties remain free-form so
- * tools such as `properties` can carry Godot values.
+ * string patterns, numeric/array bounds, and homogeneous arrays. Objects
+ * without declared properties remain free-form so tools such as `properties`
+ * can carry Godot values.
  */
 export function parseToolArguments(
   tool: ToolDefinition,
@@ -62,6 +63,24 @@ function validate(
     issues.push(`${path} must match: ${schema.pattern}`);
   }
 
+  if (typeof value === 'string') {
+    if (schema.minLength !== undefined && value.length < schema.minLength) {
+      issues.push(`${path} must contain at least ${schema.minLength} characters`);
+    }
+    if (schema.maxLength !== undefined && value.length > schema.maxLength) {
+      issues.push(`${path} must contain at most ${schema.maxLength} characters`);
+    }
+  }
+
+  if (typeof value === 'number') {
+    if (schema.minimum !== undefined && value < schema.minimum) {
+      issues.push(`${path} must be at least ${schema.minimum}`);
+    }
+    if (schema.maximum !== undefined && value > schema.maximum) {
+      issues.push(`${path} must be at most ${schema.maximum}`);
+    }
+  }
+
   if (schema.type === 'object' && isRecord(value)) {
     const properties = schema.properties;
     for (const required of schema.required ?? []) {
@@ -79,10 +98,18 @@ function validate(
     }
   }
 
-  if (schema.type === 'array' && Array.isArray(value) && schema.items) {
-    value.forEach((item, index) => {
-      validate(item, schema.items!, `${path}[${index}]`, issues);
-    });
+  if (schema.type === 'array' && Array.isArray(value)) {
+    if (schema.minItems !== undefined && value.length < schema.minItems) {
+      issues.push(`${path} must contain at least ${schema.minItems} items`);
+    }
+    if (schema.maxItems !== undefined && value.length > schema.maxItems) {
+      issues.push(`${path} must contain at most ${schema.maxItems} items`);
+    }
+    if (schema.items) {
+      value.forEach((item, index) => {
+        validate(item, schema.items!, `${path}[${index}]`, issues);
+      });
+    }
   }
 }
 

@@ -102,11 +102,24 @@ func _cmd_multimesh(params: Dictionary) -> void:
 				respond({"error": "MultiMeshInstance3D not found: %s" % node_path})
 				return
 			var idx: int = CommandParams.json_int(params, "index", 0)
+			var mm: MultiMesh = (node as MultiMeshInstance3D).multimesh
+			if idx < 0 or idx >= mm.instance_count:
+				respond({"error": "index %d is outside the instance range 0..%d" % [idx, mm.instance_count - 1], "error_data": {"param": "index", "reason": "out_of_range", "value": idx, "instance_count": mm.instance_count}})
+				return
+			# Instance transforms live in the rendering server's buffer. Godot's
+			# headless dummy renderer allocates no buffer, so the write would be
+			# dropped without a word; say so instead of reporting success.
+			if not _multimesh_instance_data_available(mm):
+				respond_limit(
+					"MultiMesh instance data is unavailable: the active rendering server does not allocate instance buffers (Godot's headless dummy renderer). Run the game with a display to position MultiMesh instances.",
+					{"reason": "instance_buffer_unavailable", "video_adapter": RenderingServer.get_video_adapter_name()},
+				)
+				return
 			var tf: Dictionary = params.get("transform", {})
 			var origin: Dictionary = tf.get("origin", {})
 			var xform: Transform3D = Transform3D.IDENTITY
 			xform.origin = Vector3(CommandParams.json_float(origin, "x", 0), CommandParams.json_float(origin, "y", 0), CommandParams.json_float(origin, "z", 0))
-			(node as MultiMeshInstance3D).multimesh.set_instance_transform(idx, xform)
+			mm.set_instance_transform(idx, xform)
 			respond({"success": true, "action": "set_instance", "index": idx})
 		"get_info":
 			var node_path: String = params.get("node_path", "")
@@ -115,9 +128,20 @@ func _cmd_multimesh(params: Dictionary) -> void:
 				respond({"error": "MultiMeshInstance3D not found: %s" % node_path})
 				return
 			var mm: MultiMesh = (node as MultiMeshInstance3D).multimesh
-			respond({"success": true, "count": mm.instance_count if mm else 0, "visible_count": mm.visible_instance_count if mm else 0})
+			respond({
+				"success": true,
+				"count": mm.instance_count if mm else 0,
+				"visible_count": mm.visible_instance_count if mm else 0,
+				"instance_data_available": _multimesh_instance_data_available(mm) if mm else false,
+			})
 		_:
 			respond({"error": "Unknown multimesh action: %s" % action})
+
+
+# An instance_count > 0 with an empty buffer means the rendering server kept no
+# per-instance storage, which is what the headless dummy renderer does.
+func _multimesh_instance_data_available(mm: MultiMesh) -> bool:
+	return mm.instance_count <= 0 or not mm.buffer.is_empty()
 
 
 # Mesh buffers arrive as [x, y, z] triples; curve points arrive as {x, y, z}.
@@ -235,12 +259,13 @@ func _cmd_light_3d(params: Dictionary) -> void:
 
 
 func _cmd_mesh_instance(params: Dictionary) -> void:
-	var parent_path: String = params.get("parent_path", "/root")
-	var parent: Node = get_tree().root.get_node_or_null(parent_path)
-	if parent == null:
-		respond({"error": "Parent not found: %s" % parent_path})
+	var reader := CommandParams.new(params)
+	var parent: Node = require_node(reader, "parent_path", "/root")
+	var mesh_type: String = reader.optional_enum("mesh_type", "box", ["box", "sphere", "cylinder", "capsule", "plane", "quad"])
+	var radius: float = reader.optional_number("radius", 0.0, 0.0)
+	var height: float = reader.optional_number("height", 0.0, 0.0)
+	if params_invalid(reader):
 		return
-	var mesh_type: String = params.get("mesh_type", "box")
 	var mesh: Mesh
 	match mesh_type:
 		"box": mesh = BoxMesh.new()
@@ -249,20 +274,26 @@ func _cmd_mesh_instance(params: Dictionary) -> void:
 		"capsule": mesh = CapsuleMesh.new()
 		"plane": mesh = PlaneMesh.new()
 		"quad": mesh = QuadMesh.new()
-		_:
-			respond({"error": "Unknown mesh type: %s" % mesh_type})
-			return
-	if params.has("size") and mesh is BoxMesh:
-		var s: Dictionary = params["size"]
-		(mesh as BoxMesh).size = Vector3(CommandParams.json_float(s, "x", 1), CommandParams.json_float(s, "y", 1), CommandParams.json_float(s, "z", 1))
+	if params.has("size"):
+		var s: Dictionary = reader.required_dictionary("size")
+		if mesh is BoxMesh:
+			(mesh as BoxMesh).size = Vector3(CommandParams.json_float(s, "x", 1), CommandParams.json_float(s, "y", 1), CommandParams.json_float(s, "z", 1))
+		elif mesh is QuadMesh:
+			(mesh as QuadMesh).size = Vector2(CommandParams.json_float(s, "x", 1), CommandParams.json_float(s, "y", 1))
+		elif mesh is PlaneMesh:
+			(mesh as PlaneMesh).size = Vector2(CommandParams.json_float(s, "x", 1), CommandParams.json_float(s, "z", 1))
+	if params_invalid(reader):
+		return
 	if params.has("radius"):
-		if mesh is SphereMesh: (mesh as SphereMesh).radius = CommandParams.to_float(params["radius"])
-		elif mesh is CylinderMesh: (mesh as CylinderMesh).top_radius = CommandParams.to_float(params["radius"])
-		elif mesh is CapsuleMesh: (mesh as CapsuleMesh).radius = CommandParams.to_float(params["radius"])
+		if mesh is SphereMesh: (mesh as SphereMesh).radius = radius
+		elif mesh is CylinderMesh:
+			(mesh as CylinderMesh).top_radius = radius
+			(mesh as CylinderMesh).bottom_radius = radius
+		elif mesh is CapsuleMesh: (mesh as CapsuleMesh).radius = radius
 	if params.has("height"):
-		if mesh is CylinderMesh: (mesh as CylinderMesh).height = CommandParams.to_float(params["height"])
-		elif mesh is CapsuleMesh: (mesh as CapsuleMesh).height = CommandParams.to_float(params["height"])
-		elif mesh is SphereMesh: (mesh as SphereMesh).height = CommandParams.to_float(params["height"])
+		if mesh is CylinderMesh: (mesh as CylinderMesh).height = height
+		elif mesh is CapsuleMesh: (mesh as CapsuleMesh).height = height
+		elif mesh is SphereMesh: (mesh as SphereMesh).height = height
 	var mi: MeshInstance3D = MeshInstance3D.new()
 	mi.mesh = mesh
 	if params.has("material") and params["material"] is String:
@@ -335,13 +366,14 @@ func _cmd_3d_effects(params: Dictionary) -> void:
 
 
 func _cmd_path_3d(params: Dictionary) -> void:
-	var action: String = params.get("action", "create")
+	var reader := CommandParams.new(params)
+	var action: String = reader.optional_enum("action", "create", ["create", "add_point", "get_points", "set_points"])
+	if params_invalid(reader):
+		return
 	match action:
 		"create":
-			var parent_path: String = params.get("parent_path", "/root")
-			var parent: Node = get_tree().root.get_node_or_null(parent_path)
-			if parent == null:
-				respond({"error": "Parent not found: %s" % parent_path})
+			var parent: Node = require_node(reader, "parent_path", "/root")
+			if params_invalid(reader):
 				return
 			var path_node: Path3D = Path3D.new()
 			path_node.curve = Curve3D.new()
@@ -354,13 +386,15 @@ func _cmd_path_3d(params: Dictionary) -> void:
 			parent.add_child(path_node)
 			respond({"success": true, "action": "create", "path": str(path_node.get_path()), "point_count": path_node.curve.point_count})
 		"add_point":
-			var node_path: String = params.get("node_path", "")
-			var node: Node = get_tree().root.get_node_or_null(node_path)
+			var node_path: String = reader.required_node_path()
+			var point: Dictionary = reader.required_dictionary("point")
+			var node: Node = get_tree().root.get_node_or_null(node_path) if not reader.failed() else null
+			if params_invalid(reader):
+				return
 			if node == null or not node is Path3D:
 				respond({"error": "Path3D not found: %s" % node_path})
 				return
-			var p: Dictionary = params.get("point", {})
-			(node as Path3D).curve.add_point(Vector3(CommandParams.json_float(p, "x", 0), CommandParams.json_float(p, "y", 0), CommandParams.json_float(p, "z", 0)))
+			(node as Path3D).curve.add_point(_vec3_from_object(point))
 			respond({"success": true, "action": "add_point", "point_count": (node as Path3D).curve.point_count})
 		"get_points":
 			var node_path: String = params.get("node_path", "")
@@ -374,8 +408,11 @@ func _cmd_path_3d(params: Dictionary) -> void:
 				pts.append({"x": pt.x, "y": pt.y, "z": pt.z})
 			respond({"success": true, "action": "get_points", "points": pts})
 		"set_points":
-			var node_path: String = params.get("node_path", "")
-			var node: Node = get_tree().root.get_node_or_null(node_path)
+			var node_path: String = reader.required_node_path()
+			var points: Array = reader.required_array("points")
+			var node: Node = get_tree().root.get_node_or_null(node_path) if not reader.failed() else null
+			if params_invalid(reader):
+				return
 			if node == null or not node is Path3D:
 				respond({"error": "Path3D not found: %s" % node_path})
 				return
@@ -384,7 +421,7 @@ func _cmd_path_3d(params: Dictionary) -> void:
 				curve = Curve3D.new()
 				(node as Path3D).curve = curve
 			curve.clear_points()
-			for p: Variant in CommandParams.json_array(params, "points"):
+			for p: Variant in points:
 				curve.add_point(_vec3_from_object(p))
 			respond({"success": true, "action": "set_points", "point_count": curve.point_count})
 		_:
@@ -392,17 +429,18 @@ func _cmd_path_3d(params: Dictionary) -> void:
 
 
 func _cmd_terrain(params: Dictionary) -> void:
-	var action: String = params.get("action", "create")
+	var reader := CommandParams.new(params)
+	var action: String = reader.optional_enum("action", "create", ["create", "get_height", "modify", "paint"])
+	if params_invalid(reader):
+		return
 	if action == "create":
-		var parent_path: String = params.get("parent_path", "/root")
-		var parent: Node = get_tree().root.get_node_or_null(parent_path)
-		if parent == null:
-			respond({"error": "Parent not found: %s" % parent_path})
+		var parent: Node = require_node(reader, "parent_path", "/root")
+		var width: int = reader.optional_int("width", 16, 2)
+		var depth: int = reader.optional_int("depth", 16, 2)
+		var max_height: float = reader.optional_number("max_height", 1.0)
+		var height_data: Array = reader.optional_array("height_data")
+		if params_invalid(reader):
 			return
-		var width: int = max(2, CommandParams.json_int(params, "width", 16))
-		var depth: int = max(2, CommandParams.json_int(params, "depth", 16))
-		var max_height: float = CommandParams.json_float(params, "max_height", 1.0)
-		var height_data: Array = params.get("height_data", [])
 		var heights: Array = []
 		for i in range(width * depth):
 			var h: float = CommandParams.to_float(height_data[i]) * max_height if i < height_data.size() else 0.0
@@ -422,8 +460,10 @@ func _cmd_terrain(params: Dictionary) -> void:
 		_terrain_rebuild(mi)
 		respond({"success": true, "action": "create", "path": str(mi.get_path()), "width": width, "depth": depth})
 		return
-	var node_path: String = params.get("node_path", "")
-	var node: Node = get_tree().root.get_node_or_null(node_path)
+	var node_path: String = reader.required_node_path()
+	var node: Node = get_tree().root.get_node_or_null(node_path) if not reader.failed() else null
+	if params_invalid(reader):
+		return
 	if node == null or not node is MeshInstance3D or not node.has_meta("terrain_width"):
 		respond({"error": "Terrain node not found: %s" % node_path})
 		return
@@ -434,17 +474,21 @@ func _cmd_terrain(params: Dictionary) -> void:
 	var t_colors: Array = mesh_node.get_meta("terrain_colors")
 	match action:
 		"get_height":
-			var gx: int = CommandParams.json_int(params, "x", 0)
-			var gz: int = CommandParams.json_int(params, "z", 0)
+			var gx: int = reader.required_int("x")
+			var gz: int = reader.required_int("z")
+			if params_invalid(reader):
+				return
 			if gx < 0 or gx >= t_width or gz < 0 or gz >= t_depth:
 				respond({"error": "Coordinate out of bounds"})
 				return
 			respond({"success": true, "action": "get_height", "x": gx, "z": gz, "height": t_heights[gz * t_width + gx]})
 		"modify":
-			var cx: float = CommandParams.json_float(params, "x", 0)
-			var cz: float = CommandParams.json_float(params, "z", 0)
-			var radius: float = CommandParams.json_float(params, "radius", 1.0)
-			var delta: float = CommandParams.json_float(params, "height_delta", 0.0)
+			var cx: float = reader.required_number("x")
+			var cz: float = reader.required_number("z")
+			var radius: float = reader.required_number("radius", 0.0)
+			var delta: float = reader.required_number("height_delta")
+			if params_invalid(reader):
+				return
 			for z in range(t_depth):
 				for x in range(t_width):
 					var d: float = Vector2(x - cx, z - cz).length()
@@ -455,10 +499,12 @@ func _cmd_terrain(params: Dictionary) -> void:
 			_terrain_rebuild(mesh_node)
 			respond({"success": true, "action": "modify"})
 		"paint":
-			var cx: float = CommandParams.json_float(params, "x", 0)
-			var cz: float = CommandParams.json_float(params, "z", 0)
-			var radius: float = CommandParams.json_float(params, "radius", 1.0)
-			var col_d: Dictionary = params.get("color", {"r": 1, "g": 1, "b": 1, "a": 1})
+			var cx: float = reader.required_number("x")
+			var cz: float = reader.required_number("z")
+			var radius: float = reader.required_number("radius", 0.0)
+			var col_d: Dictionary = reader.required_dictionary("color")
+			if params_invalid(reader):
+				return
 			var col: Color = Color(CommandParams.json_float(col_d, "r", 1), CommandParams.json_float(col_d, "g", 1), CommandParams.json_float(col_d, "b", 1), CommandParams.json_float(col_d, "a", 1))
 			for z in range(t_depth):
 				for x in range(t_width):

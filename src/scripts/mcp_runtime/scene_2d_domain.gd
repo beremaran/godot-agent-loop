@@ -93,7 +93,7 @@ func _cmd_tilemap(params: Dictionary) -> void:
 	var tilemap: TileMapLayer = node as TileMapLayer
 	match action:
 		"set_cells":
-			var cells: Array = reader.optional_array("cells")
+			var cells: Array = reader.required_array("cells")
 			_require_dictionary_items(reader, "cells", cells)
 			if params_invalid(reader):
 				return
@@ -118,7 +118,7 @@ func _cmd_tilemap(params: Dictionary) -> void:
 				"alt_tile": tilemap.get_cell_alternative_tile(pos)
 			})
 		"erase_cells":
-			var cells: Array = reader.optional_array("cells")
+			var cells: Array = reader.required_array("cells")
 			_require_dictionary_items(reader, "cells", cells)
 			if params_invalid(reader):
 				return
@@ -215,6 +215,25 @@ func _cmd_canvas_draw(params: Dictionary) -> void:
 		return
 
 	var color: Dictionary = reader.optional_dictionary("color", {"r": 1.0, "g": 1.0, "b": 1.0, "a": 1.0})
+	match action:
+		"line":
+			var _from: Dictionary = reader.required_dictionary("from")
+			var _to: Dictionary = reader.required_dictionary("to")
+		"rect":
+			var _rect: Dictionary = reader.required_dictionary("rect")
+		"circle":
+			var _center: Dictionary = reader.required_dictionary("center")
+			var radius: float = reader.required_number("radius", 0.0)
+			if not reader.failed() and radius <= 0.0:
+				reader.fail("radius must be greater than zero", {"param": "radius", "reason": "out_of_range", "min_exclusive": 0})
+		"polygon":
+			var points: Array = reader.required_array("points")
+			_require_dictionary_items(reader, "points", points)
+			if not reader.failed() and points.size() < 3:
+				reader.fail("points must contain at least 3 points", {"param": "points", "reason": "out_of_range", "min_items": 3})
+		"text":
+			var _position: Dictionary = reader.required_dictionary("position")
+			var _text: String = reader.required_string("text")
 	if params_invalid(reader):
 		return
 	if _canvas_draw_node == null or not is_instance_valid(_canvas_draw_node):
@@ -313,7 +332,15 @@ func _cmd_light_2d(params: Dictionary) -> void:
 			parent.add_child(light)
 			respond({"success": true, "action": "create_directional", "path": str(light.get_path())})
 		"create_occluder":
-			var packed: PackedVector2Array = _points_from(reader, "points")
+			var points: Array = reader.required_array("points")
+			_require_dictionary_items(reader, "points", points)
+			if not reader.failed() and points.size() < 3:
+				reader.fail("points must contain at least 3 points", {"param": "points", "reason": "out_of_range", "min_items": 3})
+			var packed: PackedVector2Array = PackedVector2Array()
+			if not reader.failed():
+				for point: Dictionary in points:
+					@warning_ignore("return_value_discarded")
+					packed.append(_vector2_from(point))
 			if params_invalid(reader):
 				return
 			var occ: LightOccluder2D = LightOccluder2D.new()
@@ -411,7 +438,7 @@ func _cmd_shape_2d(params: Dictionary) -> void:
 
 	match action:
 		"add_point":
-			var point: Dictionary = reader.optional_dictionary("point")
+			var point: Dictionary = reader.required_dictionary("point")
 			if params_invalid(reader):
 				return
 			var pt: Vector2 = _vector2_from(point)
@@ -424,7 +451,13 @@ func _cmd_shape_2d(params: Dictionary) -> void:
 				(node as Polygon2D).polygon = polygon
 			respond({"success": true, "action": "add_point"})
 		"set_points":
-			var packed: PackedVector2Array = _points_from(reader, "points")
+			var points: Array = reader.required_array("points")
+			_require_dictionary_items(reader, "points", points)
+			var packed: PackedVector2Array = PackedVector2Array()
+			if not reader.failed():
+				for point: Dictionary in points:
+					@warning_ignore("return_value_discarded")
+					packed.append(_vector2_from(point))
 			if params_invalid(reader):
 				return
 			if node is Line2D:
@@ -474,7 +507,7 @@ func _cmd_path_2d(params: Dictionary) -> void:
 			var node: Node = require_node(reader)
 			if node != null and not node is Path2D:
 				_require_class(reader, node, "Path2D")
-			var point: Dictionary = reader.optional_dictionary("point")
+			var point: Dictionary = reader.required_dictionary("point")
 			if params_invalid(reader):
 				return
 			var path_node: Path2D = node as Path2D

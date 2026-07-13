@@ -160,13 +160,14 @@ func _cmd_ui_text(params: Dictionary) -> void:
 		return
 
 	if action == "bbcode":
+		var bbcode: String = reader.required_string("text")
 		if not node is RichTextLabel:
 			_require_class(reader, node, "RichTextLabel")
-			send_params_error(reader)
+		if params_invalid(reader):
 			return
 		var rtl: RichTextLabel = node as RichTextLabel
 		rtl.bbcode_enabled = true
-		rtl.text = str(params.get("text", ""))
+		rtl.text = bbcode
 		respond({"success": true, "action": "bbcode"})
 		return
 
@@ -183,22 +184,63 @@ func _cmd_ui_text(params: Dictionary) -> void:
 			elif node is RichTextLabel: text = (node as RichTextLabel).text
 			respond({"success": true, "text": text})
 		"set":
-			var text: String = str(params.get("text", ""))
+			var text: String = reader.required_string("text")
+			if params_invalid(reader):
+				return
 			if node is LineEdit: (node as LineEdit).text = text
 			elif node is TextEdit: (node as TextEdit).text = text
 			elif node is RichTextLabel: (node as RichTextLabel).text = text
+			_apply_text_selection(reader, node)
+			if params_invalid(reader):
+				return
 			respond({"success": true, "action": "set"})
 		"append":
-			var text: String = str(params.get("text", ""))
+			var text: String = reader.required_string("text")
+			if params_invalid(reader):
+				return
 			if node is TextEdit: (node as TextEdit).text += text
 			elif node is RichTextLabel: (node as RichTextLabel).append_text(text)
 			elif node is LineEdit: (node as LineEdit).text += text
+			_apply_text_selection(reader, node)
+			if params_invalid(reader):
+				return
 			respond({"success": true, "action": "append"})
 		"clear":
 			if node is LineEdit: (node as LineEdit).text = ""
 			elif node is TextEdit: (node as TextEdit).text = ""
-			elif node is RichTextLabel: (node as RichTextLabel).clear()
+			elif node is RichTextLabel:
+				(node as RichTextLabel).clear()
+				(node as RichTextLabel).text = ""
 			respond({"success": true, "action": "clear"})
+
+
+func _apply_text_selection(reader: CommandParams, node: Node) -> void:
+	var has_from: bool = reader.has_param("selection_from")
+	var has_to: bool = reader.has_param("selection_to")
+	if has_from != has_to:
+		reader.fail("selection_from and selection_to must be provided together",
+			{"param": "selection_from", "reason": "missing_pair"})
+		return
+	var caret: int = reader.optional_int("caret_position", -1, -1)
+	var selection_from: int = reader.optional_int("selection_from", 0, 0)
+	var selection_to: int = reader.optional_int("selection_to", 0, 0)
+	if reader.failed():
+		return
+	if node is LineEdit:
+		var line: LineEdit = node as LineEdit
+		if caret >= 0:
+			line.caret_column = mini(caret, line.text.length())
+		if has_from:
+			line.select(mini(selection_from, line.text.length()), mini(selection_to, line.text.length()))
+	elif node is TextEdit:
+		var edit: TextEdit = node as TextEdit
+		if caret >= 0:
+			edit.set_caret_column(caret)
+		if has_from:
+			edit.select(0, selection_from, 0, selection_to)
+	elif caret >= 0 or has_from:
+		reader.fail("caret and selection parameters require LineEdit or TextEdit",
+			{"param": "caret_position", "reason": "invalid_value", "expected": "LineEdit or TextEdit"})
 
 
 # --- Popups and windows ---
@@ -212,13 +254,25 @@ func _cmd_ui_popup(params: Dictionary) -> void:
 		return
 
 	var win: Window = node as Window
+	if reader.has_param("title"):
+		win.title = reader.required_string("title")
+	if reader.has_param("text"):
+		if win is AcceptDialog:
+			(win as AcceptDialog).dialog_text = reader.required_string("text")
+		else:
+			reader.fail("text requires an AcceptDialog", {"param": "text", "reason": "invalid_value", "expected": "AcceptDialog"})
+	if params_invalid(reader):
+		return
 	match action:
 		"popup_centered":
 			if reader.has_param("size"):
 				var size: Dictionary = reader.required_dictionary("size")
 				if params_invalid(reader):
 					return
-				win.popup_centered(Vector2i(CommandParams.json_int(size, "x", 200), CommandParams.json_int(size, "y", 100)))
+				var requested_size := Vector2i(CommandParams.json_int(size, "x", 200), CommandParams.json_int(size, "y", 100))
+				win.popup_centered(requested_size)
+				# Embedded headless windows clamp during centering; explicit sizing is authoritative.
+				win.size = requested_size
 			else:
 				win.popup_centered()
 			respond({"success": true, "action": "popup_centered"})
@@ -236,7 +290,7 @@ func _cmd_ui_popup(params: Dictionary) -> void:
 func _cmd_ui_tree(params: Dictionary) -> void:
 	var reader: CommandParams = CommandParams.new(params)
 	var node: Node = require_node(reader)
-	var action: String = reader.optional_enum("action", "get_items", ["get_items", "add"])
+	var action: String = reader.optional_enum("action", "get_items", ["get_items", "add", "select", "collapse", "expand", "remove"])
 	if node != null and not node is Tree:
 		_require_class(reader, node, "Tree")
 	if params_invalid(reader):
@@ -248,28 +302,72 @@ func _cmd_ui_tree(params: Dictionary) -> void:
 			var items: Array = []
 			var tree_root: TreeItem = tree_node.get_root()
 			if tree_root != null:
-				_collect_tree_items(tree_root, items, 0)
+				_collect_tree_items(tree_root, items, 0, "")
 			respond({"success": true, "action": "get_items", "items": items})
 		"add":
-			var text: String = reader.optional_string("text", "Item")
+			var text: String = reader.required_string("text")
 			var column: int = reader.optional_int("column", 0, 0)
-			if params_invalid(reader):
-				return
 			var tree_root: TreeItem = tree_node.get_root()
 			if tree_root == null:
 				tree_root = tree_node.create_item()
-			var item: TreeItem = tree_node.create_item(tree_root)
+			if column >= tree_node.columns:
+				reader.fail("column is out of bounds", {"param": "column", "reason": "out_of_range", "max": tree_node.columns - 1, "value": column})
+			var parent: TreeItem = _tree_item_at_path(reader, tree_node, reader.optional_string("item_path", ""), true)
+			if params_invalid(reader):
+				return
+			var item: TreeItem = tree_node.create_item(parent)
 			item.set_text(column, text)
 			respond({"success": true, "action": "add", "text": text})
+		"select", "collapse", "expand", "remove":
+			var item_path: String = reader.required_string("item_path")
+			var item: TreeItem = _tree_item_at_path(reader, tree_node, item_path, false)
+			var column: int = reader.optional_int("column", 0, 0)
+			if column >= tree_node.columns:
+				reader.fail("column is out of bounds", {"param": "column", "reason": "out_of_range", "max": tree_node.columns - 1, "value": column})
+			if params_invalid(reader):
+				return
+			match action:
+				"select": tree_node.set_selected(item, column)
+				"collapse": item.collapsed = true
+				"expand": item.collapsed = false
+				"remove": item.free()
+			respond({"success": true, "action": action, "item_path": item_path})
 
 
-func _collect_tree_items(item: TreeItem, result: Array, depth: int) -> void:
-	var col: int = 0
-	result.append({"text": item.get_text(col), "depth": depth, "collapsed": item.collapsed})
+func _collect_tree_items(item: TreeItem, result: Array, depth: int, item_path: String) -> void:
+	var columns: Array = []
+	for column in item.get_tree().columns:
+		columns.append(item.get_text(column))
+	result.append({"path": item_path, "text": item.get_text(0), "columns": columns, "depth": depth, "collapsed": item.collapsed, "selected": item.is_selected(0)})
 	var child: TreeItem = item.get_first_child()
+	var child_index: int = 0
 	while child != null:
-		_collect_tree_items(child, result, depth + 1)
+		var child_path: String = str(child_index) if item_path.is_empty() else "%s/%d" % [item_path, child_index]
+		_collect_tree_items(child, result, depth + 1, child_path)
 		child = child.get_next()
+		child_index += 1
+
+
+func _tree_item_at_path(reader: CommandParams, tree_node: Tree, item_path: String, allow_root: bool) -> TreeItem:
+	var item: TreeItem = tree_node.get_root()
+	if item == null:
+		reader.fail("Tree has no root item", {"param": "item_path", "reason": "not_found"})
+		return null
+	if item_path.is_empty():
+		if allow_root:
+			return item
+		reader.fail("item_path must identify a non-root item", {"param": "item_path", "reason": "invalid_value"})
+		return null
+	for segment: String in item_path.split("/"):
+		if not segment.is_valid_int() or segment.to_int() < 0:
+			reader.fail("item_path must contain non-negative child indices", {"param": "item_path", "reason": "invalid_value", "value": item_path})
+			return null
+		var child_index: int = segment.to_int()
+		item = item.get_child(child_index)
+		if item == null:
+			reader.fail("Tree item not found: %s" % item_path, {"param": "item_path", "reason": "not_found", "value": item_path})
+			return null
+	return item
 
 
 # --- ItemList / OptionButton items ---
@@ -291,27 +389,33 @@ func _cmd_ui_item_list(params: Dictionary) -> void:
 					items.append({"index": i, "text": item_list.get_item_text(i), "selected": item_list.is_selected(i)})
 				respond({"success": true, "items": items})
 			"select":
-				item_list.select(reader.optional_int("index", 0, 0))
+				var index: int = reader.required_int("index", 0)
+				if index >= item_list.item_count:
+					reader.fail("index is out of bounds", {"param": "index", "reason": "out_of_range", "max": item_list.item_count - 1, "value": index})
 				if params_invalid(reader):
 					return
+				item_list.select(index)
 				respond({"success": true, "action": "select"})
 			"add":
 				@warning_ignore("return_value_discarded")
-				item_list.add_item(reader.optional_string("text", "Item"))
+				item_list.add_item(reader.required_string("text"))
 				if params_invalid(reader):
 					return
 				respond({"success": true, "action": "add"})
 			"remove":
-				item_list.remove_item(reader.optional_int("index", 0, 0))
+				var index: int = reader.required_int("index", 0)
+				if index >= item_list.item_count:
+					reader.fail("index is out of bounds", {"param": "index", "reason": "out_of_range", "max": item_list.item_count - 1, "value": index})
 				if params_invalid(reader):
 					return
+				item_list.remove_item(index)
 				respond({"success": true, "action": "remove"})
 			"clear":
 				item_list.clear()
 				respond({"success": true, "action": "clear"})
 	elif node is OptionButton:
 		var option_button: OptionButton = node as OptionButton
-		var action: String = reader.optional_enum("action", "get_items", ["get_items", "select", "add"])
+		var action: String = reader.optional_enum("action", "get_items", ["get_items", "select", "add", "remove", "clear"])
 		if params_invalid(reader):
 			return
 		match action:
@@ -321,15 +425,29 @@ func _cmd_ui_item_list(params: Dictionary) -> void:
 					items.append({"index": i, "text": option_button.get_item_text(i)})
 				respond({"success": true, "items": items, "selected": option_button.selected})
 			"select":
-				option_button.select(reader.optional_int("index", 0, 0))
+				var index: int = reader.required_int("index", 0)
+				if index >= option_button.item_count:
+					reader.fail("index is out of bounds", {"param": "index", "reason": "out_of_range", "max": option_button.item_count - 1, "value": index})
 				if params_invalid(reader):
 					return
+				option_button.select(index)
 				respond({"success": true, "action": "select"})
 			"add":
-				option_button.add_item(reader.optional_string("text", "Item"))
+				option_button.add_item(reader.required_string("text"))
 				if params_invalid(reader):
 					return
 				respond({"success": true, "action": "add"})
+			"remove":
+				var index: int = reader.required_int("index", 0)
+				if index >= option_button.item_count:
+					reader.fail("index is out of bounds", {"param": "index", "reason": "out_of_range", "max": option_button.item_count - 1, "value": index})
+				if params_invalid(reader):
+					return
+				option_button.remove_item(index)
+				respond({"success": true, "action": "remove"})
+			"clear":
+				option_button.clear()
+				respond({"success": true, "action": "clear"})
 	else:
 		_require_class(reader, node, "ItemList or OptionButton")
 		send_params_error(reader)
@@ -354,18 +472,25 @@ func _cmd_ui_tabs(params: Dictionary) -> void:
 					tabs.append({"index": i, "title": tab_container.get_tab_title(i)})
 				respond({"success": true, "tabs": tabs, "current": tab_container.current_tab})
 			"set_current":
-				tab_container.current_tab = reader.optional_int("index", 0, 0)
+				var index: int = reader.required_int("index", 0)
+				if index >= tab_container.get_tab_count():
+					reader.fail("index is out of bounds", {"param": "index", "reason": "out_of_range", "max": tab_container.get_tab_count() - 1, "value": index})
 				if params_invalid(reader):
 					return
+				tab_container.current_tab = index
 				respond({"success": true, "action": "set_current"})
 			"set_title":
-				tab_container.set_tab_title(reader.optional_int("index", 0, 0), reader.optional_string("title", ""))
+				var index: int = reader.required_int("index", 0)
+				var title: String = reader.required_string("title")
+				if index >= tab_container.get_tab_count():
+					reader.fail("index is out of bounds", {"param": "index", "reason": "out_of_range", "max": tab_container.get_tab_count() - 1, "value": index})
 				if params_invalid(reader):
 					return
+				tab_container.set_tab_title(index, title)
 				respond({"success": true, "action": "set_title"})
 	elif node is TabBar:
 		var tab_bar: TabBar = node as TabBar
-		var action: String = reader.optional_enum("action", "get_tabs", ["get_tabs", "set_current"])
+		var action: String = reader.optional_enum("action", "get_tabs", ["get_tabs", "set_current", "set_title"])
 		if params_invalid(reader):
 			return
 		match action:
@@ -375,10 +500,22 @@ func _cmd_ui_tabs(params: Dictionary) -> void:
 					tabs.append({"index": i, "title": tab_bar.get_tab_title(i)})
 				respond({"success": true, "tabs": tabs, "current": tab_bar.current_tab})
 			"set_current":
-				tab_bar.current_tab = reader.optional_int("index", 0, 0)
+				var index: int = reader.required_int("index", 0)
+				if index >= tab_bar.tab_count:
+					reader.fail("index is out of bounds", {"param": "index", "reason": "out_of_range", "max": tab_bar.tab_count - 1, "value": index})
 				if params_invalid(reader):
 					return
+				tab_bar.current_tab = index
 				respond({"success": true, "action": "set_current"})
+			"set_title":
+				var index: int = reader.required_int("index", 0)
+				var title: String = reader.required_string("title")
+				if index >= tab_bar.tab_count:
+					reader.fail("index is out of bounds", {"param": "index", "reason": "out_of_range", "max": tab_bar.tab_count - 1, "value": index})
+				if params_invalid(reader):
+					return
+				tab_bar.set_tab_title(index, title)
+				respond({"success": true, "action": "set_title"})
 	else:
 		_require_class(reader, node, "TabContainer or TabBar")
 		send_params_error(reader)
@@ -399,24 +536,47 @@ func _cmd_ui_menu(params: Dictionary) -> void:
 		"get_items":
 			var items: Array = []
 			for i in menu.item_count:
-				items.append({"index": i, "text": menu.get_item_text(i), "checked": menu.is_item_checked(i), "disabled": menu.is_item_disabled(i), "id": menu.get_item_id(i)})
+				var shortcut: Shortcut = menu.get_item_shortcut(i)
+				items.append({"index": i, "text": menu.get_item_text(i), "checked": menu.is_item_checked(i), "disabled": menu.is_item_disabled(i), "id": menu.get_item_id(i), "shortcut": shortcut.get_as_text() if shortcut != null else ""})
 			respond({"success": true, "items": items})
 		"add":
-			var text: String = reader.optional_string("text", "Item")
+			var text: String = reader.required_string("text")
 			var id: int = reader.optional_int("id", -1)
 			if params_invalid(reader):
 				return
 			menu.add_item(text, id)
+			if reader.has_param("shortcut_key"):
+				var shortcut_key: String = reader.required_string("shortcut_key")
+				var keycode: Key = OS.find_keycode_from_string(shortcut_key)
+				if keycode == KEY_NONE:
+					reader.fail("Unknown shortcut key: %s" % shortcut_key, {"param": "shortcut_key", "reason": "invalid_value", "value": shortcut_key})
+				if params_invalid(reader):
+					menu.remove_item(menu.item_count - 1)
+					return
+				var event: InputEventKey = InputEventKey.new()
+				event.keycode = keycode
+				var shortcut: Shortcut = Shortcut.new()
+				shortcut.events = [event]
+				menu.set_item_shortcut(menu.item_count - 1, shortcut)
 			respond({"success": true, "action": "add"})
 		"remove":
-			menu.remove_item(reader.optional_int("index", 0, 0))
+			var index: int = reader.required_int("index", 0)
+			if index >= menu.item_count:
+				reader.fail("index is out of bounds", {"param": "index", "reason": "out_of_range", "max": menu.item_count - 1, "value": index})
 			if params_invalid(reader):
 				return
+			menu.remove_item(index)
 			respond({"success": true, "action": "remove"})
 		"set_checked":
-			menu.set_item_checked(reader.optional_int("index", 0, 0), reader.optional_bool("checked", true))
+			var index: int = reader.required_int("index", 0)
+			if index >= menu.item_count:
+				reader.fail("index is out of bounds", {"param": "index", "reason": "out_of_range", "max": menu.item_count - 1, "value": index})
+			if not reader.has_param("checked"):
+				reader.fail("checked is required", {"param": "checked", "reason": "missing"})
+			var checked: bool = reader.optional_bool("checked", false)
 			if params_invalid(reader):
 				return
+			menu.set_item_checked(index, checked)
 			respond({"success": true, "action": "set_checked"})
 		"clear":
 			menu.clear()
@@ -436,10 +596,10 @@ func _cmd_ui_range(params: Dictionary) -> void:
 		if action == "get":
 			respond({"success": true, "value": range_node.value, "min": range_node.min_value, "max": range_node.max_value, "step": range_node.step})
 			return
-		if reader.has_param("value"): range_node.value = reader.required_number("value")
 		if reader.has_param("min_value"): range_node.min_value = reader.required_number("min_value")
 		if reader.has_param("max_value"): range_node.max_value = reader.required_number("max_value")
 		if reader.has_param("step"): range_node.step = reader.required_number("step")
+		if reader.has_param("value"): range_node.value = reader.required_number("value")
 		if params_invalid(reader):
 			return
 		respond({"success": true, "action": "set", "value": range_node.value})
@@ -449,11 +609,10 @@ func _cmd_ui_range(params: Dictionary) -> void:
 			var c: Color = picker.color
 			respond({"success": true, "color": {"r": c.r, "g": c.g, "b": c.b, "a": c.a}})
 			return
-		if reader.has_param("color"):
-			var color: Dictionary = reader.required_dictionary("color")
-			if params_invalid(reader):
-				return
-			picker.color = _color_from(color)
+		var color: Dictionary = reader.required_dictionary("color")
+		if params_invalid(reader):
+			return
+		picker.color = _color_from(color)
 		respond({"success": true, "action": "set"})
 	else:
 		_require_class(reader, node, "Range or ColorPicker")

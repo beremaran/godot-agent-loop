@@ -12,6 +12,34 @@ interface GameCommandApi {
   gameCommand: GameCommandService['execute'];
 }
 
+/**
+ * ParticleProcessMaterial fields the runtime reads, keyed by the camelCase name
+ * the MCP surface uses. `processMaterial` is a free-form object, so its keys are
+ * normalized like any other argument; without this translation the multi-word
+ * fields arrived as camelCase and the runtime — which looks for snake_case —
+ * silently dropped them.
+ */
+const PARTICLE_MATERIAL_FIELDS: Record<string, string> = {
+  direction: 'direction',
+  spread: 'spread',
+  gravity: 'gravity',
+  initialVelocityMin: 'initial_velocity_min',
+  initialVelocityMax: 'initial_velocity_max',
+  color: 'color',
+  scaleMin: 'scale_min',
+  scaleMax: 'scale_max',
+};
+
+function particleProcessMaterial(source: unknown): Record<string, unknown> {
+  if (!source || typeof source !== 'object') return {};
+  const input = source as Record<string, unknown>;
+  const mapped: Record<string, unknown> = {};
+  for (const [camel, snake] of Object.entries(PARTICLE_MATERIAL_FIELDS)) {
+    if (input[camel] !== undefined) mapped[snake] = input[camel];
+  }
+  return mapped;
+}
+
 /** Implements the tools that operate on a running Godot game. */
 export class GameToolHandlers {
   private readonly context: GameToolHandlerContext & GameCommandApi;
@@ -66,11 +94,15 @@ export class GameToolHandlers {
 
   public async handleGameKeyPress(args: ToolArguments) {
     args = args || {};
-    if (!args.key && !args.action) return createErrorResponse('Must provide either "key" or "action" parameter.');
+    if (!args.key && !args.action && !args.text) return createErrorResponse('Must provide exactly one of "key", "action", or "text".');
     const params: Record<string, unknown> = {};
     if (args.key) params.key = args.key;
     if (args.action) params.action = args.action;
+    if (args.text) params.text = args.text;
     if (args.pressed !== undefined) params.pressed = args.pressed;
+    for (const option of ['physical', 'shift', 'ctrl', 'alt', 'meta']) {
+      if (args[option] !== undefined) params[option] = args[option];
+    }
     return this.context.commands.execute('key_press', args, () => params);
   }
 
@@ -151,7 +183,11 @@ export class GameToolHandlers {
   }
 
   public async handleGameWait(args: ToolArguments) {
-    return this.context.gameCommand('wait', args, a => ({ frames: a.frames || 1, frame_type: a.frameType || 'render' }), 30000);
+    args = normalizeParameters(args || {});
+    if (args.frames !== undefined && (!Number.isInteger(args.frames) || args.frames < 1)) {
+      return createErrorResponse('frames must be a positive integer.');
+    }
+    return this.context.gameCommand('wait', args, a => ({ frames: a.frames ?? 1, frame_type: a.frameType || 'render' }), 30000);
   }
 
 
@@ -165,6 +201,10 @@ export class GameToolHandlers {
       return createErrorResponse('nodePath, signalName, targetPath, and method are required.');
     return this.context.gameCommand('connect_signal', args, a => ({
       node_path: a.nodePath, signal_name: a.signalName, target_path: a.targetPath, method: a.method,
+      ...(a.binds ? { binds: a.binds } : {}),
+      ...(a.deferred !== undefined ? { deferred: a.deferred } : {}),
+      ...(a.oneShot !== undefined ? { one_shot: a.oneShot } : {}),
+      ...(a.referenceCounted !== undefined ? { reference_counted: a.referenceCounted } : {}),
     }));
   }
 
@@ -174,6 +214,7 @@ export class GameToolHandlers {
       return createErrorResponse('nodePath, signalName, targetPath, and method are required.');
     return this.context.gameCommand('disconnect_signal', args, a => ({
       node_path: a.nodePath, signal_name: a.signalName, target_path: a.targetPath, method: a.method,
+      ...(a.binds ? { binds: a.binds } : {}),
     }));
   }
 
@@ -199,7 +240,7 @@ export class GameToolHandlers {
       return createErrorResponse('nodePath, property, and finalValue are required.');
     return this.context.gameCommand('tween_property', args, a => ({
       node_path: a.nodePath, property: a.property, final_value: a.finalValue,
-      duration: a.duration || 1.0, trans_type: a.transType || 0, ease_type: a.easeType || 2,
+      duration: a.duration ?? 1.0, trans_type: a.transType ?? 0, ease_type: a.easeType ?? 2,
     }));
   }
 
@@ -271,7 +312,7 @@ export class GameToolHandlers {
       return createErrorResponse('fromX, fromY, toX, and toY are required.');
     return this.context.gameCommand('mouse_drag', args, a => ({
       from_x: a.fromX, from_y: a.fromY, to_x: a.toX, to_y: a.toY,
-      button: a.button || 1, steps: a.steps || 10,
+      button: a.button ?? 1, steps: a.steps ?? 10,
     }), 30000);
   }
 
@@ -280,7 +321,8 @@ export class GameToolHandlers {
     if (!args.type || args.index === undefined || args.value === undefined)
       return createErrorResponse('type, index, and value are required.');
     return this.context.gameCommand('gamepad', args, a => ({
-      type: a.type, index: a.index, value: a.value, device: a.device || 0,
+      type: a.type, index: a.index, value: a.value, device: a.device ?? 0,
+      ...(a.deadzone !== undefined ? { deadzone: a.deadzone } : {}),
     }));
   }
 
@@ -374,7 +416,16 @@ export class GameToolHandlers {
       node_path: a.nodePath, action: a.action,
       ...(a.x !== undefined ? { x: a.x } : {}),
       ...(a.y !== undefined ? { y: a.y } : {}),
-      ...(a.cells ? { cells: a.cells } : {}),
+      ...(a.cells ? {
+        cells: (a.cells as Record<string, unknown>[]).map(cell => ({
+          x: cell.x,
+          y: cell.y,
+          ...(cell.sourceId !== undefined ? { source_id: cell.sourceId } : {}),
+          ...(cell.atlasX !== undefined ? { atlas_x: cell.atlasX } : {}),
+          ...(cell.atlasY !== undefined ? { atlas_y: cell.atlasY } : {}),
+          ...(cell.altTile !== undefined ? { alt_tile: cell.altTile } : {}),
+        })),
+      } : {}),
       ...(a.sourceId !== undefined ? { source_id: a.sourceId } : {}),
     }));
   }
@@ -454,7 +505,7 @@ export class GameToolHandlers {
       ...(a.speedScale !== undefined ? { speed_scale: a.speedScale } : {}),
       ...(a.explosiveness !== undefined ? { explosiveness: a.explosiveness } : {}),
       ...(a.randomness !== undefined ? { randomness: a.randomness } : {}),
-      ...(a.processMaterial ? { process_material: a.processMaterial } : {}),
+      ...(a.processMaterial ? { process_material: particleProcessMaterial(a.processMaterial) } : {}),
     }));
   }
 
@@ -582,7 +633,7 @@ export class GameToolHandlers {
     return this.context.gameCommand('http_request', args, a => ({
       url: a.url, method: a.method || 'GET',
       ...(a.headers ? { headers: a.headers } : {}),
-      ...(a.body ? { body: a.body } : {}),
+      ...(a.body !== undefined ? { body: a.body } : {}),
       ...(a.timeout !== undefined ? { timeout: a.timeout } : {}),
     }), 35000);
   }
@@ -590,10 +641,13 @@ export class GameToolHandlers {
   public async handleGameWebsocket(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.action) return createErrorResponse('action is required.');
+    if (args.action === 'connect' && !args.url) return createErrorResponse('url is required for connect.');
+    if (args.action === 'send' && args.message === undefined) return createErrorResponse('message is required for send.');
     return this.context.gameCommand('websocket', args, a => ({
       action: a.action,
       ...(a.url ? { url: a.url } : {}),
-      ...(a.message ? { message: a.message } : {}),
+      ...(a.message !== undefined ? { message: a.message } : {}),
+      ...(a.timeout !== undefined ? { timeout: a.timeout } : {}),
     }), 15000);
   }
 
@@ -613,9 +667,11 @@ export class GameToolHandlers {
     if (!args.nodePath || !args.action || !args.method) return createErrorResponse('nodePath, action, and method are required.');
     return this.context.gameCommand('rpc', args, a => ({
       node_path: a.nodePath, action: a.action, method: a.method,
-      ...(a.args ? { args: a.args } : {}),
+      ...(a.args !== undefined ? { args: a.args } : {}),
+      ...(a.peerId !== undefined ? { peer_id: a.peerId } : {}),
       ...(a.mode ? { mode: a.mode } : {}),
       ...(a.sync !== undefined ? { sync: a.sync } : {}),
+      ...(a.transferMode !== undefined ? { transfer_mode: a.transferMode } : {}),
       ...(a.channel !== undefined ? { channel: a.channel } : {}),
     }));
   }
@@ -639,6 +695,9 @@ export class GameToolHandlers {
       ...(a.x !== undefined ? { x: a.x } : {}),
       ...(a.y !== undefined ? { y: a.y } : {}),
       ...(a.mouseMode ? { mouse_mode: a.mouseMode } : {}),
+      ...(a.keys !== undefined ? { keys: a.keys } : {}),
+      ...(a.actions !== undefined ? { actions: a.actions } : {}),
+      ...(a.mouseButtons !== undefined ? { mouse_buttons: a.mouseButtons } : {}),
     }));
   }
 
@@ -662,9 +721,9 @@ export class GameToolHandlers {
   public async handleGameAwaitSignal(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath || !args.signalName) return createErrorResponse('nodePath and signalName are required.');
-    const timeout = (args.timeout || 10) * 1000 + 2000;
+    const timeout = (args.timeout ?? 10) * 1000 + 2000;
     return this.context.gameCommand('await_signal', args, a => ({
-      node_path: a.nodePath, signal_name: a.signalName, timeout: a.timeout || 10,
+      node_path: a.nodePath, signal_name: a.signalName, timeout: a.timeout ?? 10,
     }), timeout);
   }
 
@@ -835,6 +894,10 @@ export class GameToolHandlers {
   public async handleGamePath3d(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.action) return createErrorResponse('action is required.');
+    if (args.action === 'create' && !args.parentPath) return createErrorResponse('parentPath is required for create.');
+    if (args.action !== 'create' && !args.nodePath) return createErrorResponse('nodePath is required for this action.');
+    if (args.action === 'add_point' && !args.point) return createErrorResponse('point is required for add_point.');
+    if (args.action === 'set_points' && !args.points) return createErrorResponse('points is required for set_points.');
     return this.context.gameCommand('path_3d', args, a => ({
       action: a.action,
       ...(a.parentPath ? { parent_path: a.parentPath } : {}),
@@ -1025,6 +1088,9 @@ export class GameToolHandlers {
   public async handleGameAnimationControl(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath || !args.action) return createErrorResponse('nodePath and action are required.');
+    if (args.action === 'seek' && args.position === undefined) return createErrorResponse('position is required for seek.');
+    if (args.action === 'queue' && !args.animationName) return createErrorResponse('animationName is required for queue.');
+    if (args.action === 'set_speed' && args.speed === undefined) return createErrorResponse('speed is required for set_speed.');
     return this.context.gameCommand('animation_control', args, a => ({
       node_path: a.nodePath, action: a.action,
       ...(a.animationName ? { animation_name: a.animationName } : {}),
@@ -1057,6 +1123,11 @@ export class GameToolHandlers {
   public async handleGameAudioBusLayout(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.action) return createErrorResponse('action is required.');
+    if (['add', 'remove', 'move', 'set_send'].includes(args.action) && !args.busName) {
+      return createErrorResponse('busName is required for this action.');
+    }
+    if (args.action === 'set_send' && !args.sendTo) return createErrorResponse('sendTo is required for set_send.');
+    if (args.action === 'move' && args.index === undefined) return createErrorResponse('index is required for move.');
     return this.context.gameCommand('audio_bus_layout', args, a => ({
       action: a.action,
       ...(a.busName ? { bus_name: a.busName } : {}),
@@ -1097,7 +1168,7 @@ export class GameToolHandlers {
     return this.context.gameCommand('ui_control', args, a => ({
       node_path: a.nodePath, action: a.action,
       ...(a.anchorPreset !== undefined ? { anchor_preset: a.anchorPreset } : {}),
-      ...(a.tooltip ? { tooltip: a.tooltip } : {}),
+      ...(a.tooltip !== undefined ? { tooltip: a.tooltip } : {}),
       ...(a.mouseFilter ? { mouse_filter: a.mouseFilter } : {}),
       ...(a.minSize ? { min_size: a.minSize } : {}),
     }));
@@ -1106,6 +1177,12 @@ export class GameToolHandlers {
   public async handleGameUiText(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath || !args.action) return createErrorResponse('nodePath and action are required.');
+    if (['set', 'append', 'bbcode'].includes(args.action) && args.text === undefined) {
+      return createErrorResponse('text is required for this action.');
+    }
+    if ((args.selectionFrom === undefined) !== (args.selectionTo === undefined)) {
+      return createErrorResponse('selectionFrom and selectionTo must be provided together.');
+    }
     return this.context.gameCommand('ui_text', args, a => ({
       node_path: a.nodePath, action: a.action,
       ...(a.text !== undefined ? { text: a.text } : {}),
@@ -1121,18 +1198,22 @@ export class GameToolHandlers {
     return this.context.gameCommand('ui_popup', args, a => ({
       node_path: a.nodePath, action: a.action,
       ...(a.size ? { size: a.size } : {}),
-      ...(a.title ? { title: a.title } : {}),
-      ...(a.text ? { text: a.text } : {}),
+      ...(a.title !== undefined ? { title: a.title } : {}),
+      ...(a.text !== undefined ? { text: a.text } : {}),
     }));
   }
 
   public async handleGameUiTree(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath || !args.action) return createErrorResponse('nodePath and action are required.');
+    if (args.action === 'add' && args.text === undefined) return createErrorResponse('text is required for add.');
+    if (['select', 'collapse', 'expand', 'remove'].includes(args.action) && !args.itemPath) {
+      return createErrorResponse('itemPath is required for this action.');
+    }
     return this.context.gameCommand('ui_tree', args, a => ({
       node_path: a.nodePath, action: a.action,
       ...(a.itemPath ? { item_path: a.itemPath } : {}),
-      ...(a.text ? { text: a.text } : {}),
+      ...(a.text !== undefined ? { text: a.text } : {}),
       ...(a.column !== undefined ? { column: a.column } : {}),
     }));
   }
@@ -1140,6 +1221,10 @@ export class GameToolHandlers {
   public async handleGameUiItemList(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath || !args.action) return createErrorResponse('nodePath and action are required.');
+    if (['select', 'remove'].includes(args.action) && args.index === undefined) {
+      return createErrorResponse('index is required for this action.');
+    }
+    if (args.action === 'add' && args.text === undefined) return createErrorResponse('text is required for add.');
     return this.context.gameCommand('ui_item_list', args, a => ({
       node_path: a.nodePath, action: a.action,
       ...(a.index !== undefined ? { index: a.index } : {}),
@@ -1150,28 +1235,42 @@ export class GameToolHandlers {
   public async handleGameUiTabs(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath || !args.action) return createErrorResponse('nodePath and action are required.');
+    if (['set_current', 'set_title'].includes(args.action) && args.index === undefined) {
+      return createErrorResponse('index is required for this action.');
+    }
+    if (args.action === 'set_title' && args.title === undefined) return createErrorResponse('title is required for set_title.');
     return this.context.gameCommand('ui_tabs', args, a => ({
       node_path: a.nodePath, action: a.action,
       ...(a.index !== undefined ? { index: a.index } : {}),
-      ...(a.title ? { title: a.title } : {}),
+      ...(a.title !== undefined ? { title: a.title } : {}),
     }));
   }
 
   public async handleGameUiMenu(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath || !args.action) return createErrorResponse('nodePath and action are required.');
+    if (args.action === 'add' && args.text === undefined) return createErrorResponse('text is required for add.');
+    if (['remove', 'set_checked'].includes(args.action) && args.index === undefined) {
+      return createErrorResponse('index is required for this action.');
+    }
+    if (args.action === 'set_checked' && args.checked === undefined) return createErrorResponse('checked is required for set_checked.');
     return this.context.gameCommand('ui_menu', args, a => ({
       node_path: a.nodePath, action: a.action,
       ...(a.index !== undefined ? { index: a.index } : {}),
-      ...(a.text ? { text: a.text } : {}),
+      ...(a.text !== undefined ? { text: a.text } : {}),
       ...(a.checked !== undefined ? { checked: a.checked } : {}),
       ...(a.id !== undefined ? { id: a.id } : {}),
+      ...(a.shortcutKey !== undefined ? { shortcut_key: a.shortcutKey } : {}),
     }));
   }
 
   public async handleGameUiRange(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath || !args.action) return createErrorResponse('nodePath and action are required.');
+    if (args.action === 'set' && args.value === undefined && args.minValue === undefined
+      && args.maxValue === undefined && args.step === undefined && !args.color) {
+      return createErrorResponse('set requires a value, range setting, or color.');
+    }
     return this.context.gameCommand('ui_range', args, a => ({
       node_path: a.nodePath, action: a.action,
       ...(a.value !== undefined ? { value: a.value } : {}),
@@ -1227,6 +1326,17 @@ export class GameToolHandlers {
   public async handleGameTerrain(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.action) return createErrorResponse('action is required.');
+    if (args.action === 'create' && !args.parentPath) return createErrorResponse('parentPath is required for create.');
+    if (args.action !== 'create' && !args.nodePath) return createErrorResponse('nodePath is required for this action.');
+    if (args.action === 'get_height' && (args.x === undefined || args.z === undefined)) {
+      return createErrorResponse('x and z are required for get_height.');
+    }
+    if (args.action === 'modify' && (args.x === undefined || args.z === undefined || args.radius === undefined || args.heightDelta === undefined)) {
+      return createErrorResponse('x, z, radius, and heightDelta are required for modify.');
+    }
+    if (args.action === 'paint' && (args.x === undefined || args.z === undefined || args.radius === undefined || !args.color)) {
+      return createErrorResponse('x, z, radius, and color are required for paint.');
+    }
     return this.context.gameCommand('terrain', args, a => ({
       action: a.action,
       ...(a.parentPath ? { parent_path: a.parentPath } : {}),

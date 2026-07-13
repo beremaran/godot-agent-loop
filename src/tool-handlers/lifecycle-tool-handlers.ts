@@ -87,7 +87,13 @@ export class LifecycleToolHandlers {
       }
 
       this.context.injectInteractionServer(args.projectPath);
-      const commandArgs = ['-d', '--path', args.projectPath];
+      // No `-d`: that starts Godot's *local stdout debugger*, which breaks into an
+      // interactive `debug>` prompt on any script error and blocks the main loop
+      // forever. The game then stops answering every runtime command, so a single
+      // bad script hung the whole session. Errors still print with a full
+      // backtrace without it, and the editor binary already runs projects as a
+      // debug build.
+      const commandArgs = ['--path', args.projectPath];
       // Display-less environments (CI, the E2E harness) opt in to headless
       // game processes; the interaction server works the same either way.
       if (process.env.GODOT_MCP_RUN_HEADLESS === 'true') commandArgs.unshift('--headless');

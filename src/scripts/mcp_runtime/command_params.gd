@@ -69,7 +69,7 @@ func _number_value(name: String, default_value: float, min_value: float, max_val
 		return default_value
 	var number: float = value
 	if number < min_value or number > max_value:
-		_fail_param(name, "out_of_range", "%s must be between %s and %s" % [name, min_value, max_value], {"min": min_value, "max": max_value, "value": number})
+		_fail_range(name, number, min_value, max_value)
 		return default_value
 	return number
 
@@ -96,9 +96,23 @@ func _int_value(name: String, default_value: int, min_value: float, max_value: f
 		_fail_param(name, "invalid_type", "%s must be an integer" % name)
 		return default_value
 	if number < min_value or number > max_value:
-		_fail_param(name, "out_of_range", "%s must be between %s and %s" % [name, min_value, max_value], {"min": min_value, "max": max_value, "value": number})
+		_fail_range(name, number, min_value, max_value)
 		return default_value
 	return number
+
+func _fail_range(name: String, value: Variant, min_value: float, max_value: float) -> void:
+	var details: Dictionary = {"value": value}
+	var constraint: String
+	if min_value != -INF and max_value != INF:
+		details.merge({"min": min_value, "max": max_value})
+		constraint = "between %s and %s" % [min_value, max_value]
+	elif min_value != -INF:
+		details["min"] = min_value
+		constraint = "at least %s" % min_value
+	else:
+		details["max"] = max_value
+		constraint = "at most %s" % max_value
+	_fail_param(name, "out_of_range", "%s must be %s" % [name, constraint], details)
 
 func optional_bool(name: String, default_value: bool) -> bool:
 	if not _params.has(name):
