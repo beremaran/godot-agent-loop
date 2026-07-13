@@ -11,12 +11,12 @@
 A [Model Context Protocol](https://modelcontextprotocol.io/introduction) (MCP)
 server for project-file authoring, headless engine operations,
 and inspection or mutation of running Godot games. Every advertised tool and
-public action has a full MCP-to-Godot test, but support is intentionally bounded
-by the environment matrix below; editor UI automation, debugger control, native
-extension builds, and cross-platform guarantees are not yet included.
+public action has a full MCP-to-Godot test. Support remains intentionally
+bounded by the environment matrix below; editor UI automation, debugger
+control, and native extension builds are not claimed.
 
 <!-- generated-coverage-badge:start -->
-[![E2E tools: 165/165](https://img.shields.io/badge/E2E_tools-165%2F165-brightgreen)](docs/coverage/coverage-report.md)
+[![E2E tools: 166/166](https://img.shields.io/badge/E2E_tools-166%2F166-brightgreen)](docs/coverage/coverage-report.md)
 <!-- generated-coverage-badge:end -->
 
 ## Acknowledgments
@@ -40,6 +40,13 @@ additions:
 - **`game_eval`** - Execute arbitrary GDScript code in the running game with return values
 - Full `await` support for async GDScript code
 - Works even when the game is paused (`PROCESS_MODE_ALWAYS`)
+
+### Editor state and undo/redo
+
+- **`editor_control`** - Inspect the edited scene and selection, open/save/reload
+  scenes, and apply reversible property or node-name edits through
+  `EditorUndoRedoManager`. `launch_editor` installs the authenticated bridge
+  for the lifetime of the MCP-owned editor session.
 
 ### Runtime Node Inspection & Manipulation
 
@@ -65,7 +72,8 @@ additions:
 ### Game Control & Debugging
 
 - **`game_pause`** - Pause/unpause the game
-- **`game_performance`** - FPS, frame time, memory, object counts, draw calls
+- **`game_performance`** - FPS, frame time, memory, object counts, draw calls,
+  bounded profiler sessions, and live orphan-node diagnostics
 - **`game_wait`** - Wait N frames (timing-sensitive operations)
 - **`game_get_nodes_in_group`** - Query nodes by group
 - **`game_find_nodes_by_class`** - Find all nodes of a specific class
@@ -604,7 +612,10 @@ branch would receive critical fixes rather than new features.
 | Linux exports | Release/debug template export and smoke-run verification | Godot 4.4 and 4.7 installed templates; other targets are not claimed |
 | Rendering and screenshots | Headless limitations plus virtual-display pixel verification | Compatibility and Forward+ on Linux software rendering |
 | Windows and macOS | Portable acceptance verified | Godot 4.7 process, Unicode path, runtime input, window query, and teardown workflows |
-| Editor UI, debugger, profiler, imports, GDExtension | Not implemented | These workflow gaps remain tracked in `TODO.md` |
+| Editor state and undo/redo bridge | Verified in MCP E2E | Headless editor bridge is authenticated and uses `EditorInterface` plus `EditorUndoRedoManager` |
+| Full debugger control | Not claimed | Breakpoints, stack inspection, and frame-local evaluation remain outside the supported boundary |
+| Profiler, leak, asset, localization, and accessibility audits | Verified in MCP E2E | `game_performance` and `analyze_project_integrity` return bounded live/static evidence; native extension builds remain unsupported |
+| GDExtension builds | Not claimed | `analyze_project_integrity` inspects declarations and libraries without invoking arbitrary native toolchains |
 
 ## Installation
 

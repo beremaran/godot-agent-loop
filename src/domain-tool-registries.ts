@@ -59,6 +59,7 @@ export function createLifecycleToolRegistry(
 ): ToolHandlerRegistry {
   return {
       'launch_editor': args => handlers.handleLaunchEditor(args),
+      'editor_control': args => handlers.handleEditorControl(args),
       'run_project': args => handlers.handleRunProject(args),
       'verify_project': args => handlers.handleVerifyProject(args),
       'get_debug_output': () => handlers.handleGetDebugOutput(),
@@ -142,7 +143,7 @@ export function createGameToolRegistry(
       'game_remove_node': args => handlers.handleGameRemoveNode(args),
       'game_change_scene': args => handlers.handleGameChangeScene(args),
       'game_pause': args => handlers.handleGamePause(args),
-      'game_performance': () => handlers.handleGamePerformance(),
+      'game_performance': args => handlers.handleGamePerformance(args),
       'game_wait': args => handlers.handleGameWait(args),
       'game_connect_signal': args => handlers.handleGameConnectSignal(args),
       'game_disconnect_signal': args => handlers.handleGameDisconnectSignal(args),

@@ -29,6 +29,10 @@ export interface LifecycleToolHandlerContext {
   clearConnectedProjectPath: () => void;
   getInteractionPort: () => number;
   getRuntimeEnvironment: () => NodeJS.ProcessEnv;
+  installEditorPlugin?: (projectPath: string) => boolean;
+  removeEditorPlugin?: (projectPath: string, owned: boolean) => void;
+  getEditorEnvironment?: () => NodeJS.ProcessEnv;
+  sendEditorCommand?: (command: string, params?: Record<string, unknown>, timeoutMs?: number) => Promise<Record<string, unknown>>;
   isGameConnected: () => boolean;
   sendGameCommand: (command: string, params?: Record<string, unknown>, timeoutMs?: number) => Promise<GameResponse>;
 }
@@ -51,17 +55,42 @@ export class LifecycleToolHandlers {
         return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
 
       this.context.logDebug(`Launching Godot editor for project: ${args.projectPath}`);
+      const editorPluginOwned = this.context.installEditorPlugin?.(args.projectPath) ?? false;
       const editorArgs = ['-e', '--path', args.projectPath];
       // Display-less environments (CI, the E2E harness) opt in to a headless
       // editor process, same as run_project.
       if (process.env.GODOT_MCP_RUN_HEADLESS === 'true') editorArgs.unshift('--headless');
       const editorProcess = spawn(godotPath, editorArgs, {
-        stdio: 'pipe', env: { ...process.env, ...this.context.getRuntimeEnvironment() },
+        stdio: 'pipe', env: { ...process.env, ...this.context.getRuntimeEnvironment(), ...(this.context.getEditorEnvironment?.() ?? {}) },
       });
       editorProcess.on('error', (err: Error) => { console.error('Failed to start Godot editor:', err); });
-      return { content: [{ type: 'text', text: `Godot editor launched successfully for project at ${args.projectPath}.` }] };
+      const editorEnvironment = this.context.getEditorEnvironment?.() ?? {};
+      return { content: [{ type: 'text', text: JSON.stringify({ launched: true, project_path: args.projectPath, editor_plugin: true, plugin_owned: editorPluginOwned, editor_bridge_port: editorEnvironment.GODOT_MCP_EDITOR_PORT ?? null }, null, 2) }] };
     } catch (error: unknown) {
       return createErrorResponse(`Failed to launch Godot editor: ${this.errorMessage(error)}`);
+    }
+  }
+
+  public async handleEditorControl(args: ToolArguments) {
+    args = normalizeParameters(args || {});
+    const allowed = ['inspect', 'select', 'save', 'reload', 'open_scene', 'set_property', 'rename_node', 'undo', 'redo'];
+    if (!args.projectPath || !allowed.includes(args.action)) {
+      return createErrorResponse('projectPath and a valid editor action are required.');
+    }
+    if (!validatePath(args.projectPath) || !this.context.isPathAllowed(args.projectPath)) {
+      return createErrorResponse('Project path is outside the allowed roots');
+    }
+    const params: Record<string, unknown> = {};
+    for (const key of ['nodePaths', 'scenePath', 'nodePath', 'property', 'value', 'name']) {
+      if (args[key] !== undefined) params[key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`)] = args[key];
+    }
+    try {
+      if (!this.context.sendEditorCommand) return createErrorResponse('Editor bridge is not configured. Launch the editor through launch_editor first.');
+      const result = await this.context.sendEditorCommand(args.action, params, 15_000);
+      if (result.error) return createErrorResponse(`editor_control failed: ${typeof result.error === 'string' ? result.error : JSON.stringify(result.error)}`);
+      return { content: [{ type: 'text', text: JSON.stringify({ project_path: args.projectPath, action: args.action, ...result }, null, 2) }] };
+    } catch (error: unknown) {
+      return createErrorResponse(`editor_control failed: ${this.errorMessage(error)}`);
     }
   }
 

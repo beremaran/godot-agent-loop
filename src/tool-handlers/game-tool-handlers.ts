@@ -188,8 +188,15 @@ export class GameToolHandlers {
     return this.context.gameCommand('pause', args, a => ({ paused: a.paused !== undefined ? a.paused : true }));
   }
 
-  public async handleGamePerformance() {
-    return this.context.gameCommand('get_performance', {}, () => ({}));
+  public async handleGamePerformance(args: ToolArguments = {}) {
+    args = normalizeParameters(args || {});
+    const action = args.action ?? 'sample';
+    if (!['sample', 'start', 'stop', 'report', 'leaks'].includes(action)) {
+      return createErrorResponse('action must be sample, start, stop, report, or leaks.');
+    }
+    return this.context.gameCommand('get_performance', args, a => ({
+      action: a.action ?? 'sample', sample_count: a.sampleCount ?? a.sample_count ?? 1, sampleCount: a.sampleCount ?? a.sample_count ?? 1,
+    }));
   }
 
   public async handleGameWait(args: ToolArguments) {

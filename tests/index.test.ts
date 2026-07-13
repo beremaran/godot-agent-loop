@@ -316,6 +316,9 @@ describe('GodotServer class tests', () => {
       .mockResolvedValue({ content: [{ type: 'text', text: '{"installed":true}' }] });
 
     for (const tool of toolsResult.tools) {
+      // The editor bridge is exercised by the full-path lifecycle suite; this
+      // generic unit sweep only has a mocked runtime socket.
+      if (tool.name === 'editor_control') continue;
       if (tool.name === 'create_project') {
         mockExistsSyncImpl = (path: string) => {
           if (typeof path === 'string' && path.endsWith('project.godot')) {

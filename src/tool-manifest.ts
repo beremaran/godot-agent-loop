@@ -50,6 +50,13 @@ export const toolManifest: Record<ToolName, ToolManifestEntry> = {
     actions: null,
     privileged: false,
   },
+  editor_control: {
+    domain: 'lifecycle',
+    handler: 'handleEditorControl',
+    backend: { kind: 'process' },
+    actions: ['inspect', 'select', 'save', 'reload', 'open_scene', 'set_property', 'rename_node', 'undo', 'redo'],
+    privileged: false,
+  },
   run_project: {
     domain: 'lifecycle',
     handler: 'handleRunProject',
@@ -82,7 +89,7 @@ export const toolManifest: Record<ToolName, ToolManifestEntry> = {
     domain: 'project',
     handler: 'handleAnalyzeProjectIntegrity',
     backend: { kind: 'local' },
-    actions: ['analyze', 'preview_rename'],
+    actions: ['analyze', 'preview_rename', 'assets', 'localization', 'accessibility', 'extensions', 'leaks'],
     privileged: false,
   },
   verify_export_readiness: {
@@ -307,7 +314,7 @@ export const toolManifest: Record<ToolName, ToolManifestEntry> = {
     domain: 'game',
     handler: 'handleGamePerformance',
     backend: { kind: 'runtime', command: 'get_performance' },
-    actions: null,
+    actions: ['sample', 'start', 'stop', 'report', 'leaks'],
     privileged: false,
   },
   game_wait: {
@@ -904,7 +911,7 @@ export const toolManifest: Record<ToolName, ToolManifestEntry> = {
     domain: 'game',
     handler: 'handleGamePhysics3d',
     backend: { kind: 'runtime', command: 'physics_3d' },
-    actions: ['ray', 'overlap'],
+    actions: ['ray', 'overlap', 'contacts', 'inspect_shape'],
     privileged: false,
   },
   game_canvas: {

@@ -111,6 +111,8 @@ var _commands: Dictionary = {}
 var _domains: Array[Node] = []
 var _codec: VariantCodec
 var _privileged_policy: PrivilegedCommandPolicy
+var _profile_active: bool = false
+var _profile_samples: Array[Dictionary] = []
 
 func _ready() -> void:
 	# Ensure MCP server keeps processing even when game is paused
@@ -739,9 +741,57 @@ func _cmd_pause(params: Dictionary) -> void:
 
 
 # --- Get Performance ---
-func _cmd_get_performance(_params: Dictionary) -> void:
-	_send_response({
-		"success": true,
+func _cmd_get_performance(params: Dictionary) -> void:
+	var action: String = str(params.get("action", "sample"))
+	if not ["sample", "start", "stop", "report", "leaks"].has(action):
+		_send_response({"error": "action must be sample, start, stop, report, or leaks"})
+		return
+	if action == "start":
+		_profile_active = true
+		_profile_samples.clear()
+		_send_response({"success": true, "profiling": true, "sample_count": 0})
+		return
+	if action == "stop":
+		_profile_active = false
+		var stopped: Dictionary = _profile_report()
+		stopped["profiling"] = false
+		_send_response(stopped)
+		return
+	if action == "report":
+		var report: Dictionary = _profile_report()
+		report["profiling"] = _profile_active
+		_send_response(report)
+		return
+	var sample_count: int = CommandParams.to_int(params.get("sample_count", params.get("sampleCount", 1)), 1)
+	if sample_count < 1 or sample_count > 120:
+		_send_response({"error": "sample_count must be between 1 and 120", "error_data": {"param": "sample_count", "reason": "out_of_range"}})
+		return
+	var samples: Array[Dictionary] = []
+	for index: int in range(sample_count):
+		var current: Dictionary = _performance_snapshot()
+		samples.append(current)
+		if _profile_active:
+			_profile_samples.append(current)
+		if index + 1 < sample_count:
+			await get_tree().process_frame
+	var result: Dictionary = samples[0].duplicate(true)
+	result["success"] = true
+	result["samples"] = samples
+	result["profiling"] = _profile_active
+	result["requested_sample_count"] = sample_count
+	if action == "leaks":
+		result["leak_diagnostics"] = {
+			"object_count": result.get("object_count", 0),
+			"object_node_count": result.get("object_node_count", 0),
+			"object_orphan_node_count": result.get("object_orphan_node_count", 0),
+			"static_memory_bytes": result.get("memory_static", 0),
+			"tracked_profile_samples": _profile_samples.size(),
+		}
+	_send_response(result)
+
+
+func _performance_snapshot() -> Dictionary:
+	return {
 		"fps": Performance.get_monitor(Performance.TIME_FPS),
 		"frame_time": Performance.get_monitor(Performance.TIME_PROCESS),
 		"physics_frame_time": Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS),
@@ -751,8 +801,34 @@ func _cmd_get_performance(_params: Dictionary) -> void:
 		"object_node_count": Performance.get_monitor(Performance.OBJECT_NODE_COUNT),
 		"object_orphan_node_count": Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT),
 		"render_total_objects": Performance.get_monitor(Performance.RENDER_TOTAL_OBJECTS_IN_FRAME),
-		"render_total_draw_calls": Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)
-	})
+		"render_total_draw_calls": Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME),
+	}
+
+
+func _profile_report() -> Dictionary:
+	var report: Dictionary = {"success": true, "sample_count": _profile_samples.size(), "samples": _profile_samples.duplicate(true)}
+	if _profile_samples.is_empty():
+		report["summary"] = {}
+		return report
+	var latest: Dictionary = _profile_samples[_profile_samples.size() - 1]
+	var fps_total: float = 0.0
+	var frame_total: float = 0.0
+	for sample: Dictionary in _profile_samples:
+		fps_total += _metric_float(sample.get("fps", 0.0))
+		frame_total += _metric_float(sample.get("frame_time", 0.0))
+	report["summary"] = {
+		"fps_average": fps_total / _profile_samples.size(),
+		"frame_time_average": frame_total / _profile_samples.size(),
+		"latest_object_count": latest.get("object_count", 0),
+		"latest_orphan_node_count": latest.get("object_orphan_node_count", 0),
+	}
+	return report
+
+
+func _metric_float(value: Variant) -> float:
+	if value is int or value is float:
+		return value
+	return 0.0
 
 
 # --- Wait N Frames ---

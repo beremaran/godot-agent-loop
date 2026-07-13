@@ -35,6 +35,8 @@ import { GameToolHandlers } from './tool-handlers/game-tool-handlers.js';
 import { ProjectToolHandlers } from './tool-handlers/project-tool-handlers.js';
 import { LifecycleToolHandlers } from './tool-handlers/lifecycle-tool-handlers.js';
 import { ProjectSupport } from './project-support.js';
+import { EditorConnection } from './editor-connection.js';
+import { EditorPluginInstaller } from './editor-plugin-installer.js';
 import { PRIVILEGED_RUNTIME_GROUPS, type PrivilegedRuntimeGroup } from './runtime-protocol.js';
 
 // Check if debug mode is enabled
@@ -71,6 +73,13 @@ function resolveRuntimePort(): number {
     return 9090;
   }
   return parsed;
+}
+
+function resolveEditorPort(): number {
+  const configured = process.env.GODOT_MCP_EDITOR_PORT;
+  if (!configured) return 9091;
+  const parsed = Number(configured);
+  return Number.isInteger(parsed) && parsed > 0 && parsed < 65536 ? parsed : 9091;
 }
 
 const pathSecurity = new PathSecurity();
@@ -126,6 +135,10 @@ export class GodotServer {
   private operationRunner: HeadlessOperationRunner;
   private readonly headlessOperations: HeadlessOperationService;
   private readonly gameCommands: GameCommandService;
+  private readonly editorConnection = new EditorConnection({ port: resolveEditorPort(), secret: RUNTIME_SECRET });
+  private readonly editorPluginInstaller: EditorPluginInstaller;
+  private editorProjectPath: string | null = null;
+  private editorPluginOwned = false;
   private strictPathValidation = false;
   private readonly tcpGameConnection = new GameConnection({
     port: resolveRuntimePort(),
@@ -172,6 +185,7 @@ export class GodotServer {
 
     // Set the path to the operations script
     this.operationsScriptPath = join(__dirname, 'scripts', 'godot_operations.gd');
+    this.editorPluginInstaller = new EditorPluginInstaller(join(__dirname, 'scripts', 'mcp_editor_plugin.gd'));
     this.interactionServerInstaller = new InteractionServerInstaller({
       sourceScriptPath: join(__dirname, 'scripts', 'mcp_interaction_server.gd'),
       logDebug: message => { this.logDebug(message); },
@@ -228,6 +242,14 @@ export class GodotServer {
       clearConnectedProjectPath: () => { this.gameConnection.clearConnectedProject(); },
       getInteractionPort: () => this.gameConnection.interactionPort,
       getRuntimeEnvironment: () => ({ GODOT_MCP_RUNTIME_SECRET: RUNTIME_SECRET }),
+      installEditorPlugin: projectPath => {
+        this.editorPluginOwned = this.editorPluginInstaller.install(projectPath);
+        this.editorProjectPath = projectPath;
+        return this.editorPluginOwned;
+      },
+      removeEditorPlugin: (projectPath, owned) => { this.editorPluginInstaller.remove(projectPath, owned); },
+      getEditorEnvironment: () => ({ GODOT_MCP_EDITOR_PORT: String(resolveEditorPort()), GODOT_MCP_EDITOR_SECRET: RUNTIME_SECRET }),
+      sendEditorCommand: (command, params, timeoutMs) => this.editorConnection.send(command, params, timeoutMs),
       isGameConnected: () => this.gameConnection.isConnected,
       sendGameCommand: (command, params, timeoutMs) => this.gameCommands.send(command, params, timeoutMs),
     });
@@ -358,6 +380,8 @@ export class GodotServer {
   private async cleanup() {
     this.logDebug('Cleaning up resources');
     this.disconnectFromGame();
+    this.editorConnection.disconnect();
+    if (this.editorProjectPath) this.editorPluginInstaller.remove(this.editorProjectPath, this.editorPluginOwned);
     if (this.gameConnection.connectedProjectPath) {
       this.removeInteractionServer(this.gameConnection.connectedProjectPath);
       this.gameConnection.clearConnectedProject();

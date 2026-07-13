@@ -562,7 +562,23 @@ export class ProjectIntegrityService {
     const inventory = this.scan(args.projectPath, args.maxFiles ?? 10000);
     if ('error' in inventory) return createErrorResponse(inventory.error);
     if (args.action === 'analyze') return { content: [{ type: 'text', text: JSON.stringify(this.analyze(args.projectPath, inventory.files), null, 2) }] };
-    if (args.action !== 'preview_rename') return createErrorResponse('action must be analyze or preview_rename.');
+    if (args.action === 'leaks') {
+      const report = this.analyze(args.projectPath, inventory.files);
+      return { content: [{ type: 'text', text: JSON.stringify({
+        source: 'static-project-audit',
+        runtime_snapshot_required: true,
+        orphan_resources: report.orphan_resources,
+        orphan_nodes: report.orphan_nodes,
+        broken_references: report.broken_references,
+        cycles: report.cycles,
+        note: 'Static candidates are reported without mutating the project; use game_performance action=leaks for live ObjectDB counters.',
+      }, null, 2) }] };
+    }
+    if (args.action === 'assets') return { content: [{ type: 'text', text: JSON.stringify(this.auditAssets(args.projectPath, args.maxFiles ?? 10000), null, 2) }] };
+    if (args.action === 'localization') return { content: [{ type: 'text', text: JSON.stringify(this.auditLocalization(args.projectPath, args.maxFiles ?? 10000), null, 2) }] };
+    if (args.action === 'accessibility') return { content: [{ type: 'text', text: JSON.stringify(this.auditAccessibility(args.projectPath, args.maxFiles ?? 10000), null, 2) }] };
+    if (args.action === 'extensions') return { content: [{ type: 'text', text: JSON.stringify(this.auditExtensions(args.projectPath, args.maxFiles ?? 10000), null, 2) }] };
+    if (args.action !== 'preview_rename') return createErrorResponse('action must be analyze, preview_rename, assets, localization, accessibility, extensions, or leaks.');
     if (!args.sourcePath || !args.destinationPath || !validatePath(args.sourcePath) || !validatePath(args.destinationPath)) {
       return createErrorResponse('Valid sourcePath and destinationPath are required for preview_rename.');
     }
@@ -642,6 +658,105 @@ export class ProjectIntegrityService {
     };
     for (const node of Object.keys(graph)) visit(node, []);
     return cycles;
+  }
+
+  private allProjectFiles(projectPath: string, maxFiles: number): string[] {
+    const files: string[] = [];
+    const walk = (directory: string): void => {
+      for (const entry of readdirSync(directory, { withFileTypes: true })) {
+        if (['.godot', '.git', 'node_modules'].includes(entry.name)) continue;
+        const full = join(directory, entry.name);
+        if (entry.isDirectory()) walk(full);
+        else if (entry.isFile()) {
+          files.push(relative(projectPath, full).replaceAll('\\', '/'));
+          if (files.length > maxFiles) throw new Error(`Project exceeds maxFiles limit (${maxFiles}).`);
+        }
+      }
+    };
+    walk(projectPath);
+    return files.sort();
+  }
+
+  private auditAssets(projectPath: string, maxFiles: number): Record<string, unknown> {
+    let files: string[];
+    try { files = this.allProjectFiles(projectPath, maxFiles); }
+    catch (error: unknown) { return { error: errorMessage(error), complete: false }; }
+    const categories: Record<string, string[]> = {
+      scenes: [], textures: [], models: [], animations: [], audio: [], fonts: [], shaders: [], imported: [],
+    };
+    const extensionMap: Record<string, string> = {
+      '.tscn': 'scenes', '.scn': 'scenes', '.png': 'textures', '.svg': 'textures', '.jpg': 'textures', '.jpeg': 'textures',
+      '.webp': 'textures', '.glb': 'models', '.gltf': 'models', '.obj': 'models', '.fbx': 'models', '.anim': 'animations',
+      '.wav': 'audio', '.ogg': 'audio', '.mp3': 'audio', '.ttf': 'fonts', '.otf': 'fonts', '.gdshader': 'shaders',
+    };
+    for (const file of files) {
+      const lower = file.toLowerCase();
+      const category = extensionMap[extname(lower)];
+      if (category) categories[category].push(file);
+      if (lower.startsWith('.godot/imported/')) categories.imported.push(file);
+    }
+    return { complete: true, files_scanned: files.length, categories, bounded: files.length >= maxFiles };
+  }
+
+  private auditLocalization(projectPath: string, maxFiles: number): Record<string, unknown> {
+    let files: string[];
+    try { files = this.allProjectFiles(projectPath, maxFiles); }
+    catch (error: unknown) { return { error: errorMessage(error), complete: false }; }
+    const sources = files.filter(file => /\.(csv|po|pot)$/i.test(file));
+    const entries: Record<string, unknown>[] = [];
+    for (const file of sources) {
+      const content = readFileSync(join(projectPath, file), 'utf8');
+      if (/\.csv$/i.test(file)) {
+        const lines = content.split(/\r?\n/).filter(Boolean);
+        const headers = (lines.shift() ?? '').split(',').map(value => value.trim());
+        const missing: string[] = [];
+        for (const line of lines) {
+          const columns = line.split(',');
+          headers.forEach((header, index) => { if (index > 0 && !columns[index]?.trim()) missing.push(`${columns[0] ?? '?'}:${header}`); });
+        }
+        entries.push({ file, format: 'csv', locales: headers.slice(1), keys: lines.length, missing });
+      } else {
+        const ids = [...content.matchAll(/^msgid\s+"(.*)"$/gm)].map(match => match[1]);
+        const untranslated = [...content.matchAll(/^msgstr\s+""$/gm)].length;
+        entries.push({ file, format: 'po', keys: ids.length, untranslated });
+      }
+    }
+    return { complete: true, source_files: entries, source_count: entries.length };
+  }
+
+  private auditAccessibility(projectPath: string, maxFiles: number): Record<string, unknown> {
+    let files: string[];
+    try { files = this.allProjectFiles(projectPath, maxFiles); }
+    catch (error: unknown) { return { error: errorMessage(error), complete: false }; }
+    const scenes = files.filter(file => /\.(tscn|scn)$/i.test(file));
+    const controls: Record<string, unknown>[] = [];
+    for (const file of scenes) {
+      const content = readFileSync(join(projectPath, file), 'utf8');
+      for (const match of content.matchAll(/^\[node\s+([^\]]+type="([A-Za-z0-9_]+)"[^\]]*)\]$/gm)) {
+        const attributes = match[1];
+        const type = match[2];
+        if (!type.endsWith('Control') && !['Button', 'Label', 'LineEdit', 'TextEdit', 'CheckBox', 'Slider', 'Tree'].includes(type)) continue;
+        const name = /name="([^"]+)"/.exec(attributes)?.[1] ?? '?';
+        const hasText = new RegExp(`^text\\s*=`, 'm').test(content.slice(match.index ?? 0, (match.index ?? 0) + 1200));
+        const hasMinimum = new RegExp(`^custom_minimum_size\\s*=`, 'm').test(content.slice(match.index ?? 0, (match.index ?? 0) + 1200));
+        controls.push({ file, name, type, has_text: hasText, has_minimum_size: hasMinimum,
+          warnings: type === 'Button' && !hasText ? ['button_without_text_or_label'] : [] });
+      }
+    }
+    return { complete: true, scenes_scanned: scenes.length, controls, warning_count: controls.reduce((n, control) => n + (control.warnings as string[]).length, 0) };
+  }
+
+  private auditExtensions(projectPath: string, maxFiles: number): Record<string, unknown> {
+    let files: string[];
+    try { files = this.allProjectFiles(projectPath, maxFiles); }
+    catch (error: unknown) { return { error: errorMessage(error), complete: false }; }
+    const extensionFiles = files.filter(file => file.toLowerCase().endsWith('.gdextension'));
+    const records = extensionFiles.map(file => {
+      const content = readFileSync(join(projectPath, file), 'utf8');
+      return { file, has_entry_symbol: /entry_symbol\s*=/.test(content), libraries: [...content.matchAll(/library\/[A-Za-z0-9_]+\s*=\s*"([^"]+)"/g)].map(match => match[1]),
+        has_native_library: /library\/|entry_symbol\s*=/.test(content) };
+    });
+    return { complete: true, extensions: records, extension_count: records.length, build_required: records.length > 0 };
   }
 }
 

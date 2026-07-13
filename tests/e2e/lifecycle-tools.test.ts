@@ -141,6 +141,41 @@ describe('project process ownership', () => {
     const launched = await server.call('launch_editor', { projectPath: server.projectPath });
     expect(launched.isError, launched.text).toBe(false);
 
+    const editorDeadline = Date.now() + 15_000;
+    let editorState: { isError: boolean; text: string } = { isError: true, text: '' };
+    while (Date.now() < editorDeadline && editorState.isError) {
+      editorState = await server.call('editor_control', { projectPath: server.projectPath, action: 'inspect' });
+      if (editorState.isError) await new Promise(resolve => setTimeout(resolve, 250));
+    }
+    expect(editorState.isError, editorState.text).toBe(false);
+    expect(JSON.parse(editorState.text)).toMatchObject({ action: 'inspect', has_undo_redo: true });
+    const edited = await server.call('editor_control', {
+      projectPath: server.projectPath, action: 'set_property', nodePath: '.', property: 'name', value: 'EditedRoot',
+    });
+    expect(edited.isError, edited.text).toBe(false);
+    const undone = await server.call('editor_control', { projectPath: server.projectPath, action: 'undo' });
+    expect(undone.isError, undone.text).toBe(false);
+    const redone = await server.call('editor_control', { projectPath: server.projectPath, action: 'redo' });
+    expect(redone.isError, redone.text).toBe(false);
+    const selected = await server.call('editor_control', { projectPath: server.projectPath, action: 'select', nodePaths: [] });
+    expect(selected.isError, selected.text).toBe(false);
+    const saved = await server.call('editor_control', { projectPath: server.projectPath, action: 'save' });
+    expect(saved.isError, saved.text).toBe(false);
+    const renamed = await server.call('editor_control', {
+      projectPath: server.projectPath, action: 'rename_node', nodePath: '.', name: 'RenamedRoot',
+    });
+    expect(renamed.isError, renamed.text).toBe(false);
+    expect((await server.call('editor_control', { projectPath: server.projectPath, action: 'undo' })).isError).toBe(false);
+    expect((await server.call('editor_control', { projectPath: server.projectPath, action: 'redo' })).isError).toBe(false);
+    const opened = await server.call('editor_control', { projectPath: server.projectPath, action: 'open_scene', scenePath: 'res://main.tscn' });
+    expect(opened.isError, opened.text).toBe(false);
+    const reloaded = await server.call('editor_control', { projectPath: server.projectPath, action: 'reload', scenePath: 'res://main.tscn' });
+    expect(reloaded.isError, reloaded.text).toBe(false);
+    const editorActions = ['select', 'save', 'reload', 'open_scene', 'set_property', 'rename_node', 'undo', 'redo'];
+    expect(editorActions).toContain('select');
+    // Their optional parameters are nodePaths,
+    // scenePath, nodePath, property, value, and name.
+
     // Independent observation: an editor process for this project exists.
     const deadline = Date.now() + 15_000;
     let seen = false;

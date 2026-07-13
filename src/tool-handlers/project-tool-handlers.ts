@@ -1148,8 +1148,8 @@ export class ProjectToolHandlers {
   }
 
   public async handleAnalyzeProjectIntegrity(args: ToolArguments) {
-    if (args.action !== 'analyze' && args.action !== 'preview_rename') {
-      return createErrorResponse('action must be analyze or preview_rename.');
+    if (!['analyze', 'preview_rename', 'assets', 'localization', 'accessibility', 'extensions', 'leaks'].includes(args.action)) {
+      return createErrorResponse('action must be analyze, preview_rename, assets, localization, accessibility, extensions, or leaks.');
     }
     return this.projectIntegrity.execute(args);
   }

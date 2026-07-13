@@ -419,7 +419,7 @@ func _cmd_navigation_3d(params: Dictionary) -> void:
 # --- 3D direct-space queries ---
 func _cmd_physics_3d(params: Dictionary) -> void:
 	var reader: CommandParams = CommandParams.new(params)
-	var action: String = reader.optional_enum("action", "ray", ["ray", "overlap"])
+	var action: String = reader.optional_enum("action", "ray", ["ray", "overlap", "contacts", "inspect_shape"])
 	if params_invalid(reader):
 		return
 
@@ -451,6 +451,41 @@ func _cmd_physics_3d(params: Dictionary) -> void:
 			await get_tree().process_frame
 			var out: Array = _query_area_3d_bodies(node as Area3D)
 			respond({"success": true, "action": "overlap", "bodies": out})
+		"contacts":
+			var body: Node = require_node(reader)
+			if body != null and not body.has_method("get_contact_count"):
+				reader.fail("node must expose get_contact_count", {"param": "node_path", "reason": "not_physics_body"})
+			if params_invalid(reader):
+				return
+			await get_tree().physics_frame
+			var contacts: Array = []
+			var count_value: Variant = body.call("get_contact_count")
+			var count: int = count_value if count_value is int else 0
+			for index: int in range(min(count, 256)):
+				contacts.append({
+					"collider": str(body.call("get_contact_collider_object", index)),
+					"position": variant_to_json(body.call("get_contact_collider_position", index)),
+					"normal": variant_to_json(body.call("get_contact_local_normal", index)),
+				})
+			respond({"success": true, "action": "contacts", "count": count, "contacts": contacts, "truncated": count > contacts.size()})
+		"inspect_shape":
+			var shape_node: Node = require_node(reader)
+			if shape_node != null and not shape_node is CollisionShape3D:
+				_require_class(reader, shape_node, "CollisionShape3D")
+			if params_invalid(reader):
+				return
+			var shape: Shape3D = (shape_node as CollisionShape3D).shape
+			if shape == null:
+				respond({"success": true, "action": "inspect_shape", "shape": null})
+				return
+			respond({"success": true, "action": "inspect_shape", "shape": {
+				"type": shape.get_class(),
+				"resource_path": shape.resource_path,
+				"resource_local_to_scene": shape.resource_local_to_scene,
+				"size": variant_to_json(shape.get("size")),
+				"radius": shape.get("radius"),
+				"height": shape.get("height"),
+			}})
 
 
 # --- 2D direct-space queries ---

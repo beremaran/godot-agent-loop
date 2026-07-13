@@ -31,6 +31,31 @@
         "security": "applicable"
       }
     },
+    "editor_control": {
+      "level": "E2E",
+      "tests": [
+        "tests/e2e/lifecycle-tools.test.ts::editor_control",
+        "tests/e2e/lifecycle-tools.test.ts::action: 'inspect'"
+      ],
+      "actions": {
+        "inspect": { "tests": ["tests/e2e/lifecycle-tools.test.ts::action: 'inspect'"] },
+        "select": { "tests": ["tests/e2e/lifecycle-tools.test.ts::action: 'select'"] },
+        "save": { "tests": ["tests/e2e/lifecycle-tools.test.ts::action: 'save'"] },
+        "reload": { "tests": ["tests/e2e/lifecycle-tools.test.ts::action: 'reload'"] },
+        "open_scene": { "tests": ["tests/e2e/lifecycle-tools.test.ts::action: 'open_scene'"] },
+        "set_property": { "tests": ["tests/e2e/lifecycle-tools.test.ts::action: 'set_property'"] },
+        "rename_node": { "tests": ["tests/e2e/lifecycle-tools.test.ts::action: 'rename_node'"] },
+        "undo": { "tests": ["tests/e2e/lifecycle-tools.test.ts::action: 'undo'"] },
+        "redo": { "tests": ["tests/e2e/lifecycle-tools.test.ts::action: 'redo'"] }
+      },
+      "dimensions": {
+        "happy-path": "applicable", "parameters": "applicable", "failures": "applicable",
+        "repeatability": "applicable", "cleanup": "applicable", "persistence": "applicable",
+        "frame-behavior": "n/a: editor bridge runs outside the game loop", "exotic-paths": "applicable",
+        "limits": "applicable", "compatibility": "applicable", "platforms": "applicable",
+        "build-flavors": "n/a: EditorPlugin is language-independent", "security": "applicable"
+      }
+    },
     "run_project": {
       "level": "E2E",
       "tests": [
@@ -157,7 +182,12 @@
       ],
       "actions": {
         "analyze": { "tests": ["tests/e2e/import-integrity-workflows.test.ts::action: 'analyze'"] },
-        "preview_rename": { "tests": ["tests/e2e/import-integrity-workflows.test.ts::action: 'preview_rename'"] }
+        "preview_rename": { "tests": ["tests/e2e/import-integrity-workflows.test.ts::action: 'preview_rename'"] },
+        "assets": { "tests": ["tests/e2e/import-integrity-workflows.test.ts::audits assets, localization, accessibility, extensions, and leak candidates"] },
+        "localization": { "tests": ["tests/e2e/import-integrity-workflows.test.ts::audits assets, localization, accessibility, extensions, and leak candidates"] },
+        "accessibility": { "tests": ["tests/e2e/import-integrity-workflows.test.ts::audits assets, localization, accessibility, extensions, and leak candidates"] },
+        "extensions": { "tests": ["tests/e2e/import-integrity-workflows.test.ts::audits assets, localization, accessibility, extensions, and leak candidates"] },
+        "leaks": { "tests": ["tests/e2e/import-integrity-workflows.test.ts::audits assets, localization, accessibility, extensions, and leak candidates"] }
       },
       "dimensions": {
         "happy-path": "applicable", "parameters": "applicable", "failures": "applicable",
@@ -1119,12 +1149,11 @@
         "tests/e2e/runtime-system-tools.test.ts::game_performance reports live engine counters"
       ],
       "actions": {
-        "*": {
-          "tests": [
-            "tests/handlers.test.ts::handleGamePerformance",
-            "tests/e2e/runtime-system-tools.test.ts::game_performance reports live engine counters"
-          ]
-        }
+        "sample": { "tests": ["tests/e2e/runtime-system-tools.test.ts::game_performance reports live engine counters"] },
+        "start": { "tests": ["tests/e2e/runtime-system-tools.test.ts::game_performance reports live engine counters"] },
+        "stop": { "tests": ["tests/e2e/runtime-system-tools.test.ts::game_performance reports live engine counters"] },
+        "report": { "tests": ["tests/e2e/runtime-system-tools.test.ts::game_performance reports live engine counters"] },
+        "leaks": { "tests": ["tests/e2e/runtime-system-tools.test.ts::game_performance reports live engine counters"] }
       },
       "dimensions": {
         "happy-path": "applicable",
@@ -4012,6 +4041,12 @@
         },
         "overlap": {
           "tests": ["tests/e2e/runtime-3d-scene-tools.test.ts::action: 'overlap'"]
+        },
+        "contacts": {
+          "tests": ["tests/e2e/runtime-3d-scene-tools.test.ts::action: 'contacts'"]
+        },
+        "inspect_shape": {
+          "tests": ["tests/e2e/runtime-3d-scene-tools.test.ts::action: 'inspect_shape'"]
         }
       },
       "dimensions": {

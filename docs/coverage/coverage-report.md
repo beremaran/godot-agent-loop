@@ -9,26 +9,26 @@ when this file is stale, and the inventory behind it is validated by
 
 | Denominator | Count | Source |
 | --- | ---: | --- |
-| Advertised MCP tools | 165 | `src/tool-definitions.ts` |
+| Advertised MCP tools | 166 | `src/tool-definitions.ts` |
 | Runtime commands | 108 | `src/runtime-protocol.ts` = `docs/runtime-api.schema.json` |
 | Privileged runtime commands | 8 | `src/runtime-protocol.ts` |
 | Headless operations | 16 | `src/scripts/godot_operations.gd` |
-| Public action rows | 335 | `src/tool-manifest.ts` |
+| Public action rows | 355 | `src/tool-manifest.ts` |
 
 ## Coverage by class
 
 | Class | Tools | Meaning |
 | --- | ---: | --- |
-| E2E | 165 | Complete MCP-to-Godot path with independent observation |
+| E2E | 166 | Complete MCP-to-Godot path with independent observation |
 | H | 0 | Headless GDScript operation exercised directly against Godot |
 | G+ | 0 | Runtime command reaches real Godot with at least one successful behavior |
 | G- | 0 | Runtime command reaches real Godot on a negative path only |
 | T | 0 | TypeScript, source-contract, schema, or mocked-transport coverage only |
-| **Total** | **165** | |
+| **Total** | **166** | |
 
 ## Action coverage
 
-335 of 335 action rows declare at least one resolving test
+355 of 355 action rows declare at least one resolving test
 reference; 0 are explicitly recorded as untested.
 
 ## Test suites by declared kind
@@ -49,11 +49,12 @@ engine, never a mocked transport.
 | Tool | Backend | Privileged | Level | Actions tested |
 | --- | --- | --- | --- | ---: |
 | `launch_editor` | process | no | E2E | 1/1 |
+| `editor_control` | process | no | E2E | 9/9 |
 | `run_project` | process | no | E2E | 1/1 |
 | `verify_project` | process | no | E2E | 1/1 |
 | `run_project_tests` | godot-cli | no | E2E | 2/2 |
 | `manage_import_pipeline` | godot-cli | no | E2E | 4/4 |
-| `analyze_project_integrity` | local | no | E2E | 2/2 |
+| `analyze_project_integrity` | local | no | E2E | 7/7 |
 | `verify_export_readiness` | godot-cli | no | E2E | 2/2 |
 | `verify_dotnet_project` | godot-cli | no | E2E | 4/4 |
 | `manage_addon` | godot-cli | no | E2E | 6/6 |
@@ -85,7 +86,7 @@ engine, never a mocked transport.
 | `game_remove_node` | runtime `remove_node` | no | E2E | 1/1 |
 | `game_change_scene` | runtime `change_scene` | no | E2E | 1/1 |
 | `game_pause` | runtime `pause` | no | E2E | 1/1 |
-| `game_performance` | runtime `get_performance` | no | E2E | 1/1 |
+| `game_performance` | runtime `get_performance` | no | E2E | 5/5 |
 | `game_wait` | runtime `wait` | no | E2E | 1/1 |
 | `read_scene` | headless `read_scene` | no | E2E | 1/1 |
 | `modify_scene_node` | headless `modify_node` | no | E2E | 1/1 |
@@ -170,7 +171,7 @@ engine, never a mocked transport.
 | `game_sky` | runtime `sky` | no | E2E | 1/1 |
 | `game_camera_attributes` | runtime `camera_attributes` | no | E2E | 2/2 |
 | `game_navigation_3d` | runtime `navigation_3d` | no | E2E | 2/2 |
-| `game_physics_3d` | runtime `physics_3d` | no | E2E | 2/2 |
+| `game_physics_3d` | runtime `physics_3d` | no | E2E | 4/4 |
 | `game_canvas` | runtime `canvas` | no | E2E | 3/3 |
 | `game_canvas_draw` | runtime `canvas_draw` | no | E2E | 6/6 |
 | `game_light_2d` | runtime `light_2d` | no | E2E | 3/3 |

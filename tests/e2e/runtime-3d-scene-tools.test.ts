@@ -394,7 +394,12 @@ describe('3D physics queries through MCP', () => {
       shapeParams: { size_x: 2, size_y: 2, size_z: 2 }, collisionLayer: 1,
     });
     expect(collider.isError, collider.text).toBe(false);
-
+    const collisionShapePath = (payload(collider.text) as { node_path?: string; path?: string }).node_path
+      ?? (payload(collider.text) as { node_path?: string; path?: string }).path
+      ?? '/root/Main/Physics3D/Wall/CollisionShape3D';
+    const shape = await game.call('game_physics_3d', { action: 'inspect_shape', nodePath: collisionShapePath });
+    expect(shape.isError, shape.text).toBe(false);
+    expect(payload(shape.text)).toMatchObject({ action: 'inspect_shape', shape: { type: expect.stringContaining('Box') } });
     const hit = await game.call('game_physics_3d', {
       action: 'ray', from: { x: 0, y: 0, z: 10 }, to: { x: 0, y: 0, z: -10 },
     });
@@ -418,6 +423,14 @@ describe('3D physics queries through MCP', () => {
     });
     expect(masked.isError, masked.text).toBe(false);
     expect(payload(masked.text)).toMatchObject({ hit: false });
+
+    await game.call('game_add_collision', {
+      parentPath: '/root/Main/Physics3D/Crate', shapeType: 'box', shapeParams: { size_x: 1, size_y: 1, size_z: 1 },
+    });
+    await game.call('game_wait', { frames: 2, frameType: 'physics' });
+    const contacts = await game.call('game_physics_3d', { action: 'contacts', nodePath: '/root/Main/Physics3D/Crate' });
+    expect(contacts.isError, contacts.text).toBe(false);
+    expect(payload(contacts.text)).toMatchObject({ action: 'contacts', count: expect.any(Number), contacts: expect.any(Array) });
   });
 
   it('game_physics_3d overlap reports bodies inside an Area3D', async () => {

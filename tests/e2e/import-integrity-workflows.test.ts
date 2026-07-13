@@ -137,4 +137,37 @@ describe('import pipeline and project integrity workflows through MCP', () => {
     expect(bounded.isError).toBe(true);
     expect(bounded.text).toMatch(/exceeds maxFiles/i);
   });
+
+  it('audits assets, localization, accessibility, extensions, and leak candidates', async () => {
+    server = await startServer();
+    mkdirSync(join(server.projectPath, 'assets'));
+    mkdirSync(join(server.projectPath, 'locales'));
+    writeFileSync(join(server.projectPath, 'assets', 'mesh.glb'), 'fixture');
+    writeFileSync(join(server.projectPath, 'locales', 'messages.csv'), 'key,en,fr\nhello,Hello,\n');
+    writeFileSync(join(server.projectPath, 'main.tscn'), [
+      '[gd_scene format=3]', '', '[node name="Root" type="Node2D"]', '',
+      '[node name="Action" type="Button" parent="."]', 'offset_right = 120.0', '',
+    ].join('\n'));
+    writeFileSync(join(server.projectPath, 'native.gdextension'), [
+      '[configuration]', 'entry_symbol = "mcp_init"', '', '[libraries]',
+      'linux.x86_64 = "res://lib/libmcp.so"', '',
+    ].join('\n'));
+
+    const assets = await server.call('analyze_project_integrity', { projectPath: server.projectPath, action: 'assets', maxFiles: 100 });
+    expect(assets.isError, assets.text).toBe(false);
+    expect(json(assets.text).categories.models).toContain('assets/mesh.glb');
+    const localization = await server.call('analyze_project_integrity', { projectPath: server.projectPath, action: 'localization', maxFiles: 100 });
+    expect(localization.isError, localization.text).toBe(false);
+    expect(json(localization.text).source_files[0]).toMatchObject({ format: 'csv', locales: ['en', 'fr'] });
+    expect(json(localization.text).source_files[0].missing).toContain('hello:fr');
+    const accessibility = await server.call('analyze_project_integrity', { projectPath: server.projectPath, action: 'accessibility', maxFiles: 100 });
+    expect(accessibility.isError, accessibility.text).toBe(false);
+    expect(json(accessibility.text).warning_count).toBe(1);
+    const extensions = await server.call('analyze_project_integrity', { projectPath: server.projectPath, action: 'extensions', maxFiles: 100 });
+    expect(extensions.isError, extensions.text).toBe(false);
+    expect(json(extensions.text).extensions[0]).toMatchObject({ file: 'native.gdextension', has_entry_symbol: true });
+    const leaks = await server.call('analyze_project_integrity', { projectPath: server.projectPath, action: 'leaks', maxFiles: 100 });
+    expect(leaks.isError, leaks.text).toBe(false);
+    expect(json(leaks.text).runtime_snapshot_required).toBe(true);
+  });
 });

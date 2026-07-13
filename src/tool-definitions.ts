@@ -37,6 +37,24 @@ export const toolDefinitions = [
   },
 },
 {
+  name: 'editor_control',
+  description: 'Inspect and edit open scenes through an authenticated editor bridge',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      projectPath: { type: 'string', description: 'Godot project path whose editor is open' },
+      action: { type: 'string', enum: ['inspect', 'select', 'save', 'reload', 'open_scene', 'set_property', 'rename_node', 'undo', 'redo'], description: 'Editor action' },
+      nodePaths: { type: 'array', items: { type: 'string' }, maxItems: 128, description: 'Scene-relative node paths for select' },
+      scenePath: { type: 'string', description: 'Project-relative or res:// scene path' },
+      nodePath: { type: 'string', description: 'Scene-relative node path' },
+      property: { type: 'string', description: 'Property to edit' },
+      value: { description: 'New property value' },
+      name: { type: 'string', minLength: 1, maxLength: 128, description: 'New node name' },
+    },
+    required: ['projectPath', 'action'],
+  },
+},
+{
   name: 'run_project',
   description: 'Run the Godot project and capture output',
   inputSchema: {
@@ -124,7 +142,11 @@ export const toolDefinitions = [
     type: 'object',
     properties: {
       projectPath: { type: 'string', description: 'Godot project path' },
-      action: { type: 'string', enum: ['analyze', 'preview_rename'], description: 'Analysis action' },
+      action: {
+        type: 'string',
+        enum: ['analyze', 'preview_rename', 'assets', 'localization', 'accessibility', 'extensions', 'leaks'],
+        description: 'Analysis action. Static audits are bounded and read-only; leaks reports runtime-independent orphan candidates.',
+      },
       sourcePath: { type: 'string', description: 'Existing project-relative path for rename preview' },
       destinationPath: { type: 'string', description: 'Proposed project-relative rename destination' },
       maxFiles: { type: 'integer', minimum: 1, maximum: 50000, description: 'Resource scan limit. Default: 10000' },
@@ -685,10 +707,13 @@ export const toolDefinitions = [
 },
 {
   name: 'game_performance',
-  description: 'Get performance metrics (FPS, memory, draw calls)',
+  description: 'Sample live performance metrics or run a bounded profiler session',
   inputSchema: {
     type: 'object',
-    properties: {},
+    properties: {
+      action: { type: 'string', enum: ['sample', 'start', 'stop', 'report', 'leaks'], description: 'Profiler action. Default: sample' },
+      sampleCount: { type: 'integer', minimum: 1, maximum: 120, description: 'Number of samples for a bounded session. Default: 1' },
+    },
     required: [],
   },
 },
@@ -2025,7 +2050,7 @@ export const toolDefinitions = [
   inputSchema: {
     type: 'object',
     properties: {
-      action: { type: 'string', enum: ['ray', 'overlap'], description: 'Action: ray or overlap' },
+      action: { type: 'string', enum: ['ray', 'overlap', 'contacts', 'inspect_shape'], description: 'Action: ray, overlap, contacts, or inspect_shape' },
       nodePath: { type: 'string', description: 'Area3D/node path (for overlap)' },
       from: { type: 'object', description: 'Ray/point origin {x,y,z}' },
       to: { type: 'object', description: 'Ray end {x,y,z}' },

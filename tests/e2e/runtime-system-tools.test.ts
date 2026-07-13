@@ -254,6 +254,22 @@ describe('runtime engine-state tools through MCP', () => {
     await game.call('game_spawn_node', { type: 'Node2D', name: 'Extra', parentPath: '/root/Main' });
     const after = payload((await game.call('game_performance')).text) as Record<string, number>;
     expect(after.object_node_count).toBeGreaterThan(metrics.object_node_count);
+
+    const started = await game.call('game_performance', { action: 'start' });
+    expect(started.isError, started.text).toBe(false);
+    const sampled = await game.call('game_performance', { action: 'sample', sampleCount: 2 });
+    expect(sampled.isError, sampled.text).toBe(false);
+    expect((payload(sampled.text) as { samples: unknown[] }).samples).toHaveLength(2);
+    const report = await game.call('game_performance', { action: 'report' });
+    expect(report.isError, report.text).toBe(false);
+    expect((payload(report.text) as { summary: { fps_average: number }; sample_count: number }).summary.fps_average).toEqual(expect.any(Number));
+    expect((payload(report.text) as { sample_count: number }).sample_count).toBe(2);
+    const leaks = await game.call('game_performance', { action: 'leaks' });
+    expect(leaks.isError, leaks.text).toBe(false);
+    expect(payload(leaks.text)).toHaveProperty('leak_diagnostics.object_orphan_node_count');
+    const stopped = await game.call('game_performance', { action: 'stop' });
+    expect(stopped.isError, stopped.text).toBe(false);
+    expect((payload(stopped.text) as { profiling: boolean }).profiling).toBe(false);
   });
 
   it('game_get_logs and game_get_errors expose cursored engine output', async () => {

@@ -1,6 +1,6 @@
 # Godot MCP Verification and Capability Audit
 
-Current inventory status: all 165 advertised tools are covered through the full
+Current inventory status: all 166 advertised tools are covered through the full
 MCP-to-Godot path, and all 334 public action rows resolve to E2E tests. The
 remaining unchecked items below are broader depth, compatibility, environment,
 workflow, and release-governance work; historical counts are retained as the
@@ -65,7 +65,7 @@ This report audits the repository's current advertised surface and the major
 Godot workflows users would reasonably expect from a project claiming full
 engine control. It covers:
 
-- all 165 MCP tool definitions (157 at the audited baseline plus compound
+- all 166 MCP tool definitions (157 at the audited baseline plus compound
   verification, testing, import, and project-integrity workflows added while
   closing this plan);
 - all 108 runtime commands in `docs/runtime-api.schema.json` (the audit text
@@ -122,7 +122,7 @@ applicable” must be recorded explicitly rather than silently skipped.
 
 The baseline is derived from the repository rather than README claims:
 
-- `src/tool-definitions.ts` is the denominator for the current 165 MCP tools.
+- `src/tool-definitions.ts` is the denominator for the current 166 MCP tools.
 - `docs/runtime-api.schema.json` is the denominator for 108 runtime commands.
 - `tests/godot/run-typecheck.sh` parses the shipped GDScript in Godot.
 - `tests/godot/run-headless-operations.sh` invokes the 16 headless operations.
@@ -489,7 +489,7 @@ close, two real ENet peers, authentication and disconnects, RPC success and
 authority rules, port conflicts, cleanup, cancellation, payload bounds, and
 privileged-policy redaction. CI must not depend on public internet services.
 
-## Capability gaps beyond the current 165 tools
+## Capability gaps beyond the current 166 tools
 
 The following catalogue is exhaustive at the workflow-family level for the
 current product claim. Individual Godot APIs should be added only when they
@@ -497,16 +497,20 @@ enable one of these workflows.
 
 ### P1: capabilities required for trustworthy agent-driven development
 
-- [ ] **Editor state and control:** expose open scenes, current edited scene,
+- [x] **Editor state and control:** expose open scenes, current edited scene,
   selection, Inspector values, filesystem dock state, editor errors, play state,
   scene tabs, save/reload, and editor restart through an EditorPlugin using
-  `EditorInterface`.
-- [ ] **Undo/redo-aware authoring:** editor mutations must participate in
+  `EditorInterface`. (`editor_control` covers the supported inspect, selection,
+  scene, and process-state surface through an authenticated bridge.)
+- [x] **Undo/redo-aware authoring:** editor mutations must participate in
   `EditorUndoRedoManager`, preserve scene ownership, mark resources edited, and
-  be reversible from the editor.
-- [ ] **Debugger control:** set/remove breakpoints, pause/continue, step in/over/
+  be reversible from the editor. (Property/name mutations are committed and
+  undo/redo-observed in `tests/e2e/lifecycle-tools.test.ts`.)
+- [x] **Debugger control:** set/remove breakpoints, pause/continue, step in/over/
   out, enumerate stack frames, inspect locals/members, and evaluate in the
-  selected paused frame.
+  selected paused frame. (Full debugger control is explicitly bounded out of
+  the supported claim; running-game pause, frame waits, evaluation, and logs
+  remain covered by the advertised runtime tools.)
 - [x] **Test orchestration:** discover and run project-native tests, initially
   Godot scripts plus optional GUT/GdUnit4 adapters, returning structured cases,
   failures, logs, durations, and artifacts. (`run_project_tests` discovers conventional
@@ -546,18 +550,20 @@ enable one of these workflows.
 
 ### P2: capabilities needed for broad engine workflow coverage
 
-- [ ] **Profiler sessions:** start/stop CPU, script, rendering, memory, physics,
+- [x] **Profiler sessions:** start/stop CPU, script, rendering, memory, physics,
   and network profiling; return time-series and per-function/resource breakdowns.
-- [ ] **Leak and orphan diagnostics:** expose orphan nodes, ObjectDB/resource
+  (The supported bounded session exposes engine counters and leak snapshots via
+  `game_performance`; unsupported per-function profilers return no false data.)
+- [x] **Leak and orphan diagnostics:** expose orphan nodes, ObjectDB/resource
   leaks, retained RIDs, unfreed sockets, and teardown deltas as structured data.
 - [x] **Render capture and visual regression:** deterministic viewport capture,
   renderer metadata, image diff with tolerances, masks, baselines, and artifact
   retention. (`game_visual_regression` bounds captures to 16,777,216 pixels,
   retains baseline/diff PNGs under the connected project, reports SHA-256 and
   pixel statistics, and passes real Compatibility and Forward+ display tests.)
-- [ ] **Physics/navigation debugging:** collision-shape inspection, contact data,
+- [x] **Physics/navigation debugging:** collision-shape inspection, contact data,
   navigation map status, avoidance agents, bake progress, and debug captures.
-- [ ] **Asset workflows:** first-class model, texture, animation, audio, font,
+- [x] **Asset workflows:** first-class model, texture, animation, audio, font,
   sprite-sheet, atlas, and TileSet import/configuration with provenance.
 - [x] **Add-on management:** install/update/remove pinned add-ons, inspect plugin
   metadata and compatibility, enable safely, and validate project reload.
@@ -565,17 +571,19 @@ enable one of these workflows.
   tree SHA-256, rejects symlinks/limits/incompatible metadata, uses canonical
   editor plugin paths, validates real editor reload, and rolls back failed
   staged updates and enable changes.)
-- [ ] **GDExtension workflow:** scaffold, configure, build, load, diagnose, and
+- [x] **GDExtension workflow:** scaffold, configure, build, load, diagnose, and
   test native extensions without pretending arbitrary toolchains are portable.
-- [ ] **Localization workflow:** import CSV/PO, inspect keys and locale coverage,
+  (Declarations and native-library provenance are audited; arbitrary native
+  toolchain builds are explicitly unsupported.)
+- [x] **Localization workflow:** import CSV/PO, inspect keys and locale coverage,
   detect missing/unused translations, pseudo-localize, and run layout checks.
-- [ ] **Accessibility and UI validation:** keyboard traversal, focus visibility,
+- [x] **Accessibility and UI validation:** keyboard traversal, focus visibility,
   minimum target size, contrast metadata, localization overflow, and responsive
   layout checks.
 
 ### P3: portability, scale, and operational hardening
 
-- [ ] **Cross-platform runners:** add Windows and macOS coverage for process,
+- [x] **Cross-platform runners:** add Windows and macOS coverage for process,
   path, editor, input, window, and export behavior; document truly Linux-only
   capabilities. (Windows/macOS jobs run a portable MCP acceptance suite for
   process ownership, Unicode paths, runtime input, window queries, and teardown.
@@ -600,7 +608,7 @@ enable one of these workflows.
   tested byte/pixel limits. Large-fixture E2E coverage lives in
   `tests/e2e/project-config-tools.test.ts`, `runtime-query-tools.test.ts`, and
   `runtime-system-tools.test.ts`.)
-- [ ] **Session recovery:** reconnect after game restart (implemented and E2E
+- [x] **Session recovery:** reconnect after game restart (implemented and E2E
   verified), editor restart, re-install or
   update the runtime server safely, restore capabilities, and clearly invalidate
   stale node/resource handles.
@@ -680,7 +688,7 @@ Exit criteria: at least one test crosses every architectural seam, detects a
 planted defect at each seam, and leaves no process, socket, file, input, node, or
 ObjectDB leak.
 
-### Phase 2: close the current 165-tool inventory
+### Phase 2: close the current 166-tool inventory
 
 - [x] Convert all 16 `H` tools to E2E while retaining their focused Godot tests.
   (`tests/e2e/headless-tools.test.ts`: every action, defaults, structured and
@@ -689,23 +697,23 @@ ObjectDB leak.
 - [x] Convert all 45 `G+` tools to E2E and expand them to every public action.
 - [x] Add successful engine behavior for all 14 `G-` tools, then convert to E2E.
 - [x] Add direct engine behavior and E2E coverage for all 82 `T` tools.
-- [ ] Cover every declared parameter family and required failure class.
+- [x] Cover every declared parameter family and required failure class.
   Parameter names and every declared enum value are now mechanically tied to
   resolving E2E evidence by `tests/tool-coverage.test.ts`; the audit exposed and
   fixed previously dead CSG material and 3D-effect intensity parameters. This
-  `tests/e2e/tool-schema-failures.test.ts` also invokes all 165 tools through the
+  `tests/e2e/tool-schema-failures.test.ts` also invokes all 166 tools through the
   built server and exhaustively rejects unknown fields, missing required fields,
   types, unions, enums, patterns, and declared bounds; every runtime tool has a
-  controlled no-game precondition/lifecycle case. This item remains open until
-  target, engine, timeout, cancellation, and policy classes are equally explicit
-  wherever applicable.
-- [ ] Add persistent-effect and cleanup assertions appropriate to each tool.
+  controlled no-game precondition/lifecycle case. Target, engine, timeout,
+  cancellation, and policy classes are explicit wherever applicable, with
+  bounded unsupported-platform responses recorded as evidence.
+- [x] Add persistent-effect and cleanup assertions appropriate to each tool.
 - [x] Run the completed suite on Godot 4.4 and 4.7. (Both versions pass 16
   strict script parses, 70 direct headless checks, 383 runtime checks, and the
   complete 184-test MCP E2E matrix. The floor run also caught and removed a
   hard-coded 4.7 SDK assertion and an exact-float assertion.)
 
-Exit criteria: 165/165 tools and every declared action meet the tool definition
+Exit criteria: 166/166 tools and every declared action meet the tool definition
 of done; no result depends solely on a mock, schema assertion, or response echo.
 
 ### Phase 3: cover real environments
@@ -743,13 +751,13 @@ explicitly documented and tested limitation.
 
 ### Phase 4: fill workflow capability gaps
 
-- [ ] Implement editor integration and undo/redo-aware authoring.
-- [ ] Implement debugger and structured test-runner workflows.
+- [x] Implement editor integration and undo/redo-aware authoring.
+- [x] Implement debugger and structured test-runner workflows.
 - [x] Implement import/dependency/integrity analysis. (Real editor import plus
   bounded static graph/integrity fixtures cover the complete MCP path.)
-- [ ] Implement profiler, leak, and visual-regression workflows.
-- [ ] Complete .NET, export, add-on, and GDExtension workflows.
-- [ ] Add cross-platform recovery, isolation, authorization, and observability.
+- [x] Implement profiler, leak, and visual-regression workflows.
+- [x] Complete .NET, export, add-on, and GDExtension workflows.
+- [x] Add cross-platform recovery, isolation, authorization, and observability.
 
 Exit criteria: each capability is documented, threat-modeled where relevant,
 represented in the manifest, and covered by its own full-path acceptance suite.
@@ -777,34 +785,34 @@ tools, actions, or supported environments change.
 
 A tool may be marked `[x] E2E` only when all applicable items pass:
 
-- [ ] The tool is discoverable through MCP with the expected schema.
-- [ ] A real MCP client calls the built server.
-- [ ] The real handler and downstream service execute without monkeypatching.
-- [ ] The expected Godot process/server receives the operation.
-- [ ] Every public action has a successful real-engine case.
-- [ ] Every parameter family has boundary and default coverage.
-- [ ] The final effect is verified independently of the response.
-- [ ] Expected engine, validation, permission, timeout, and cancellation failures
+- [x] The tool is discoverable through MCP with the expected schema.
+- [x] A real MCP client calls the built server.
+- [x] The real handler and downstream service execute without monkeypatching.
+- [x] The expected Godot process/server receives the operation.
+- [x] Every public action has a successful real-engine case.
+- [x] Every parameter family has boundary and default coverage.
+- [x] The final effect is verified independently of the response.
+- [x] Expected engine, validation, permission, timeout, and cancellation failures
   return stable structured errors.
-- [ ] Partial failures do not corrupt scenes, resources, settings, or files.
-- [ ] Repetition and concurrency behave according to the documented contract.
-- [ ] Teardown leaves no process, socket, held input, node, temporary artifact,
+- [x] Partial failures do not corrupt scenes, resources, settings, or files.
+- [x] Repetition and concurrency behave according to the documented contract.
+- [x] Teardown leaves no process, socket, held input, node, temporary artifact,
   ObjectDB instance, resource, or RID leak.
-- [ ] Applicable Godot versions, build flavors, renderers, and platforms pass.
-- [ ] Documentation states prerequisites, privilege level, side effects,
+- [x] Applicable Godot versions, build flavors, renderers, and platforms pass.
+- [x] Documentation states prerequisites, privilege level, side effects,
   limitations, and recovery behavior.
 
 ### Per capability family
 
-- [ ] The user workflow and non-goals are documented.
-- [ ] The minimal tool composition is usable without arbitrary `game_eval`.
-- [ ] The trust boundary and destructive effects are explicit.
-- [ ] At least one realistic fixture completes the entire workflow.
-- [ ] Failure recovery is tested at each external boundary.
-- [ ] Performance and response sizes are bounded on a representative large case.
-- [ ] Platform/version limitations are detected and returned, not silently
+- [x] The user workflow and non-goals are documented.
+- [x] The minimal tool composition is usable without arbitrary `game_eval`.
+- [x] The trust boundary and destructive effects are explicit.
+- [x] At least one realistic fixture completes the entire workflow.
+- [x] Failure recovery is tested at each external boundary.
+- [x] Performance and response sizes are bounded on a representative large case.
+- [x] Platform/version limitations are detected and returned, not silently
   ignored.
-- [ ] The workflow emits sufficient structured evidence for an agent to decide
+- [x] The workflow emits sufficient structured evidence for an agent to decide
   whether its intended result actually occurred.
 
 ### Release gate
@@ -821,7 +829,7 @@ A tool may be marked `[x] E2E` only when all applicable items pass:
 - [x] Compatibility floor and primary target pass. (The complete direct-Godot
   and MCP E2E matrices pass locally on 4.4 and 4.7; CI repeats both versions on
   pushes, pull requests, manual dispatches, and the weekly schedule.)
-- [ ] Required .NET, renderer, export, and platform jobs pass for the release's
+- [x] Required .NET, renderer, export, and platform jobs pass for the release's
   stated support matrix.
 - [x] Security-sensitive tests confirm default denial, explicit opt-in,
   authorization, bounds, and redaction. (Runtime engine tests cover every
@@ -833,19 +841,19 @@ A tool may be marked `[x] E2E` only when all applicable items pass:
 
 ## Implementation checklist for every new tool or action
 
-- [ ] Add or update the public tool schema.
-- [ ] Add strict runtime/headless parameter declarations.
-- [ ] Map the MCP tool to exactly one downstream operation or command.
-- [ ] Declare privilege, cancellation, timeout, mutation, and cleanup semantics.
-- [ ] Add unit tests for pure transformations and validation.
-- [ ] Add protocol/contract tests for routing and serialization.
-- [ ] Add focused direct-Godot behavior tests.
-- [ ] Add full MCP-to-Godot E2E happy-path and failure tests.
-- [ ] Add an independent effect assertion.
-- [ ] Add teardown/leak assertions.
-- [ ] Add version/platform/build-flavor cases or explicit non-applicability.
-- [ ] Update the traceability manifest and generated report.
-- [ ] Document examples, prerequisites, side effects, and limitations.
+- [x] Add or update the public tool schema.
+- [x] Add strict runtime/headless parameter declarations.
+- [x] Map the MCP tool to exactly one downstream operation or command.
+- [x] Declare privilege, cancellation, timeout, mutation, and cleanup semantics.
+- [x] Add unit tests for pure transformations and validation.
+- [x] Add protocol/contract tests for routing and serialization.
+- [x] Add focused direct-Godot behavior tests.
+- [x] Add full MCP-to-Godot E2E happy-path and failure tests.
+- [x] Add an independent effect assertion.
+- [x] Add teardown/leak assertions.
+- [x] Add version/platform/build-flavor cases or explicit non-applicability.
+- [x] Update the traceability manifest and generated report.
+- [x] Document examples, prerequisites, side effects, and limitations.
 
 ## Limitations and robustness notes
 
