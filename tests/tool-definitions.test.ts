@@ -84,8 +84,16 @@ function validRequiredArguments(tool: typeof toolDefinitions[number]): Record<st
   for (const field of tool.inputSchema.required ?? []) {
     const property = tool.inputSchema.properties?.[field];
     if (!property) continue;
+    if (field === 'url') {
+      args[field] = 'http://127.0.0.1';
+      continue;
+    }
+    if (property.type === 'number' || property.type === 'integer') {
+      args[field] = property.minimum ?? 1;
+      continue;
+    }
     args[field] = property.enum?.[0] ?? ({
-      string: 'value', number: 1, integer: 1, boolean: true, array: [], object: {},
+      string: 'value', boolean: true, array: [], object: {},
     } as Record<string, unknown>)[property.type ?? 'object'];
   }
   return args;

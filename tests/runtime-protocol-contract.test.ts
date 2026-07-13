@@ -111,7 +111,7 @@ describe('runtime protocol contract', () => {
     expect(gdscript).not.toContain('var _busy: bool');
     expect(gdscript).not.toContain('var _current_id: Variant');
     expect(gdscript).toContain('var request_state: String = "received"');
-    expect(gdscript).toContain('const CANCELLABLE_COMMANDS: Array[String] = ["wait", "await_signal"]');
+    expect(gdscript).toContain('const CANCELLABLE_COMMANDS: Array[String] = ["wait", "await_signal", "resource", "http_request"]');
   });
 
   it('dispatches runtime commands through a typed registry', () => {

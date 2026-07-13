@@ -66,6 +66,62 @@ describe('signal observer', () => {
 
     await game.call('stop_project');
   });
+
+  it('covers bound, deferred, one-shot, listed, emitted, and disconnected signals', async () => {
+    const game = await startedGame();
+    const connection = {
+      nodePath: '/root/Main',
+      signalName: 'e2e_event',
+      targetPath: '/root/Main',
+      method: 'observe_value',
+      binds: ['-bound'],
+    };
+
+    const connected = await game.call('game_connect_signal', {
+      ...connection,
+      deferred: true,
+      oneShot: true,
+    });
+    expect(connected.isError, connected.text).toBe(false);
+
+    const listed = await game.call('game_list_signals', { nodePath: '/root/Main' });
+    expect(listed.isError, listed.text).toBe(false);
+    expect(listed.text).toContain('e2e_event');
+    expect(listed.text).toContain('observe_value');
+
+    const emitted = await game.call('game_emit_signal', {
+      nodePath: '/root/Main', signalName: 'e2e_event', args: [7],
+    });
+    expect(emitted.isError, emitted.text).toBe(false);
+    await game.call('game_wait');
+    const delivered = await game.call('game_get_nodes_in_group', { group: 'signal-value-7-bound' });
+    expect(delivered.text).toContain('/root/Main');
+
+    await game.call('game_emit_signal', { nodePath: '/root/Main', signalName: 'e2e_event', args: [8] });
+    await game.call('game_wait');
+    const oneShot = await game.call('game_get_nodes_in_group', { group: 'signal-value-8-bound' });
+    expect(oneShot.text).not.toContain('/root/Main');
+
+    const persistent = { ...connection, binds: ['-persistent'], referenceCounted: true };
+    const persistentDisconnect = { ...connection, binds: ['-persistent'] };
+    expect((await game.call('game_connect_signal', persistent)).isError).toBe(false);
+    expect((await game.call('game_connect_signal', persistent)).isError).toBe(false);
+    expect((await game.call('game_disconnect_signal', persistentDisconnect)).isError).toBe(false);
+
+    await game.call('game_emit_signal', { nodePath: '/root/Main', signalName: 'e2e_event', args: [9] });
+    const stillConnected = await game.call('game_get_nodes_in_group', { group: 'signal-value-9-persistent' });
+    expect(stillConnected.text).toContain('/root/Main');
+
+    expect((await game.call('game_disconnect_signal', persistentDisconnect)).isError).toBe(false);
+    await game.call('game_emit_signal', { nodePath: '/root/Main', signalName: 'e2e_event', args: [10] });
+    const disconnected = await game.call('game_get_nodes_in_group', { group: 'signal-value-10-persistent' });
+    expect(disconnected.text).not.toContain('/root/Main');
+
+    const missing = await game.call('game_connect_signal', { ...connection, signalName: 'missing_signal' });
+    expect(missing.isError).toBe(true);
+    expect(missing.text).toMatch(/signal.*not found/i);
+    await game.call('stop_project');
+  });
 });
 
 describe('log observer', () => {

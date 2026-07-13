@@ -175,7 +175,9 @@ function getFakeArgsForSchema(schema: any, toolName: string): any {
     if (prop.enum && prop.enum.length > 0) {
       val = prop.enum[0];
     } else if (prop.type === 'string') {
-      if (key === 'godotVersion') {
+      if (key === 'url') {
+        val = 'http://127.0.0.1';
+      } else if (key === 'godotVersion') {
         val = '4.3-stable';
       } else if (key === 'exportPreset') {
         val = 'Linux/X11';
@@ -210,7 +212,8 @@ function getFakeArgsForSchema(schema: any, toolName: string): any {
         val = 'test_string';
       }
     } else if (prop.type === 'number' || prop.type === 'integer') {
-      val = 1;
+      const preferred = prop.minimum ?? (prop.maximum !== undefined && prop.maximum < 1 ? prop.maximum : 1);
+      val = prop.type === 'integer' ? Math.ceil(preferred) : preferred;
     } else if (prop.type === 'boolean') {
       val = true;
     } else if (prop.type === 'array') {

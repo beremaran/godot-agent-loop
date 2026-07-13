@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { toolDefinitions } from '../src/tool-definitions.js';
 import { parseToolArguments, ToolArgumentValidationError } from '../src/tool-argument-validation.js';
+import { convertCamelToSnakeCase, normalizeParameters } from '../src/utils.js';
 
 const tool = (name: string) => toolDefinitions.find(definition => definition.name === name)!;
 
@@ -26,6 +27,41 @@ describe('parseToolArguments', () => {
     expect(() => parseToolArguments(tool('validate_scripts'), {
       projectPath: '/project', scriptPaths: ['good.gd', 3],
     })).toThrow('arguments.scriptPaths[1] must be string');
+  });
+
+  it('enforces advertised numeric and array bounds', () => {
+    expect(() => parseToolArguments(tool('game_websocket'), {
+      action: 'receive', timeout: -1,
+    })).toThrow('arguments.timeout must be at least 0');
+    expect(() => parseToolArguments(tool('game_input_state'), {
+      keys: Array.from({ length: 129 }, () => 'A'),
+    })).toThrow('arguments.keys must contain at most 128 items');
+    expect(() => parseToolArguments(tool('game_input_state'), {
+      mouseButtons: [10],
+    })).toThrow('arguments.mouseButtons[0] must be at most 9');
+  });
+
+  it('enforces advertised string bounds', () => {
+    expect(() => parseToolArguments(tool('game_http_request'), { url: '' }))
+      .toThrow('arguments.url must contain at least 1 characters');
+    expect(() => parseToolArguments(tool('game_http_request'), {
+      url: 'http://localhost', body: 'x'.repeat(1_048_577),
+    })).toThrow('arguments.body must contain at most 1048576 characters');
+  });
+
+  it('preserves free-form HTTP headers and RPC argument object keys', () => {
+    const value = {
+      headers: { 'X-E2E_Header': 'value' },
+      args: [{ snake_case_payload: true }],
+    };
+    expect(normalizeParameters(value)).toEqual({
+      headers: { 'X-E2E_Header': 'value' },
+      args: [{ snake_case_payload: true }],
+    });
+    expect(convertCamelToSnakeCase(value)).toEqual({
+      headers: { 'X-E2E_Header': 'value' },
+      args: [{ snake_case_payload: true }],
+    });
   });
 
   it('rejects unknown top-level fields but permits documented free-form objects', () => {

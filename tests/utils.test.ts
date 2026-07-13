@@ -66,6 +66,24 @@ describe('normalizeParameters', () => {
     expect(result).toEqual({ customKey: 'value', another: 42 });
   });
 
+  it('keeps nested arrays as arrays at every depth', () => {
+    // Mesh buffers arrive as [x, y, z] triples. A nested array is still
+    // typeof "object", and normalizing it as a record turned each triple into
+    // {"0": x, "1": y, "2": z}, which the engine read as an empty vector.
+    const result = normalizeParameters({
+      vertices: [[0, 0, 0], [1, 2, 3]],
+      uvs: [[0, 1]],
+      indices: [0, 1, 2],
+      nested_pairs: [[{ node_path: '/root/A' }]],
+    });
+    expect(result).toEqual({
+      vertices: [[0, 0, 0], [1, 2, 3]],
+      uvs: [[0, 1]],
+      indices: [0, 1, 2],
+      nestedPairs: [[{ nodePath: '/root/A' }]],
+    });
+  });
+
   it('handles nested objects', () => {
     const result = normalizeParameters({
       project_path: '/foo',
@@ -121,6 +139,21 @@ describe('convertCamelToSnakeCase', () => {
   it('converts known camelCase keys to snake_case', () => {
     const result = convertCamelToSnakeCase({ projectPath: '/foo', scenePath: 'bar.tscn' });
     expect(result).toEqual({ project_path: '/foo', scene_path: 'bar.tscn' });
+  });
+
+  it('keeps nested arrays as arrays at every depth', () => {
+    // This runs on every runtime command, so collapsing a [x, y, z] triple into
+    // a record silently emptied every mesh buffer the engine tried to read.
+    const result = convertCamelToSnakeCase({
+      vertices: [[0, 0, 0], [1, 2, 3]],
+      uvs: [[0, 1]],
+      nestedPairs: [[{ nodePath: '/root/A' }]],
+    });
+    expect(result).toEqual({
+      vertices: [[0, 0, 0], [1, 2, 3]],
+      uvs: [[0, 1]],
+      nested_pairs: [[{ node_path: '/root/A' }]],
+    });
   });
 
   it('converts unknown camelCase keys using regex', () => {

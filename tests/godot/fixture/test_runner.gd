@@ -109,6 +109,34 @@ class Client:
 		peer.disconnect_from_host()
 
 
+class TeardownInputObserver:
+	extends Node
+
+	var button_pressed: bool = false
+	var button_released: bool = false
+	var axis_active: bool = false
+	var axis_neutral: bool = false
+	var touch_pressed: bool = false
+	var touch_released: bool = false
+
+	func _input(event: InputEvent) -> void:
+		if event is InputEventJoypadButton:
+			var button := event as InputEventJoypadButton
+			if button.device == 3 and button.button_index == JOY_BUTTON_B:
+				button_pressed = button_pressed or button.pressed
+				button_released = button_released or not button.pressed
+		elif event is InputEventJoypadMotion:
+			var motion := event as InputEventJoypadMotion
+			if motion.device == 3 and motion.axis == JOY_AXIS_LEFT_Y:
+				axis_active = axis_active or not is_zero_approx(motion.axis_value)
+				axis_neutral = axis_neutral or is_zero_approx(motion.axis_value)
+		elif event is InputEventScreenTouch:
+			var touch := event as InputEventScreenTouch
+			if touch.index == 5:
+				touch_pressed = touch_pressed or touch.pressed
+				touch_released = touch_released or not touch.pressed
+
+
 func _initialize() -> void:
 	_run()
 
@@ -841,6 +869,14 @@ func _test_parameter_validation() -> void:
 	_check("params: validated node lookup still resolves existing nodes",
 		_result_of(message).get("value") == "McpServer", message)
 
+	client.send_request("p-missing-property", "godot.runtime.get_property",
+		{"node_path": "McpServer", "property": "not_a_real_property"})
+	message = await client.read_message()
+	_check("params: unknown property is rejected before Object.get",
+		_error_code(message) == -32000
+		and _error_data(message).get("param") == "property"
+		and _error_data(message).get("reason") == "property_not_found", message)
+
 	client.send_request("p-res-path", "godot.runtime.instantiate_scene", {"scene_path": "nope.tscn"})
 	message = await client.read_message()
 	_check("params: non-resource path rejected before any work",
@@ -879,15 +915,36 @@ func _test_input_domain() -> void:
 		and (_result_of(message).get("clicked") as Dictionary).get("x") == 12, message)
 
 	client.send_request("in-add", "godot.runtime.input_action",
-		{"action": "add_action", "action_name": "mcp_test_action"})
+		{"action": "add_action", "action_name": "mcp_test_action", "key": "P"})
 	message = await client.read_message()
 	_check("input domain: add_action registers a Godot input action",
 		_result_of(message).get("success") == true and InputMap.has_action("mcp_test_action"), message)
+	client.send_request("in-add-repeat", "godot.runtime.input_action",
+		{"action": "add_action", "action_name": "mcp_test_action", "key": "P"})
+	message = await client.read_message()
+	_check("input domain: repeated add_action does not duplicate the key event",
+		InputMap.action_get_events("mcp_test_action").size() == 1, InputMap.action_get_events("mcp_test_action"))
 
 	client.send_request("in-list", "godot.runtime.input_action", {"action": "list"})
 	message = await client.read_message()
 	_check("input domain: list reports the registered action",
 		(_result_of(message).get("actions") as Array).has("mcp_test_action"), message)
+
+	client.send_request("in-strength", "godot.runtime.input_action",
+		{"action": "set_strength", "action_name": "mcp_test_action", "strength": 0.4})
+	message = await client.read_message()
+	_check("input domain: set_strength presses the action at the requested strength",
+		is_equal_approx(Input.get_action_strength("mcp_test_action"), 0.4), message)
+	client.send_request("in-strength-zero", "godot.runtime.input_action",
+		{"action": "set_strength", "action_name": "mcp_test_action", "strength": 0.0})
+	message = await client.read_message()
+	_check("input domain: zero strength releases the tracked action",
+		not Input.is_action_pressed("mcp_test_action"), message)
+	client.send_request("in-strength-missing", "godot.runtime.input_action",
+		{"action": "set_strength", "action_name": "mcp_missing_action", "strength": 1.0})
+	message = await client.read_message()
+	_check("input domain: set_strength rejects an unknown action without an engine error",
+		_error_code(message) == -32000 and _error_data(message).get("reason") == "action_not_found", message)
 
 	# Held state lives in the domain now; it must persist between requests.
 	client.send_request("in-hold", "godot.runtime.key_hold", {"action": "mcp_test_action"})
@@ -922,6 +979,11 @@ func _test_input_domain() -> void:
 	_check("input domain: input_state query reports mouse position",
 		_result_of(message).get("success") == true
 		and (_result_of(message).get("mouse_position") as Dictionary).has("x"), message)
+	client.send_request("in-warp-headless", "godot.runtime.input_state",
+		{"action": "warp_mouse", "x": 10, "y": 20})
+	message = await client.read_message()
+	_check("input domain: headless warp reports an explicit display limitation",
+		_error_code(message) == -32000 and _error_data(message).get("reason") == "unsupported_display", message)
 
 	client.send_request("in-bad", "godot.runtime.touch", {"action": "hover"})
 	message = await client.read_message()
@@ -1521,6 +1583,8 @@ signal ping(value)
 var received: Array = []
 func on_ping(value: Variant = null) -> void:
 	received.append(value)
+func on_bound(value: Variant, suffix: String) -> void:
+	received.append([value, suffix])
 """
 	var reload_error: int = script.reload()
 	var fixture: Node = Node.new()
@@ -1571,6 +1635,45 @@ func on_ping(value: Variant = null) -> void:
 	_check("signals: a disconnected signal no longer reaches the target",
 		(fixture.get("received") as Array).size() == 1, fixture.get("received"))
 
+	client.send_request("sig-bound", "godot.runtime.connect_signal",
+		{"node_path": "SignalFixture", "signal_name": "ping",
+			"target_path": "SignalFixture", "method": "on_bound", "binds": ["bound"],
+			"deferred": true, "one_shot": true})
+	message = await client.read_message()
+	_check("signals: bound one-shot connection is accepted",
+		_result_of(message).get("bind_count") == 1, message)
+	client.send_request("sig-bound-emit", "godot.runtime.emit_signal",
+		{"node_path": "SignalFixture", "signal_name": "ping", "args": [11]})
+	message = await client.read_message()
+	await process_frame
+	var after_bound: Array = fixture.get("received") as Array
+	var bound_payload: Array = after_bound[1] as Array if after_bound.size() > 1 else []
+	_check("signals: deferred delivery appends bound arguments",
+		bound_payload.size() == 2 and is_equal_approx(bound_payload[0], 11.0)
+		and bound_payload[1] == "bound", after_bound)
+	_check("signals: one-shot delivery removes the connection",
+		not fixture.is_connected("ping", Callable(fixture, "on_bound").bind("bound")), null)
+
+	var counted_params: Dictionary = {
+		"node_path": "SignalFixture", "signal_name": "ping",
+		"target_path": "SignalFixture", "method": "on_bound", "binds": ["counted"],
+		"reference_counted": true,
+	}
+	client.send_request("sig-counted-1", "godot.runtime.connect_signal", counted_params)
+	message = await client.read_message()
+	_check("signals: first reference-counted connection succeeds", _result_of(message).get("success") == true, message)
+	client.send_request("sig-counted-2", "godot.runtime.connect_signal", counted_params)
+	message = await client.read_message()
+	_check("signals: duplicate reference-counted connection succeeds", _result_of(message).get("success") == true, message)
+	client.send_request("sig-counted-disconnect-1", "godot.runtime.disconnect_signal", counted_params)
+	message = await client.read_message()
+	_check("signals: one disconnect retains a counted connection",
+		fixture.is_connected("ping", Callable(fixture, "on_bound").bind("counted")), message)
+	client.send_request("sig-counted-disconnect-2", "godot.runtime.disconnect_signal", counted_params)
+	message = await client.read_message()
+	_check("signals: final disconnect removes a counted connection",
+		not fixture.is_connected("ping", Callable(fixture, "on_bound").bind("counted")), message)
+
 	client.send_request("sig-missing", "godot.runtime.await_signal",
 		{"node_path": "SignalFixture", "signal_name": "not_a_signal", "timeout": 1})
 	message = await client.read_message()
@@ -1611,6 +1714,20 @@ func _test_frame_awaits() -> void:
 	_check("awaits: a completed wait leaves no further response queued",
 		not client.has_pending_data(), null)
 
+	client.send_request("wait-zero", "godot.runtime.wait", {"frames": 0})
+	message = await client.read_message()
+	_check("awaits: wait rejects non-positive frame counts",
+		_error_code(message) == -32000
+		and _error_data(message).get("param") == "frames"
+		and _error_data(message).get("reason") == "out_of_range", message)
+
+	client.send_request("wait-fraction", "godot.runtime.wait", {"frames": 1.5})
+	message = await client.read_message()
+	_check("awaits: wait rejects fractional frame counts",
+		_error_code(message) == -32000
+		and _error_data(message).get("param") == "frames"
+		and _error_data(message).get("reason") == "invalid_type", message)
+
 	client.close()
 
 
@@ -1622,6 +1739,8 @@ func _test_teardown_releases_state() -> void:
 	var fixture: Node2D = Node2D.new()
 	fixture.name = "TeardownFixture"
 	root.add_child(fixture)
+	var input_observer := TeardownInputObserver.new()
+	root.add_child(input_observer)
 	await process_frame
 
 	var client: Client = await _open_client("teardown")
@@ -1633,10 +1752,30 @@ func _test_teardown_releases_state() -> void:
 	message = await client.read_message()
 	_check("teardown: the action is held before the server goes away",
 		Input.is_action_pressed("mcp_teardown_action"), message)
+	client.send_request("td-strength-action", "godot.runtime.input_action",
+		{"action": "add_action", "action_name": "mcp_teardown_strength_action"})
+	message = await client.read_message()
+	client.send_request("td-strength", "godot.runtime.input_action",
+		{"action": "set_strength", "action_name": "mcp_teardown_strength_action", "strength": 0.5})
+	message = await client.read_message()
+	_check("teardown: set_strength state is tracked before the server goes away",
+		Input.is_action_pressed("mcp_teardown_strength_action"), message)
+	client.send_request("td-joy-button", "godot.runtime.gamepad",
+		{"type": "button", "device": 3, "index": JOY_BUTTON_B, "value": 1.0})
+	message = await client.read_message()
+	client.send_request("td-joy-axis", "godot.runtime.gamepad",
+		{"type": "axis", "device": 3, "index": JOY_AXIS_LEFT_Y, "value": 0.75})
+	message = await client.read_message()
+	client.send_request("td-touch", "godot.runtime.touch",
+		{"action": "press", "index": 5, "x": 12, "y": 13})
+	message = await client.read_message()
+	await process_frame
+	_check("teardown: joypad and touch state is active before the server goes away",
+		input_observer.button_pressed and input_observer.axis_active and input_observer.touch_pressed, message)
 
 	client.send_request("td-draw", "godot.runtime.canvas_draw",
 		{"action": "rect", "parent_path": "TeardownFixture",
-			"position": {"x": 0, "y": 0}, "size": {"x": 4, "y": 4}})
+			"rect": {"x": 0, "y": 0, "w": 4, "h": 4}})
 	message = await client.read_message()
 	var draw_node: Node = fixture.get_node_or_null("_McpCanvasDraw")
 	_check("teardown: the draw node exists before the server goes away",
@@ -1651,9 +1790,15 @@ func _test_teardown_releases_state() -> void:
 
 	_check("teardown: leaving the tree releases input held by key_hold",
 		not Input.is_action_pressed("mcp_teardown_action"), null)
+	_check("teardown: leaving the tree releases input held by set_strength",
+		not Input.is_action_pressed("mcp_teardown_strength_action"), null)
+	_check("teardown: leaving the tree neutralizes joypad and touch state",
+		input_observer.button_released and input_observer.axis_neutral and input_observer.touch_released, null)
 	_check("teardown: leaving the tree frees the canvas draw node it parented into the scene",
 		fixture.get_node_or_null("_McpCanvasDraw") == null, fixture.get_children())
 
 	InputMap.erase_action("mcp_teardown_action")
+	InputMap.erase_action("mcp_teardown_strength_action")
 	fixture.queue_free()
+	input_observer.queue_free()
 	await process_frame
