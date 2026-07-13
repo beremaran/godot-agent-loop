@@ -681,7 +681,18 @@ Create `.cursor/mcp.json` in your project:
 
 ## Runtime Tools Setup
 
-To use the `game_*` runtime tools, your Godot project needs the MCP interaction server autoload. Copy `build/scripts/mcp_interaction_server.gd` to your project and register it as an autoload:
+No setup is required when the game is started through `run_project`: the server
+installs the interaction autoload automatically by generating an `override.cfg`
+(which Godot merges over `project.godot` at startup) and copying the runtime
+scripts into the project, then removes them again on `stop_project`, game exit,
+or server shutdown. `project.godot` is never modified. If an earlier server
+crashed or was killed before cleaning up, the next server detects and removes
+the leftover files on first contact with the project; an installation you
+manage yourself (declared in `project.godot`) is never touched.
+
+To run the interaction server without `run_project`, copy
+`build/scripts/mcp_interaction_server.gd` to your project and register it as an
+autoload:
 
 1. Copy `build/scripts/mcp_interaction_server.gd` to your project's scripts folder
 2. In Godot: **Project > Project Settings > Autoload**

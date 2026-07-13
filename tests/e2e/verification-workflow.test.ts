@@ -1,5 +1,5 @@
 // @test-kind: e2e
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { assertNoLeakedGodotProcesses, startServer, type E2EServer } from './helpers/harness.js';
@@ -38,6 +38,7 @@ describe('compound verification workflow through MCP', () => {
     });
     await assertNoLeakedGodotProcesses(server.root);
     expect(readFileSync(join(server.projectPath, 'project.godot'), 'utf8')).not.toContain('McpInteractionServer');
+    expect(existsSync(join(server.projectPath, 'override.cfg'))).toBe(false);
   });
 
   it('returns failed assertion evidence and still tears down', async () => {

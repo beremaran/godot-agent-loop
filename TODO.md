@@ -260,12 +260,33 @@ the SIGKILL byte-identity test remain valuable regardless, because
 `run_project`'s inject-and-run mode survives at least as a verification mode
 until that decision is confirmed against a real game.
 
-- [ ] Move runtime-server injection from rewriting `project.godot` to a generated
+- [x] Move runtime-server injection from rewriting `project.godot` to a generated
   `override.cfg`, keeping the existing ownership/cleanup semantics.
-- [ ] Add a stale-installation reaper: on startup, detect and remove artifacts an
-  earlier crashed or `SIGKILL`ed server left behind.
-- [ ] Add a full-path test that a `SIGKILL`ed server leaves the project tree
+  (`InteractionServerInstaller` writes a sentinel-delimited `[autoload]` block
+  into `override.cfg` — created and deleted by the server, merged over
+  `project.godot` by the engine — and `project.godot` is never written. A
+  user-owned `override.cfg` is preserved byte-identically around the block;
+  an installation declared in `project.godot` stays user-managed and
+  untouched. Unit-tested in `tests/interaction-server-installer.test.ts`,
+  full-path in `tests/e2e/crash-recovery.test.ts`.)
+- [x] Add a stale-installation reaper: on startup, detect and remove artifacts an
+  earlier crashed or `SIGKILL`ed server left behind. (The MCP server is
+  project-agnostic at process startup, so "startup" is first contact with the
+  project: `reapStaleInstallation` runs before every install. Ownership is
+  re-derived statelessly — the sentinel block, or scripts byte-identical to
+  the shipped sources, prove the artifacts are ours; user-managed
+  installations never lose files. Covered per-case in the unit suite and
+  end-to-end in `tests/e2e/crash-recovery.test.ts`.)
+- [x] Add a full-path test that a `SIGKILL`ed server leaves the project tree
   byte-identical to its pre-launch state.
+  (`tests/e2e/crash-recovery.test.ts`: SHA-256 tree snapshot, `run_project`,
+  SIGKILL the MCP server, assert the stale artifacts exist, then a second
+  server reaps on first contact and a run/stop cycle restores the tree to an
+  identical snapshot. Passing against Godot 4.7.)
+- [ ] Re-run the full MCP E2E matrix and Godot suites on 4.4 and 4.7 over the
+  override.cfg injection (deferred at the user's request on 2026-07-14; the
+  affected suites — crash-recovery, installer unit tests — pass on 4.7, and
+  the three suites asserting the old `project.godot` mechanism were updated).
 
 #### 6c: the persistent session
 

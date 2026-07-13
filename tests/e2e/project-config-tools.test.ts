@@ -167,7 +167,10 @@ describe('project settings and configuration tools through MCP', () => {
     expect(removed.isError, removed.text).toBe(false);
     expect(payload((await active.call('manage_autoloads', { projectPath: active.projectPath, action: 'list' })).text))
       .not.toHaveProperty('E2EAutoload');
-    expect(readFileSync(join(active.projectPath, 'project.godot'), 'utf8')).toContain('res://mcp_interaction_server.gd');
+    // The runtime autoload lives in the generated override.cfg, so user-facing
+    // autoload edits in project.godot cannot disturb it (and vice versa).
+    expect(readFileSync(join(active.projectPath, 'override.cfg'), 'utf8')).toContain('res://mcp_interaction_server.gd');
+    expect(readFileSync(join(active.projectPath, 'project.godot'), 'utf8')).not.toContain('mcp_interaction_server.gd');
   });
 
   it('manage_autoloads reports missing arguments and unknown actions', async () => {

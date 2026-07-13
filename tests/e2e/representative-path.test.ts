@@ -137,7 +137,9 @@ describe('lifecycle and runtime path', () => {
     expect(stopped.isError, stopped.text).toBe(false);
     await assertNoLeakedGodotProcesses(server.root);
 
-    // The interaction autoload must have been removed from the project again.
+    // The interaction autoload must have been removed from the project again;
+    // it lives in a generated override.cfg and project.godot is never touched.
+    expect(existsSync(join(server.projectPath, 'override.cfg'))).toBe(false);
     expect(readFileSync(join(server.projectPath, 'project.godot'), 'utf8'))
       .not.toContain('McpInteractionServer');
   });

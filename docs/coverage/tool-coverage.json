@@ -38,22 +38,66 @@
         "tests/e2e/lifecycle-tools.test.ts::action: 'inspect'"
       ],
       "actions": {
-        "inspect": { "tests": ["tests/e2e/lifecycle-tools.test.ts::action: 'inspect'"] },
-        "select": { "tests": ["tests/e2e/lifecycle-tools.test.ts::action: 'select'"] },
-        "save": { "tests": ["tests/e2e/lifecycle-tools.test.ts::action: 'save'"] },
-        "reload": { "tests": ["tests/e2e/lifecycle-tools.test.ts::action: 'reload'"] },
-        "open_scene": { "tests": ["tests/e2e/lifecycle-tools.test.ts::action: 'open_scene'"] },
-        "set_property": { "tests": ["tests/e2e/lifecycle-tools.test.ts::action: 'set_property'"] },
-        "rename_node": { "tests": ["tests/e2e/lifecycle-tools.test.ts::action: 'rename_node'"] },
-        "undo": { "tests": ["tests/e2e/lifecycle-tools.test.ts::action: 'undo'"] },
-        "redo": { "tests": ["tests/e2e/lifecycle-tools.test.ts::action: 'redo'"] }
+        "inspect": {
+          "tests": [
+            "tests/e2e/lifecycle-tools.test.ts::action: 'inspect'"
+          ]
+        },
+        "select": {
+          "tests": [
+            "tests/e2e/lifecycle-tools.test.ts::action: 'select'"
+          ]
+        },
+        "save": {
+          "tests": [
+            "tests/e2e/lifecycle-tools.test.ts::action: 'save'"
+          ]
+        },
+        "reload": {
+          "tests": [
+            "tests/e2e/lifecycle-tools.test.ts::action: 'reload'"
+          ]
+        },
+        "open_scene": {
+          "tests": [
+            "tests/e2e/lifecycle-tools.test.ts::action: 'open_scene'"
+          ]
+        },
+        "set_property": {
+          "tests": [
+            "tests/e2e/lifecycle-tools.test.ts::action: 'set_property'"
+          ]
+        },
+        "rename_node": {
+          "tests": [
+            "tests/e2e/lifecycle-tools.test.ts::action: 'rename_node'"
+          ]
+        },
+        "undo": {
+          "tests": [
+            "tests/e2e/lifecycle-tools.test.ts::action: 'undo'"
+          ]
+        },
+        "redo": {
+          "tests": [
+            "tests/e2e/lifecycle-tools.test.ts::action: 'redo'"
+          ]
+        }
       },
       "dimensions": {
-        "happy-path": "applicable", "parameters": "applicable", "failures": "applicable",
-        "repeatability": "applicable", "cleanup": "applicable", "persistence": "applicable",
-        "frame-behavior": "n/a: editor bridge runs outside the game loop", "exotic-paths": "applicable",
-        "limits": "applicable", "compatibility": "applicable", "platforms": "applicable",
-        "build-flavors": "n/a: EditorPlugin is language-independent", "security": "applicable"
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: editor bridge runs outside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: EditorPlugin is language-independent",
+        "security": "applicable"
       }
     },
     "run_project": {
@@ -62,7 +106,8 @@
         "tests/e2e/representative-path.test.ts::'run_project'",
         "tests/e2e/lifecycle-tools.test.ts::'run_project'",
         "tests/handlers.test.ts::handleRunProject",
-        "tests/index.test.ts::run_project"
+        "tests/index.test.ts::run_project",
+        "tests/e2e/crash-recovery.test.ts::'run_project'"
       ],
       "actions": {
         "*": {
@@ -70,7 +115,8 @@
             "tests/e2e/representative-path.test.ts::'run_project'",
             "tests/e2e/lifecycle-tools.test.ts::'run_project'",
             "tests/handlers.test.ts::handleRunProject",
-            "tests/index.test.ts::run_project"
+            "tests/index.test.ts::run_project",
+            "tests/e2e/crash-recovery.test.ts::'run_project'"
           ]
         }
       },
@@ -161,17 +207,41 @@
         "tests/e2e/import-integrity-workflows.test.ts::import pipeline and project integrity workflows through MCP"
       ],
       "actions": {
-        "inspect": { "tests": ["tests/e2e/import-integrity-workflows.test.ts::action: 'inspect'"] },
-        "change": { "tests": ["tests/e2e/import-integrity-workflows.test.ts::action: 'change'"] },
-        "reimport": { "tests": ["tests/e2e/import-integrity-workflows.test.ts::action: 'reimport'"] },
-        "dependencies": { "tests": ["tests/e2e/import-integrity-workflows.test.ts::action: 'dependencies'"] }
+        "inspect": {
+          "tests": [
+            "tests/e2e/import-integrity-workflows.test.ts::action: 'inspect'"
+          ]
+        },
+        "change": {
+          "tests": [
+            "tests/e2e/import-integrity-workflows.test.ts::action: 'change'"
+          ]
+        },
+        "reimport": {
+          "tests": [
+            "tests/e2e/import-integrity-workflows.test.ts::action: 'reimport'"
+          ]
+        },
+        "dependencies": {
+          "tests": [
+            "tests/e2e/import-integrity-workflows.test.ts::action: 'dependencies'"
+          ]
+        }
       },
       "dimensions": {
-        "happy-path": "applicable", "parameters": "applicable", "failures": "applicable",
-        "repeatability": "applicable", "cleanup": "applicable", "persistence": "applicable",
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
         "frame-behavior": "n/a: editor import work does not run in a game frame",
-        "exotic-paths": "applicable", "limits": "applicable", "compatibility": "applicable",
-        "platforms": "applicable", "build-flavors": "applicable", "security": "applicable"
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "applicable",
+        "security": "applicable"
       }
     },
     "analyze_project_integrity": {
@@ -181,21 +251,56 @@
         "tests/e2e/import-integrity-workflows.test.ts::import pipeline and project integrity workflows through MCP"
       ],
       "actions": {
-        "analyze": { "tests": ["tests/e2e/import-integrity-workflows.test.ts::action: 'analyze'"] },
-        "preview_rename": { "tests": ["tests/e2e/import-integrity-workflows.test.ts::action: 'preview_rename'"] },
-        "assets": { "tests": ["tests/e2e/import-integrity-workflows.test.ts::audits assets, localization, accessibility, extensions, and leak candidates"] },
-        "localization": { "tests": ["tests/e2e/import-integrity-workflows.test.ts::audits assets, localization, accessibility, extensions, and leak candidates"] },
-        "accessibility": { "tests": ["tests/e2e/import-integrity-workflows.test.ts::audits assets, localization, accessibility, extensions, and leak candidates"] },
-        "extensions": { "tests": ["tests/e2e/import-integrity-workflows.test.ts::audits assets, localization, accessibility, extensions, and leak candidates"] },
-        "leaks": { "tests": ["tests/e2e/import-integrity-workflows.test.ts::audits assets, localization, accessibility, extensions, and leak candidates"] }
+        "analyze": {
+          "tests": [
+            "tests/e2e/import-integrity-workflows.test.ts::action: 'analyze'"
+          ]
+        },
+        "preview_rename": {
+          "tests": [
+            "tests/e2e/import-integrity-workflows.test.ts::action: 'preview_rename'"
+          ]
+        },
+        "assets": {
+          "tests": [
+            "tests/e2e/import-integrity-workflows.test.ts::audits assets, localization, accessibility, extensions, and leak candidates"
+          ]
+        },
+        "localization": {
+          "tests": [
+            "tests/e2e/import-integrity-workflows.test.ts::audits assets, localization, accessibility, extensions, and leak candidates"
+          ]
+        },
+        "accessibility": {
+          "tests": [
+            "tests/e2e/import-integrity-workflows.test.ts::audits assets, localization, accessibility, extensions, and leak candidates"
+          ]
+        },
+        "extensions": {
+          "tests": [
+            "tests/e2e/import-integrity-workflows.test.ts::audits assets, localization, accessibility, extensions, and leak candidates"
+          ]
+        },
+        "leaks": {
+          "tests": [
+            "tests/e2e/import-integrity-workflows.test.ts::audits assets, localization, accessibility, extensions, and leak candidates"
+          ]
+        }
       },
       "dimensions": {
-        "happy-path": "applicable", "parameters": "applicable", "failures": "applicable",
-        "repeatability": "applicable", "cleanup": "applicable",
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
         "persistence": "n/a: analysis and previews never mutate project files",
         "frame-behavior": "n/a: static analysis does not run in a game frame",
-        "exotic-paths": "applicable", "limits": "applicable", "compatibility": "applicable",
-        "platforms": "applicable", "build-flavors": "applicable", "security": "applicable"
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "applicable",
+        "security": "applicable"
       }
     },
     "verify_export_readiness": {
@@ -205,15 +310,31 @@
         "tests/e2e/project-delivery-tools.test.ts::export_project creates release/debug artifacts"
       ],
       "actions": {
-        "inspect": { "tests": ["tests/e2e/project-delivery-tools.test.ts::action: 'inspect'"] },
-        "export_smoke": { "tests": ["tests/e2e/project-delivery-tools.test.ts::action: 'export_smoke'"] }
+        "inspect": {
+          "tests": [
+            "tests/e2e/project-delivery-tools.test.ts::action: 'inspect'"
+          ]
+        },
+        "export_smoke": {
+          "tests": [
+            "tests/e2e/project-delivery-tools.test.ts::action: 'export_smoke'"
+          ]
+        }
       },
       "dimensions": {
-        "happy-path": "applicable", "parameters": "applicable", "failures": "applicable",
-        "repeatability": "applicable", "cleanup": "applicable", "persistence": "applicable",
-        "frame-behavior": "n/a: export runs outside the game loop", "exotic-paths": "applicable",
-        "limits": "applicable", "compatibility": "applicable", "platforms": "applicable",
-        "build-flavors": "applicable", "security": "applicable"
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: export runs outside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "applicable",
+        "security": "applicable"
       }
     },
     "verify_dotnet_project": {
@@ -223,16 +344,40 @@
         "tests/e2e/project-delivery-tools.test.ts::create_project produces engine-loadable GDScript and .NET projects"
       ],
       "actions": {
-        "inspect": { "tests": ["tests/e2e/project-delivery-tools.test.ts::action: 'inspect'"] },
-        "restore": { "tests": ["tests/e2e/project-delivery-tools.test.ts::action: 'restore'"] },
-        "build": { "tests": ["tests/e2e/project-delivery-tools.test.ts::action: 'build'"] },
-        "run": { "tests": ["tests/e2e/project-delivery-tools.test.ts::action: 'run'"] }
+        "inspect": {
+          "tests": [
+            "tests/e2e/project-delivery-tools.test.ts::action: 'inspect'"
+          ]
+        },
+        "restore": {
+          "tests": [
+            "tests/e2e/project-delivery-tools.test.ts::action: 'restore'"
+          ]
+        },
+        "build": {
+          "tests": [
+            "tests/e2e/project-delivery-tools.test.ts::action: 'build'"
+          ]
+        },
+        "run": {
+          "tests": [
+            "tests/e2e/project-delivery-tools.test.ts::action: 'run'"
+          ]
+        }
       },
       "dimensions": {
-        "happy-path": "applicable", "parameters": "applicable", "failures": "applicable",
-        "repeatability": "applicable", "cleanup": "applicable", "persistence": "applicable",
-        "frame-behavior": "applicable", "exotic-paths": "applicable", "limits": "applicable",
-        "compatibility": "applicable", "platforms": "applicable", "build-flavors": "applicable",
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "applicable",
         "security": "applicable"
       }
     },
@@ -243,19 +388,51 @@
         "tests/e2e/addon-management.test.ts::pinned add-on management through MCP"
       ],
       "actions": {
-        "inspect": { "tests": ["tests/e2e/addon-management.test.ts::action: 'inspect'"] },
-        "install": { "tests": ["tests/e2e/addon-management.test.ts::action: 'install'"] },
-        "update": { "tests": ["tests/e2e/addon-management.test.ts::action: 'update'"] },
-        "remove": { "tests": ["tests/e2e/addon-management.test.ts::action: 'remove'"] },
-        "enable": { "tests": ["tests/e2e/addon-management.test.ts::action: 'enable'"] },
-        "disable": { "tests": ["tests/e2e/addon-management.test.ts::action: 'disable'"] }
+        "inspect": {
+          "tests": [
+            "tests/e2e/addon-management.test.ts::action: 'inspect'"
+          ]
+        },
+        "install": {
+          "tests": [
+            "tests/e2e/addon-management.test.ts::action: 'install'"
+          ]
+        },
+        "update": {
+          "tests": [
+            "tests/e2e/addon-management.test.ts::action: 'update'"
+          ]
+        },
+        "remove": {
+          "tests": [
+            "tests/e2e/addon-management.test.ts::action: 'remove'"
+          ]
+        },
+        "enable": {
+          "tests": [
+            "tests/e2e/addon-management.test.ts::action: 'enable'"
+          ]
+        },
+        "disable": {
+          "tests": [
+            "tests/e2e/addon-management.test.ts::action: 'disable'"
+          ]
+        }
       },
       "dimensions": {
-        "happy-path": "applicable", "parameters": "applicable", "failures": "applicable",
-        "repeatability": "applicable", "cleanup": "applicable", "persistence": "applicable",
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
         "frame-behavior": "n/a: editor add-on lifecycle runs outside the game loop",
-        "exotic-paths": "applicable", "limits": "applicable", "compatibility": "applicable",
-        "platforms": "applicable", "build-flavors": "applicable", "security": "applicable"
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "applicable",
+        "security": "applicable"
       }
     },
     "get_debug_output": {
@@ -298,7 +475,8 @@
         "tests/e2e/representative-path.test.ts::'stop_project'",
         "tests/e2e/lifecycle-tools.test.ts::'stop_project'",
         "tests/handler-modules.test.ts::handleStopProject",
-        "tests/handlers.test.ts::handleStopProject"
+        "tests/handlers.test.ts::handleStopProject",
+        "tests/e2e/crash-recovery.test.ts::'stop_project'"
       ],
       "actions": {
         "*": {
@@ -306,7 +484,8 @@
             "tests/e2e/representative-path.test.ts::'stop_project'",
             "tests/e2e/lifecycle-tools.test.ts::'stop_project'",
             "tests/handler-modules.test.ts::handleStopProject",
-            "tests/handlers.test.ts::handleStopProject"
+            "tests/handlers.test.ts::handleStopProject",
+            "tests/e2e/crash-recovery.test.ts::'stop_project'"
           ]
         }
       },
@@ -679,15 +858,31 @@
         "tests/e2e/runtime-system-tools.test.ts::game_visual_regression retains baseline, diff, tolerance, mask, and renderer evidence"
       ],
       "actions": {
-        "capture_baseline": { "tests": ["tests/e2e/runtime-system-tools.test.ts::action: 'capture_baseline'"] },
-        "compare": { "tests": ["tests/e2e/runtime-system-tools.test.ts::action: 'compare'"] }
+        "capture_baseline": {
+          "tests": [
+            "tests/e2e/runtime-system-tools.test.ts::action: 'capture_baseline'"
+          ]
+        },
+        "compare": {
+          "tests": [
+            "tests/e2e/runtime-system-tools.test.ts::action: 'compare'"
+          ]
+        }
       },
       "dimensions": {
-        "happy-path": "applicable", "parameters": "applicable", "failures": "applicable",
-        "repeatability": "applicable", "cleanup": "applicable", "persistence": "applicable",
-        "frame-behavior": "applicable", "exotic-paths": "applicable", "limits": "applicable",
-        "compatibility": "applicable", "platforms": "applicable",
-        "build-flavors": "n/a: PNG comparison is language-independent", "security": "applicable"
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: PNG comparison is language-independent",
+        "security": "applicable"
       }
     },
     "game_click": {
@@ -1149,11 +1344,31 @@
         "tests/e2e/runtime-system-tools.test.ts::game_performance reports live engine counters"
       ],
       "actions": {
-        "sample": { "tests": ["tests/e2e/runtime-system-tools.test.ts::game_performance reports live engine counters"] },
-        "start": { "tests": ["tests/e2e/runtime-system-tools.test.ts::game_performance reports live engine counters"] },
-        "stop": { "tests": ["tests/e2e/runtime-system-tools.test.ts::game_performance reports live engine counters"] },
-        "report": { "tests": ["tests/e2e/runtime-system-tools.test.ts::game_performance reports live engine counters"] },
-        "leaks": { "tests": ["tests/e2e/runtime-system-tools.test.ts::game_performance reports live engine counters"] }
+        "sample": {
+          "tests": [
+            "tests/e2e/runtime-system-tools.test.ts::game_performance reports live engine counters"
+          ]
+        },
+        "start": {
+          "tests": [
+            "tests/e2e/runtime-system-tools.test.ts::game_performance reports live engine counters"
+          ]
+        },
+        "stop": {
+          "tests": [
+            "tests/e2e/runtime-system-tools.test.ts::game_performance reports live engine counters"
+          ]
+        },
+        "report": {
+          "tests": [
+            "tests/e2e/runtime-system-tools.test.ts::game_performance reports live engine counters"
+          ]
+        },
+        "leaks": {
+          "tests": [
+            "tests/e2e/runtime-system-tools.test.ts::game_performance reports live engine counters"
+          ]
+        }
       },
       "dimensions": {
         "happy-path": "applicable",
@@ -1500,16 +1715,24 @@
       ],
       "actions": {
         "play": {
-          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'play'"]
+          "tests": [
+            "tests/e2e/runtime-audio-animation-tools.test.ts::action: 'play'"
+          ]
         },
         "stop": {
-          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'stop'"]
+          "tests": [
+            "tests/e2e/runtime-audio-animation-tools.test.ts::action: 'stop'"
+          ]
         },
         "pause": {
-          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'pause'"]
+          "tests": [
+            "tests/e2e/runtime-audio-animation-tools.test.ts::action: 'pause'"
+          ]
         },
         "get_list": {
-          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'get_list'"]
+          "tests": [
+            "tests/e2e/runtime-audio-animation-tools.test.ts::action: 'get_list'"
+          ]
         }
       },
       "dimensions": {
@@ -2446,16 +2669,24 @@
       ],
       "actions": {
         "play": {
-          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'play'"]
+          "tests": [
+            "tests/e2e/runtime-audio-animation-tools.test.ts::action: 'play'"
+          ]
         },
         "stop": {
-          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'stop'"]
+          "tests": [
+            "tests/e2e/runtime-audio-animation-tools.test.ts::action: 'stop'"
+          ]
         },
         "pause": {
-          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'pause'"]
+          "tests": [
+            "tests/e2e/runtime-audio-animation-tools.test.ts::action: 'pause'"
+          ]
         },
         "resume": {
-          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'resume'"]
+          "tests": [
+            "tests/e2e/runtime-audio-animation-tools.test.ts::action: 'resume'"
+          ]
         }
       },
       "dimensions": {
@@ -2919,13 +3150,19 @@
       ],
       "actions": {
         "list": {
-          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'list'"]
+          "tests": [
+            "tests/e2e/runtime-audio-animation-tools.test.ts::action: 'list'"
+          ]
         },
         "get": {
-          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'get'"]
+          "tests": [
+            "tests/e2e/runtime-audio-animation-tools.test.ts::action: 'get'"
+          ]
         },
         "set": {
-          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'set'"]
+          "tests": [
+            "tests/e2e/runtime-audio-animation-tools.test.ts::action: 'set'"
+          ]
         }
       },
       "dimensions": {
@@ -3670,13 +3907,19 @@
       ],
       "actions": {
         "create": {
-          "tests": ["tests/e2e/runtime-3d-scene-tools.test.ts::action: 'create'"]
+          "tests": [
+            "tests/e2e/runtime-3d-scene-tools.test.ts::action: 'create'"
+          ]
         },
         "set_instance": {
-          "tests": ["tests/e2e/runtime-3d-scene-tools.test.ts::action: 'set_instance'"]
+          "tests": [
+            "tests/e2e/runtime-3d-scene-tools.test.ts::action: 'set_instance'"
+          ]
         },
         "get_info": {
-          "tests": ["tests/e2e/runtime-3d-scene-tools.test.ts::action: 'get_info'"]
+          "tests": [
+            "tests/e2e/runtime-3d-scene-tools.test.ts::action: 'get_info'"
+          ]
         }
       },
       "dimensions": {
@@ -3734,10 +3977,14 @@
       ],
       "actions": {
         "create": {
-          "tests": ["tests/e2e/runtime-3d-scene-tools.test.ts::action: 'create'"]
+          "tests": [
+            "tests/e2e/runtime-3d-scene-tools.test.ts::action: 'create'"
+          ]
         },
         "configure": {
-          "tests": ["tests/e2e/runtime-3d-scene-tools.test.ts::action: 'configure'"]
+          "tests": [
+            "tests/e2e/runtime-3d-scene-tools.test.ts::action: 'configure'"
+          ]
         }
       },
       "dimensions": {
@@ -3796,16 +4043,24 @@
       ],
       "actions": {
         "set_cell": {
-          "tests": ["tests/e2e/runtime-3d-scene-tools.test.ts::action: 'set_cell'"]
+          "tests": [
+            "tests/e2e/runtime-3d-scene-tools.test.ts::action: 'set_cell'"
+          ]
         },
         "get_cell": {
-          "tests": ["tests/e2e/runtime-3d-scene-tools.test.ts::action: 'get_cell'"]
+          "tests": [
+            "tests/e2e/runtime-3d-scene-tools.test.ts::action: 'get_cell'"
+          ]
         },
         "clear": {
-          "tests": ["tests/e2e/runtime-3d-scene-tools.test.ts::action: 'clear'"]
+          "tests": [
+            "tests/e2e/runtime-3d-scene-tools.test.ts::action: 'clear'"
+          ]
         },
         "get_used": {
-          "tests": ["tests/e2e/runtime-3d-scene-tools.test.ts::action: 'get_used'"]
+          "tests": [
+            "tests/e2e/runtime-3d-scene-tools.test.ts::action: 'get_used'"
+          ]
         }
       },
       "dimensions": {
@@ -4037,16 +4292,24 @@
       ],
       "actions": {
         "ray": {
-          "tests": ["tests/e2e/runtime-3d-scene-tools.test.ts::action: 'ray'"]
+          "tests": [
+            "tests/e2e/runtime-3d-scene-tools.test.ts::action: 'ray'"
+          ]
         },
         "overlap": {
-          "tests": ["tests/e2e/runtime-3d-scene-tools.test.ts::action: 'overlap'"]
+          "tests": [
+            "tests/e2e/runtime-3d-scene-tools.test.ts::action: 'overlap'"
+          ]
         },
         "contacts": {
-          "tests": ["tests/e2e/runtime-3d-scene-tools.test.ts::action: 'contacts'"]
+          "tests": [
+            "tests/e2e/runtime-3d-scene-tools.test.ts::action: 'contacts'"
+          ]
         },
         "inspect_shape": {
-          "tests": ["tests/e2e/runtime-3d-scene-tools.test.ts::action: 'inspect_shape'"]
+          "tests": [
+            "tests/e2e/runtime-3d-scene-tools.test.ts::action: 'inspect_shape'"
+          ]
         }
       },
       "dimensions": {
@@ -4387,13 +4650,19 @@
       ],
       "actions": {
         "travel": {
-          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'travel'"]
+          "tests": [
+            "tests/e2e/runtime-audio-animation-tools.test.ts::action: 'travel'"
+          ]
         },
         "set_param": {
-          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'set_param'"]
+          "tests": [
+            "tests/e2e/runtime-audio-animation-tools.test.ts::action: 'set_param'"
+          ]
         },
         "get_state": {
-          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'get_state'"]
+          "tests": [
+            "tests/e2e/runtime-audio-animation-tools.test.ts::action: 'get_state'"
+          ]
         }
       },
       "dimensions": {
@@ -4471,13 +4740,19 @@
       ],
       "actions": {
         "start": {
-          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'start'"]
+          "tests": [
+            "tests/e2e/runtime-audio-animation-tools.test.ts::action: 'start'"
+          ]
         },
         "stop": {
-          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'stop'"]
+          "tests": [
+            "tests/e2e/runtime-audio-animation-tools.test.ts::action: 'stop'"
+          ]
         },
         "set_target": {
-          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'set_target'"]
+          "tests": [
+            "tests/e2e/runtime-audio-animation-tools.test.ts::action: 'set_target'"
+          ]
         }
       },
       "dimensions": {
@@ -4504,16 +4779,24 @@
       ],
       "actions": {
         "list": {
-          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'list'"]
+          "tests": [
+            "tests/e2e/runtime-audio-animation-tools.test.ts::action: 'list'"
+          ]
         },
         "add": {
-          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'add'"]
+          "tests": [
+            "tests/e2e/runtime-audio-animation-tools.test.ts::action: 'add'"
+          ]
         },
         "remove": {
-          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'remove'"]
+          "tests": [
+            "tests/e2e/runtime-audio-animation-tools.test.ts::action: 'remove'"
+          ]
         },
         "configure": {
-          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'configure'"]
+          "tests": [
+            "tests/e2e/runtime-audio-animation-tools.test.ts::action: 'configure'"
+          ]
         }
       },
       "dimensions": {
@@ -4591,10 +4874,14 @@
       ],
       "actions": {
         "get_info": {
-          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'get_info'"]
+          "tests": [
+            "tests/e2e/runtime-audio-animation-tools.test.ts::action: 'get_info'"
+          ]
         },
         "configure": {
-          "tests": ["tests/e2e/runtime-audio-animation-tools.test.ts::action: 'configure'"]
+          "tests": [
+            "tests/e2e/runtime-audio-animation-tools.test.ts::action: 'configure'"
+          ]
         }
       },
       "dimensions": {

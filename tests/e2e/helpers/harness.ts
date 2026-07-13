@@ -285,6 +285,8 @@ export interface E2EServer {
   runtimePort: number;
   root: string;
   projectPath: string;
+  /** OS pid of the spawned MCP server process, for crash-injection tests. */
+  pid: number;
   /** Live redacted stderr lines emitted by the MCP server process. */
   serverLogs: string[];
   /** Tool-call helper that returns the text payload and error flag. */
@@ -369,10 +371,22 @@ export async function startServer(options: StartServerOptions = {}): Promise<E2E
     }
   };
 
+  const pid = transport.pid;
+  if (pid === null) throw new Error('MCP server transport has no pid after connect');
+
   return {
     client, runtimePort, root: project.root, projectPath: project.projectPath,
-    serverLogs, call, waitForGameConnection, close,
+    pid, serverLogs, call, waitForGameConnection, close,
   };
+}
+
+/**
+ * Force-kill every Godot process referencing the given root. Crash-injection
+ * tests use this to reap the game a SIGKILLed MCP server orphaned, standing in
+ * for the user cleaning up after a crash.
+ */
+export async function killGodotProcesses(rootDir: string): Promise<void> {
+  await killMatchingProcesses(rootDir);
 }
 
 /**
