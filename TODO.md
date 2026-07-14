@@ -54,12 +54,17 @@ tool or action.
   direction: **Godot Agent Loop**, with the tagline **Build it. Play it. Prove
   it.** and the category statement **an evidence-first MCP automation loop for
   Godot 4**. If another name wins, require the same distinct, searchable product
-  identity rather than another generic `godot-mcp` label.
+  identity rather than another generic `godot-mcp` label. (The verified option
+  matrix and rename surface are recorded in
+  [`docs/product-identity-decision.md`](docs/product-identity-decision.md);
+  selection remains pending.)
 - [ ] Decide the repository relationship without erasing provenance. Preferred
   direction: publish `beremaran/godot-agent-loop` as an independent GitHub
   repository while preserving the complete Git history, MIT notices, and a
   prominent Lineage section crediting Coding-Solo and Tugcan. Record whether this
-  is done by a new repository or GitHub fork detachment.
+  is done by a new repository or GitHub fork detachment. (The decision record
+  captures the verified current fork parent, GitHub's current duplication and
+  detachment paths, metadata-loss tradeoffs, and separate approval boundary.)
 - [ ] Align every public identifier after the name decision: repository, npm
   package, MCP Registry name, plugin namespace, binary name, AssetLib listing,
   issue URLs, homepage, badges, examples, and generated schemas. Preferred new
