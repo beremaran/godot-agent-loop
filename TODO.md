@@ -7,13 +7,14 @@ baseline, scope and methodology, the per-tool inventory, the P1–P3 capability
 families, Phases 0–5, and the resolved pre-Phase-3 questions — is archived in
 [`docs/plan-archive.md`](docs/plan-archive.md).
 
-This file is the working plan for what remains: Phase 6b–6d (making the agent
-loop the product), Phase 7 (making the surface usable by an agent), and the P4
-engine-surface decisions. The discipline sections at the bottom — required
+This file is the working plan for what remains: Phase 6c–6d (making the agent
+loop the product) and Phase 7 (making the surface usable by an agent). The P4
+engine-surface decisions are retained below because their generated zero-gap
+audit remains a release gate. The discipline sections at the bottom — required
 test dimensions, definition of done, and the implementation checklist — remain
 the live gate for every new tool or action.
 
-## P4: engine-surface gaps (handle classes)
+## P4: engine-surface gaps (resolved)
 
 Unlike the authored P1–P3 capability families (closed; see
 [`docs/plan-archive.md`](docs/plan-archive.md)), these are derived
@@ -23,20 +24,20 @@ mechanically rather than authored:
 generated result. Of 1,036 classes in Godot 4.7, 218 are named by our sources,
 720 are generically reachable (`ClassDB`-instantiable, so `add_node` and
 `game_eval` construct them; sampled and proven in `tests/e2e/engine-reach.test.ts`),
-and 53 are scoped out in `docs/coverage/engine-scope.json` under eight grouped
-reasons, each of which the audit fails if it stops matching any class.
+and 98 are scoped out in `docs/coverage/engine-scope.json` under 16 grouped
+reasons, each of which the audit fails if it stops matching any class. The
+generated report has zero gaps.
 
-That leaves 45, in two kinds. Each needs one of three outcomes: a tool, a proof
-that `game_eval` already reaches it, or a line in `engine-scope.json` recording
-why we do not care. The list regenerates from the engine, so it changes when
-Godot does.
+The remaining 45 fell into two kinds. Each needed one of three outcomes: a tool,
+a proof that `game_eval` already reaches it, or a line in `engine-scope.json`
+recording why it is outside the product boundary. The decisions below close all
+45; the generated list remains release-gated, so it will reopen when Godot adds a
+class that no existing rule or reachability path covers.
 
-- [ ] Assign this section's exit criteria to a phase; it is currently the only
-  open work owned by no phase. The editor-context decision below depends on the
-  editor bridge that 6d extends, and `RenderingDevice`/`SceneState` interact
-  with the seams 6c freezes (the persistent session and `read_scene`), so the
-  decision — though not necessarily the implementation — must land before 6c
-  completes.
+- [x] Assign this section's exit criteria to a phase. (The P4 decisions are a
+  prerequisite of Phase 6c because that phase freezes the session, editor, and
+  `read_scene` seams. They were completed before 6c implementation; the generated
+  zero-gap audit is the gate.)
 
 ### Editor-context classes (28)
 
@@ -57,9 +58,15 @@ game `ClassDB.instantiate()` returns null for them, so `game_eval` is not a
 fallback. (`tests/e2e/engine-reach.test.ts` proved this by failing on
 `EditorExportPlatformAndroid` when the audit wrongly called them reachable.)
 
-- [ ] Decide whether outside-the-editor configuration is the right seam for an
+- [x] Decide whether outside-the-editor configuration is the right seam for an
   MCP server, or a limitation to close by reaching these through the editor
-  bridge that `editor_control` already establishes.
+  bridge that `editor_control` already establishes. (**Keep the external seam.**
+  Project-file configuration followed by a real engine import/export is both
+  headless-capable and stronger evidence than holding the editor's transient
+  importer/platform object. Making the GUI editor an execution dependency would
+  contradict the architecture decision that it is an observation surface. All
+  28 implementation objects are recorded under `import and export editor
+  internals` in `engine-scope.json`.)
 
 ### Handle classes (17)
 
@@ -67,32 +74,39 @@ Not `ClassDB`-instantiable, not a singleton, and with no instantiable subclass,
 so the only way to hold one is to be handed it by an engine accessor that no
 tool exposes. Not missing wrappers — missing *doorways*.
 
-- [ ] **Rendering device:** `RenderingDevice` (135 methods). Reached via
-  `RenderingServer.get_rendering_device()` / `create_local_rendering_device()`.
-  The largest single gap by API surface; gates any compute-shader workflow.
-- [ ] **Scene introspection:** `SceneState` (23 methods), via
-  `PackedScene.get_state()`. Would give read-only structural inspection of a
-  packed scene without instantiating it — plausibly useful to `read_scene`.
-- [ ] **Audio stream playbacks:** `AudioStreamGeneratorPlayback`,
+- [x] **Rendering device:** `RenderingDevice` (135 methods). Scoped out as a raw
+  compute/RID API. The product claims scene resources, visual shaders, and
+  higher-level rendering automation, not compute-shader orchestration; adding a
+  135-method doorway while Phase 7 is reducing the default surface would move in
+  the wrong direction.
+- [x] **Scene introspection:** `SceneState` (23 methods), along with
+  `InstancePlaceholder` and `PackedDataContainerRef`, is scoped out as a packed
+  scene implementation handle. `read_scene` already returns the stable,
+  serializable structure an agent needs, and the authoring tools independently
+  reload scenes to verify persistence.
+- [x] **Audio stream playbacks:** `AudioStreamGeneratorPlayback`,
   `AudioStreamPlaybackPolyphonic`, `AudioStreamPlaybackInteractive`,
   `AudioStreamPlaybackPlaylist`, `AudioStreamPlaybackSynchronized`, and
-  `AudioEffectSpectrumAnalyzerInstance`. All obtained from a player or bus effect
-  after playback starts (`get_stream_playback()`, `get_effect_instance()`).
-  Procedural audio generation and spectrum analysis are unreachable without them.
-- [ ] **Networking handles:** `ENetPacketPeer` (from `ENetMultiplayerPeer`) and
-  `TLSOptions` (from its static constructors). `TLSOptions` in particular gates
-  authenticated/secure transport options on the existing networking tools.
-- [ ] **XR:** `WebXRInterface` and `OpenXRFutureResult`. Both are obtained from
-  `XRServer`. XR is not currently a claimed workflow — these are the strongest
-  candidates for a scope-out line rather than a tool.
-- [ ] **Remaining handles:** `GodotInstance`, `InstancePlaceholder` (from
-  scenes loaded with `load_placeholder`), `SkinReference` (from
-  `MeshInstance3D.get_skin_reference()`), `PackedDataContainerRef`, and
-  `JavaScriptObject` (web-export only, so also a scope-out candidate).
+  `AudioEffectSpectrumAnalyzerInstance` are scoped out as advanced procedural,
+  analysis, and specialized playback handles. The claimed audio workflow remains
+  players, streams, buses, effects, playback control, and persisted layouts.
+- [x] **Networking handles:** `ENetPacketPeer` and `TLSOptions` are scoped out as
+  low-level transport configuration. The claimed HTTP, WebSocket, and multiplayer
+  workflows retain engine/platform TLS validation; unsafe TLS options and
+  per-peer ENet tuning are not exposed as agent primitives.
+- [x] **XR:** `WebXRInterface` and `OpenXRFutureResult` are explicitly scoped out.
+  XR is not claimed and requires platform/runtime coverage absent from the
+  portable support matrix.
+- [x] **Remaining handles:** `GodotInstance` and `JavaScriptObject` are scoped out
+  as platform-host embedding bridges; `SkinReference` is scoped out as the
+  RenderingServer/RID lifetime handle beneath the supported mesh, skeleton, skin
+  resource, and animation workflows. The other packed-scene handles are covered
+  by the scene-introspection decision above.
 
 Exit criteria: `docs/coverage/engine-surface.md` reports zero gaps, with every
-class in this list resolved to a tool, a reachability proof, or a recorded
-scope decision.
+class in this list resolved to a tool, a reachability proof, or a recorded scope
+decision. **Met:** the generated Godot 4.7 report now has zero gaps and 98
+explicitly grouped scope decisions.
 
 ## End goal and architecture direction
 

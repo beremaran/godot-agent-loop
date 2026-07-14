@@ -25,8 +25,8 @@ That is the point, and it is what the tool coverage report cannot tell us.
 | --- | ---: | --- |
 | tooled | 218 | The class is named in our shipped GDScript or in a tool schema |
 | reachable | 720 | No named tool, but generically drivable via `add_node` / `game_eval` |
-| out-of-scope | 53 | Declared unsupported in the README support boundary |
-| gap | 45 | No tool, no generic reach, no scope decision |
+| out-of-scope | 98 | Declared unsupported in the README support boundary |
+| gap | 0 | No tool, no generic reach, no scope decision |
 | **Total** | **1036** | |
 
 ### Tooled is an upper bound
@@ -59,56 +59,15 @@ decision on record; the audit fails if a rule stops matching any class.
 | version control | 1 | the editor's VCS plugin interface; version control is the user's own concern and is not mediated through this server |
 | GDExtension | 2 | GDExtension builds are not claimed; analyze_project_integrity inspects declarations and libraries without invoking native toolchains |
 | XR editor tooling | 3 | XR is not a claimed workflow, and these are its editor-side binding and interaction-profile editors |
+| import and export editor internals | 28 | project-file configuration plus an actual engine import or export is the supported and authoritative seam; requiring a GUI editor merely to hold its internal importer/platform objects would contradict the deterministic external workflow without strengthening its result |
+| low-level rendering device | 1 | raw RenderingDevice and compute/RID orchestration are not a claimed workflow; the supported rendering surface is scene resources, visual shaders, and the higher-level rendering tools, and exposing 135 device methods would work against the progressive-disclosure goal |
+| packed scene implementation handles | 3 | read_scene and the authoring tools expose stable serializable scene structure; raw PackedScene state, placeholders, and packed-container references are engine implementation handles rather than an additional user workflow |
+| advanced runtime audio handles | 6 | procedural sample feeding, spectrum analysis, and specialized playlist/polyphonic playback handles are not claimed; the supported audio workflow covers players, streams, buses, effects, playback control, and persisted layouts |
+| low-level transport handles | 2 | per-peer ENet tuning and custom TLS credential objects are below the claimed HTTP, WebSocket, and multiplayer workflows; those workflows retain the engine and platform TLS validation defaults rather than exposing unsafe or certificate-construction primitives |
+| XR runtime | 2 | XR is not a claimed workflow, and these handles require WebXR or OpenXR runtime/platform support that is outside the portable game-authoring matrix |
+| platform embedding bridges | 2 | embedding the engine as a host-controlled instance and reaching browser JavaScript objects are platform-host integration APIs, not portable Godot project or running-game automation |
+| skinning implementation handles | 1 | SkinReference is an internal RenderingServer binding handle; the supported mesh, skeleton, skin resource, and animation workflows do not expose or require the underlying RID lifetime object |
 
 ## Gap list
 
-45 classes have no tool, no generic reach, and no scope decision.
-Each needs one: a tool, a reachability proof, or a line in `docs/coverage/engine-scope.json`.
-
-| Class | Node | Resource | Methods | Why it is a gap |
-| --- | --- | --- | ---: | --- |
-| `RenderingDevice` | no | no | 135 | handle class: obtainable only from an engine accessor, and no tool exposes one |
-| `EditorExportPlatformExtension` | no | no | 35 | editor-context class: not constructible in a running game, and no tool reaches it |
-| `EditorExportPlatform` | no | no | 27 | editor-context class: not constructible in a running game, and no tool reaches it |
-| `EditorExportPreset` | no | no | 25 | editor-context class: not constructible in a running game, and no tool reaches it |
-| `SceneState` | no | no | 23 | handle class: obtainable only from an engine accessor, and no tool exposes one |
-| `WebXRInterface` | no | no | 18 | handle class: obtainable only from an engine accessor, and no tool exposes one |
-| `ENetPacketPeer` | no | no | 16 | handle class: obtainable only from an engine accessor, and no tool exposes one |
-| `TLSOptions` | no | no | 9 | handle class: obtainable only from an engine accessor, and no tool exposes one |
-| `GodotInstance` | no | no | 7 | handle class: obtainable only from an engine accessor, and no tool exposes one |
-| `AudioStreamGeneratorPlayback` | no | no | 6 | handle class: obtainable only from an engine accessor, and no tool exposes one |
-| `AudioStreamPlaybackPolyphonic` | no | no | 5 | handle class: obtainable only from an engine accessor, and no tool exposes one |
-| `OpenXRFutureResult` | no | no | 5 | handle class: obtainable only from an engine accessor, and no tool exposes one |
-| `AudioStreamPlaybackInteractive` | no | no | 3 | handle class: obtainable only from an engine accessor, and no tool exposes one |
-| `InstancePlaceholder` | yes | no | 3 | handle class: obtainable only from an engine accessor, and no tool exposes one |
-| `ResourceImporterOggVorbis` | no | no | 2 | editor-context class: not constructible in a running game, and no tool reaches it |
-| `SkinReference` | no | no | 2 | handle class: obtainable only from an engine accessor, and no tool exposes one |
-| `AudioEffectSpectrumAnalyzerInstance` | no | no | 1 | handle class: obtainable only from an engine accessor, and no tool exposes one |
-| `PackedDataContainerRef` | no | no | 1 | handle class: obtainable only from an engine accessor, and no tool exposes one |
-| `AudioStreamPlaybackPlaylist` | no | no | 0 | handle class: obtainable only from an engine accessor, and no tool exposes one |
-| `AudioStreamPlaybackSynchronized` | no | no | 0 | handle class: obtainable only from an engine accessor, and no tool exposes one |
-| `EditorExportPlatformAndroid` | no | no | 0 | editor-context class: not constructible in a running game, and no tool reaches it |
-| `EditorExportPlatformAppleEmbedded` | no | no | 0 | editor-context class: not constructible in a running game, and no tool reaches it |
-| `EditorExportPlatformIOS` | no | no | 0 | editor-context class: not constructible in a running game, and no tool reaches it |
-| `EditorExportPlatformLinuxBSD` | no | no | 0 | editor-context class: not constructible in a running game, and no tool reaches it |
-| `EditorExportPlatformMacOS` | no | no | 0 | editor-context class: not constructible in a running game, and no tool reaches it |
-| `EditorExportPlatformPC` | no | no | 0 | editor-context class: not constructible in a running game, and no tool reaches it |
-| `EditorExportPlatformVisionOS` | no | no | 0 | editor-context class: not constructible in a running game, and no tool reaches it |
-| `EditorExportPlatformWeb` | no | no | 0 | editor-context class: not constructible in a running game, and no tool reaches it |
-| `EditorExportPlatformWindows` | no | no | 0 | editor-context class: not constructible in a running game, and no tool reaches it |
-| `JavaScriptObject` | no | no | 0 | handle class: obtainable only from an engine accessor, and no tool exposes one |
-| `ResourceImporterBitMap` | no | no | 0 | editor-context class: not constructible in a running game, and no tool reaches it |
-| `ResourceImporterBMFont` | no | no | 0 | editor-context class: not constructible in a running game, and no tool reaches it |
-| `ResourceImporterCSVTranslation` | no | no | 0 | editor-context class: not constructible in a running game, and no tool reaches it |
-| `ResourceImporterDynamicFont` | no | no | 0 | editor-context class: not constructible in a running game, and no tool reaches it |
-| `ResourceImporterImage` | no | no | 0 | editor-context class: not constructible in a running game, and no tool reaches it |
-| `ResourceImporterImageFont` | no | no | 0 | editor-context class: not constructible in a running game, and no tool reaches it |
-| `ResourceImporterLayeredTexture` | no | no | 0 | editor-context class: not constructible in a running game, and no tool reaches it |
-| `ResourceImporterMP3` | no | no | 0 | editor-context class: not constructible in a running game, and no tool reaches it |
-| `ResourceImporterOBJ` | no | no | 0 | editor-context class: not constructible in a running game, and no tool reaches it |
-| `ResourceImporterScene` | no | no | 0 | editor-context class: not constructible in a running game, and no tool reaches it |
-| `ResourceImporterShaderFile` | no | no | 0 | editor-context class: not constructible in a running game, and no tool reaches it |
-| `ResourceImporterSVG` | no | no | 0 | editor-context class: not constructible in a running game, and no tool reaches it |
-| `ResourceImporterTexture` | no | no | 0 | editor-context class: not constructible in a running game, and no tool reaches it |
-| `ResourceImporterTextureAtlas` | no | no | 0 | editor-context class: not constructible in a running game, and no tool reaches it |
-| `ResourceImporterWAV` | no | no | 0 | editor-context class: not constructible in a running game, and no tool reaches it |
+No gaps: every engine class is tooled, generically reachable, or scoped out.

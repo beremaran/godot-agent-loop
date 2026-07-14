@@ -88,6 +88,82 @@
         "OpenXRInteractionProfileEditor",
         "OpenXRInteractionProfileEditorBase"
       ]
+    },
+    {
+      "group": "import and export editor internals",
+      "reason": "project-file configuration plus an actual engine import or export is the supported and authoritative seam; requiring a GUI editor merely to hold its internal importer/platform objects would contradict the deterministic external workflow without strengthening its result",
+      "classes": [
+        "EditorExportPlatform",
+        "EditorExportPlatformAndroid",
+        "EditorExportPlatformAppleEmbedded",
+        "EditorExportPlatformExtension",
+        "EditorExportPlatformIOS",
+        "EditorExportPlatformLinuxBSD",
+        "EditorExportPlatformMacOS",
+        "EditorExportPlatformPC",
+        "EditorExportPlatformVisionOS",
+        "EditorExportPlatformWeb",
+        "EditorExportPlatformWindows",
+        "EditorExportPreset",
+        "ResourceImporterBitMap",
+        "ResourceImporterBMFont",
+        "ResourceImporterCSVTranslation",
+        "ResourceImporterDynamicFont",
+        "ResourceImporterImage",
+        "ResourceImporterImageFont",
+        "ResourceImporterLayeredTexture",
+        "ResourceImporterMP3",
+        "ResourceImporterOBJ",
+        "ResourceImporterOggVorbis",
+        "ResourceImporterScene",
+        "ResourceImporterShaderFile",
+        "ResourceImporterSVG",
+        "ResourceImporterTexture",
+        "ResourceImporterTextureAtlas",
+        "ResourceImporterWAV"
+      ]
+    },
+    {
+      "group": "low-level rendering device",
+      "reason": "raw RenderingDevice and compute/RID orchestration are not a claimed workflow; the supported rendering surface is scene resources, visual shaders, and the higher-level rendering tools, and exposing 135 device methods would work against the progressive-disclosure goal",
+      "classes": ["RenderingDevice"]
+    },
+    {
+      "group": "packed scene implementation handles",
+      "reason": "read_scene and the authoring tools expose stable serializable scene structure; raw PackedScene state, placeholders, and packed-container references are engine implementation handles rather than an additional user workflow",
+      "classes": ["InstancePlaceholder", "PackedDataContainerRef", "SceneState"]
+    },
+    {
+      "group": "advanced runtime audio handles",
+      "reason": "procedural sample feeding, spectrum analysis, and specialized playlist/polyphonic playback handles are not claimed; the supported audio workflow covers players, streams, buses, effects, playback control, and persisted layouts",
+      "classes": [
+        "AudioEffectSpectrumAnalyzerInstance",
+        "AudioStreamGeneratorPlayback",
+        "AudioStreamPlaybackInteractive",
+        "AudioStreamPlaybackPlaylist",
+        "AudioStreamPlaybackPolyphonic",
+        "AudioStreamPlaybackSynchronized"
+      ]
+    },
+    {
+      "group": "low-level transport handles",
+      "reason": "per-peer ENet tuning and custom TLS credential objects are below the claimed HTTP, WebSocket, and multiplayer workflows; those workflows retain the engine and platform TLS validation defaults rather than exposing unsafe or certificate-construction primitives",
+      "classes": ["ENetPacketPeer", "TLSOptions"]
+    },
+    {
+      "group": "XR runtime",
+      "reason": "XR is not a claimed workflow, and these handles require WebXR or OpenXR runtime/platform support that is outside the portable game-authoring matrix",
+      "classes": ["OpenXRFutureResult", "WebXRInterface"]
+    },
+    {
+      "group": "platform embedding bridges",
+      "reason": "embedding the engine as a host-controlled instance and reaching browser JavaScript objects are platform-host integration APIs, not portable Godot project or running-game automation",
+      "classes": ["GodotInstance", "JavaScriptObject"]
+    },
+    {
+      "group": "skinning implementation handles",
+      "reason": "SkinReference is an internal RenderingServer binding handle; the supported mesh, skeleton, skin resource, and animation workflows do not expose or require the underlying RID lifetime object",
+      "classes": ["SkinReference"]
     }
   ]
 }
