@@ -100,6 +100,46 @@ if (mode === 'expect-no-render') {
     throw new Error(`Authoring success response is invalid: ${JSON.stringify(created)}`);
   }
 
+  const attached = await request('godot.runtime.authoring_attach_script', {
+    scene_path: 'scenes/session_created.tscn',
+    node_path: 'root',
+    script_path: 'scripts/harness_game.gd',
+  });
+  if (attached.error) {
+    throw new Error(`Harness-owned game script attachment failed: ${JSON.stringify(attached)}`);
+  }
+
+  const launched = await request('godot.runtime.change_scene', {
+    scene_path: 'res://scenes/session_created.tscn',
+  });
+  if (launched.error) throw new Error(`Harness-owned game launch failed: ${JSON.stringify(launched)}`);
+  await request('godot.runtime.wait', { frames: 2, frame_type: 'render' });
+  const firstTree = await request('godot.runtime.get_scene_tree', {});
+  if (firstTree.error || !JSON.stringify(firstTree.result).includes('RuntimeProof')) {
+    throw new Error(`Real game did not execute in harness-owned loop: ${JSON.stringify(firstTree)}`);
+  }
+
+  const editedWhileRunning = await request('godot.runtime.authoring_add_node', {
+    scene_path: 'scenes/session_created.tscn',
+    parent_node_path: 'root',
+    node_type: 'Node2D',
+    node_name: 'AfterObservation',
+  });
+  if (editedWhileRunning.error) {
+    throw new Error(`Post-observation edit failed: ${JSON.stringify(editedWhileRunning)}`);
+  }
+  const reloaded = await request('godot.runtime.change_scene', {
+    scene_path: 'res://scenes/session_created.tscn',
+  });
+  if (reloaded.error) throw new Error(`Harness-owned game reload failed: ${JSON.stringify(reloaded)}`);
+  await request('godot.runtime.wait', { frames: 2, frame_type: 'render' });
+  const reloadedTree = await request('godot.runtime.get_scene_tree', {});
+  const reloadedJson = JSON.stringify(reloadedTree.result);
+  if (reloadedTree.error || !reloadedJson.includes('RuntimeProof')
+    || !reloadedJson.includes('AfterObservation')) {
+    throw new Error(`Edited real game did not reload in place: ${JSON.stringify(reloadedTree)}`);
+  }
+
   const failed = await request('godot.runtime.authoring_create_scene', {
     scene_path: 'scenes/session_invalid.tscn',
     root_node_type: 'NotARealClass',

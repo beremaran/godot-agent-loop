@@ -370,11 +370,22 @@ until that decision is confirmed against a real game.
   and checked budgets cap cycle median at 4.5 s / 1.6× baseline, session startup
   p95 at 1.5 s, and warm command p95 at 100 ms. This result makes preserving the
   warm main loop across run/observe the next architecture requirement.)
-- [ ] Decide whether the harness-owned main loop replaces autoload injection
+- [x] Decide whether the harness-owned main loop replaces autoload injection
   entirely, or whether inject-and-run survives as a high-fidelity verification
   mode alongside a fast iteration mode. The 6a spike moved this toward *replace*:
   autoloads run under `--script`, so the fidelity argument for inject-and-run is
   much weaker than assumed. Confirm against a real game before deciding.
+  (**Decision: replace entirely.** A real-engine test now authors a scene,
+  attaches and executes a user game script inside the harness-owned `SceneTree`,
+  observes its `_ready` side effect over authenticated runtime JSON-RPC, edits
+  the packed scene while it runs, and reloads and observes the edit without
+  restarting the process. Autoloads, rendering, runtime commands, and user scene
+  lifecycle all work on that path, so inject-and-run provides no demonstrated
+  fidelity advantage. It instead preserves a divergent path and causes the two
+  headed startups responsible for the benchmark's 40.3% cycle regression.
+  `run_project` will therefore become scene load/reload in the persistent
+  harness and the generated `override.cfg` injection path will be retired, not
+  retained as a second “verification mode.”)
 
 #### 6d: let a human watch
 

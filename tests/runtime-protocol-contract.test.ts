@@ -171,6 +171,15 @@ describe('runtime protocol contract', () => {
     expect(operations).toContain('server.call("register_authoring_dispatcher", execute_operation)');
   });
 
+  it('proves the harness-owned loop can run, observe, edit, and reload a real game', () => {
+    const client = readFileSync(join(root, 'tests/godot/authoring-session-client.mjs'), 'utf8');
+    expect(client).toContain("request('godot.runtime.change_scene'");
+    expect(client).toContain("request('godot.runtime.get_scene_tree'");
+    expect(client).toContain("request('godot.runtime.authoring_add_node'");
+    expect(client).toContain('RuntimeProof');
+    expect(client).toContain('AfterObservation');
+  });
+
   it('publishes a well-formed command manifest in the schema', () => {
     const commands = schemaCommands();
     const schema = JSON.parse(readFileSync(join(root, 'docs/runtime-api.schema.json'), 'utf8'));
