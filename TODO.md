@@ -263,7 +263,7 @@ tool or action.
 
 ### Launch evidence and publication
 
-- [ ] Close the first public exact-tag GitHub Actions regressions without
+- [x] Close the first public exact-tag GitHub Actions regressions without
   weakening the release gates: accept CRLF adapter metadata on Windows, keep
   test-harness file URLs portable across Windows drive-letter paths, keep
   cold runtime connection attempts alive through fresh imports and shader
@@ -272,9 +272,14 @@ tool or action.
   hosted workflow to the current Node 24 action majors so the release run has no
   forced-runtime deprecation annotations, and keep an explicitly configured
   missing Godot path authoritative so missing-binary acceptance cannot silently
-  use a runner-installed fallback. (The
-  focused regressions and local Godot 4.4/4.7 suites pass; completion awaits a
-  green hosted matrix on the repaired commit.)
+  use a runner-installed fallback. (The focused regressions and local Godot
+  4.4/4.7 suites pass. Public `main` run
+  [29328993694](https://github.com/beremaran/godot-agent-loop/actions/runs/29328993694)
+  passed all 11 jobs at repaired commit `b1a8a7e`: core checks, Windows, macOS,
+  Compatibility and Forward+ renderers, 4.4/4.7 exports, 4.4/4.7 .NET, and the
+  two exhaustive 201-test MCP-to-Godot suites. Its logs contain no Node 20,
+  deprecated-action, warning-command, or error-command markers; the only check
+  annotation is GitHub's informational `macos-latest` migration notice.)
 
 - [x] Produce one 60–90 second proof-oriented launch video: start from an empty
   directory, have a cold agent build a small game, show the editor following
