@@ -58,6 +58,8 @@ describe('Godot support policy', () => {
     expect(workflow).toContain('sha256sum --check --strict');
     expect(workflow).toContain('mkdir -p dist');
     expect(workflow).toContain('npm pack --pack-destination dist');
+    expect(workflow).toContain('npm publish ./dist/beremaran-godot-agent-loop-1.0.0.tgz --access public --provenance');
+    expect(workflow).not.toContain('npm publish dist/beremaran-godot-agent-loop-1.0.0.tgz');
   });
 
   it('keeps generated E2E fixtures compatible with the declared floor', () => {
