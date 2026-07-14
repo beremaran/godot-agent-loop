@@ -1,6 +1,7 @@
 // @test-kind: contract
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import { toolDefinitions } from '../src/tool-definitions.js';
@@ -26,7 +27,7 @@ interface ServerMetadata {
   packages: { identifier: string; version: string }[];
 }
 
-const root = join(new URL('..', import.meta.url).pathname);
+const root = fileURLToPath(new URL('..', import.meta.url));
 const product = JSON.parse(readFileSync(join(root, 'product.json'), 'utf8')) as {
   name: string;
   description: string;

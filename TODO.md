@@ -265,6 +265,7 @@ tool or action.
 
 - [ ] Close the first public exact-tag GitHub Actions regressions without
   weakening the release gates: accept CRLF adapter metadata on Windows, keep
+  test-harness file URLs portable across Windows drive-letter paths, keep
   cold runtime connection attempts alive through fresh imports and shader
   compilation, select dummy audio for the headed authoring test, and account
   narrowly for Godot 4.4's fixed-upstream headless-import diagnostics. (The

@@ -3,6 +3,7 @@ import { accessSync, constants, mkdirSync, mkdtempSync, readdirSync, rmSync, wri
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport, getDefaultEnvironment } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -16,7 +17,7 @@ const execFileAsync = promisify(execFile);
  * deterministic teardown.
  */
 
-export const repoRoot = join(new URL('../../..', import.meta.url).pathname);
+export const repoRoot = fileURLToPath(new URL('../../..', import.meta.url));
 
 /** Resolve the Godot binary the same way tests/godot/godot-bin.sh does. */
 export function resolveGodotBinary(): string {
@@ -336,12 +337,21 @@ export async function startServer(options: StartServerOptions = {}): Promise<E2E
     stderr: 'pipe',
   });
 
-  const client = new Client({ name: 'godot-agent-loop-e2e', version: '0.0.0' });
-  await client.connect(transport);
   const serverLogs: string[] = [];
   transport.stderr?.on('data', (data: Buffer) => {
     serverLogs.push(...data.toString().split('\n').filter(Boolean));
   });
+  const client = new Client({ name: 'godot-agent-loop-e2e', version: '0.0.0' });
+  try {
+    await client.connect(transport);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const diagnostics = serverLogs.slice(-40).join('\n');
+    throw new Error(
+      `MCP server failed during startup: ${message}${diagnostics ? `\nMCP diagnostics:\n${diagnostics}` : ''}`,
+      { cause: error },
+    );
+  }
 
   const call: E2EServer['call'] = async (name, args = {}) => {
     const result = await client.callTool({ name, arguments: args });
