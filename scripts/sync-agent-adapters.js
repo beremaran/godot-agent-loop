@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseSkillFrontmatter } from './skill-frontmatter.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const write = process.argv.includes('--write');
@@ -33,9 +34,7 @@ function syncJson(path, expected) {
 
 function skillFrontmatter(name) {
   const source = readFileSync(join(root, 'agent-plugin', 'skills', name, 'SKILL.md'), 'utf8');
-  const match = source.match(/^---\nname: ([^\n]+)\ndescription: ([^\n]+)\n---/);
-  if (!match) throw new Error(`Invalid skill frontmatter: ${name}`);
-  return { name: match[1], description: match[2] };
+  return parseSkillFrontmatter(source, name);
 }
 
 assertEqual(

@@ -263,6 +263,14 @@ tool or action.
 
 ### Launch evidence and publication
 
+- [ ] Close the first public exact-tag GitHub Actions regressions without
+  weakening the release gates: accept CRLF adapter metadata on Windows, keep
+  cold runtime connection attempts alive through fresh imports and shader
+  compilation, select dummy audio for the headed authoring test, and account
+  narrowly for Godot 4.4's fixed-upstream headless-import diagnostics. (The
+  focused regressions and local Godot 4.4/4.7 suites pass; completion awaits a
+  green hosted matrix on the repaired commit.)
+
 - [x] Produce one 60–90 second proof-oriented launch video: start from an empty
   directory, have a cold agent build a small game, show the editor following
   activity, exercise win and lose states, verify UI/log/rendered evidence, and

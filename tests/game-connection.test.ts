@@ -5,10 +5,10 @@ import { GameConnection } from '../src/game-connection.js';
 
 const servers: Server[] = [];
 
-async function startServer(
+function createRuntimeServer(
   capabilities = ['runtime-commands', 'godot-json-values'],
   authenticationSecret?: string,
-): Promise<{ server: Server; port: number; sockets: import('node:net').Socket[] }> {
+): { server: Server; sockets: import('node:net').Socket[] } {
   const sockets: import('node:net').Socket[] = [];
   const server = createServer(socket => {
     sockets.push(socket);
@@ -31,6 +31,14 @@ async function startServer(
       }
     });
   });
+  return { server, sockets };
+}
+
+async function startServer(
+  capabilities = ['runtime-commands', 'godot-json-values'],
+  authenticationSecret?: string,
+): Promise<{ server: Server; port: number; sockets: import('node:net').Socket[] }> {
+  const { server, sockets } = createRuntimeServer(capabilities, authenticationSecret);
   servers.push(server);
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
@@ -76,6 +84,36 @@ describe('GameConnection lifecycle', () => {
     await connecting;
 
     expect(connection.isConnected).toBe(false);
+  });
+
+  it('keeps connecting when a cold runtime starts after the former retry window', async () => {
+    const reservation = createServer();
+    await new Promise<void>(resolve => reservation.listen(0, '127.0.0.1', resolve));
+    const address = reservation.address();
+    if (!address || typeof address === 'string') throw new Error('Server did not bind to a port');
+    const port = address.port;
+    await new Promise<void>(resolve => reservation.close(() => { resolve(); }));
+
+    const logs: string[] = [];
+    const { server } = createRuntimeServer();
+    servers.push(server);
+    const connection = new GameConnection({
+      port,
+      initialDelayMs: 0,
+      retryDelayMs: 5,
+      log: message => { logs.push(message); },
+    });
+    const connecting = connection.connect('/cold-project', () => true);
+
+    await waitFor(() => logs.some(message => {
+      const event = JSON.parse(message) as Record<string, unknown>;
+      return event.event === 'connection_retry' && event.attempt === 11;
+    }));
+    await new Promise<void>(resolve => server.listen(port, '127.0.0.1', resolve));
+    await connecting;
+
+    expect(connection.isConnected).toBe(true);
+    connection.disconnect();
   });
 
   it('ignores close callbacks from a superseded socket', async () => {

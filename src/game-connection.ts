@@ -49,7 +49,10 @@ export class GameConnection {
     this.host = options.host ?? '127.0.0.1';
     this.initialDelayMs = options.initialDelayMs ?? 2000;
     this.retryDelayMs = options.retryDelayMs ?? 500;
-    this.maxAttempts = options.maxAttempts ?? 10;
+    // Cold editor imports and shader compilation can exceed the old seven-second
+    // connection window on fresh CI machines. Keep retrying for roughly 90s,
+    // while connect() still aborts immediately when the process exits.
+    this.maxAttempts = options.maxAttempts ?? 180;
     this.log = options.log ?? (() => undefined);
     this.allowPrivilegedCommands = options.allowPrivilegedCommands ?? false;
     this.allowedPrivilegedGroups = new Set(options.allowedPrivilegedGroups ?? []);

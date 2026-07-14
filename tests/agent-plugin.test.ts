@@ -2,6 +2,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { parseSkillFrontmatter } from '../scripts/skill-frontmatter.js';
 import { repoRoot } from './helpers/manifest-sources.js';
 
 const packageJson = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8'));
@@ -73,6 +74,21 @@ describe('portable agent plugin package', () => {
       expect(source).not.toContain('[TODO:');
       expect(source.split('\n').length, declared.name).toBeLessThan(100);
     }
+  });
+
+  it('parses canonical skill metadata after LF or CRLF checkout conversion', () => {
+    const expected = { name: 'build-godot-game', description: 'Build a tested Godot game.' };
+    const frontmatter = [
+      '---',
+      `name: ${expected.name}`,
+      `description: ${expected.description}`,
+      '---',
+      '',
+      '# Build',
+    ];
+
+    expect(parseSkillFrontmatter(frontmatter.join('\n'), expected.name)).toEqual(expected);
+    expect(parseSkillFrontmatter(frontmatter.join('\r\n'), expected.name)).toEqual(expected);
   });
 
   it('keeps build, debug, verify, and shipping workflows evidence-first', () => {
