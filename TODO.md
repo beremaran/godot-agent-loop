@@ -268,7 +268,9 @@ tool or action.
   test-harness file URLs portable across Windows drive-letter paths, keep
   cold runtime connection attempts alive through fresh imports and shader
   compilation, select dummy audio for the headed authoring test, and account
-  narrowly for Godot 4.4's fixed-upstream headless-import diagnostics. (The
+  narrowly for Godot 4.4's fixed-upstream headless-import diagnostics. Move the
+  hosted workflow to the current Node 24 action majors so the release run has no
+  forced-runtime deprecation annotations. (The
   focused regressions and local Godot 4.4/4.7 suites pass; completion awaits a
   green hosted matrix on the repaired commit.)
 

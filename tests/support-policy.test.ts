@@ -33,6 +33,17 @@ describe('Godot support policy', () => {
     expect(template).toMatch(/tested limitation when a case is not supported/);
   });
 
+  it('uses Node 24 workflow actions without forced-runtime deprecation warnings', () => {
+    const workflow = readRepoFile('.github/workflows/godot-integration.yml');
+    expect(workflow).toContain('actions/checkout@v6');
+    expect(workflow).toContain('actions/setup-node@v6');
+    expect(workflow).toContain('actions/setup-dotnet@v5');
+    expect(workflow).toContain('actions/upload-artifact@v6');
+    expect(workflow).toContain('node-version: 24');
+    expect(workflow).not.toMatch(/actions\/(?:checkout|setup-node|setup-dotnet|upload-artifact)@v4/);
+    expect(workflow).not.toContain('node-version: 20');
+  });
+
   it('keeps generated E2E fixtures compatible with the declared floor', () => {
     const harness = readRepoFile('tests/e2e/helpers/harness.ts');
     expect(harness).toContain(`config/features=PackedStringArray("${COMPATIBILITY_FLOOR}")`);
@@ -42,7 +53,7 @@ describe('Godot support policy', () => {
     const workflow = readRepoFile('.github/workflows/godot-integration.yml');
     const dotnetJob = workflow.slice(workflow.indexOf('  godot-dotnet:'));
     expect(dotnetJob).toContain(`godot-version: ["${COMPATIBILITY_FLOOR}-stable", "${PRIMARY_TARGET}-stable"]`);
-    expect(dotnetJob).toContain('actions/setup-dotnet@v4');
+    expect(dotnetJob).toContain('actions/setup-dotnet@v5');
     expect(dotnetJob).toContain('GODOT_MCP_DOTNET_TEST: "1"');
 
     const readme = readRepoFile('README.md');
