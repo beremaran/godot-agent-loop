@@ -1,18 +1,191 @@
 # Godot MCP — working plan
 
-Phases 0–5 of the verification and capability audit are complete: all 166
-advertised tools are covered through the full MCP-to-Godot path, and all 334
+Phases 0–5 of the verification and capability audit are complete: all 167
+advertised tools are covered through the full MCP-to-Godot path, and all 358
 public action rows resolve to E2E tests. The closed record — the audited
 baseline, scope and methodology, the per-tool inventory, the P1–P3 capability
 families, Phases 0–5, and the resolved pre-Phase-3 questions — is archived in
 [`docs/plan-archive.md`](docs/plan-archive.md).
 
-This file is the working plan for what remains: Phase 6c–6d (making the agent
-loop the product) and Phase 7 (making the surface usable by an agent). The P4
-engine-surface decisions are retained below because their generated zero-gap
-audit remains a release gate. The discipline sections at the bottom — required
-test dimensions, definition of done, and the implementation checklist — remain
-the live gate for every new tool or action.
+This file now tracks the pre-release product, distribution, and publication
+work. The completed Phase 6 and Phase 7 decisions remain below because they
+define the agent loop being released. The P4 engine-surface decisions are
+retained because their generated zero-gap audit remains a release gate. The
+discipline sections at the bottom — required test dimensions, definition of
+done, and the implementation checklist — remain the live gate for every new
+tool or action.
+
+## Pre-release follow-up
+
+### Upstream fixes and metadata integrity
+
+- [ ] Adapt the upstream 3.1 `manage_input_map` fix so adding another key to an
+  existing action merges it into that action's event array, preserves the
+  configured deadzone, and de-duplicates the physical keycode instead of writing
+  a duplicate `project.godot` entry. Add a full MCP-to-Godot regression that adds
+  two keys to one action and independently observes both through the live
+  `InputMap`.
+- [ ] Adapt the upstream 3.1 `validate_script` fix so scripts are compiled only
+  after project autoload singletons are registered, while still forcing a fresh
+  parse that catches real syntax and type errors. Add direct-Godot and MCP E2E
+  regressions covering multiple referenced autoloads plus a genuine compile
+  failure.
+- [ ] Reconcile release and registry metadata with the source-derived inventory:
+  `server.json` still advertises 165 tools while the callable catalog contains
+  167. Update the title, version, package identity, and any other hand-authored
+  counts after the fork-versus-new-product decision, and add a contract check so
+  registry metadata cannot drift from the manifest again.
+
+### Product identity and release model
+
+- [ ] Decide and record the final identity before publishing anything. Preferred
+  direction: **Godot Agent Loop**, with the tagline **Build it. Play it. Prove
+  it.** and the category statement **an evidence-first MCP automation loop for
+  Godot 4**. If another name wins, require the same distinct, searchable product
+  identity rather than another generic `godot-mcp` label.
+- [ ] Decide the repository relationship without erasing provenance. Preferred
+  direction: publish `beremaran/godot-agent-loop` as an independent GitHub
+  repository while preserving the complete Git history, MIT notices, and a
+  prominent Lineage section crediting Coding-Solo and Tugcan. Record whether this
+  is done by a new repository or GitHub fork detachment.
+- [ ] Align every public identifier after the name decision: repository, npm
+  package, MCP Registry name, plugin namespace, binary name, AssetLib listing,
+  issue URLs, homepage, badges, examples, and generated schemas. Preferred new
+  identifiers are `@beremaran/godot-agent-loop` and
+  `io.github.beremaran/godot-agent-loop`.
+- [ ] Select release numbering from the product decision: `1.0.0` for a new
+  Godot Agent Loop identity, or `4.0.0` if the existing Godot MCP identity and
+  lineage continue. Pin the same version in every client manifest and generated
+  artifact.
+- [ ] Rewrite the README first screen around the product outcome: name and
+  tagline, short demo, one-command setup, proof badges, and the author -> run ->
+  observe -> playtest -> verify loop. Move installation ahead of the long tool
+  inventory and move detailed lineage/history below the product workflow without
+  weakening attribution.
+
+### Shared agent workflow bundle
+
+- [ ] Rename or replace `claude-plugin/` with a client-neutral `agent-plugin/`
+  root. Keep one canonical `skills/` directory and one MCP server configuration;
+  do not maintain Claude-, Codex-, OpenCode-, and Pi-specific copies of the same
+  workflow text.
+- [ ] Preserve the current focused skills (`build-godot-game`,
+  `debug-godot-game`, and `verify-godot-change`) as portable Agent Skills. Add a
+  focused `ship-godot-game` skill for export readiness, project tests, .NET
+  verification, addon/import integrity, artifact inspection, and deterministic
+  teardown. Keep detailed client setup out of the skills themselves.
+- [ ] Add a generated client-adapter manifest that is the single source for
+  package version, skill inventory, MCP command, environment variables, and
+  default prompts. Generate or validate every client-specific file from it.
+- [ ] Add adapter contract tests that fail on version, command, skill-name,
+  skill-description, environment, or package-identity drift. For every supported
+  client, smoke-test initialization, the 39-tool default surface, one real tool
+  call, hidden-tool discovery through `godot_tools`, and clean server teardown.
+
+#### Claude Code distribution
+
+- [ ] Keep `.claude-plugin/plugin.json`, `.mcp.json`, and the shared `skills/`
+  directory at the neutral plugin root. Update the existing marketplace entry,
+  install instructions, namespace examples, and plugin tests for the final name
+  and version.
+- [ ] Test both local development (`claude --plugin-dir`) and a clean marketplace
+  install from the tagged repository. Confirm the bundled MCP server starts
+  without manual configuration and the three core workflows plus
+  `ship-godot-game` are discoverable.
+
+#### Codex distribution
+
+- [ ] Add `.codex-plugin/plugin.json` beside the Claude manifest, pointing its
+  `skills` and `mcpServers` fields at the same shared resources. Add install UI
+  metadata and `agents/openai.yaml` only where it improves discovery; do not fork
+  the workflow instructions.
+- [ ] Add a native `.agents/plugins/marketplace.json` entry for Codex while
+  retaining Claude marketplace compatibility. Test a clean marketplace install
+  in Codex CLI/IDE and the ChatGPT desktop plugin surface.
+
+#### OpenCode distribution
+
+- [ ] Add an explicit `setup opencode` command to the published CLI. It must
+  safely merge a local MCP entry into `opencode.json`/`opencode.jsonc` and install
+  the canonical skills into a project or user `.agents/skills` location. It must
+  preview changes, preserve unrelated configuration, be idempotent, and support
+  uninstall; do not mutate configuration from an npm lifecycle script.
+- [ ] Generate the OpenCode MCP command as a local `npx -y <package>@<version>`
+  command with the compact surface enabled. Test discovery through OpenCode's
+  native skill tool and verify that no bespoke OpenCode copy of a skill exists.
+
+#### Pi distribution
+
+- [ ] Add a Pi package manifest to `package.json` with the `pi-package` keyword,
+  the shared skills path, and a thin TypeScript MCP-client extension path.
+- [ ] Implement the Pi extension: start the stdio MCP server, complete the MCP
+  handshake, call `tools/list`, register the 39 default tools with
+  `pi.registerTool`, forward structured content and errors, refresh tools when
+  required, and terminate the server on session shutdown. Keep the specialized
+  catalog behind `godot_tools` rather than statically registering all 167 tools.
+- [ ] Test local, Git, and npm Pi installation, plus update, disable, reload, and
+  uninstall behavior. Document that Pi extensions execute with the user's system
+  access and keep all mutation/privilege gates enforced by the MCP server.
+
+### Persistent Godot Asset Library addon
+
+- [ ] Productize the transient editor bridge as a real persistent addon under
+  `addons/godot_agent_loop/`, containing `plugin.cfg`, the editor plugin and
+  bridge scripts, README, license, and any addon-local assets. The addon is an
+  optional distribution surface; the external MCP server must still work without
+  an AssetLib installation.
+- [ ] Give the addon standalone in-editor value: authenticated connection status,
+  Agent Activity, Pause/Resume Agent, compatibility diagnostics, and setup help
+  for Claude Code, Codex, OpenCode, and Pi. The AssetLib package must not be a
+  marketing-only wrapper around an external install.
+- [ ] Change `EditorPluginInstaller` so a user-managed AssetLib addon is never
+  overwritten or removed. Add an explicit server/addon protocol-version
+  handshake, a clear incompatible-version error, and tests for transient,
+  persistent, stale, missing, and user-modified installations.
+- [ ] Make the AssetLib archive project-safe. Export only the addon files; include
+  README and the complete MIT license inside the addon; exclude screenshots and
+  repository-only files with `.gitattributes`/`.gdignore`; require no essential
+  submodules; and fix or suppress every addon script warning.
+- [ ] Add clean-install acceptance tests on the Godot 4.4 compatibility floor and
+  Godot 4.7 primary target: install through the package installer, enable the
+  plugin, connect the published MCP package, exercise editor observation and the
+  human pause lock, restart the editor, disable/uninstall, and prove no project
+  state or temporary bridge files remain.
+- [ ] Prepare AssetLib metadata: unique English name **Godot Agent Loop Bridge**
+  (or the final product equivalent), Addons/Tools category, supported Godot
+  version, SemVer release, repository and issue URLs, exact download commit,
+  matching MIT license, plain-English description, square direct-link PNG/JPG
+  icon of at least 128x128, and up to three screenshots/video previews.
+- [ ] Submit the tagged, tested addon through the official Godot Asset Library
+  account and record review feedback in this plan. Treat AssetLib as a free/open
+  community distribution channel; keep sponsorship or paid support separate.
+
+### Launch evidence and publication
+
+- [ ] Produce one 60–90 second proof-oriented launch video: start from an empty
+  directory, have a cold agent build a small game, show the editor following
+  activity, exercise win and lose states, verify UI/log/rendered evidence, and
+  demonstrate the human Pause Agent control. Publish the exact prompt, model,
+  server version, elapsed time, and resulting project or replay.
+- [ ] Create a concise comparison/proof section that leads with 167/167 E2E
+  tools, 358 traced actions, 193 full-path E2E tests, the 39-tool/81.56% compact
+  surface, the cold-agent acceptance run, tested Godot versions, and
+  default-denied privileged groups. Do not lead with raw tool count or claim
+  unbounded/full engine control.
+- [ ] Publish a clean GitHub release with signed/tagged source and release notes,
+  publish the npm package, publish/update the MCP Registry entry, then verify
+  installation from each public artifact on a clean machine or container.
+- [ ] Publish the Claude Code and Codex marketplace entries, OpenCode setup path,
+  Pi package, and Godot AssetLib addon against the same tested release rather
+  than launching adapters with different server versions.
+- [ ] Announce the release with one consistent message: **other integrations give
+  agents tools; this project gives them a tested feedback loop to author, run,
+  observe, playtest, and independently verify Godot games.** Link the demo and
+  evidence before the tool catalog.
+- [ ] Run the complete release gate after every packaging change and once more
+  from the exact release tag. Do not push registry, marketplace, or AssetLib
+  metadata until the two upstream regressions and metadata-drift guard are
+  closed.
 
 ## P4: engine-surface gaps (resolved)
 
@@ -105,7 +278,7 @@ tool exposes. Not missing wrappers — missing *doorways*.
 
 Exit criteria: `docs/coverage/engine-surface.md` reports zero gaps, with every
 class in this list resolved to a tool, a reachability proof, or a recorded scope
-decision. **Met:** the generated Godot 4.7 report now has zero gaps and 98
+decision. **Met:** the generated Godot 4.7 report now has zero gaps and 97
 explicitly grouped scope decisions.
 
 ## End goal and architecture direction
@@ -114,7 +287,7 @@ Phases 0-5 established that the advertised surface is real: every tool reaches
 Godot and every action is observed. That is a statement about *correctness*. It
 says nothing about whether the surface composes into the thing it exists for.
 
-**End goal: an agent builds a game end to end.** Not "an agent can call 166
+**End goal: an agent builds a game end to end.** Not "an agent can call 167
 tools", but: an agent authors scenes and scripts, runs the game, observes what
 happened, asserts against it, edits, and repeats — unattended, for hundreds of
 iterations — while a human can watch it happen in real time and take the wheel.
@@ -456,14 +629,16 @@ Three measured facts define the gap:
   the agent reads a word of the user's request. That is a selection problem as much
   as a budget one: `game_light_2d`, `game_light_3d`, `game_environment`, `game_sky`,
   and `game_gi` are near-neighbors an agent must discriminate from schema text
-  alone, and there are 166 of them.
+  alone, and there are 167 of them.
 - Nothing anywhere **composes** the tools. Coverage proves each call reaches the
   engine; no test proves a sequence of them produces a game.
 
 The user-facing goal this phase serves: *install the MCP server, point an agent at
-a project, build a game.* Note that this needs no Godot AssetLib step — the runtime
+a project, build a game.* This still requires no Godot AssetLib step — the runtime
 reaches the game through a generated `override.cfg` and the observation dock is
 installed by `EditorPluginInstaller`, so the user installs nothing inside Godot.
+The pre-release plan adds an optional persistent AssetLib bridge for discovery
+and a durable editor experience without making it an execution prerequisite.
 
 #### 7a: ship a method, not just tools
 
@@ -696,7 +871,7 @@ A tool may be marked `[x] E2E` only when all applicable items pass:
 
 - Counts are at tool/command granularity. Several commands expose many actions,
   node classes, resource types, and mutually exclusive modes; the Phase 0
-  manifest established the larger action-level denominator (334 action rows).
+  manifest established the larger action-level denominator (358 action rows).
 - A passing headless test does not establish editor behavior, rendering fidelity,
   OS input behavior, audio output, or export portability.
 - CI spans Godot 4.4 and 4.7, Linux in depth plus Windows/macOS portable
