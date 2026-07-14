@@ -2,6 +2,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { resolvePiServerLaunch } from '../agent-plugin/pi/extension.js';
 import { parseSkillFrontmatter } from '../scripts/skill-frontmatter.js';
 import { repoRoot } from './helpers/manifest-sources.js';
 
@@ -51,7 +52,7 @@ describe('portable agent plugin package', () => {
       policy: { installation: 'AVAILABLE', authentication: 'ON_INSTALL' },
     });
     expect(packageJson).toMatchObject({
-      files: ['build', 'agent-plugin', 'addons/godot_agent_loop', 'product.json'],
+      files: ['build', 'agent-plugin', 'addons/godot_agent_loop', 'product.json', 'scripts/prepare-package.js'],
       pi: {
         extensions: ['./agent-plugin/pi/extension.ts'],
         skills: ['./agent-plugin/skills'],
@@ -123,5 +124,17 @@ describe('portable agent plugin package', () => {
     expect(extension).toContain("GODOT_MCP_TOOL_SURFACE: 'compact'");
     expect(extension).toContain("pi.on('session_shutdown', close)");
     expect(extension).not.toContain('toolDefinitions');
+
+    expect(resolvePiServerLaunch({
+      localServerEntry: '/installed/package/build/index.js',
+      exists: () => true,
+    })).toEqual({
+      command: process.execPath,
+      args: ['/installed/package/build/index.js'],
+    });
+    expect(resolvePiServerLaunch({ exists: () => false })).toEqual({
+      command: 'npx',
+      args: ['-y', `${packageJson.name}@${packageJson.version}`],
+    });
   });
 });

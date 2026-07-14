@@ -39,7 +39,8 @@
     "build",
     "agent-plugin",
     "addons/godot_agent_loop",
-    "product.json"
+    "product.json",
+    "scripts/prepare-package.js"
   ],
   "scripts": {
     "build": "tsc && node scripts/sync-product-metadata.js && node scripts/sync-agent-adapters.js && node scripts/build.js",
@@ -48,7 +49,7 @@
     "adapters:sync": "node scripts/sync-agent-adapters.js --write && npm install --package-lock-only --ignore-scripts",
     "adapters:check": "node scripts/sync-agent-adapters.js",
     "inspector": "npx @modelcontextprotocol/inspector build/index.js",
-    "prepare": "npm run build && husky",
+    "prepare": "node scripts/prepare-package.js",
     "check": "npm test && npm run lint && npm run coverage:check",
     "coverage:report": "npm run build && node scripts/generate-coverage-report.js",
     "coverage:check": "npm run build && node scripts/generate-coverage-report.js --check && npm run coverage:engine -- --check",

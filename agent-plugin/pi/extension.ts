@@ -2,11 +2,34 @@ import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const PACKAGE_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const SERVER_ENTRY = join(PACKAGE_ROOT, 'build', 'index.js');
+const ADAPTER_MANIFEST = join(PACKAGE_ROOT, 'agent-plugin', 'adapter-manifest.json');
+
+interface PiServerLaunchOptions {
+  localServerEntry?: string;
+  adapterManifestPath?: string;
+  exists?: (path: string) => boolean;
+}
+
+export function resolvePiServerLaunch(options: PiServerLaunchOptions = {}): { command: string; args: string[] } {
+  const localServerEntry = options.localServerEntry ?? SERVER_ENTRY;
+  if ((options.exists ?? existsSync)(localServerEntry)) {
+    return { command: process.execPath, args: [localServerEntry] };
+  }
+
+  const manifestPath = options.adapterManifestPath ?? ADAPTER_MANIFEST;
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as { mcp?: { command?: unknown } };
+  const pinned = manifest.mcp?.command;
+  if (!Array.isArray(pinned) || pinned.length === 0 || !pinned.every(value => typeof value === 'string')) {
+    throw new Error(`Invalid MCP command in ${manifestPath}`);
+  }
+  return { command: pinned[0], args: pinned.slice(1) };
+}
 
 function inheritedEnvironment(): Record<string, string> {
   const environment = Object.fromEntries(
@@ -73,6 +96,7 @@ export default function godotAgentLoopPi(pi: ExtensionAPI) {
   pi.on('session_start', async (_event, ctx) => {
     await close();
     try {
+      const launch = resolvePiServerLaunch();
       const next = new Client(
         { name: 'godot-agent-loop-pi', version: '1.0.0' },
         {
@@ -91,8 +115,8 @@ export default function godotAgentLoopPi(pi: ExtensionAPI) {
         },
       );
       const transport = new StdioClientTransport({
-        command: process.execPath,
-        args: [SERVER_ENTRY],
+        command: launch.command,
+        args: launch.args,
         env: { ...inheritedEnvironment(), GODOT_MCP_TOOL_SURFACE: 'compact' },
         stderr: 'pipe',
       });

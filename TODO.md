@@ -176,6 +176,16 @@ tool or action.
 
 - [x] Add a Pi package manifest to `package.json` with the `pi-package` keyword,
   the shared skills path, and a thin TypeScript MCP-client extension path.
+- [x] Make tagged Git installation compatible with Pi's production-only npm
+  dependency install. The package lifecycle must not require omitted build
+  tools, and a source checkout without `build/` must launch the same pinned npm
+  server rather than a divergent implementation. (`prepare-package.js` builds
+  development checkouts but safely skips when `tsc` is absent; the shipped Pi
+  extension prefers the npm tarball's local server and otherwise derives its
+  `npx` fallback from the canonical adapter manifest. Unit/contract coverage
+  locks both branches; a patched build-free source clone completes Pi's actual
+  `npm install --omit=dev` lifecycle with runtime dependencies only, after an
+  isolated public-tag install exposed the original failure.)
 - [x] Implement the Pi extension: start the stdio MCP server, complete the MCP
   handshake, call `tools/list`, register the 39 default tools with
   `pi.registerTool`, forward structured content and errors, refresh tools when
