@@ -54,7 +54,8 @@
     "lint": "eslint . && npm run lint:md",
     "lint:md": "markdownlint-cli2 \"**/*.md\" \"#node_modules\"",
     "lint:md:fix": "markdownlint-cli2 --fix \"**/*.md\" \"#node_modules\"",
-    "test:e2e": "npm run build && vitest run --config vitest.e2e.config.ts"
+    "test:e2e": "npm run build && vitest run --config vitest.e2e.config.ts",
+    "test:golden-agent": "npm run build && vitest run --config vitest.e2e.config.ts tests/e2e/golden-agent-game.test.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0"

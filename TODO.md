@@ -452,7 +452,7 @@ Three measured facts define the gap:
   method. Phase 4 built compound workflows (`verify_project`, `run_project_tests`)
   precisely so agents would not hand-compose fragile call sequences, and then
   nothing tells the agent they exist.
-- The tool list is **166 tools, 92,928 bytes, roughly 23,000 tokens**, sent before
+- The full tool list is **167 tools, 93,694 bytes, roughly 23,424 tokens**, sent before
   the agent reads a word of the user's request. That is a selection problem as much
   as a budget one: `game_light_2d`, `game_light_3d`, `game_environment`, `game_sky`,
   and `game_gi` are near-neighbors an agent must discriminate from schema text
@@ -538,20 +538,35 @@ installed by `EditorPluginInstaller`, so the user installs nothing inside Godot.
 
 #### 7d: prove it, or it is not true
 
-- [ ] Build the golden acceptance test: from a cold start, an agent builds a small
+- [x] Build the golden acceptance test: from a cold start, an agent builds a small
   but real playable game through the MCP server alone — scene, script, input,
   win/lose state — and the harness independently asserts it runs, responds to
-  injected input, and renders the expected result.
-- [ ] Make that build a release gate. It is the only test in the repository where
+  injected input, and renders the expected result. (A live Claude Code cold run,
+  with built-ins disabled and no human correction, produced the working four-file
+  game. `golden-agent-game.test.ts` distills its successful trace from an empty
+  directory and independently proves authored files, compound verification,
+  movement, WIN/LOSE UI, decoded rendered pixels, and cleanup.)
+- [x] Make that build a release gate. It is the only test in the repository where
   the agent is the subject, and it is the one that matches the product claim.
-- [ ] Record the agent's tool-selection failures from that run as findings. Wrong
+  (`npm run test:golden-agent` is the focused command; the test is also included in
+  the full `test:e2e` matrix on Godot 4.4 and 4.7 and is subject to the no-skip
+  metadata gate.)
+- [x] Record the agent's tool-selection failures from that run as findings. Wrong
   tool chosen, tool not found, compound tool ignored in favor of a fragile manual
   sequence: each is a 7a/7b/7c defect, and this is the only place they surface.
+  (`docs/coverage/golden-agent-run.json` records seven observed findings: property
+  shape ambiguity, tap-vs-hold schema ambiguity, the missed disclosure escape
+  hatch, late compound verification, scene-read overfetch, and two smaller
+  selection detours, with a concrete suggested improvement for each.)
 
 Exit criteria: a cold agent, given only the MCP server and a project path, builds a
 working game without human correction; the tool-surface budget is enforced; and the
 skills, instructions, and compound tools are justified by observed agent behavior
 rather than by our expectations of it.
+
+**Met:** the cold run completed in 441 seconds and 173 turns with zero human
+corrections; the deterministic release replay and selection evidence are documented
+in `docs/golden-agent-acceptance.md`.
 
 ### Plan hygiene: keep this document truthful
 

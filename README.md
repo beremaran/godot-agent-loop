@@ -819,6 +819,7 @@ source-derived tool, action, command, and suite inventory is published in the
 ```bash
 npm run check       # TypeScript tests, lint, build, and coverage drift
 npm run test:e2e    # built MCP server through a real client and Godot
+npm run test:golden-agent # cold-agent game build acceptance gate
 npm run test:godot  # strict parsing, subprocess operations, runtime protocol
 npm run test:watch  # watch mode
 ```

@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 1,
+  "runDate": "2026-07-14",
+  "subject": {
+    "client": "Claude Code 2.1.208",
+    "model": "claude-sonnet-5",
+    "effort": "high",
+    "builtInToolsEnabled": false,
+    "pluginSkillsLoaded": false
+  },
+  "server": {
+    "toolSurface": "core",
+    "advertisedToolCount": 39,
+    "instructionsDeliveredByHandshake": true,
+    "godotVersion": "4.7.stable.official.5b4e0cb0f"
+  },
+  "task": {
+    "startingState": "empty allowed project directory",
+    "humanCorrections": 0,
+    "requirements": [
+      "main scene",
+      "attached GDScript",
+      "named move_right input action",
+      "visible player and goal",
+      "visible PLAYING, WIN, and LOSE states",
+      "live input, UI, log, and screenshot verification",
+      "automatic runtime cleanup",
+      "only intentional game files remain"
+    ]
+  },
+  "result": {
+    "outcome": "success",
+    "durationMs": 441198,
+    "agentTurns": 173,
+    "projectFiles": [
+      "project.godot",
+      "scenes/main.tscn",
+      "scripts/main.gd",
+      "scripts/player.gd"
+    ],
+    "verifiedStates": [
+      "PLAYING",
+      "WIN",
+      "LOSE"
+    ],
+    "finalCompoundVerification": {
+      "passed": true,
+      "started": true,
+      "stopped": true,
+      "teardown": true,
+      "screenshotWidth": 800,
+      "screenshotHeight": 600,
+      "screenshotSha256": "50e592e01c8cae2040098c867c77f94bbfcde5401d3373b62e1f4b88198e2c64"
+    }
+  },
+  "toolSelectionFindings": [
+    {
+      "id": "unnecessary-version-probe",
+      "severity": "low",
+      "observation": "The first call was get_godot_version even though the task did not depend on a version branch.",
+      "suggestedChange": "Teach cold-start examples to begin with project inspection or creation unless compatibility is material."
+    },
+    {
+      "id": "structured-property-shape",
+      "severity": "high",
+      "observation": "The agent supplied arrays for Vector2 and Color scene properties. Calls reported success, but a later read showed default positions, sizes, and colors, forcing a repair loop.",
+      "suggestedChange": "Add structured-property examples near add_node and modify_scene_node, and reject shapes that cannot convert to the target Variant type."
+    },
+    {
+      "id": "tap-mistaken-for-hold",
+      "severity": "high",
+      "observation": "The agent called game_key_press with an unsupported pressed=true field. The field was ignored, the successful tap moved for one physics tick, and the agent spent multiple loops diagnosing why the key was not held.",
+      "suggestedChange": "Reject unknown input fields, say tap or auto-release in the short description, and make the hold alternative easier to discover."
+    },
+    {
+      "id": "disclosure-escape-hatch-missed",
+      "severity": "high",
+      "observation": "The hidden game_key_hold tool exactly matched the need, but the agent never searched godot_tools and instead repeated taps and changed game speed.",
+      "suggestedChange": "Strengthen instructions and skills with a search-before-workaround rule when the core surface lacks an expected operation."
+    },
+    {
+      "id": "compound-verification-late",
+      "severity": "medium",
+      "observation": "The agent initially hand-composed validate, run, wait, UI, log, screenshot, and stop calls. It used verify_project only for the final gate.",
+      "suggestedChange": "Show verify_project as the first static and smoke verification step, while retaining manual calls for interactive win and lose paths."
+    },
+    {
+      "id": "read-scene-overfetch",
+      "severity": "medium",
+      "observation": "read_scene returned a very large default-property dump when the agent needed to inspect only a few authored nodes and properties.",
+      "suggestedChange": "Offer concise or node-filtered scene reads and point authoring workflows to them."
+    },
+    {
+      "id": "runtime-file-speculation",
+      "severity": "low",
+      "observation": "After stopping the game, the agent tried to read a guessed injected runtime file that cleanup had already removed.",
+      "suggestedChange": "Keep automatic cleanup prominent and direct debugging toward tool descriptions instead of injected implementation files."
+    }
+  ]
+}
