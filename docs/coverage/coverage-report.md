@@ -42,9 +42,35 @@ engine, never a mocked transport.
 | Kind | Suites |
 | --- | --- |
 | unit | `tests/authoring-session-manager.test.ts`, `tests/dotnet.test.ts`, `tests/game-connection.test.ts`, `tests/godot-process-manager.test.ts`, `tests/handler-modules.test.ts`, `tests/handlers.test.ts`, `tests/headless-operation-runner.test.ts`, `tests/headless-operation-service.test.ts`, `tests/index.test.ts`, `tests/interaction-server-installer.test.ts`, `tests/project-support.test.ts`, `tests/tool-argument-validation.test.ts`, `tests/tool-registry.test.ts`, `tests/utils.test.ts`, `tests/validate-script.test.ts` |
-| contract | `tests/runtime-protocol-contract.test.ts`, `tests/source-guardrails.test.ts`, `tests/support-policy.test.ts`, `tests/test-metadata.test.ts`, `tests/tool-coverage.test.ts`, `tests/tool-definitions.test.ts`, `tests/tool-manifest.test.ts`, `tests/variant-codec-corpus.test.ts` |
+| contract | `tests/loop-latency-report.test.ts`, `tests/runtime-protocol-contract.test.ts`, `tests/source-guardrails.test.ts`, `tests/support-policy.test.ts`, `tests/test-metadata.test.ts`, `tests/tool-coverage.test.ts`, `tests/tool-definitions.test.ts`, `tests/tool-manifest.test.ts`, `tests/variant-codec-corpus.test.ts` |
 | integration | `tests/godot/run-headless-operations.sh`, `tests/godot/run-integration-tests.sh`, `tests/godot/run-typecheck.sh` |
 | e2e | `tests/e2e/addon-management.test.ts`, `tests/e2e/crash-recovery.test.ts`, `tests/e2e/cross-platform-smoke.test.ts`, `tests/e2e/engine-reach.test.ts`, `tests/e2e/headless-tools.test.ts`, `tests/e2e/import-integrity-workflows.test.ts`, `tests/e2e/lifecycle-tools.test.ts`, `tests/e2e/observers.test.ts`, `tests/e2e/project-config-tools.test.ts`, `tests/e2e/project-delivery-tools.test.ts`, `tests/e2e/project-test-orchestration.test.ts`, `tests/e2e/representative-path.test.ts`, `tests/e2e/runtime-2d-tools.test.ts`, `tests/e2e/runtime-3d-scene-tools.test.ts`, `tests/e2e/runtime-3d-tools.test.ts`, `tests/e2e/runtime-audio-animation-tools.test.ts`, `tests/e2e/runtime-camera-rendering-tools.test.ts`, `tests/e2e/runtime-core-tools.test.ts`, `tests/e2e/runtime-input-tools.test.ts`, `tests/e2e/runtime-networking-tools.test.ts`, `tests/e2e/runtime-physics-tools.test.ts`, `tests/e2e/runtime-query-tools.test.ts`, `tests/e2e/runtime-remote-io-tools.test.ts`, `tests/e2e/runtime-rendering-tools.test.ts`, `tests/e2e/runtime-resource-tools.test.ts`, `tests/e2e/runtime-system-tools.test.ts`, `tests/e2e/runtime-ui-tools.test.ts`, `tests/e2e/tool-schema-failures.test.ts`, `tests/e2e/verification-workflow.test.ts` |
+
+## Authoring loop latency
+
+The recorded benchmark runs the same realistic edit → headed run → authenticated
+scene-tree observation → stop → edit workload through the persistent authoring
+session and the retained subprocess-per-operation fallback. It uses one warmup
+and 7 measured fresh projects per mode, alternates mode order, and
+excludes identical MCP transport overhead. Reproduce it with `npm run benchmark:loop`;
+the raw samples, environment, methodology, and machine-readable budgets are in
+[`loop-latency.json`](loop-latency.json).
+
+Recorded on 4.7.stable.official.5b4e0cb0f / linux / AMD Ryzen 7 7800X3D 8-Core Processor.
+
+| Metric | Persistent session | Subprocess baseline | Delta | Budget |
+| --- | ---: | ---: | ---: | --- |
+| Full cycle median | 3431.58 ms | 2445.02 ms | 40.3% slower | ≤ 4500.00 ms and ≤ 1.60× baseline |
+| Full cycle p95 | 3485.50 ms | 2523.91 ms | — | diagnostic |
+| Warm authoring command p95 | 13.74 ms | 210.26 ms | 93.5% faster | ≤ 100.00 ms |
+| Session-starting edit p95 | 1026.98 ms | n/a | — | ≤ 1500.00 ms |
+
+**Headline:** warm commands cut operation p95 by 93.5%, but the current
+split edit/run lifecycle makes the complete cycle 40.3% slower than the
+one-shot baseline because it pays a headed session startup before and after the
+running-game process. The persistent transport is fast once warm; preserving that
+warm main loop across run/observe is the remaining latency requirement. The current
+budgets cap this transitional regression and protect warm-command and startup latency.
 
 ## Per-tool rollup
 

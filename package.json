@@ -42,6 +42,7 @@
     "coverage:report": "npm run build && node scripts/generate-coverage-report.js",
     "coverage:check": "npm run build && node scripts/generate-coverage-report.js --check",
     "coverage:engine": "node scripts/engine-surface-audit.js",
+    "benchmark:loop": "npm run build && node scripts/benchmark-authoring-loop.mjs && npm run coverage:report",
     "watch": "tsc --watch",
     "test": "vitest run",
     "test:watch": "vitest",

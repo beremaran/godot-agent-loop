@@ -1,0 +1,339 @@
+{
+  "schemaVersion": 1,
+  "measuredAt": "2026-07-14T04:09:17.579Z",
+  "environment": {
+    "godotVersion": "4.7.stable.official.5b4e0cb0f",
+    "platform": "linux",
+    "cpu": "AMD Ryzen 7 7800X3D 8-Core Processor",
+    "nodeVersion": "v24.13.0",
+    "renderingContext": "display"
+  },
+  "methodology": {
+    "measuredIterationsPerMode": 7,
+    "warmupIterationsPerMode": 1,
+    "order": "Alternating mode order; every sample uses a fresh project.",
+    "timing": "Monotonic wall clock around the same engine-backed operations; MCP transport overhead is excluded equally from both modes.",
+    "workload": [
+      "create_scene",
+      "add_node Label",
+      "add_node Node2D",
+      "modify_node",
+      "launch headed game",
+      "authenticated get_scene_tree observation",
+      "stop game",
+      "modify_node after observation"
+    ]
+  },
+  "budgets": {
+    "sessionCycleMedianMaxMs": 4500,
+    "sessionToSubprocessMedianRatioMax": 1.6,
+    "sessionStartupP95MaxMs": 1500,
+    "warmSessionCommandP95MaxMs": 100
+  },
+  "samples": {
+    "session": [
+      {
+        "totalMs": 3366.66,
+        "preEditMs": 937.2,
+        "runObserveMs": 1455.39,
+        "postEditMs": 925.29,
+        "transitionMs": 48.74,
+        "startupEditMs": [
+          910.42,
+          925.29
+        ],
+        "warmEditMs": [
+          9.71,
+          6.97,
+          10.1
+        ],
+        "operationMs": [
+          910.42,
+          9.71,
+          6.97,
+          10.1,
+          925.29
+        ]
+      },
+      {
+        "totalMs": 3431.58,
+        "preEditMs": 904.42,
+        "runObserveMs": 1451.95,
+        "postEditMs": 1026.98,
+        "transitionMs": 48.19,
+        "startupEditMs": [
+          874.21,
+          1026.98
+        ],
+        "warmEditMs": [
+          13.43,
+          7.45,
+          9.33
+        ],
+        "operationMs": [
+          874.21,
+          13.43,
+          7.45,
+          9.33,
+          1026.98
+        ]
+      },
+      {
+        "totalMs": 3377.63,
+        "preEditMs": 951.03,
+        "runObserveMs": 1453.59,
+        "postEditMs": 925.6,
+        "transitionMs": 47.39,
+        "startupEditMs": [
+          920.8,
+          925.6
+        ],
+        "warmEditMs": [
+          13.74,
+          7.18,
+          9.3
+        ],
+        "operationMs": [
+          920.8,
+          13.74,
+          7.18,
+          9.3,
+          925.6
+        ]
+      },
+      {
+        "totalMs": 3435.28,
+        "preEditMs": 1008.62,
+        "runObserveMs": 1454.94,
+        "postEditMs": 924.58,
+        "transitionMs": 47.12,
+        "startupEditMs": [
+          978.25,
+          924.58
+        ],
+        "warmEditMs": [
+          13.86,
+          6.33,
+          10.17
+        ],
+        "operationMs": [
+          978.25,
+          13.86,
+          6.33,
+          10.17,
+          924.58
+        ]
+      },
+      {
+        "totalMs": 3440.07,
+        "preEditMs": 951.87,
+        "runObserveMs": 1506.69,
+        "postEditMs": 930.9,
+        "transitionMs": 50.6,
+        "startupEditMs": [
+          921.54,
+          930.9
+        ],
+        "warmEditMs": [
+          13.52,
+          7.56,
+          9.25
+        ],
+        "operationMs": [
+          921.54,
+          13.52,
+          7.56,
+          9.25,
+          930.9
+        ]
+      },
+      {
+        "totalMs": 3485.5,
+        "preEditMs": 1008.12,
+        "runObserveMs": 1451.46,
+        "postEditMs": 976.5,
+        "transitionMs": 49.41,
+        "startupEditMs": [
+          977.48,
+          976.5
+        ],
+        "warmEditMs": [
+          13.72,
+          6.61,
+          10.3
+        ],
+        "operationMs": [
+          977.48,
+          13.72,
+          6.61,
+          10.3,
+          976.5
+        ]
+      },
+      {
+        "totalMs": 3417.59,
+        "preEditMs": 1000.74,
+        "runObserveMs": 1454.34,
+        "postEditMs": 914.16,
+        "transitionMs": 48.34,
+        "startupEditMs": [
+          970.4,
+          914.16
+        ],
+        "warmEditMs": [
+          13.34,
+          6.82,
+          10.18
+        ],
+        "operationMs": [
+          970.4,
+          13.34,
+          6.82,
+          10.18,
+          914.16
+        ]
+      }
+    ],
+    "subprocess": [
+      {
+        "totalMs": 2420.84,
+        "preEditMs": 805.76,
+        "runObserveMs": 1402.4,
+        "postEditMs": 212.63,
+        "transitionMs": 0,
+        "startupEditMs": [],
+        "warmEditMs": [],
+        "operationMs": [
+          203.36,
+          202.47,
+          199.83,
+          200.11,
+          212.63
+        ]
+      },
+      {
+        "totalMs": 2416.06,
+        "preEditMs": 803.89,
+        "runObserveMs": 1409.34,
+        "postEditMs": 202.77,
+        "transitionMs": 0,
+        "startupEditMs": [],
+        "warmEditMs": [],
+        "operationMs": [
+          203.36,
+          199.18,
+          200.4,
+          200.94,
+          202.77
+        ]
+      },
+      {
+        "totalMs": 2400.26,
+        "preEditMs": 804.34,
+        "runObserveMs": 1394.31,
+        "postEditMs": 201.57,
+        "transitionMs": 0,
+        "startupEditMs": [],
+        "warmEditMs": [],
+        "operationMs": [
+          201.16,
+          200.95,
+          201.18,
+          201.06,
+          201.57
+        ]
+      },
+      {
+        "totalMs": 2459.5,
+        "preEditMs": 801.89,
+        "runObserveMs": 1455.89,
+        "postEditMs": 201.69,
+        "transitionMs": 0,
+        "startupEditMs": [],
+        "warmEditMs": [],
+        "operationMs": [
+          202.53,
+          200.18,
+          200.94,
+          198.25,
+          201.69
+        ]
+      },
+      {
+        "totalMs": 2523.91,
+        "preEditMs": 813.3,
+        "runObserveMs": 1509.66,
+        "postEditMs": 200.92,
+        "transitionMs": 0,
+        "startupEditMs": [],
+        "warmEditMs": [],
+        "operationMs": [
+          209.42,
+          199.67,
+          201.2,
+          203.01,
+          200.92
+        ]
+      },
+      {
+        "totalMs": 2445.02,
+        "preEditMs": 801.99,
+        "runObserveMs": 1440.51,
+        "postEditMs": 202.49,
+        "transitionMs": 0,
+        "startupEditMs": [],
+        "warmEditMs": [],
+        "operationMs": [
+          199.8,
+          201.74,
+          202.02,
+          198.43,
+          202.49
+        ]
+      },
+      {
+        "totalMs": 2481.87,
+        "preEditMs": 829.38,
+        "runObserveMs": 1449.64,
+        "postEditMs": 202.82,
+        "transitionMs": 0,
+        "startupEditMs": [],
+        "warmEditMs": [],
+        "operationMs": [
+          209.07,
+          210.26,
+          207.97,
+          202.08,
+          202.82
+        ]
+      }
+    ]
+  },
+  "summary": {
+    "session": {
+      "medianMs": 3431.58,
+      "p95Ms": 3485.5,
+      "minMs": 3366.66,
+      "maxMs": 3485.5
+    },
+    "subprocess": {
+      "medianMs": 2445.02,
+      "p95Ms": 2523.91,
+      "minMs": 2400.26,
+      "maxMs": 2523.91
+    },
+    "sessionStartupP95Ms": 1026.98,
+    "warmSessionCommandP95Ms": 13.74,
+    "subprocessOperationP95Ms": 210.26,
+    "warmToSubprocessOperationP95Ratio": 0.065,
+    "warmCommandP95ReductionPercent": 93.5,
+    "sessionToSubprocessMedianRatio": 1.403,
+    "medianReductionPercent": -40.3
+  },
+  "budgetResults": {
+    "sessionCycleMedian": true,
+    "relativeMedian": true,
+    "sessionStartupP95": true,
+    "warmSessionCommandP95": true
+  }
+}

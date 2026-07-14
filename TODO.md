@@ -355,11 +355,21 @@ until that decision is confirmed against a real game.
   instead of accepting dummy-display limitations. Display-less direct runtime
   requests retain the structured precondition error for actionable diagnosis,
   but are not a supported agent-loop tier.)
-- [ ] Benchmark a realistic edit -> run -> observe -> edit cycle against today's
+- [x] Benchmark a realistic edit -> run -> observe -> edit cycle against today's
   subprocess-per-operation path; the loop-latency delta is this phase's headline
   result and belongs in the coverage report. Record the latency budgets this
   establishes — this item carries the open "latency budgets" question from the
-  closed pre-Phase-3 question list (`docs/plan-archive.md`).
+  closed pre-Phase-3 question list (`docs/plan-archive.md`). (The reproducible
+  real-engine benchmark uses seven measured fresh projects per mode after
+  warmup, alternates order, and verifies a headed run plus authenticated scene
+  observation. On Godot 4.7, warm session command p95 is 13.74 ms versus
+  210.26 ms for one-shot subprocesses — 93.5% lower — but the complete cycle is
+  3431.58 ms versus 2445.02 ms median, 40.3% slower, because the current split
+  lifecycle pays two ~1 s headed session startups. The generated coverage
+  report publishes the headline, raw `loop-latency.json` records every sample,
+  and checked budgets cap cycle median at 4.5 s / 1.6× baseline, session startup
+  p95 at 1.5 s, and warm command p95 at 100 ms. This result makes preserving the
+  warm main loop across run/observe the next architecture requirement.)
 - [ ] Decide whether the harness-owned main loop replaces autoload injection
   entirely, or whether inject-and-run survives as a high-fidelity verification
   mode alongside a fast iteration mode. The 6a spike moved this toward *replace*:

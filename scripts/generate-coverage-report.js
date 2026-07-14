@@ -19,6 +19,7 @@ const { toolManifest } = await import(join(root, 'build/tool-manifest.js'));
 const { AUTHORING_COMMANDS, RUNTIME_COMMANDS, SESSION_COMMANDS, PRIVILEGED_RUNTIME_COMMANDS } = await import(join(root, 'build/runtime-protocol.js'));
 
 const coverage = JSON.parse(readFileSync(join(root, 'docs/coverage/tool-coverage.json'), 'utf8'));
+const loopLatency = JSON.parse(readFileSync(join(root, 'docs/coverage/loop-latency.json'), 'utf8'));
 const reportPath = join(root, 'docs/coverage/coverage-report.md');
 const readmePath = join(root, 'README.md');
 
@@ -127,6 +128,32 @@ for (const kind of ['unit', 'contract', 'integration', 'e2e', 'undeclared']) {
   lines.push(`| ${kind} | ${suites.map(file => `\`${file}\``).join(', ')} |`);
 }
 lines.push('');
+lines.push('## Authoring loop latency');
+lines.push('');
+lines.push('The recorded benchmark runs the same realistic edit → headed run → authenticated');
+lines.push('scene-tree observation → stop → edit workload through the persistent authoring');
+lines.push('session and the retained subprocess-per-operation fallback. It uses one warmup');
+lines.push(`and ${loopLatency.methodology.measuredIterationsPerMode} measured fresh projects per mode, alternates mode order, and`);
+lines.push('excludes identical MCP transport overhead. Reproduce it with `npm run benchmark:loop`;');
+lines.push('the raw samples, environment, methodology, and machine-readable budgets are in');
+lines.push('[`loop-latency.json`](loop-latency.json).');
+lines.push('');
+lines.push(`Recorded on ${loopLatency.environment.godotVersion} / ${loopLatency.environment.platform} / ${loopLatency.environment.cpu}.`);
+lines.push('');
+lines.push('| Metric | Persistent session | Subprocess baseline | Delta | Budget |');
+lines.push('| --- | ---: | ---: | ---: | --- |');
+lines.push(`| Full cycle median | ${formatMs(loopLatency.summary.session.medianMs)} | ${formatMs(loopLatency.summary.subprocess.medianMs)} | ${formatSignedPercent(-loopLatency.summary.medianReductionPercent)} slower | ≤ ${formatMs(loopLatency.budgets.sessionCycleMedianMaxMs)} and ≤ ${loopLatency.budgets.sessionToSubprocessMedianRatioMax.toFixed(2)}× baseline |`);
+lines.push(`| Full cycle p95 | ${formatMs(loopLatency.summary.session.p95Ms)} | ${formatMs(loopLatency.summary.subprocess.p95Ms)} | — | diagnostic |`);
+lines.push(`| Warm authoring command p95 | ${formatMs(loopLatency.summary.warmSessionCommandP95Ms)} | ${formatMs(loopLatency.summary.subprocessOperationP95Ms)} | ${formatSignedPercent(loopLatency.summary.warmCommandP95ReductionPercent)} faster | ≤ ${formatMs(loopLatency.budgets.warmSessionCommandP95MaxMs)} |`);
+lines.push(`| Session-starting edit p95 | ${formatMs(loopLatency.summary.sessionStartupP95Ms)} | n/a | — | ≤ ${formatMs(loopLatency.budgets.sessionStartupP95MaxMs)} |`);
+lines.push('');
+lines.push(`**Headline:** warm commands cut operation p95 by ${loopLatency.summary.warmCommandP95ReductionPercent.toFixed(1)}%, but the current`);
+lines.push(`split edit/run lifecycle makes the complete cycle ${(-loopLatency.summary.medianReductionPercent).toFixed(1)}% slower than the`);
+lines.push('one-shot baseline because it pays a headed session startup before and after the');
+lines.push('running-game process. The persistent transport is fast once warm; preserving that');
+lines.push('warm main loop across run/observe is the remaining latency requirement. The current');
+lines.push('budgets cap this transitional regression and protect warm-command and startup latency.');
+lines.push('');
 lines.push('## Per-tool rollup');
 lines.push('');
 lines.push('| Tool | Backend | Privileged | Level | Actions tested |');
@@ -138,6 +165,15 @@ for (const tool of tools) {
 lines.push('');
 
 const report = lines.join('\n');
+
+function formatMs(value) {
+  return `${Number(value).toFixed(2)} ms`;
+}
+
+function formatSignedPercent(value) {
+  return `${Number(value).toFixed(1)}%`;
+}
+
 if (process.argv.includes('--check')) {
   let current = '';
   try {
