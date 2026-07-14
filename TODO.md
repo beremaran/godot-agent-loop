@@ -315,9 +315,15 @@ until that decision is confirmed against a real game.
   `--serve-authoring` mode registers their dispatcher, advertises capability
   only in a harness-owned process, survives controlled failures, and is covered
   by real-engine success/write/failure/runtime/teardown checks.)
-- [ ] Port headless tools to the session one at a time through
+- [x] Port headless tools to the session one at a time through
   `ToolBackend`, which already models backend-per-tool; keep the subprocess path
-  as a fallback until parity is proven.
+  as a fallback until parity is proven. (All 16 authoring tools now declare an
+  `authoring-session` command plus an explicit subprocess fallback in the
+  manifest. A lazy per-project manager serializes and reuses the live process,
+  preserves stdout parity for read/list/UID responses, and never replays a
+  command after it may have mutated state. The complete 24-test authoring E2E
+  suite runs through the session; a separate live-game case proves the fallback
+  remains isolated and leaves the game connection intact.)
 - [ ] Add `--fixed-fps` and time-scale control so "wait N frames, then capture"
   means the same thing on every run. Determinism is miserable to retrofit.
 - [ ] Launch the session headed, and fail fast with an actionable error when no

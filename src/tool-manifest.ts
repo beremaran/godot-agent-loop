@@ -5,6 +5,8 @@ import type { ToolName } from './tool-definitions.js';
  *
  * - `process`: owns or inspects a Godot editor/game process launched by the server.
  * - `subprocess`: dispatches one operation to src/scripts/godot_operations.gd via the CLI.
+ * - `authoring-session`: sends a command to the persistent authoring loop and
+ *   retains an explicit subprocess fallback until session parity is proven.
  * - `runtime`: sends one JSON-RPC command to the in-game runtime server over TCP.
  * - `runtime-buffer`: reads output buffered from the runtime connection without a command.
  * - `godot-cli`: invokes the Godot executable directly (version, --check-only, export).
@@ -13,6 +15,11 @@ import type { ToolName } from './tool-definitions.js';
 export type ToolBackend =
   | { readonly kind: 'process' }
   | { readonly kind: 'subprocess'; readonly operation: string }
+  | {
+    readonly kind: 'authoring-session';
+    readonly command: string;
+    readonly fallback: { readonly kind: 'subprocess'; readonly operation: string };
+  }
   | { readonly kind: 'runtime'; readonly command: string }
   | { readonly kind: 'runtime-buffer' }
   | { readonly kind: 'godot-cli' }
@@ -151,49 +158,49 @@ export const toolManifest: Record<ToolName, ToolManifestEntry> = {
   create_scene: {
     domain: 'project',
     handler: 'handleCreateScene',
-    backend: { kind: 'subprocess', operation: 'create_scene' },
+    backend: { kind: 'authoring-session', command: 'authoring_create_scene', fallback: { kind: 'subprocess', operation: 'create_scene' } },
     actions: null,
     privileged: false,
   },
   add_node: {
     domain: 'project',
     handler: 'handleAddNode',
-    backend: { kind: 'subprocess', operation: 'add_node' },
+    backend: { kind: 'authoring-session', command: 'authoring_add_node', fallback: { kind: 'subprocess', operation: 'add_node' } },
     actions: null,
     privileged: false,
   },
   load_sprite: {
     domain: 'project',
     handler: 'handleLoadSprite',
-    backend: { kind: 'subprocess', operation: 'load_sprite' },
+    backend: { kind: 'authoring-session', command: 'authoring_load_sprite', fallback: { kind: 'subprocess', operation: 'load_sprite' } },
     actions: null,
     privileged: false,
   },
   export_mesh_library: {
     domain: 'project',
     handler: 'handleExportMeshLibrary',
-    backend: { kind: 'subprocess', operation: 'export_mesh_library' },
+    backend: { kind: 'authoring-session', command: 'authoring_export_mesh_library', fallback: { kind: 'subprocess', operation: 'export_mesh_library' } },
     actions: null,
     privileged: false,
   },
   save_scene: {
     domain: 'project',
     handler: 'handleSaveScene',
-    backend: { kind: 'subprocess', operation: 'save_scene' },
+    backend: { kind: 'authoring-session', command: 'authoring_save_scene', fallback: { kind: 'subprocess', operation: 'save_scene' } },
     actions: null,
     privileged: false,
   },
   get_uid: {
     domain: 'project',
     handler: 'handleGetUid',
-    backend: { kind: 'subprocess', operation: 'get_uid' },
+    backend: { kind: 'authoring-session', command: 'authoring_get_uid', fallback: { kind: 'subprocess', operation: 'get_uid' } },
     actions: null,
     privileged: false,
   },
   update_project_uids: {
     domain: 'project',
     handler: 'handleUpdateProjectUids',
-    backend: { kind: 'subprocess', operation: 'resave_resources' },
+    backend: { kind: 'authoring-session', command: 'authoring_resave_resources', fallback: { kind: 'subprocess', operation: 'resave_resources' } },
     actions: null,
     privileged: false,
   },
@@ -327,21 +334,21 @@ export const toolManifest: Record<ToolName, ToolManifestEntry> = {
   read_scene: {
     domain: 'project',
     handler: 'handleReadScene',
-    backend: { kind: 'subprocess', operation: 'read_scene' },
+    backend: { kind: 'authoring-session', command: 'authoring_read_scene', fallback: { kind: 'subprocess', operation: 'read_scene' } },
     actions: null,
     privileged: false,
   },
   modify_scene_node: {
     domain: 'project',
     handler: 'handleModifySceneNode',
-    backend: { kind: 'subprocess', operation: 'modify_node' },
+    backend: { kind: 'authoring-session', command: 'authoring_modify_node', fallback: { kind: 'subprocess', operation: 'modify_node' } },
     actions: null,
     privileged: false,
   },
   remove_scene_node: {
     domain: 'project',
     handler: 'handleRemoveSceneNode',
-    backend: { kind: 'subprocess', operation: 'remove_node' },
+    backend: { kind: 'authoring-session', command: 'authoring_remove_node', fallback: { kind: 'subprocess', operation: 'remove_node' } },
     actions: null,
     privileged: false,
   },
@@ -425,14 +432,14 @@ export const toolManifest: Record<ToolName, ToolManifestEntry> = {
   attach_script: {
     domain: 'project',
     handler: 'handleAttachScript',
-    backend: { kind: 'subprocess', operation: 'attach_script' },
+    backend: { kind: 'authoring-session', command: 'authoring_attach_script', fallback: { kind: 'subprocess', operation: 'attach_script' } },
     actions: null,
     privileged: false,
   },
   create_resource: {
     domain: 'project',
     handler: 'handleCreateResource',
-    backend: { kind: 'subprocess', operation: 'create_resource' },
+    backend: { kind: 'authoring-session', command: 'authoring_create_resource', fallback: { kind: 'subprocess', operation: 'create_resource' } },
     actions: null,
     privileged: false,
   },
@@ -1015,7 +1022,7 @@ export const toolManifest: Record<ToolName, ToolManifestEntry> = {
   manage_resource: {
     domain: 'project',
     handler: 'handleManageResource',
-    backend: { kind: 'subprocess', operation: 'manage_resource' },
+    backend: { kind: 'authoring-session', command: 'authoring_manage_resource', fallback: { kind: 'subprocess', operation: 'manage_resource' } },
     actions: ['read', 'modify'],
     privileged: false,
   },
@@ -1043,7 +1050,7 @@ export const toolManifest: Record<ToolName, ToolManifestEntry> = {
   manage_scene_signals: {
     domain: 'project',
     handler: 'handleManageSceneSignals',
-    backend: { kind: 'subprocess', operation: 'manage_scene_signals' },
+    backend: { kind: 'authoring-session', command: 'authoring_manage_scene_signals', fallback: { kind: 'subprocess', operation: 'manage_scene_signals' } },
     actions: ['list', 'add', 'remove'],
     privileged: false,
   },
@@ -1071,7 +1078,7 @@ export const toolManifest: Record<ToolName, ToolManifestEntry> = {
   manage_theme_resource: {
     domain: 'project',
     handler: 'handleManageThemeResource',
-    backend: { kind: 'subprocess', operation: 'manage_theme_resource' },
+    backend: { kind: 'authoring-session', command: 'authoring_manage_theme_resource', fallback: { kind: 'subprocess', operation: 'manage_theme_resource' } },
     actions: ['create', 'read', 'modify'],
     privileged: false,
   },
@@ -1085,7 +1092,7 @@ export const toolManifest: Record<ToolName, ToolManifestEntry> = {
   manage_scene_structure: {
     domain: 'project',
     handler: 'handleManageSceneStructure',
-    backend: { kind: 'subprocess', operation: 'manage_scene_structure' },
+    backend: { kind: 'authoring-session', command: 'authoring_manage_scene_structure', fallback: { kind: 'subprocess', operation: 'manage_scene_structure' } },
     actions: ['rename', 'duplicate', 'move'],
     privileged: false,
   },
@@ -1209,3 +1216,20 @@ export const toolManifest: Record<ToolName, ToolManifestEntry> = {
     privileged: false,
   },
 };
+
+export type AuthoringSessionToolBackend = Extract<ToolBackend, { kind: 'authoring-session' }>;
+
+const authoringBackendsByOperation = new Map<string, AuthoringSessionToolBackend>();
+for (const entry of Object.values(toolManifest)) {
+  if (entry.backend.kind !== 'authoring-session') continue;
+  const operation = entry.backend.fallback.operation;
+  if (authoringBackendsByOperation.has(operation)) {
+    throw new Error(`Duplicate authoring operation backend: ${operation}`);
+  }
+  authoringBackendsByOperation.set(operation, entry.backend);
+}
+
+/** Resolves an operation through the public tool's declared backend policy. */
+export function authoringBackendForOperation(operation: string): AuthoringSessionToolBackend | undefined {
+  return authoringBackendsByOperation.get(operation);
+}

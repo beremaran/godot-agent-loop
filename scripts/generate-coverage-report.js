@@ -40,7 +40,11 @@ const tools = toolDefinitions.map(def => {
 });
 
 const subprocessOperations = new Set(
-  tools.filter(tool => tool.manifest.backend.kind === 'subprocess').map(tool => tool.manifest.backend.operation),
+  tools.flatMap(tool => {
+    if (tool.manifest.backend.kind === 'subprocess') return [tool.manifest.backend.operation];
+    if (tool.manifest.backend.kind === 'authoring-session') return [tool.manifest.backend.fallback.operation];
+    return [];
+  }),
 );
 const levelCounts = Object.fromEntries(LEVELS.map(level => [level, tools.filter(tool => tool.entry.level === level).length]));
 const totalActions = tools.reduce((sum, tool) => sum + tool.actions, 0);
@@ -56,6 +60,9 @@ const generatedBadge = [
 
 function backendLabel(backend) {
   if (backend.kind === 'subprocess') return `subprocess \`${backend.operation}\``;
+  if (backend.kind === 'authoring-session') {
+    return `authoring session \`${backend.command}\` (fallback: subprocess \`${backend.fallback.operation}\`)`;
+  }
   if (backend.kind === 'runtime') return `runtime \`${backend.command}\``;
   return backend.kind;
 }

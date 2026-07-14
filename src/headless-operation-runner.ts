@@ -61,7 +61,10 @@ export class HeadlessOperationRunner {
     logDebug(`Executing: ${godotPath} ${loggableArgs.join(' ')}`);
 
     try {
-      const { stdout, stderr } = await execFileAsync(godotPath, args, GODOT_COMMAND_OPTIONS);
+      const { stdout, stderr } = await execFileAsync(godotPath, args, {
+        ...GODOT_COMMAND_OPTIONS,
+        env: { ...process.env, GODOT_MCP_RUNTIME_DISABLED: 'true' },
+      });
       return { stdout: stdout ?? '', stderr: stderr ?? '', exitCode: 0, signal: null };
     } catch (error: unknown) {
       if (error instanceof Error && 'stdout' in error && 'stderr' in error && 'code' in error) {

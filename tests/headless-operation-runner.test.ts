@@ -1,14 +1,14 @@
 // @test-kind: unit
 import { describe, expect, it, vi } from 'vitest';
 
-const execFileCalls = vi.hoisted(() => [] as { file: string; args: string[] }[]);
+const execFileCalls = vi.hoisted(() => [] as { file: string; args: string[]; options?: { env?: NodeJS.ProcessEnv } }[]);
 
 vi.mock('child_process', () => {
-  const execFile = ((file: string, args: string[]) => {
-    execFileCalls.push({ file, args });
+  const execFile = ((file: string, args: string[], options?: { env?: NodeJS.ProcessEnv }) => {
+    execFileCalls.push({ file, args, options });
   }) as unknown as Record<symbol, unknown>;
-  execFile[Symbol.for('nodejs.util.promisify.custom')] = (file: string, args: string[]) => {
-    execFileCalls.push({ file, args });
+  execFile[Symbol.for('nodejs.util.promisify.custom')] = (file: string, args: string[], options?: { env?: NodeJS.ProcessEnv }) => {
+    execFileCalls.push({ file, args, options });
     return Promise.resolve({ stdout: '', stderr: '' });
   };
   return { execFile };
@@ -33,6 +33,7 @@ describe('HeadlessOperationRunner debug diagnostics', () => {
 
     expect(execFileCalls).toHaveLength(1);
     expect(execFileCalls[0].args).not.toContain('--debug-godot');
+    expect(execFileCalls[0].options?.env?.GODOT_MCP_RUNTIME_DISABLED).toBe('true');
   });
 
   it('enables Godot diagnostics only when the server runs in debug mode', async () => {

@@ -52,7 +52,7 @@ describe('MCP tool discovery', () => {
   });
 });
 
-describe('headless operation path', () => {
+describe('persistent authoring operation path', () => {
   it('creates a scene on disk and reads it back through the engine', async () => {
     server = await startServer();
     const created = await server.call('create_scene', {
@@ -76,8 +76,8 @@ describe('headless operation path', () => {
     });
     expect(added.isError, added.text).toBe(false);
 
-    // Independent observation 2: a separate engine invocation reloads the
-    // scene and reports the node added by the previous invocation.
+    // Independent observation 2: a separate JSON-RPC operation reloads the
+    // scene and reports the node added by the previous operation.
     const read = await server.call('read_scene', {
       projectPath: server.projectPath,
       scenePath: 'scenes/level.tscn',
@@ -126,6 +126,19 @@ describe('lifecycle and runtime path', () => {
     const waited = await server.call('game_wait', { frames: 3 });
     expect(waited.isError, waited.text).toBe(false);
     expect(waited.text).toContain('waited_frames');
+
+    // A user-facing game owns the generated runtime installation, so an
+    // authoring call takes its manifest-declared subprocess fallback. The
+    // fallback disables its duplicate runtime listener and must not disturb
+    // the live game connection.
+    const authoredWhileRunning = await server.call('create_scene', {
+      projectPath: server.projectPath,
+      scenePath: 'scenes/authored_while_running.tscn',
+    });
+    expect(authoredWhileRunning.isError, authoredWhileRunning.text).toBe(false);
+    expect(existsSync(join(server.projectPath, 'scenes/authored_while_running.tscn'))).toBe(true);
+    const stillConnected = await server.call('game_get_scene_tree');
+    expect(stillConnected.isError, stillConnected.text).toBe(false);
 
     // Debug output crossed the process boundary.
     const debug = await server.call('get_debug_output');

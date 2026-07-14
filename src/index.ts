@@ -38,6 +38,7 @@ import { ProjectSupport } from './project-support.js';
 import { EditorConnection } from './editor-connection.js';
 import { EditorPluginInstaller } from './editor-plugin-installer.js';
 import { PRIVILEGED_RUNTIME_GROUPS, type PrivilegedRuntimeGroup } from './runtime-protocol.js';
+import { AuthoringSessionManager } from './authoring-session-manager.js';
 
 // Check if debug mode is enabled
 const DEBUG_MODE: boolean = process.env.DEBUG === 'true';
@@ -133,6 +134,7 @@ export class GodotServer {
   private interactionServerInstaller: InteractionServerInstaller;
   private readonly executableValidator: GodotExecutableValidator;
   private operationRunner: HeadlessOperationRunner;
+  private readonly authoringSession: AuthoringSessionManager;
   private readonly headlessOperations: HeadlessOperationService;
   private readonly gameCommands: GameCommandService;
   private readonly editorConnection = new EditorConnection({ port: resolveEditorPort(), secret: RUNTIME_SECRET });
@@ -200,7 +202,20 @@ export class GodotServer {
       logDebug: message => { this.logDebug(message); },
       debugGodot: debugMode,
     });
-    this.headlessOperations = new HeadlessOperationService(this.operationRunner, pathSecurity);
+    this.authoringSession = new AuthoringSessionManager({
+      operationsScriptPath: this.operationsScriptPath,
+      resolveGodotPath: async () => {
+        const path = await this.executable.requirePath();
+        if (!path) throw new Error('Could not find a valid Godot executable path');
+        return path;
+      },
+      installer: this.interactionServerInstaller,
+      logDebug: message => { this.logDebug(message); },
+      // A running user game owns the installed runtime artifacts. Authoring
+      // calls use their declared subprocess fallback until that process stops.
+      canStart: () => this.activeProcess === null,
+    });
+    this.headlessOperations = new HeadlessOperationService(this.operationRunner, pathSecurity, this.authoringSession);
     this.gameCommands = new GameCommandService(this.processManager, this.gameConnection);
     if (debugMode) console.error(`[DEBUG] Operations script path: ${this.operationsScriptPath}`);
     this.projectSupport = new ProjectSupport({
@@ -234,6 +249,7 @@ export class GodotServer {
         });
       },
       stopProjectProcess: () => this.processManager.stop(),
+      stopAuthoringSession: () => { this.authoringSession.stop(); },
       connectToGame: projectPath => this.connectToGame(projectPath),
       disconnectFromGame: () => { this.disconnectFromGame(); },
       injectInteractionServer: projectPath => { this.injectInteractionServer(projectPath); },
@@ -273,12 +289,17 @@ export class GodotServer {
     // Error handling
     this.server.server.onerror = (error) => { console.error('[MCP Error]', error); };
 
-    // Cleanup on exit
-    process.on('SIGINT', () => {
-      void this.cleanup().then(() => {
-        process.exit(0);
-      });
-    });
+    // Cleanup on both interactive interruption and process-manager shutdown.
+    // E2E clients and service supervisors use SIGTERM; without this handler a
+    // persistent authoring child would outlive the MCP server.
+    let shuttingDown = false;
+    const shutdown = () => {
+      if (shuttingDown) return;
+      shuttingDown = true;
+      void this.cleanup().finally(() => { process.exit(0); });
+    };
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
   }
 
   /**
@@ -379,6 +400,7 @@ export class GodotServer {
    */
   private async cleanup() {
     this.logDebug('Cleaning up resources');
+    this.authoringSession.stop();
     this.disconnectFromGame();
     this.editorConnection.disconnect();
     if (this.editorProjectPath) this.editorPluginInstaller.remove(this.editorProjectPath, this.editorPluginOwned);

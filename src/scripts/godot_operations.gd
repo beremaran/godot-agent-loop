@@ -115,6 +115,8 @@ var _diagnostics: DebugDiagnostics = null
 # exist; the CLI rejects any name that is not registered here.
 var _operations: Dictionary[String, Callable] = {}
 const SERVE_ARGUMENT: String = "--serve-authoring"
+var _capture_output: bool = false
+var _operation_output: PackedStringArray = PackedStringArray()
 
 func _init() -> void:
     _register_operations()
@@ -176,9 +178,12 @@ func execute_operation(operation: String, params: Dictionary) -> Dictionary:
                 "operation": operation,
             },
         }
+    _operation_output.clear()
+    _capture_output = true
     log_info("Executing operation: " + operation)
     var handler: Callable = _operations[operation]
     var result: OperationResult = handler.call(params)
+    _capture_output = false
     if not result.ok:
         return {
             "error": "\n".join(result.errors),
@@ -188,7 +193,11 @@ func execute_operation(operation: String, params: Dictionary) -> Dictionary:
                 "errors": Array(result.errors),
             },
         }
-    return {"success": true, "operation": operation}
+    return {
+        "success": true,
+        "operation": operation,
+        "stdout": "\n".join(_operation_output),
+    }
 
 func _register_operations() -> void:
     _operations = {
@@ -307,7 +316,13 @@ func _redact_params(params: Dictionary) -> String:
     return _diagnostics.redact_params(params)
 
 func log_info(message: String) -> void:
-    print("[INFO] " + message)
+    _emit_output("[INFO] " + message)
+
+func _emit_output(message: String) -> void:
+    print(message)
+    if _capture_output:
+        @warning_ignore("return_value_discarded")
+        _operation_output.append(message)
 
 func log_error(message: String) -> void:
     printerr("[ERROR] " + message)
@@ -605,7 +620,7 @@ func instantiate_node(name_of_class: String) -> Node:
 # Create a new scene with a specified root node type
 func create_scene(params: Dictionary) -> OperationResult:
     var scene_path: String = _param_string(params, "scene_path")
-    print("Creating scene: " + scene_path)
+    _emit_output("Creating scene: " + scene_path)
 
     if _diagnostics != null:
         _diagnostics.log_project_environment()
@@ -636,13 +651,13 @@ func create_scene(params: Dictionary) -> OperationResult:
             _diagnostics.probe_write_access(full_scene_path.get_base_dir())
         return save_result
 
-    print("Scene created successfully at: " + scene_path)
+    _emit_output("Scene created successfully at: " + scene_path)
     return _ok()
 
 # Add a node to an existing scene
 func add_node(params: Dictionary) -> OperationResult:
     var full_scene_path: String = _res_path(_param_string(params, "scene_path"))
-    print("Adding node to scene: " + full_scene_path)
+    _emit_output("Adding node to scene: " + full_scene_path)
 
     var opened := _open_scene(full_scene_path)
     if not opened.is_valid():
@@ -676,14 +691,14 @@ func add_node(params: Dictionary) -> OperationResult:
     if not save_result.ok:
         return save_result
 
-    print("Node '" + node_name + "' of type '" + node_type + "' added successfully")
+    _emit_output("Node '" + node_name + "' of type '" + node_type + "' added successfully")
     return _ok()
 
 # Load a sprite into a Sprite2D node
 func load_sprite(params: Dictionary) -> OperationResult:
     var full_scene_path: String = _res_path(_param_string(params, "scene_path"))
     var full_texture_path: String = _res_path(_param_string(params, "texture_path"))
-    print("Loading sprite into scene: " + full_scene_path)
+    _emit_output("Loading sprite into scene: " + full_scene_path)
 
     var opened := _open_scene(full_scene_path)
     if not opened.is_valid():
@@ -714,14 +729,14 @@ func load_sprite(params: Dictionary) -> OperationResult:
     if not save_result.ok:
         return save_result
 
-    print("Sprite loaded successfully with texture: " + full_texture_path)
+    _emit_output("Sprite loaded successfully with texture: " + full_texture_path)
     return _ok()
 
 # Export a scene as a MeshLibrary resource
 func export_mesh_library(params: Dictionary) -> OperationResult:
     var full_scene_path: String = _res_path(_param_string(params, "scene_path"))
     var full_output_path: String = _res_path(_param_string(params, "output_path"))
-    print("Exporting MeshLibrary from scene: " + full_scene_path)
+    _emit_output("Exporting MeshLibrary from scene: " + full_scene_path)
 
     var opened := _open_scene(full_scene_path)
     if not opened.is_valid():
@@ -764,7 +779,7 @@ func export_mesh_library(params: Dictionary) -> OperationResult:
     if not save_result.ok:
         return save_result
 
-    print("MeshLibrary exported successfully with " + str(item_id) + " items to: " + full_output_path)
+    _emit_output("MeshLibrary exported successfully with " + str(item_id) + " items to: " + full_output_path)
     return _ok()
 
 # A library item's mesh is either the node itself or one of its direct children.
@@ -810,7 +825,7 @@ func get_uid(params: Dictionary) -> OperationResult:
 
     var file_path: String = _res_path(_param_string(params, "file_path"))
     var absolute_path: String = ProjectSettings.globalize_path(file_path)
-    print("Getting UID for file: " + file_path)
+    _emit_output("Getting UID for file: " + file_path)
 
     if not FileAccess.file_exists(file_path):
         return _fail("File does not exist at: " + file_path, PackedStringArray([
@@ -833,12 +848,12 @@ func get_uid(params: Dictionary) -> OperationResult:
         result["exists"] = false
         result["message"] = "UID file does not exist for this file. Use resave_resources to generate UIDs."
 
-    print(JSON.stringify(result))
+    _emit_output(JSON.stringify(result))
     return _ok()
 
 # Resave all resources to update UID references
 func resave_resources(params: Dictionary) -> OperationResult:
-    print("Resaving all resources to update UID references...")
+    _emit_output("Resaving all resources to update UID references...")
 
     var project_path: String = RES_PREFIX
     if params.has("project_path"):
@@ -898,7 +913,7 @@ func resave_resources(params: Dictionary) -> OperationResult:
     log_debug("- Scripts/shaders missing UIDs: " + str(missing_uids))
     log_debug("- UIDs successfully generated: " + str(generated_uids))
     log_debug("- Errors: " + str(errors.size()))
-    print("Resave operation complete")
+    _emit_output("Resave operation complete")
 
     if not errors.is_empty():
         return _failed(PackedStringArray(errors))
@@ -907,7 +922,7 @@ func resave_resources(params: Dictionary) -> OperationResult:
 # Save changes to a scene file
 func save_scene(params: Dictionary) -> OperationResult:
     var full_scene_path: String = _res_path(_param_string(params, "scene_path"))
-    print("Saving scene: " + full_scene_path)
+    _emit_output("Saving scene: " + full_scene_path)
 
     var opened := _open_scene(full_scene_path)
     if not opened.is_valid():
@@ -922,7 +937,7 @@ func save_scene(params: Dictionary) -> OperationResult:
     if not save_result.ok:
         return save_result
 
-    print("Scene saved successfully to: " + save_path)
+    _emit_output("Scene saved successfully to: " + save_path)
     return _ok()
 
 # JSON decodes into Variant, so the conversions below are the one place where
@@ -1106,9 +1121,9 @@ func read_scene(params: Dictionary) -> OperationResult:
         if f:
             var raw_content: String = f.get_as_text()
             f.close()
-            print("SCENE_JSON_START")
-            print(JSON.stringify({"error": "Failed to instantiate scene, returning raw text", "raw": raw_content.substr(0, 4096)}))
-            print("SCENE_JSON_END")
+            _emit_output("SCENE_JSON_START")
+            _emit_output(JSON.stringify({"error": "Failed to instantiate scene, returning raw text", "raw": raw_content.substr(0, 4096)}))
+            _emit_output("SCENE_JSON_END")
             return _ok()
         return _fail("Failed to load scene: " + full_scene_path, PackedStringArray([
             "The scene may reference missing external resources.",
@@ -1121,9 +1136,9 @@ func read_scene(params: Dictionary) -> OperationResult:
     var tree_data: Dictionary = _walk_scene_tree(scene_root)
 
     # Output as JSON for the TypeScript side to parse
-    print("SCENE_JSON_START")
-    print(JSON.stringify(tree_data))
-    print("SCENE_JSON_END")
+    _emit_output("SCENE_JSON_START")
+    _emit_output(JSON.stringify(tree_data))
+    _emit_output("SCENE_JSON_END")
 
     # queue_free() is never processed under --script before quit(), so free
     # the tree immediately.
@@ -1196,7 +1211,7 @@ func modify_node(params: Dictionary) -> OperationResult:
     if not save_result.ok:
         return save_result
 
-    print("Node modified successfully in: " + full_scene_path)
+    _emit_output("Node modified successfully in: " + full_scene_path)
     return _ok()
 
 # Remove a node from a scene file
@@ -1230,7 +1245,7 @@ func remove_node(params: Dictionary) -> OperationResult:
     if not save_result.ok:
         return save_result
 
-    print("Node '" + removed_name + "' removed successfully from: " + full_scene_path)
+    _emit_output("Node '" + removed_name + "' removed successfully from: " + full_scene_path)
     return _ok()
 
 # Attach a script to a node in a scene file
@@ -1264,7 +1279,7 @@ func attach_script(params: Dictionary) -> OperationResult:
     if not save_result.ok:
         return save_result
 
-    print("Script '" + full_script_path + "' attached successfully to node in: " + full_scene_path)
+    _emit_output("Script '" + full_script_path + "' attached successfully to node in: " + full_scene_path)
     return _ok()
 
 # Create a resource file (.tres)
@@ -1298,7 +1313,7 @@ func create_resource(params: Dictionary) -> OperationResult:
     if not save_result.ok:
         return save_result
 
-    print("Resource created successfully at: " + full_resource_path)
+    _emit_output("Resource created successfully at: " + full_resource_path)
     return _ok()
 
 
@@ -1323,9 +1338,9 @@ func manage_resource(params: Dictionary) -> OperationResult:
             if usage & PROPERTY_USAGE_STORAGE:
                 var prop_name: String = prop["name"]
                 props[prop_name] = str(resource.get(prop_name))
-        print("RESOURCE_JSON_START")
-        print(JSON.stringify({"type": resource.get_class(), "path": full_path, "properties": props}))
-        print("RESOURCE_JSON_END")
+        _emit_output("RESOURCE_JSON_START")
+        _emit_output(JSON.stringify({"type": resource.get_class(), "path": full_path, "properties": props}))
+        _emit_output("RESOURCE_JSON_END")
         return _ok()
 
     _apply_properties(resource, _param_dictionary(params, "properties"))
@@ -1334,7 +1349,7 @@ func manage_resource(params: Dictionary) -> OperationResult:
     if not save_result.ok:
         return save_result
 
-    print("Resource modified: " + full_path)
+    _emit_output("Resource modified: " + full_path)
     return _ok()
 
 
@@ -1353,9 +1368,9 @@ func manage_scene_signals(params: Dictionary) -> OperationResult:
         for line in lines:
             if line.begins_with("[connection"):
                 connections.append(line.strip_edges())
-        print("SIGNALS_JSON_START")
-        print(JSON.stringify({"connections": connections}))
-        print("SIGNALS_JSON_END")
+        _emit_output("SIGNALS_JSON_START")
+        _emit_output(JSON.stringify({"connections": connections}))
+        _emit_output("SIGNALS_JSON_END")
     elif action == "add":
         var signal_name: String = _param_string(params, "signal_name")
         var source_path: String = _param_string(params, "source_path", ".")
@@ -1369,7 +1384,7 @@ func manage_scene_signals(params: Dictionary) -> OperationResult:
         @warning_ignore("return_value_discarded")
         file.store_string(content)
         file.close()
-        print("Signal connection added: " + conn_line)
+        _emit_output("Signal connection added: " + conn_line)
     elif action == "remove":
         var signal_name: String = _param_string(params, "signal_name")
         var lines: PackedStringArray = content.split("\n")
@@ -1384,7 +1399,7 @@ func manage_scene_signals(params: Dictionary) -> OperationResult:
         @warning_ignore("return_value_discarded")
         file.store_string("\n".join(new_lines))
         file.close()
-        print("Signal connections for '%s' removed" % signal_name)
+        _emit_output("Signal connections for '%s' removed" % signal_name)
     else:
         return _fail("Unknown manage_scene_signals action: " + action, PackedStringArray([
             "Allowed actions: list, add, remove",
@@ -1407,7 +1422,7 @@ func manage_theme_resource(params: Dictionary) -> OperationResult:
         if not create_result.ok:
             return create_result
 
-        print("Theme created at: " + full_path)
+        _emit_output("Theme created at: " + full_path)
         return _ok()
 
     if action != "read" and action != "modify":
@@ -1421,9 +1436,9 @@ func manage_theme_resource(params: Dictionary) -> OperationResult:
     var theme: Resource = opened.resource
 
     if action == "read":
-        print("THEME_JSON_START")
-        print(JSON.stringify({"type": theme.get_class(), "path": full_path}))
-        print("THEME_JSON_END")
+        _emit_output("THEME_JSON_START")
+        _emit_output(JSON.stringify({"type": theme.get_class(), "path": full_path}))
+        _emit_output("THEME_JSON_END")
         return _ok()
 
     for key: String in properties:
@@ -1433,7 +1448,7 @@ func manage_theme_resource(params: Dictionary) -> OperationResult:
     if not save_result.ok:
         return save_result
 
-    print("Theme modified: " + full_path)
+    _emit_output("Theme modified: " + full_path)
     return _ok()
 
 
@@ -1456,14 +1471,14 @@ func manage_scene_structure(params: Dictionary) -> OperationResult:
         if new_name.is_empty():
             return _fail("new_name is required for rename")
         target.name = new_name
-        print("Node renamed to '%s'" % target.name)
+        _emit_output("Node renamed to '%s'" % target.name)
     elif action == "duplicate":
         if target == scene_root:
             return _fail("Cannot duplicate the root node")
         var dup := target.duplicate()
         target.get_parent().add_child(dup, true)
         _set_owner_recursive(dup, scene_root)
-        print("Node duplicated: %s (as '%s')" % [node_path_str, dup.name])
+        _emit_output("Node duplicated: %s (as '%s')" % [node_path_str, dup.name])
     elif action == "move":
         var new_parent_path: String = _param_string(params, "new_parent_path")
         if new_parent_path.is_empty():
@@ -1482,7 +1497,7 @@ func manage_scene_structure(params: Dictionary) -> OperationResult:
         _clear_owner_recursive(target)
         new_parent.add_child(target, true)
         _set_owner_recursive(target, scene_root)
-        print("Node moved: %s -> parent %s (as '%s')" % [node_path_str, new_parent_path, target.name])
+        _emit_output("Node moved: %s -> parent %s (as '%s')" % [node_path_str, new_parent_path, target.name])
     else:
         return _fail("Unknown manage_scene_structure action: " + action, PackedStringArray([
             "Allowed actions: rename, duplicate, move",
@@ -1492,7 +1507,7 @@ func manage_scene_structure(params: Dictionary) -> OperationResult:
     if not save_result.ok:
         return save_result
 
-    print("Scene structure saved: " + full_path)
+    _emit_output("Scene structure saved: " + full_path)
     return _ok()
 
 

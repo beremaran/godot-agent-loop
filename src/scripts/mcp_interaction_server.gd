@@ -74,6 +74,7 @@ var _active_session: RuntimeSession = null
 const DEFAULT_PORT: int = 9090
 const PORT_ENVIRONMENT_VARIABLE: String = "GODOT_MCP_RUNTIME_PORT"
 const SECRET_ENVIRONMENT_VARIABLE: String = "GODOT_MCP_RUNTIME_SECRET"
+const DISABLED_ENVIRONMENT_VARIABLE: String = "GODOT_MCP_RUNTIME_DISABLED"
 # The listen port. Exported for editor configuration; when the game process is
 # started by the MCP server, GODOT_MCP_RUNTIME_PORT overrides it so parallel
 # sessions (and the E2E harness) each get an isolated loopback port.
@@ -127,6 +128,11 @@ func _ready() -> void:
 	runtime_secret = _resolve_runtime_secret()
 	_register_domains()
 	_register_commands()
+	# A one-shot authoring fallback can run while the real game owns this
+	# project's runtime port. It still needs the autoloads to parse, but must not
+	# start a second transport or emit a misleading bind failure.
+	if OS.get_environment(DISABLED_ENVIRONMENT_VARIABLE) == "true":
+		return
 	_server = TCPServer.new()
 	port = _resolve_port()
 	var err: int = _server.listen(port, "127.0.0.1")

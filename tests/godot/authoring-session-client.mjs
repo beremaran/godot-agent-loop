@@ -70,7 +70,8 @@ const created = await request('godot.runtime.authoring_create_scene', {
   scene_path: 'scenes/session_created.tscn',
   root_node_type: 'Node2D',
 });
-if (created.error || created.result.success !== true || created.result.operation !== 'create_scene') {
+if (created.error || created.result.success !== true || created.result.operation !== 'create_scene'
+  || !created.result.stdout.includes('Scene created successfully')) {
   throw new Error(`Authoring success response is invalid: ${JSON.stringify(created)}`);
 }
 

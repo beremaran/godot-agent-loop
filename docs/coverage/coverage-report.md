@@ -41,7 +41,7 @@ engine, never a mocked transport.
 
 | Kind | Suites |
 | --- | --- |
-| unit | `tests/dotnet.test.ts`, `tests/game-connection.test.ts`, `tests/godot-process-manager.test.ts`, `tests/handler-modules.test.ts`, `tests/handlers.test.ts`, `tests/headless-operation-runner.test.ts`, `tests/headless-operation-service.test.ts`, `tests/index.test.ts`, `tests/interaction-server-installer.test.ts`, `tests/project-support.test.ts`, `tests/tool-argument-validation.test.ts`, `tests/tool-registry.test.ts`, `tests/utils.test.ts`, `tests/validate-script.test.ts` |
+| unit | `tests/authoring-session-manager.test.ts`, `tests/dotnet.test.ts`, `tests/game-connection.test.ts`, `tests/godot-process-manager.test.ts`, `tests/handler-modules.test.ts`, `tests/handlers.test.ts`, `tests/headless-operation-runner.test.ts`, `tests/headless-operation-service.test.ts`, `tests/index.test.ts`, `tests/interaction-server-installer.test.ts`, `tests/project-support.test.ts`, `tests/tool-argument-validation.test.ts`, `tests/tool-registry.test.ts`, `tests/utils.test.ts`, `tests/validate-script.test.ts` |
 | contract | `tests/runtime-protocol-contract.test.ts`, `tests/source-guardrails.test.ts`, `tests/support-policy.test.ts`, `tests/test-metadata.test.ts`, `tests/tool-coverage.test.ts`, `tests/tool-definitions.test.ts`, `tests/tool-manifest.test.ts`, `tests/variant-codec-corpus.test.ts` |
 | integration | `tests/godot/run-headless-operations.sh`, `tests/godot/run-integration-tests.sh`, `tests/godot/run-typecheck.sh` |
 | e2e | `tests/e2e/addon-management.test.ts`, `tests/e2e/crash-recovery.test.ts`, `tests/e2e/cross-platform-smoke.test.ts`, `tests/e2e/engine-reach.test.ts`, `tests/e2e/headless-tools.test.ts`, `tests/e2e/import-integrity-workflows.test.ts`, `tests/e2e/lifecycle-tools.test.ts`, `tests/e2e/observers.test.ts`, `tests/e2e/project-config-tools.test.ts`, `tests/e2e/project-delivery-tools.test.ts`, `tests/e2e/project-test-orchestration.test.ts`, `tests/e2e/representative-path.test.ts`, `tests/e2e/runtime-2d-tools.test.ts`, `tests/e2e/runtime-3d-scene-tools.test.ts`, `tests/e2e/runtime-3d-tools.test.ts`, `tests/e2e/runtime-audio-animation-tools.test.ts`, `tests/e2e/runtime-camera-rendering-tools.test.ts`, `tests/e2e/runtime-core-tools.test.ts`, `tests/e2e/runtime-input-tools.test.ts`, `tests/e2e/runtime-networking-tools.test.ts`, `tests/e2e/runtime-physics-tools.test.ts`, `tests/e2e/runtime-query-tools.test.ts`, `tests/e2e/runtime-remote-io-tools.test.ts`, `tests/e2e/runtime-rendering-tools.test.ts`, `tests/e2e/runtime-resource-tools.test.ts`, `tests/e2e/runtime-system-tools.test.ts`, `tests/e2e/runtime-ui-tools.test.ts`, `tests/e2e/tool-schema-failures.test.ts`, `tests/e2e/verification-workflow.test.ts` |
@@ -65,13 +65,13 @@ engine, never a mocked transport.
 | `get_godot_version` | process | no | E2E | 1/1 |
 | `list_projects` | local | no | E2E | 1/1 |
 | `get_project_info` | godot-cli | no | E2E | 1/1 |
-| `create_scene` | subprocess `create_scene` | no | E2E | 1/1 |
-| `add_node` | subprocess `add_node` | no | E2E | 1/1 |
-| `load_sprite` | subprocess `load_sprite` | no | E2E | 1/1 |
-| `export_mesh_library` | subprocess `export_mesh_library` | no | E2E | 1/1 |
-| `save_scene` | subprocess `save_scene` | no | E2E | 1/1 |
-| `get_uid` | subprocess `get_uid` | no | E2E | 1/1 |
-| `update_project_uids` | subprocess `resave_resources` | no | E2E | 1/1 |
+| `create_scene` | authoring session `authoring_create_scene` (fallback: subprocess `create_scene`) | no | E2E | 1/1 |
+| `add_node` | authoring session `authoring_add_node` (fallback: subprocess `add_node`) | no | E2E | 1/1 |
+| `load_sprite` | authoring session `authoring_load_sprite` (fallback: subprocess `load_sprite`) | no | E2E | 1/1 |
+| `export_mesh_library` | authoring session `authoring_export_mesh_library` (fallback: subprocess `export_mesh_library`) | no | E2E | 1/1 |
+| `save_scene` | authoring session `authoring_save_scene` (fallback: subprocess `save_scene`) | no | E2E | 1/1 |
+| `get_uid` | authoring session `authoring_get_uid` (fallback: subprocess `get_uid`) | no | E2E | 1/1 |
+| `update_project_uids` | authoring session `authoring_resave_resources` (fallback: subprocess `resave_resources`) | no | E2E | 1/1 |
 | `game_screenshot` | runtime `screenshot` | no | E2E | 1/1 |
 | `game_visual_regression` | local | no | E2E | 2/2 |
 | `game_click` | runtime `click` | no | E2E | 1/1 |
@@ -90,9 +90,9 @@ engine, never a mocked transport.
 | `game_pause` | runtime `pause` | no | E2E | 1/1 |
 | `game_performance` | runtime `get_performance` | no | E2E | 5/5 |
 | `game_wait` | runtime `wait` | no | E2E | 1/1 |
-| `read_scene` | subprocess `read_scene` | no | E2E | 1/1 |
-| `modify_scene_node` | subprocess `modify_node` | no | E2E | 1/1 |
-| `remove_scene_node` | subprocess `remove_node` | no | E2E | 1/1 |
+| `read_scene` | authoring session `authoring_read_scene` (fallback: subprocess `read_scene`) | no | E2E | 1/1 |
+| `modify_scene_node` | authoring session `authoring_modify_node` (fallback: subprocess `modify_node`) | no | E2E | 1/1 |
+| `remove_scene_node` | authoring session `authoring_remove_node` (fallback: subprocess `remove_node`) | no | E2E | 1/1 |
 | `read_project_settings` | local | no | E2E | 1/1 |
 | `modify_project_settings` | local | no | E2E | 1/1 |
 | `list_project_files` | local | no | E2E | 1/1 |
@@ -104,8 +104,8 @@ engine, never a mocked transport.
 | `game_get_nodes_in_group` | runtime `get_nodes_in_group` | no | E2E | 1/1 |
 | `game_find_nodes_by_class` | runtime `find_nodes_by_class` | no | E2E | 1/1 |
 | `game_reparent_node` | runtime `reparent_node` | no | E2E | 1/1 |
-| `attach_script` | subprocess `attach_script` | no | E2E | 1/1 |
-| `create_resource` | subprocess `create_resource` | no | E2E | 1/1 |
+| `attach_script` | authoring session `authoring_attach_script` (fallback: subprocess `attach_script`) | no | E2E | 1/1 |
+| `create_resource` | authoring session `authoring_create_resource` (fallback: subprocess `create_resource`) | no | E2E | 1/1 |
 | `read_file` | local | no | E2E | 1/1 |
 | `write_file` | local | no | E2E | 1/1 |
 | `delete_file` | local | no | E2E | 1/1 |
@@ -188,17 +188,17 @@ engine, never a mocked transport.
 | `game_audio_bus_layout` | runtime `audio_bus_layout` | no | E2E | 5/5 |
 | `game_audio_spatial` | runtime `audio_spatial` | no | E2E | 2/2 |
 | `rename_file` | local | no | E2E | 1/1 |
-| `manage_resource` | subprocess `manage_resource` | no | E2E | 2/2 |
+| `manage_resource` | authoring session `authoring_manage_resource` (fallback: subprocess `manage_resource`) | no | E2E | 2/2 |
 | `validate_script` | godot-cli | no | E2E | 1/1 |
 | `validate_scripts` | godot-cli | no | E2E | 1/1 |
 | `create_script` | local | no | E2E | 1/1 |
-| `manage_scene_signals` | subprocess `manage_scene_signals` | no | E2E | 3/3 |
+| `manage_scene_signals` | authoring session `authoring_manage_scene_signals` (fallback: subprocess `manage_scene_signals`) | no | E2E | 3/3 |
 | `manage_layers` | local | no | E2E | 2/2 |
 | `manage_plugins` | local | no | E2E | 3/3 |
 | `manage_shader` | local | no | E2E | 2/2 |
-| `manage_theme_resource` | subprocess `manage_theme_resource` | no | E2E | 3/3 |
+| `manage_theme_resource` | authoring session `authoring_manage_theme_resource` (fallback: subprocess `manage_theme_resource`) | no | E2E | 3/3 |
 | `set_main_scene` | local | no | E2E | 1/1 |
-| `manage_scene_structure` | subprocess `manage_scene_structure` | no | E2E | 3/3 |
+| `manage_scene_structure` | authoring session `authoring_manage_scene_structure` (fallback: subprocess `manage_scene_structure`) | no | E2E | 3/3 |
 | `manage_translations` | local | no | E2E | 3/3 |
 | `game_locale` | runtime `locale` | no | E2E | 3/3 |
 | `game_ui_control` | runtime `ui_control` | no | E2E | 4/4 |

@@ -2,14 +2,28 @@ import { existsSync } from 'fs';
 import { join } from 'path';
 
 import { createErrorResponse, errorMessage, validatePath, PathSecurity, type OperationParams, type ToolResponse } from './utils.js';
+import { AuthoringSessionUnavailableError, type AuthoringSessionManager } from './authoring-session-manager.js';
 import type { HeadlessOperationResult, HeadlessOperationRunner } from './headless-operation-runner.js';
+import { authoringBackendForOperation } from './tool-manifest.js';
 
-/** Coordinates validated tool operations that execute Godot headlessly. */
+/** Coordinates validated authoring operations and their declared backend fallback. */
 export class HeadlessOperationService {
-  constructor(private readonly runner: HeadlessOperationRunner, private readonly pathSecurity = new PathSecurity()) {}
+  constructor(
+    private readonly runner: HeadlessOperationRunner,
+    private readonly pathSecurity = new PathSecurity(),
+    private readonly authoringSession?: AuthoringSessionManager,
+  ) {}
 
-  public execute(operation: string, params: OperationParams, projectPath: string): Promise<HeadlessOperationResult> {
-    return this.runner.execute(operation, params, projectPath);
+  public async execute(operation: string, params: OperationParams, projectPath: string): Promise<HeadlessOperationResult> {
+    const backend = authoringBackendForOperation(operation);
+    if (backend && this.authoringSession) {
+      try {
+        return await this.authoringSession.execute(backend, params, projectPath);
+      } catch (error: unknown) {
+        if (!(error instanceof AuthoringSessionUnavailableError)) throw error;
+      }
+    }
+    return this.runner.execute(backend?.fallback.operation ?? operation, params, projectPath);
   }
 
   public async run(operation: string, projectPath: string, params: OperationParams): Promise<ToolResponse> {

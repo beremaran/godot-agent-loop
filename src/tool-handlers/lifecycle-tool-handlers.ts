@@ -21,6 +21,7 @@ export interface LifecycleToolHandlerContext {
   logDebug: (message: string) => void;
   startProjectProcess: (executable: string, args: string[], onExit: () => void, env?: NodeJS.ProcessEnv) => void;
   stopProjectProcess: () => GodotProcess | null;
+  stopAuthoringSession?: () => void;
   connectToGame: (projectPath: string) => Promise<void>;
   disconnectFromGame: () => void;
   injectInteractionServer: (projectPath: string) => void;
@@ -109,6 +110,11 @@ export class LifecycleToolHandlers {
       if (!godotPath) return createErrorResponse('Could not find a valid Godot executable path');
       if (!existsSync(join(args.projectPath, 'project.godot')))
         return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
+
+      // The game and authoring harness both depend on the generated runtime
+      // installation. Give the user-facing run exclusive ownership before it
+      // injects and launches the project.
+      this.context.stopAuthoringSession?.();
 
       if (this.context.getActiveProcess()) {
         this.context.logDebug('Killing existing Godot process before starting a new one');

@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { toolDefinitions, type ToolName } from '../src/tool-definitions.js';
 import { toolManifest } from '../src/tool-manifest.js';
-import { PRIVILEGED_RUNTIME_COMMANDS, RUNTIME_COMMANDS } from '../src/runtime-protocol.js';
+import { AUTHORING_COMMANDS, PRIVILEGED_RUNTIME_COMMANDS, RUNTIME_COMMANDS } from '../src/runtime-protocol.js';
 import { GameToolHandlers } from '../src/tool-handlers/game-tool-handlers.js';
 import { LifecycleToolHandlers } from '../src/tool-handlers/lifecycle-tool-handlers.js';
 import { ProjectToolHandlers } from '../src/tool-handlers/project-tool-handlers.js';
@@ -81,8 +81,11 @@ describe('tool manifest backend mapping', () => {
   it('maps every subprocess operation to exactly one tool and vice versa', () => {
     const registry = subprocessOperationRegistry();
     const operations = manifestEntries
-      .filter(([, entry]) => entry.backend.kind === 'subprocess')
-      .map(([, entry]) => (entry.backend as { operation: string }).operation)
+      .flatMap(([, entry]) => {
+        if (entry.backend.kind === 'subprocess') return [entry.backend.operation];
+        if (entry.backend.kind === 'authoring-session') return [entry.backend.fallback.operation];
+        return [];
+      })
       .sort();
     expect(operations).toEqual([...registry.keys()].sort());
   });
@@ -93,8 +96,11 @@ describe('tool manifest backend mapping', () => {
       const body = handlerBodies.project.get(entry.handler);
       expect(body, `${name} handler body`).toBeDefined();
       const executed = subprocessOperationOf(body!);
-      if (entry.backend.kind === 'subprocess') {
-        expect(executed, name).toBe(entry.backend.operation);
+      if (entry.backend.kind === 'subprocess' || entry.backend.kind === 'authoring-session') {
+        const operation = entry.backend.kind === 'subprocess'
+          ? entry.backend.operation
+          : entry.backend.fallback.operation;
+        expect(executed, name).toBe(operation);
       } else {
         expect(executed, `${name} declares ${entry.backend.kind} but executes an operation`).toBeNull();
       }
@@ -104,6 +110,16 @@ describe('tool manifest backend mapping', () => {
   it('registers every runtime command in the GDScript server', () => {
     const registry = runtimeCommandRegistry();
     for (const command of RUNTIME_COMMANDS) expect(registry.has(command), command).toBe(true);
+  });
+
+  it('maps every authoring session command to one tool with a subprocess fallback', () => {
+    const commands = manifestEntries.flatMap(([, entry]) =>
+      entry.backend.kind === 'authoring-session' ? [entry.backend.command] : []);
+    expect(commands.sort()).toEqual([...AUTHORING_COMMANDS].sort());
+    for (const [, entry] of manifestEntries) {
+      if (entry.backend.kind !== 'authoring-session') continue;
+      expect(entry.backend.fallback.kind).toBe('subprocess');
+    }
   });
 
   it('flags exactly the privileged runtime commands as privileged', () => {
@@ -160,8 +176,11 @@ describe('tool manifest action declarations', () => {
 
   it('matches the actions implemented by each subprocess operation', () => {
     for (const [name, entry] of manifestEntries) {
-      if (entry.backend.kind !== 'subprocess') continue;
-      const implementation = subprocessRegistry.get(entry.backend.operation)!;
+      if (entry.backend.kind !== 'subprocess' && entry.backend.kind !== 'authoring-session') continue;
+      const operation = entry.backend.kind === 'subprocess'
+        ? entry.backend.operation
+        : entry.backend.fallback.operation;
+      const implementation = subprocessRegistry.get(operation)!;
       const body = gdscriptFunctionBody(subprocessSource, implementation);
       expect(body, `${name} -> ${implementation}`).not.toBeNull();
       assertActionsMatch(name, entry, extractGdscriptActions(body!), body!);
@@ -170,7 +189,8 @@ describe('tool manifest action declarations', () => {
 
   it('matches the actions dispatched by TypeScript-implemented tools', () => {
     for (const [name, entry] of manifestEntries) {
-      if (entry.backend.kind === 'runtime' || entry.backend.kind === 'subprocess') continue;
+      if (entry.backend.kind === 'runtime' || entry.backend.kind === 'subprocess'
+        || entry.backend.kind === 'authoring-session') continue;
       if (!entry.actions) continue;
       const body = handlerBodies[entry.domain].get(entry.handler)!;
       assertActionsMatch(name, entry, extractTypescriptActions(body), body, "'");
