@@ -1,5 +1,8 @@
 name: Publish npm release
 
+# Kept workflow_dispatch-only so publication always requires an explicit wave
+# approval and exact confirmation string.
+
 on:
   workflow_dispatch:
     inputs:
@@ -33,9 +36,13 @@ jobs:
       - name: Verify the signed exact-version tag
         env:
           RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_SIGNING_KEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIsZdWjkdesADYJ5uI4zJwW1jtlGBXLc01aZoz3TTdvt
         run: |
-          git verify-tag "$RELEASE_TAG"
+          ALLOWED_SIGNERS="$RUNNER_TEMP/godot-agent-loop-allowed-signers"
+          printf '%s %s\n' 'berke@beremaran.com' "$RELEASE_SIGNING_KEY" > "$ALLOWED_SIGNERS"
+          git -c gpg.ssh.allowedSignersFile="$ALLOWED_SIGNERS" verify-tag "$RELEASE_TAG"
           test "$(git describe --tags --exact-match HEAD)" = "$RELEASE_TAG"
+          test "$(git rev-parse "$RELEASE_TAG^{}")" = "$(git rev-parse HEAD)"
           test "$(node -p 'require("./package.json").version')" = "${RELEASE_TAG#v}"
 
       - uses: actions/setup-node@v6

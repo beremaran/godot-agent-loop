@@ -44,6 +44,16 @@ describe('Godot support policy', () => {
     expect(workflow).not.toContain('node-version: 20');
   });
 
+  it('keeps npm publication manual and verifies the registered SSH signing key', () => {
+    const workflow = readRepoFile('.github/workflows/publish-npm.yml');
+    expect(workflow).toContain('workflow_dispatch:');
+    expect(workflow).toContain('publish-@beremaran/godot-agent-loop@1.0.0');
+    expect(workflow).toContain('gpg.ssh.allowedSignersFile="$ALLOWED_SIGNERS"');
+    expect(workflow).toContain('berke@beremaran.com');
+    expect(workflow).toContain('AAAAC3NzaC1lZDI1NTE5AAAAIIsZdWjkdesADYJ5uI4zJwW1jtlGBXLc01aZoz3TTdvt');
+    expect(workflow).toContain('test "$(git rev-parse "$RELEASE_TAG^{}")" = "$(git rev-parse HEAD)"');
+  });
+
   it('keeps generated E2E fixtures compatible with the declared floor', () => {
     const harness = readRepoFile('tests/e2e/helpers/harness.ts');
     expect(harness).toContain(`config/features=PackedStringArray("${COMPATIBILITY_FLOOR}")`);

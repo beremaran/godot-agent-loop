@@ -313,6 +313,14 @@ tool or action.
   section presents those source-backed values in that order, links the cold-run
   and deterministic evidence, states the Godot 4.4/4.7 and platform boundary,
   and explicitly rejects an unbounded-engine-control claim.)
+- [ ] Register and harden the manual npm publication workflow in the independent
+  repository. It must remain explicit-confirmation-only, cryptographically
+  verify the SSH-signed tag on a fresh runner, and refuse any checkout that is
+  not the exact tag target. (The workflow now constructs a temporary allowed
+  signers file from the registered public key, verifies the annotated tag and
+  exact target, and has a contract regression; `actionlint` 1.7.12 passes.
+  Completion awaits GitHub Actions API registration after this workflow-file
+  update.)
 - [ ] Publish a clean GitHub release with signed/tagged source and release notes,
   publish the npm package, publish/update the MCP Registry entry, then verify
   installation from each public artifact on a clean machine or container.
