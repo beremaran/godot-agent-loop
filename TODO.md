@@ -258,15 +258,17 @@ tool or action.
   project restoration. It passed against official Godot 4.4.1 and the primary
   Godot 4.7 engine; the full 4.7 matrix passed 201 tests, and SIGKILL recovery
   separately proves stale transient reclamation.)
-- [ ] Prepare AssetLib metadata: unique English name **Godot Agent Loop Bridge**
+- [x] Prepare AssetLib metadata: unique English name **Godot Agent Loop Bridge**
   (or the final product equivalent), Addons/Tools category, supported Godot
   version, SemVer release, repository and issue URLs, exact download commit,
   matching MIT license, plain-English description, square direct-link PNG/JPG
   icon of at least 128x128, and up to three screenshots/video previews. (The
-  source-backed payload generator, provisional exact-name uniqueness check,
-  category/version/license/URLs/description, 1254x1254 icon, and two real-editor
-  previews are ready and contract-tested. The exact download commit is correctly
-  still missing until the tested release tag exists, so this item remains open.)
+  source-backed payload generator, category/version/license/URLs/description,
+  1254x1254 icon, and two real-editor previews are contract-tested. The live
+  official Asset Library API returned zero name matches on 2026-07-14. Local
+  download commit `dc576948` is the single export-attributes child of the green
+  signed tag; its four exported addon files match the tested release ZIP
+  byte-for-byte, and `dist/assetlib-submission.json` pins that exact commit.)
 - [ ] Submit the tagged, tested addon through the official Godot Asset Library
   account and record review feedback in this plan. Treat AssetLib as a free/open
   community distribution channel; keep sponsorship or paid support separate.
@@ -321,10 +323,18 @@ tool or action.
   agents tools; this project gives them a tested feedback loop to author, run,
   observe, playtest, and independently verify Godot games.** Link the demo and
   evidence before the tool catalog.
-- [ ] Run the complete release gate after every packaging change and once more
+- [x] Run the complete release gate after every packaging change and once more
   from the exact release tag. Do not push registry, marketplace, or AssetLib
   metadata until the two upstream regressions and metadata-drift guard are
-  closed.
+  closed. (After the Pi Git-install packaging repair, local Godot 4.7 passed all
+  direct suites and all 201 MCP E2E tests. Public `main` run
+  [29332890032](https://github.com/beremaran/godot-agent-loop/actions/runs/29332890032)
+  and signed-tag run
+  [29333828519](https://github.com/beremaran/godot-agent-loop/actions/runs/29333828519)
+  each passed all 11 jobs for commit `75f8241`, including Godot 4.4/4.7,
+  Windows/macOS, both renderers, exports, and .NET. The final tag logs contain no
+  Node 20, deprecated-action, warning-command, or error-command markers; the
+  only annotation is GitHub's informational `macos-latest` migration notice.)
 
 ## P4: engine-surface gaps (resolved)
 

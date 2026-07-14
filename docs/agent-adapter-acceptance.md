@@ -53,8 +53,13 @@ declaration for `pngjs` before the candidate was accepted.
 ## Publication-dependent cases
 
 The exact `npx -y @beremaran/godot-agent-loop@1.0.0` command cannot resolve from
-the public npm registry until publication is approved and complete. Likewise,
-Git/npm installs from the selected new repository, a candidate tag, ChatGPT
-desktop cache pickup, and update behavior against those public sources remain
-release-gated. They must be rerun from the exact candidate tag and again from
-the public artifacts.
+the public npm registry until publication is approved and complete. Public
+signed tag `v1.0.0` was cloned and signature-verified at `75f8241`. From isolated
+homes, Claude Code installed version 1.0.0 with all four skills and the pinned
+MCP entry, Codex installed and removed the same public tag marketplace snapshot,
+and Pi installed, reconciled, and removed `git:github.com/beremaran/godot-agent-loop@v1.0.0`
+using its production-only dependency path. The final npm tarball independently
+starts the 39-tool server, calls Godot 4.7, discovers a hidden tool, and performs
+the OpenCode install/uninstall lifecycle. Public npm/npx startup, npm-source Pi
+update behavior, and ChatGPT desktop cache pickup remain release-gated and must
+be rerun after their publication waves.
