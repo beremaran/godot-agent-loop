@@ -14,6 +14,12 @@ Other integrations give agents tools. Godot Agent Loop gives them a tested
 feedback loop to author, run, observe, playtest, and independently verify Godot
 games.
 
+[![Watch the 65-second cold-agent proof](assets/demo/godot-agent-loop-launch-poster.png)](assets/demo/godot-agent-loop-launch.mp4)
+
+[Watch the 65-second proof](assets/demo/godot-agent-loop-launch.mp4) ·
+[Read the exact run evidence](docs/launch/launch-evidence.md) ·
+[Inspect the resulting project](examples/launch-demo)
+
 <!-- generated-coverage-badge:start -->
 [![E2E tools: 167/167](https://img.shields.io/badge/E2E_tools-167%2F167-brightgreen)](docs/coverage/coverage-report.md)
 <!-- generated-coverage-badge:end -->
@@ -28,7 +34,7 @@ Then point the agent at a project directory—or an empty directory—and descri
 the playable result. The server teaches and supports this loop:
 
 ```text
-author → validate → run → observe → playtest → assert → refine
+author → validate → run → observe → playtest → verify → refine
 ```
 
 The compact default surface exposes 39 tools for that loop. `godot_tools`
@@ -40,12 +46,13 @@ automatically.
 
 - **167/167 tools** exercised through the complete MCP-to-Godot path.
 - **358 public actions** traced to resolving tests.
-- **198 full-path MCP E2E tests** in the current Godot 4.7 release candidate.
+- **201 full-path MCP E2E tests** in the current Godot 4.7 release candidate.
 - **81.56% smaller default schema surface**, with all specialized tools still
   available through `godot_tools`.
 - A cold agent built and independently verified a playable win/lose game with
-  zero human corrections; see the
-  [acceptance record](docs/golden-agent-acceptance.md).
+  zero human corrections in 391.795 seconds using 103 MCP calls and no built-in
+  tools; see the [launch evidence](docs/launch/launch-evidence.md) and
+  [deterministic acceptance record](docs/golden-agent-acceptance.md).
 - Privileged reflection, code execution, and networking groups are denied by
   default, and the editor provides a human **Pause Agent** control.
 

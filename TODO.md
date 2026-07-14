@@ -87,11 +87,15 @@ tool or action.
   `product.json`; generation and contract tests lock the npm package, MCP
   Registry entry, Claude/Codex manifests, Pi adapter, addon, and runtime schema
   to that version.)
-- [ ] Rewrite the README first screen around the product outcome: name and
+- [x] Rewrite the README first screen around the product outcome: name and
   tagline, short demo, one-command setup, proof badges, and the author -> run ->
   observe -> playtest -> verify loop. Move installation ahead of the long tool
   inventory and move detailed lineage/history below the product workflow without
-  weakening attribution.
+  weakening attribution. (The first screen now leads with the selected name,
+  tagline, outcome, linked 65-second proof, one-command install, generated E2E
+  badge, and author → validate → run → observe → playtest → verify → refine
+  loop. The concise proof/support boundary precedes the inventory, while the
+  complete lineage and MIT notices remain prominent below the workflow.)
 
 ### Shared agent workflow bundle
 
@@ -253,16 +257,26 @@ tool or action.
 
 ### Launch evidence and publication
 
-- [ ] Produce one 60–90 second proof-oriented launch video: start from an empty
+- [x] Produce one 60–90 second proof-oriented launch video: start from an empty
   directory, have a cold agent build a small game, show the editor following
   activity, exercise win and lose states, verify UI/log/rendered evidence, and
   demonstrate the human Pause Agent control. Publish the exact prompt, model,
-  server version, elapsed time, and resulting project or replay.
-- [ ] Create a concise comparison/proof section that leads with 167/167 E2E
-  tools, 358 traced actions, 198 full-path E2E tests, the 39-tool/81.56% compact
+  server version, elapsed time, and resulting project or replay. (The SHA-pinned
+  65-second 1080p H.264 proof shows the exact empty-start prompt, real editor
+  activity, real Pause/Resume refusal, PLAYING/WIN/LOSE rendered evidence, and
+  5/5 compound verification. `docs/launch/launch-evidence.md` records Claude
+  Sonnet 5/high, server 1.0.0 commit, 391.795 seconds, 104 turns, 103 MCP-only
+  calls, zero corrections, exact prompt, four-file project, screenshots, and
+  deterministic replay. A container-level contract parses its duration,
+  dimensions, codec, hashes, and linked artifacts.)
+- [x] Create a concise comparison/proof section that leads with 167/167 E2E
+  tools, 358 traced actions, 201 full-path E2E tests, the 39-tool/81.56% compact
   surface, the cold-agent acceptance run, tested Godot versions, and
   default-denied privileged groups. Do not lead with raw tool count or claim
-  unbounded/full engine control.
+  unbounded/full engine control. (README's first-screen **Proof before claims**
+  section presents those source-backed values in that order, links the cold-run
+  and deterministic evidence, states the Godot 4.4/4.7 and platform boundary,
+  and explicitly rejects an unbounded-engine-control claim.)
 - [ ] Publish a clean GitHub release with signed/tagged source and release notes,
   publish the npm package, publish/update the MCP Registry entry, then verify
   installation from each public artifact on a clean machine or container.

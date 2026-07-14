@@ -57,11 +57,12 @@
     "watch": "tsc --watch",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:godot": "npm run test:godot:typecheck && npm run test:godot:validate-script && npm run test:godot:operations && npm run test:godot:runtime",
+    "test:godot": "npm run test:godot:typecheck && npm run test:godot:validate-script && npm run test:godot:operations && npm run test:godot:runtime && npm run test:godot:launch-demo",
     "test:godot:typecheck": "tests/godot/run-typecheck.sh",
     "test:godot:validate-script": "tests/godot/run-validate-script.sh",
     "test:godot:operations": "tests/godot/run-headless-operations.sh",
     "test:godot:runtime": "tests/godot/run-integration-tests.sh",
+    "test:godot:launch-demo": "tests/godot/run-launch-demo.sh",
     "lint": "eslint . && npm run lint:md",
     "lint:md": "markdownlint-cli2 \"**/*.md\" \"#node_modules\"",
     "lint:md:fix": "markdownlint-cli2 --fix \"**/*.md\" \"#node_modules\"",
@@ -69,7 +70,9 @@
     "test:golden-agent": "npm run build && vitest run --config vitest.e2e.config.ts tests/e2e/golden-agent-game.test.ts",
     "assetlib:pack": "node scripts/build-assetlib-archive.js",
     "assetlib:preview": "node scripts/capture-addon-preview.js",
-    "assetlib:submission": "node scripts/build-assetlib-submission.js"
+    "assetlib:submission": "node scripts/build-assetlib-submission.js",
+    "launch:video": "node scripts/build-launch-video.js",
+    "release:candidate": "node scripts/build-release-candidate.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

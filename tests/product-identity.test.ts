@@ -94,7 +94,7 @@ describe('Godot Agent Loop product identity', () => {
       product.tagline,
       product.category,
       product.npm.package,
-      'author → validate → run → observe → playtest → assert → refine',
+      'author → validate → run → observe → playtest → verify → refine',
       '167/167 tools',
       '358 public actions',
       '39 tools',

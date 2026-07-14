@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 1,
+  "runDate": "2026-07-14",
+  "subject": {
+    "client": "Claude Code 2.1.208",
+    "model": "claude-sonnet-5",
+    "effort": "high",
+    "builtInToolsEnabled": false,
+    "pluginSkillsLoaded": false,
+    "humanCorrections": 0
+  },
+  "server": {
+    "name": "Godot Agent Loop",
+    "version": "1.0.0",
+    "sourceCommit": "8ed358c1d050f5e333cb5af22dad9194e29de530",
+    "toolSurface": "core",
+    "advertisedToolCount": 39,
+    "godotVersion": "4.7.stable.official.5b4e0cb0f"
+  },
+  "task": {
+    "startingState": "empty allowed directory",
+    "prompt": "docs/launch/agent-prompt.txt",
+    "promptSha256": "8342b494fe1e9027f92328026dcd1dffccda322c9f5c6528140f5853a842be1d"
+  },
+  "result": {
+    "outcome": "success",
+    "durationMs": 391795,
+    "modelTurns": 104,
+    "mcpToolCalls": 103,
+    "uniqueMcpTools": 25,
+    "nonMcpToolCalls": 0,
+    "verifiedStates": [
+      "PLAYING",
+      "WIN",
+      "LOSE"
+    ],
+    "compoundVerification": {
+      "passed": true,
+      "assertionsPassed": 5,
+      "assertionsTotal": 5,
+      "screenshotWidth": 1152,
+      "screenshotHeight": 648,
+      "screenshotSha256": "4e1a66b8fb3891f7f06208bf96b9df12affba19fdb8bd15706ef1910d351cb89",
+      "stopped": true,
+      "teardown": true
+    },
+    "serverExit": {
+      "runtimeProcesses": 0,
+      "transientAddonResidue": false,
+      "overrideResidue": false
+    }
+  },
+  "toolUsage": {
+    "add_node": 4,
+    "attach_script": 1,
+    "create_project": 1,
+    "create_scene": 1,
+    "create_script": 2,
+    "editor_control": 4,
+    "game_get_logs": 3,
+    "game_get_node_info": 2,
+    "game_get_scene_tree": 1,
+    "game_get_ui": 9,
+    "game_key_press": 33,
+    "game_key_release": 1,
+    "game_screenshot": 7,
+    "game_wait": 10,
+    "launch_editor": 1,
+    "list_project_files": 1,
+    "manage_input_map": 2,
+    "modify_scene_node": 6,
+    "read_scene": 1,
+    "run_project": 4,
+    "save_scene": 1,
+    "set_main_scene": 1,
+    "stop_project": 4,
+    "validate_script": 2,
+    "verify_project": 1
+  },
+  "artifacts": {
+    "project": {
+      "root": "examples/launch-demo",
+      "files": {
+        "project.godot": "8d3700a71d32877bc9920fedc5a86b293b860cbeda18e3083b55d46a08c7f86a",
+        "scenes/Main.tscn": "b8ce9ba404e025ea8df28c88c10d99cadb01efaf8f36a59ed4f4d6a9bc906015",
+        "scripts/Main.gd": "635b3c0ee417e076839df3b6490d785e4b9a639079d2604a533872f75592f80e",
+        "scripts/Main.gd.uid": "a51325f4da95bef5d05c635a4febb355cc451e95bf143cef122314d7f8b55411"
+      }
+    },
+    "screenshots": {
+      "PLAYING": "assets/demo/launch-playing.png",
+      "WIN": "assets/demo/launch-win.png",
+      "LOSE": "assets/demo/launch-lose.png"
+    },
+    "replay": "tests/e2e/golden-agent-game.test.ts",
+    "video": "assets/demo/godot-agent-loop-launch.mp4",
+    "videoSha256": "da0e894c010ccb2aaba61b0f65d1278651d55493f13ce94d7d12d4f5731da148",
+    "poster": "assets/demo/godot-agent-loop-launch-poster.png",
+    "posterSha256": "916081b1f03a25bc65fd068c1c083ab60f3fadac825398f6ed1c81e5387821db"
+  },
+  "observedSelectionFindings": [
+    {
+      "id": "structured-property-shape-repair",
+      "observation": "The agent initially supplied Vector2 and Color properties as arrays; independent runtime inspection exposed zeroed values, and the agent repaired them with object-shaped values."
+    },
+    {
+      "id": "held-input-discovery-missed",
+      "observation": "The agent used 33 core game_key_press calls to reach WIN instead of searching godot_tools for the hidden game_key_hold operation."
+    }
+  ]
+}

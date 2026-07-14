@@ -3,6 +3,7 @@ name: Godot integration tests
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   pull_request:
   schedule:
     # Re-check both the compatibility floor and primary target every Monday.
@@ -73,11 +74,17 @@ jobs:
       - name: Type-check the shipped scripts with warnings promoted to errors
         run: tests/godot/run-typecheck.sh
 
+      - name: Validate autoload-aware script diagnostics
+        run: tests/godot/run-validate-script.sh
+
       - name: Run every operation against a fixture project
         run: xvfb-run -a tests/godot/run-headless-operations.sh
 
       - name: Run the runtime server integration tests
         run: tests/godot/run-integration-tests.sh
+
+      - name: Parse and start the cold-agent launch project
+        run: tests/godot/run-launch-demo.sh
 
       - uses: actions/setup-node@v4
         with:

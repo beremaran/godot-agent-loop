@@ -1,0 +1,59 @@
+name: Publish npm release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Signed, fully tested release tag
+        required: true
+        default: v1.0.0
+      confirmation:
+        description: Type publish-@beremaran/godot-agent-loop@1.0.0
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: npm
+    steps:
+      - name: Require the exact publication confirmation
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: test "$CONFIRMATION" = "publish-@beremaran/godot-agent-loop@1.0.0"
+
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+
+      - name: Verify the signed exact-version tag
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          git verify-tag "$RELEASE_TAG"
+          test "$(git describe --tags --exact-match HEAD)" = "$RELEASE_TAG"
+          test "$(node -p 'require("./package.json").version')" = "${RELEASE_TAG#v}"
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Install and rebuild the exact source
+        run: npm ci --ignore-scripts
+
+      - name: Recheck TypeScript, contracts, lint, and generated evidence
+        run: npm run check
+
+      - name: Build the exact npm tarball
+        run: npm pack --pack-destination dist
+
+      - name: Publish the tested tarball with provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish dist/beremaran-godot-agent-loop-1.0.0.tgz --access public --provenance

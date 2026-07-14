@@ -1,0 +1,15 @@
+You are the cold-start launch test subject for Godot Agent Loop 1.0.0. You have only its 39-tool core MCP surface.
+
+Starting from the empty allowed directory, build a small playable Godot game at `/tmp/godot-agent-loop-launch-1.0.0/project`.
+
+Requirements:
+
+- Create the project, a main scene, and attached typed GDScript through the MCP server.
+- Show a visible player, green goal, red hazard, and a status label with PLAYING, WIN, and LOSE states.
+- Add a `move_right` input action mapped to D and a `lose` action mapped to L. Moving right must reach the goal and win; the lose action must lose.
+- Open the Godot editor early and leave it open while authoring so a human can watch Agent Activity follow your work.
+- Playtest WIN and LOSE in separate clean runs.
+- Independently verify live UI text, logs, and rendered screenshots, then finish with a passing `verify_project` compound check.
+- Stop the running game and leave only intentional project files. Do not assume any files already exist.
+
+Return a concise evidence summary naming the authored files, observed states, rendered evidence, compound verification result, and cleanup result.
