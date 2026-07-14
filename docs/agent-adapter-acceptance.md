@@ -37,8 +37,10 @@ changed.
 The exact candidate npm tarball was also installed into an empty npm project.
 Its binary ran without checkout dependencies, previewed/applied/uninstalled the
 OpenCode adapter, exposed all four skills through native OpenCode discovery, and
-installed/listed/removed as a Pi tarball package. This check caught and fixed a
-missing runtime declaration for `pngjs` before the candidate was accepted.
+installed/listed/loaded/removed in Pi from the dependency-complete npm-installed
+package tree. Pi does not load a raw `.tgz` path directly; the public `npm:` path
+performs that installation step. This check caught and fixed a missing runtime
+declaration for `pngjs` before the candidate was accepted.
 
 ## Publication-dependent cases
 
