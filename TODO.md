@@ -188,9 +188,15 @@ tool or action.
 - [ ] Test local, Git, and npm Pi installation, plus update, disable, reload, and
   uninstall behavior. Document that Pi extensions execute with the user's system
   access and keep all mutation/privilege gates enforced by the MCP server.
-  (Pi 0.80.2 installs, lists, runs the MCP smoke, and removes the local package;
-  the portable bundle guide documents the trust boundary. Git/npm/update and
-  configuration disable/reload paths remain pending candidate artifacts.)
+  (Pi 0.80.2 installs, lists, updates, disables/re-enables, live-reloads, and
+  removes the local package in an isolated native client home. Startup and
+  reload both connect 39 tools and expose all four skills; native `pi config`
+  filtering suppresses the extension without suppressing its skills, and
+  uninstall leaves no package or server process. The exact candidate also
+  installs/loads/removes from a dependency-complete npm-installed tree, and the
+  portable bundle guide documents the trust boundary. Tagged Git and public npm
+  installs, plus update behavior against those public sources, remain
+  publication-dependent.)
 
 ### Persistent Godot Asset Library addon
 

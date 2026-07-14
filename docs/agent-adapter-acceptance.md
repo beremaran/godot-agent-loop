@@ -31,8 +31,16 @@ changed.
   its cache, and reported the plugin enabled with the local source path.
 - OpenCode ran the built `setup opencode --write`, resolved the generated MCP
   entry, and returned all four canonical skills from `opencode debug skill`.
-- Pi installed the local package, listed it, removed it, and reported no package
-  remaining. The automated MCP case separately exercised its extension.
+- Pi installed and listed the local package, then started its native interactive
+  surface with telemetry and network access disabled. Startup exposed all four
+  canonical skills and reported `Godot Agent Loop connected (39 tools)`.
+  `/reload` shut down and recreated the extension runtime, then reported the
+  same 39-tool connection and skill inventory. `pi update <local-source>`
+  reconciled the package. `pi config` disabled and re-enabled the MCP extension
+  through Pi's native package filter while leaving the four skills available.
+  Removal left an empty package list and no Godot Agent Loop server process.
+  The automated MCP case separately exercises a real tool call, hidden-tool
+  discovery, and structured result forwarding through the extension.
 
 The exact candidate npm tarball was also installed into an empty npm project.
 Its binary ran without checkout dependencies, previewed/applied/uninstalled the
@@ -47,5 +55,6 @@ declaration for `pngjs` before the candidate was accepted.
 The exact `npx -y @beremaran/godot-agent-loop@1.0.0` command cannot resolve from
 the public npm registry until publication is approved and complete. Likewise,
 Git/npm installs from the selected new repository, a candidate tag, ChatGPT
-desktop cache pickup, and public update flows remain release-gated. They must be
-rerun from the exact candidate commit or tag and again from the public artifacts.
+desktop cache pickup, and update behavior against those public sources remain
+release-gated. They must be rerun from the exact candidate tag and again from
+the public artifacts.
