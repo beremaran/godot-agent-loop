@@ -52,6 +52,10 @@ describe('Godot support policy', () => {
     expect(workflow).toContain('berke@beremaran.com');
     expect(workflow).toContain('AAAAC3NzaC1lZDI1NTE5AAAAIIsZdWjkdesADYJ5uI4zJwW1jtlGBXLc01aZoz3TTdvt');
     expect(workflow).toContain('test "$(git rev-parse "$RELEASE_TAG^{}")" = "$(git rev-parse HEAD)"');
+    expect(workflow).toContain('Godot_v4.7-stable_linux.x86_64.zip');
+    expect(workflow).toContain('GODOT_ARCHIVE_SHA256: 0b1a6c54c2c619c12e169fe9241edda4b81080b519451cec2984bf0d2c6cb73c');
+    expect(workflow).toContain('echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"');
+    expect(workflow).toContain('sha256sum --check --strict');
   });
 
   it('keeps generated E2E fixtures compatible with the declared floor', () => {

@@ -45,6 +45,23 @@ jobs:
           test "$(git rev-parse "$RELEASE_TAG^{}")" = "$(git rev-parse HEAD)"
           test "$(node -p 'require("./package.json").version')" = "${RELEASE_TAG#v}"
 
+      - name: Install the audited Godot 4.7 engine
+        env:
+          GODOT_ARCHIVE_SHA256: 0b1a6c54c2c619c12e169fe9241edda4b81080b519451cec2984bf0d2c6cb73c
+        run: |
+          GODOT_ARCHIVE="$RUNNER_TEMP/Godot_v4.7-stable_linux.x86_64.zip"
+          GODOT_DIR="$RUNNER_TEMP/godot-4.7-stable"
+          curl --fail --location --retry 3 --silent --show-error \
+            --output "$GODOT_ARCHIVE" \
+            https://github.com/godotengine/godot-builds/releases/download/4.7-stable/Godot_v4.7-stable_linux.x86_64.zip
+          printf '%s  %s\n' "$GODOT_ARCHIVE_SHA256" "$GODOT_ARCHIVE" | sha256sum --check --strict
+          mkdir -p "$GODOT_DIR"
+          unzip -q "$GODOT_ARCHIVE" -d "$GODOT_DIR"
+          GODOT_BIN="$GODOT_DIR/Godot_v4.7-stable_linux.x86_64"
+          chmod +x "$GODOT_BIN"
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+          "$GODOT_BIN" --version
+
       - uses: actions/setup-node@v6
         with:
           node-version: "24"
