@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "godot-mcp": {
+      "command": "npx",
+      "args": ["-y", "@beremaran/godot-mcp@3.0.0"]
+    }
+  }
+}

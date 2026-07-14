@@ -513,15 +513,28 @@ installed by `EditorPluginInstaller`, so the user installs nothing inside Godot.
 
 #### 7c: skills, so the agent lands on its feet
 
-- [ ] Ship the server as a plugin bundling **skills** alongside the MCP config, so
+- [x] Ship the server as a plugin bundling **skills** alongside the MCP config, so
   procedural knowledge travels with the tools instead of living in a README the
-  agent never reads.
-- [ ] Author the skills the end goal actually needs: building a game from nothing,
+  agent never reads. (`claude-plugin/` contains the Claude manifest, root MCP
+  configuration pinned to the matching npm server release, and its skills; the
+  npm package includes that directory. The repository also publishes a validated
+  `.claude-plugin/marketplace.json`, so Claude Code can add the GitHub repository
+  as a marketplace and install the bundled server and workflows together.)
+- [x] Author the skills the end goal actually needs: building a game from nothing,
   verifying a change against the running game, and debugging a game that misbehaves.
-  Each should name the tools it uses and the order to use them in.
-- [ ] Confirm the plugin/skill packaging mechanism against current Claude Code
+  Each should name the tools it uses and the order to use them in. (The concise
+  `build-godot-game`, `verify-godot-change`, and `debug-godot-game` skills each
+  prescribe ordered author/run/observe/assert or reproduce/isolate/fix/retest
+  workflows, compound-tool preference, independent evidence, and cleanup. A
+  contract test locks their trigger metadata, tool names, order, and evidence
+  language.)
+- [x] Confirm the plugin/skill packaging mechanism against current Claude Code
   documentation rather than assumption; treat the bundling format as unverified
-  until checked.
+  until checked. (`docs/claude-code-plugin.md` records the 2026-07-14 primary-doc
+  check for `.claude-plugin/plugin.json`, `.mcp.json`, `skills/<name>/SKILL.md`,
+  and repository marketplaces. Claude Code 2.1.208 validates both marketplace
+  and plugin, all three skill-creator validators pass, and `npm pack --dry-run`
+  confirms the five plugin files ship in the package.)
 
 #### 7d: prove it, or it is not true
 

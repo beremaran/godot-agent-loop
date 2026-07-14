@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "godot-mcp",
+  "displayName": "Godot MCP",
+  "version": "3.0.0",
+  "description": "Build, verify, and debug Godot games with a tested MCP server and procedural skills.",
+  "author": {
+    "name": "Berke Arslan"
+  },
+  "homepage": "https://github.com/beremaran/godot-mcp",
+  "repository": "https://github.com/beremaran/godot-mcp",
+  "license": "MIT",
+  "keywords": ["godot", "mcp", "game-development"]
+}

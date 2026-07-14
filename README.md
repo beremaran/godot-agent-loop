@@ -643,6 +643,20 @@ npm run build
 
 ## Configuration
 
+### Claude Code plugin
+
+The repository ships a Claude Code plugin that starts the matching npm MCP
+server and bundles skills for building, verifying, and debugging Godot games:
+
+```text
+/plugin marketplace add beremaran/godot-mcp
+/plugin install godot-mcp@godot-mcp
+```
+
+For a local checkout, use `claude --plugin-dir ./claude-plugin`. See
+[`docs/claude-code-plugin.md`](docs/claude-code-plugin.md) for the verified
+layout and validation commands.
+
 ### Claude Code
 
 Add to your Claude Code MCP settings:

@@ -1,0 +1,15 @@
+{
+  "name": "godot-mcp",
+  "owner": {
+    "name": "Berke Arslan"
+  },
+  "description": "Godot game-development tools and agent workflows.",
+  "plugins": [
+    {
+      "name": "godot-mcp",
+      "source": "./claude-plugin",
+      "description": "Build, verify, and debug Godot games through MCP.",
+      "category": "development"
+    }
+  ]
+}
