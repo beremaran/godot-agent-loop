@@ -196,23 +196,44 @@ describe('project settings and configuration tools through MCP', () => {
     });
     expect(added.isError, added.text).toBe(false);
 
+    const secondKey = await active.call('manage_input_map', {
+      projectPath: active.projectPath,
+      action: 'add',
+      actionName: 'e2e_jump',
+      key: 'W',
+      deadzone: 0.75,
+    });
+    expect(secondKey.isError, secondKey.text).toBe(false);
+
+    // Repeating a binding must be idempotent and must never write a second
+    // project.godot property with the same action name.
+    const duplicate = await active.call('manage_input_map', {
+      projectPath: active.projectPath,
+      action: 'add',
+      actionName: 'e2e_jump',
+      key: 'space',
+    });
+    expect(duplicate.isError, duplicate.text).toBe(false);
+    const rawInputMap = readFileSync(join(active.projectPath, 'project.godot'), 'utf8');
+    expect(rawInputMap.match(/^e2e_jump=/gm)).toHaveLength(1);
+
     const listed = await active.call('manage_input_map', { projectPath: active.projectPath, action: 'list' });
     expect(listed.text).toContain('e2e_jump');
 
-    // Independent observation: the engine's InputMap holds the action, its deadzone,
-    // and a key event bound to the requested scancode.
+    // Independent observation: the live engine, not the edited text or handler
+    // response, sees both distinct bindings and the original deadzone.
     await launch(active);
     const observed = await engineEval(active, [
       'var events = InputMap.action_get_events("e2e_jump")',
       'return {',
       '\t"has": InputMap.has_action("e2e_jump"),',
       '\t"deadzone": InputMap.action_get_deadzone("e2e_jump"),',
-      '\t"keycode": events[0].physical_keycode if events.size() > 0 else 0,',
+      '\t"keycodes": events.map(func(event: InputEvent) -> int: return event.physical_keycode),',
       '}',
-    ].join('\n')) as { has: boolean; deadzone: number; keycode: number };
+    ].join('\n')) as { has: boolean; deadzone: number; keycodes: number[] };
     expect(observed.has).toBe(true);
     expect(observed.deadzone).toBeCloseTo(0.25, 5);
-    expect(observed.keycode).toBe(32); // KEY_SPACE
+    expect(observed.keycodes).toEqual([32, 87]); // KEY_SPACE, KEY_W
 
     const removed = await active.call('manage_input_map', {
       projectPath: active.projectPath, action: 'remove', actionName: 'e2e_jump',
@@ -624,6 +645,63 @@ describe('project file and script tools through MCP', () => {
     });
     expect(absent.isError).toBe(true);
     expect(absent.text).toMatch(/does not exist/i);
+  });
+
+  it('validate_script resolves multiple autoloads and still performs a fresh real compile', async () => {
+    const active = await startedServer();
+    await active.call('write_file', {
+      projectPath: active.projectPath,
+      filePath: 'first_autoload.gd',
+      content: 'extends Node\n\nfunc value() -> int:\n\treturn 20\n',
+    });
+    await active.call('write_file', {
+      projectPath: active.projectPath,
+      filePath: 'second_autoload.gd',
+      content: 'extends Node\n\nfunc value() -> int:\n\treturn 22\n',
+    });
+    expect((await active.call('manage_autoloads', {
+      projectPath: active.projectPath, action: 'add', name: 'FirstAutoload', path: 'res://first_autoload.gd',
+    })).isError).toBe(false);
+    expect((await active.call('manage_autoloads', {
+      projectPath: active.projectPath, action: 'add', name: 'SecondAutoload', path: 'res://second_autoload.gd',
+    })).isError).toBe(false);
+
+    const scriptPath = 'scripts/autoload_consumer.gd';
+    await active.call('write_file', {
+      projectPath: active.projectPath,
+      filePath: scriptPath,
+      content: [
+        'extends Node',
+        '',
+        'var combined: int = FirstAutoload.value() + SecondAutoload.value()',
+        '',
+      ].join('\n'),
+    });
+    const valid = await active.call('validate_script', { projectPath: active.projectPath, scriptPath });
+    expect(valid.isError, valid.text).toBe(false);
+    expect(payload(valid.text)).toMatchObject({ valid: true, errorCount: 0 });
+
+    // Rewrite the same path so a stale ResourceCache entry could conceal the
+    // regression. The validator must recompile and report this genuine error.
+    await active.call('write_file', {
+      projectPath: active.projectPath,
+      filePath: scriptPath,
+      content: [
+        'extends Node',
+        '',
+        'var combined: int = FirstAutoload.value() + SecondAutoload.value()',
+        'var broken: int = "not an integer"',
+        '',
+      ].join('\n'),
+    });
+    const invalid = await active.call('validate_script', { projectPath: active.projectPath, scriptPath });
+    expect(invalid.isError, invalid.text).toBe(false);
+    const report = payload(invalid.text) as { valid: boolean; errorCount: number; errors: { file?: string; line?: number }[] };
+    expect(report.valid).toBe(false);
+    expect(report.errorCount).toBeGreaterThan(0);
+    expect(report.errors).toEqual(expect.arrayContaining([
+      expect.objectContaining({ file: 'res://scripts/autoload_consumer.gd', line: 4 }),
+    ]));
   });
 
   it('validate_scripts covers explicit, changed, all, and invalid scopes against real Godot', async () => {

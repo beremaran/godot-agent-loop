@@ -5012,6 +5012,9 @@
       "level": "E2E",
       "tests": [
         "tests/validate-script.test.ts::parseGodotScriptDiagnostics",
+        "tests/godot/run-validate-script.sh::multiple autoloads resolve during validation",
+        "tests/godot/run-validate-script.sh::rewritten target receives a fresh real compile",
+        "tests/e2e/project-config-tools.test.ts::validate_script resolves multiple autoloads and still performs a fresh real compile",
         "tests/e2e/project-config-tools.test.ts::validate_script reports real Godot parse errors and rejects non-GDScript",
         "tests/e2e/project-config-tools.test.ts::create_script builds source from options and Godot parses the result",
         "tests/e2e/project-config-tools.test.ts::exposes every configuration tool through MCP discovery"
@@ -5020,6 +5023,9 @@
         "*": {
           "tests": [
             "tests/validate-script.test.ts::parseGodotScriptDiagnostics",
+            "tests/godot/run-validate-script.sh::multiple autoloads resolve during validation",
+            "tests/godot/run-validate-script.sh::rewritten target receives a fresh real compile",
+            "tests/e2e/project-config-tools.test.ts::validate_script resolves multiple autoloads and still performs a fresh real compile",
             "tests/e2e/project-config-tools.test.ts::validate_script reports real Godot parse errors and rejects non-GDScript",
             "tests/e2e/project-config-tools.test.ts::create_script builds source from options and Godot parses the result"
           ]

@@ -43,6 +43,65 @@ const DOCKER_BASE_IMAGES = new Set(['ubuntu:22.04', 'ubuntu:24.04']);
 const GODOT_EXPORT_VERSION = /^4\.\d+(?:\.\d+)?(?:-stable)?$/;
 const EXPORT_PRESET_NAME = /^[A-Za-z0-9][A-Za-z0-9 _./-]{0,127}$/;
 
+const INPUT_EVENT_KEY_PREFIX = 'Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":0';
+const INPUT_EVENT_KEY_SUFFIX = ',"key_label":0,"unicode":0,"location":0,"echo":false,"script":null)';
+
+export interface InputMapActionMerge {
+  content: string;
+  existed: boolean;
+  eventAdded: boolean;
+}
+
+/** Merge one physical key into an existing one-line project.godot input entry. */
+export function mergeInputMapAction(
+  content: string,
+  actionName: string,
+  deadzone: number,
+  physicalKeycode?: number,
+): InputMapActionMerge {
+  const escapedName = actionName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const inputSection = /(^|\n)\[input\][^\n]*(?:\n|$)([\s\S]*?)(?=\n\[[^\n]+\](?:\n|$)|$)/.exec(content);
+  const newEvent = physicalKeycode === undefined
+    ? ''
+    : `${INPUT_EVENT_KEY_PREFIX},"physical_keycode":${physicalKeycode}${INPUT_EVENT_KEY_SUFFIX}`;
+
+  if (inputSection) {
+    const sectionBody = inputSection[2];
+    const actionPattern = new RegExp(`^${escapedName}\\s*=\\s*(\\{[^\\r\\n]*\\})[ \\t]*$`, 'm');
+    const existing = actionPattern.exec(sectionBody);
+    if (existing) {
+      const block = existing[1];
+      const existingDeadzone = /"deadzone"\s*:\s*([\d.eE+-]+)/.exec(block)?.[1] ?? String(deadzone);
+      const existingEvents = /"events"\s*:\s*\[([\s\S]*?)\]\s*(?:,|\})/.exec(block)?.[1] ?? '';
+      const duplicate = physicalKeycode !== undefined
+        && new RegExp(`"physical_keycode"\\s*:\\s*${physicalKeycode}\\b`).test(existingEvents);
+      if (!newEvent || duplicate) {
+        return { content, existed: true, eventAdded: false };
+      }
+      const mergedEvents = newEvent && !duplicate
+        ? (existingEvents.trim() ? `${existingEvents}, ${newEvent}` : newEvent)
+        : existingEvents;
+      const replacement = mergedEvents.trim()
+        ? `${actionName}={"deadzone": ${existingDeadzone}, "events": [${mergedEvents}]}`
+        : `${actionName}={"deadzone": ${existingDeadzone}}`;
+      const updatedBody = sectionBody.replace(actionPattern, replacement);
+      const bodyStart = inputSection.index + inputSection[0].indexOf(sectionBody);
+      return {
+        content: `${content.slice(0, bodyStart)}${updatedBody}${content.slice(bodyStart + sectionBody.length)}`,
+        existed: true,
+        eventAdded: Boolean(newEvent) && !duplicate,
+      };
+    }
+  }
+
+  const events = newEvent ? `, "events": [${newEvent}]` : '';
+  const inputLine = `${actionName}={"deadzone": ${deadzone}${events}}`;
+  const updated = content.includes('[input]')
+    ? content.replace('[input]', `[input]\n\n${inputLine}`)
+    : `${content}\n[input]\n\n${inputLine}\n`;
+  return { content: updated, existed: false, eventAdded: Boolean(newEvent) };
+}
+
 function validateGodotExportVersion(version: unknown): string | null {
   if (typeof version !== 'string' || !GODOT_EXPORT_VERSION.test(version)) {
     return 'godotVersion must be a supported Godot 4 version such as "4.3-stable".';
@@ -1050,18 +1109,12 @@ export class ProjectToolHandlers {
         if (!args.actionName)
           return createErrorResponse('actionName is required for add action.');
         const deadzone = args.deadzone !== undefined ? args.deadzone : 0.5;
-        let events = '';
-        if (args.key) {
-          events = `, "events": [Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":0,"physical_keycode":${this.context.projectSupport.keyNameToScancode(args.key)},"key_label":0,"unicode":0,"location":0,"echo":false,"script":null)]`;
-        }
-        const inputLine = `${args.actionName}={"deadzone": ${deadzone}${events}}`;
-        if (content.includes('[input]')) {
-          content = content.replace('[input]', `[input]\n\n${inputLine}`);
-        } else {
-          content += `\n[input]\n\n${inputLine}\n`;
-        }
+        const keycode = args.key ? this.context.projectSupport.keyNameToScancode(args.key) : undefined;
+        const merged = mergeInputMapAction(content, args.actionName, deadzone, keycode);
+        content = merged.content;
         writeFileSync(projectFile, content, 'utf8');
-        return { content: [{ type: 'text', text: `Input action "${args.actionName}" added.` }] };
+        const outcome = merged.existed ? (merged.eventAdded ? 'updated with key binding' : 'already configured') : 'added';
+        return { content: [{ type: 'text', text: `Input action "${args.actionName}" ${outcome}.` }] };
       } else if (args.action === 'remove') {
         if (!args.actionName)
           return createErrorResponse('actionName is required for remove action.');

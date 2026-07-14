@@ -19,22 +19,34 @@ tool or action.
 
 ### Upstream fixes and metadata integrity
 
-- [ ] Adapt the upstream 3.1 `manage_input_map` fix so adding another key to an
+- [x] Adapt the upstream 3.1 `manage_input_map` fix so adding another key to an
   existing action merges it into that action's event array, preserves the
   configured deadzone, and de-duplicates the physical keycode instead of writing
   a duplicate `project.godot` entry. Add a full MCP-to-Godot regression that adds
   two keys to one action and independently observes both through the live
-  `InputMap`.
-- [ ] Adapt the upstream 3.1 `validate_script` fix so scripts are compiled only
+  `InputMap`. (`mergeInputMapAction` is unit-covered for merge, deadzone,
+  de-duplication, section isolation, and byte-stable repetition. The full MCP
+  regression writes Space, W, and duplicate Space, proves one property remains,
+  then observes `[32, 87]` and deadzone `0.25` through Godot 4.7's live
+  `InputMap`.)
+- [x] Adapt the upstream 3.1 `validate_script` fix so scripts are compiled only
   after project autoload singletons are registered, while still forcing a fresh
   parse that catches real syntax and type errors. Add direct-Godot and MCP E2E
   regressions covering multiple referenced autoloads plus a genuine compile
-  failure.
+  failure. (`src/scripts/validate_script.gd` loads the target from
+  `SceneTree._initialize()` with `CACHE_MODE_IGNORE`. The direct Godot suite and
+  MCP E2E both resolve two referenced autoloads, rewrite the same target path,
+  and observe the genuine line-4 type error on a fresh compile.)
 - [ ] Reconcile release and registry metadata with the source-derived inventory:
   `server.json` still advertises 165 tools while the callable catalog contains
   167. Update the title, version, package identity, and any other hand-authored
   counts after the fork-versus-new-product decision, and add a contract check so
-  registry metadata cannot drift from the manifest again.
+  registry metadata cannot drift from the manifest again. (Foundation complete:
+  `server.json` now truthfully advertises 167 tools, and
+  `tests/server-metadata.test.ts` derives the count from `toolDefinitions` and
+  locks registry identity, version, package, description, and repository to
+  `package.json`. Final identity values remain intentionally pending the product
+  decision below.)
 
 ### Product identity and release model
 
@@ -829,8 +841,9 @@ A tool may be marked `[x] E2E` only when all applicable items pass:
 ### Release gate
 
 - [x] Build, lint, TypeScript tests, and all Godot suites pass. (Locally verified
-  together on Godot 4.7: 655 TypeScript tests, 193 full-path E2E tests, 16 strict
-  script parses, 75 authoring-operation checks, and 383 runtime checks.)
+  together on Godot 4.7 after the upstream regressions: 661 TypeScript tests,
+  194 full-path E2E tests, 17 strict script parses, 2 focused validator checks,
+  75 authoring-operation checks, and 383 runtime checks.)
 - [x] The generated manifest has no coverage or routing drift. (`npm run check`
   runs the manifest/coverage contracts plus both the tool/action and zero-gap
   engine-surface report freshness gates.)

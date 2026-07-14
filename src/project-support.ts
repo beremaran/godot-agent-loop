@@ -1,7 +1,8 @@
 import { execFile } from 'child_process';
 import { existsSync, readdirSync } from 'fs';
-import { basename, join, relative } from 'path';
+import { basename, dirname, join, relative } from 'path';
 import { promisify } from 'util';
+import { fileURLToPath } from 'url';
 
 import {
   collectGdPaths,
@@ -50,7 +51,14 @@ export interface ChangedGdFiles {
  * orchestration while project handlers share a single, testable service.
  */
 export class ProjectSupport {
-  constructor(private readonly context: ProjectSupportContext) {}
+  private readonly validateScriptPath: string;
+
+  constructor(
+    private readonly context: ProjectSupportContext,
+    validateScriptPath = join(dirname(fileURLToPath(import.meta.url)), 'scripts', 'validate_script.gd'),
+  ) {
+    this.validateScriptPath = validateScriptPath;
+  }
 
   public findGodotProjects(directory: string, recursive: boolean): GodotProject[] {
     const projects: GodotProject[] = [];
@@ -175,10 +183,15 @@ export class ProjectSupport {
 
     let output: string;
     let failed = false;
+    const scriptResourcePath = `res://${relative(projectPath, scriptFull).replace(/\\/g, '/')}`;
     try {
+      // `--check-only --script <target>` compiles too early for project autoload
+      // globals to be registered. The SceneTree validator loads the target from
+      // `_initialize()`, after autoload bootstrap, while CACHE_MODE_IGNORE keeps
+      // every check a fresh parse of the current file contents.
       const { stdout, stderr } = await execFileAsync(
         godotPath,
-        ['--headless', '--path', projectPath, '--check-only', '--script', scriptFull],
+        ['--headless', '--path', projectPath, '--script', this.validateScriptPath, scriptResourcePath],
         GODOT_COMMAND_OPTIONS,
       );
       output = `${stdout ?? ''}${stderr ?? ''}`;

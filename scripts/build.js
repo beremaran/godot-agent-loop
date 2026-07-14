@@ -31,6 +31,11 @@ try {
     path.join(__dirname, '..', 'build', 'scripts', 'mcp_editor_plugin.gd')
   );
 
+  fs.copyFileSync(
+    path.join(__dirname, '..', 'src', 'scripts', 'validate_script.gd'),
+    path.join(__dirname, '..', 'build', 'scripts', 'validate_script.gd')
+  );
+
   // Copy the mcp_runtime domain scripts the interaction server preloads
   fs.cpSync(
     path.join(__dirname, '..', 'src', 'scripts', 'mcp_runtime'),

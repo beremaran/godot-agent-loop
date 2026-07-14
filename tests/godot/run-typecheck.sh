@@ -42,8 +42,10 @@ check_script() {
 # --- Headless operations script (full strict tier) --------------------------
 HEADLESS_TIER="$TYPECHECK_DIR/headless"
 cp "$ROOT_DIR/src/scripts/godot_operations.gd" "$HEADLESS_TIER/godot_operations.gd"
+cp "$ROOT_DIR/src/scripts/validate_script.gd" "$HEADLESS_TIER/validate_script.gd"
 echo "Type-checking the headless operations script"
 check_script "$HEADLESS_TIER" "godot_operations.gd"
+check_script "$HEADLESS_TIER" "validate_script.gd"
 
 # --- Runtime server and its domain scripts ----------------------------------
 RUNTIME_TIER="$TYPECHECK_DIR/runtime"

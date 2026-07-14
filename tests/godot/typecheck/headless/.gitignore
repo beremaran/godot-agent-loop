@@ -2,4 +2,6 @@
 # src/scripts/.
 godot_operations.gd
 godot_operations.gd.uid
+validate_script.gd
+validate_script.gd.uid
 .godot/
