@@ -55,8 +55,7 @@ describe('compound verification workflow through MCP', () => {
     await assertNoLeakedGodotProcesses(server.root);
   });
 
-  it('captures bounded screenshot evidence when a renderer is required', async () => {
-    if (process.env.GODOT_MCP_RENDER_TEST !== '1') return;
+  it('captures bounded screenshot evidence', async () => {
     server = await startServer();
     const result = await server.call('verify_project', {
       projectPath: server.projectPath, captureScreenshot: true,

@@ -41,6 +41,8 @@ export interface LifecycleToolHandlerContext {
 
 /** Implements editor launch, project runtime, and Godot version tools. */
 export class LifecycleToolHandlers {
+  private processGeneration = 0;
+
   constructor(private readonly context: LifecycleToolHandlerContext) {}
 
   public async handleLaunchEditor(args: ToolArguments) {
@@ -59,9 +61,6 @@ export class LifecycleToolHandlers {
       this.context.logDebug(`Launching Godot editor for project: ${args.projectPath}`);
       const editorPluginOwned = this.context.installEditorPlugin?.(args.projectPath) ?? false;
       const editorArgs = ['-e', '--path', args.projectPath];
-      // Display-less environments (CI, the E2E harness) opt in to a headless
-      // editor process, same as run_project.
-      if (process.env.GODOT_MCP_RUN_HEADLESS === 'true') editorArgs.unshift('--headless');
       const editorProcess = spawn(godotPath, editorArgs, {
         stdio: 'pipe', env: { ...process.env, ...this.context.getRuntimeEnvironment(), ...(this.context.getEditorEnvironment?.() ?? {}) },
       });
@@ -119,6 +118,7 @@ export class LifecycleToolHandlers {
 
       if (this.context.getActiveProcess()) {
         this.context.logDebug('Killing existing Godot process before starting a new one');
+        this.processGeneration += 1;
         this.context.disconnectFromGame();
         const existingProjectPath = this.context.getConnectedProjectPath();
         if (existingProjectPath) this.context.removeInteractionServer(existingProjectPath);
@@ -137,14 +137,12 @@ export class LifecycleToolHandlers {
       // backtrace without it, and the editor binary already runs projects as a
       // debug build.
       const commandArgs = [...deterministicSessionArguments(), '--path', args.projectPath];
-      // Display-less environments (CI, the E2E harness) opt in to headless
-      // game processes; the interaction server works the same either way.
-      if (process.env.GODOT_MCP_RUN_HEADLESS === 'true') commandArgs.unshift('--headless');
       if (args.scene && (!this.context.isRelativePathAllowed || this.context.isRelativePathAllowed(args.projectPath, args.scene))) commandArgs.push(args.scene);
 
       this.context.logDebug(`Running Godot project: ${args.projectPath}`);
+      const processGeneration = ++this.processGeneration;
       this.context.startProjectProcess(
-        godotPath, commandArgs, () => { this.handleProjectExit(); }, {
+        godotPath, commandArgs, () => { this.handleProjectExit(processGeneration); }, {
           ...this.context.getRuntimeEnvironment(),
           ...deterministicSessionEnvironment(),
         },
@@ -270,6 +268,9 @@ export class LifecycleToolHandlers {
     if (!this.context.getActiveProcess()) return createErrorResponse('No active Godot process to stop.');
 
     this.context.logDebug('Stopping active Godot process');
+    // Invalidate the child's eventual exit callback before performing the same
+    // cleanup synchronously. A late callback must never tear down a replacement.
+    this.processGeneration += 1;
     this.context.disconnectFromGame();
     const stoppedProcess = this.context.stopProjectProcess()!;
     const projectPath = this.context.getConnectedProjectPath();
@@ -316,7 +317,8 @@ export class LifecycleToolHandlers {
     return this.context.executable.requirePath();
   }
 
-  private handleProjectExit(): void {
+  private handleProjectExit(processGeneration: number): void {
+    if (processGeneration !== this.processGeneration) return;
     this.context.disconnectFromGame();
     const projectPath = this.context.getConnectedProjectPath();
     if (projectPath) {

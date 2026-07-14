@@ -231,7 +231,6 @@ jobs:
 
       - name: Capture and compare deterministic viewport pixels
         env:
-          GODOT_MCP_E2E_HEADLESS: "false"
           GODOT_MCP_E2E_RENDERER: ${{ matrix.renderer }}
           GODOT_MCP_RENDER_TEST: "1"
         run: >-
@@ -240,7 +239,6 @@ jobs:
 
       - name: Run compound capture and teardown verification
         env:
-          GODOT_MCP_E2E_HEADLESS: "false"
           GODOT_MCP_E2E_RENDERER: ${{ matrix.renderer }}
           GODOT_MCP_RENDER_TEST: "1"
         run: >-

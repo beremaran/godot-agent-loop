@@ -144,23 +144,18 @@ describe('log observer', () => {
 });
 
 describe('screenshot observer', () => {
-  it('either returns a decodable PNG or a structured headless limitation', async () => {
+  it('returns a decodable PNG from the required rendering context', async () => {
     const game = await startedGame();
     const result = await game.call('game_screenshot');
-    if (result.isError) {
-      // The headless dummy renderer cannot capture the viewport; the failure
-      // must be a structured tool error, not a crash or an empty payload.
-      expect(result.text).toMatch(/screenshot|viewport|image|failed/i);
-    } else {
-      const raw = result.raw as { content: { type: string; data?: string; mimeType?: string }[] };
-      const image = raw.content.find(item => item.type === 'image');
-      expect(image?.mimeType).toBe('image/png');
-      const png = Buffer.from(image?.data ?? '', 'base64');
-      // PNG signature plus IHDR dimensions.
-      expect(png.subarray(0, 8)).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
-      expect(png.readUInt32BE(16)).toBeGreaterThan(0);
-      expect(png.readUInt32BE(20)).toBeGreaterThan(0);
-    }
+    expect(result.isError, result.text).toBe(false);
+    const raw = result.raw as { content: { type: string; data?: string; mimeType?: string }[] };
+    const image = raw.content.find(item => item.type === 'image');
+    expect(image?.mimeType).toBe('image/png');
+    const png = Buffer.from(image?.data ?? '', 'base64');
+    // PNG signature plus IHDR dimensions.
+    expect(png.subarray(0, 8)).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+    expect(png.readUInt32BE(16)).toBeGreaterThan(0);
+    expect(png.readUInt32BE(20)).toBeGreaterThan(0);
     await game.call('stop_project');
   });
 });

@@ -825,13 +825,13 @@
       "level": "E2E",
       "tests": [
         "tests/handlers.test.ts::handleGameScreenshot",
-        "tests/e2e/runtime-system-tools.test.ts::game_screenshot returns a decodable PNG or a structured headless limitation"
+        "tests/e2e/runtime-system-tools.test.ts::game_screenshot returns a decodable PNG from the required rendering context"
       ],
       "actions": {
         "*": {
           "tests": [
             "tests/handlers.test.ts::handleGameScreenshot",
-            "tests/e2e/runtime-system-tools.test.ts::game_screenshot returns a decodable PNG or a structured headless limitation"
+            "tests/e2e/runtime-system-tools.test.ts::game_screenshot returns a decodable PNG from the required rendering context"
           ]
         }
       },

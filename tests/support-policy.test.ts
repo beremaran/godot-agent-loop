@@ -16,7 +16,15 @@ describe('Godot support policy', () => {
 
     const readme = readRepoFile('README.md');
     expect(readme).toContain(`CI covers Godot ${COMPATIBILITY_FLOOR} and ${PRIMARY_TARGET}`);
-    expect(readme).toContain(`Linux headless, Godot ${COMPATIBILITY_FLOOR} and ${PRIMARY_TARGET}`);
+    expect(readme).toContain(`Linux headed (desktop or Xvfb), Godot ${COMPATIBILITY_FLOOR} and ${PRIMARY_TARGET}`);
+    expect(readme).not.toContain('| Linux headless');
+
+    const lifecycle = readRepoFile('src/tool-handlers/lifecycle-tool-handlers.ts');
+    const harness = readRepoFile('tests/e2e/helpers/harness.ts');
+    expect(lifecycle).not.toContain('GODOT_MCP_RUN_HEADLESS');
+    expect(harness).not.toContain('GODOT_MCP_E2E_HEADLESS');
+    expect(workflow.slice(workflow.indexOf('  godot:'), workflow.indexOf('  godot-dotnet:')))
+      .toContain('xvfb-run -a npm run test:e2e');
   });
 
   it('requires every public change to declare version applicability', () => {
@@ -66,6 +74,12 @@ describe('Godot support policy', () => {
 
     const readme = readRepoFile('README.md');
     expect(readme).toContain('Compatibility and Forward+ on Linux software rendering');
+    expect(readme).toContain('A headed rendering context is required');
+
+    const runtimeSystem = readRepoFile('tests/e2e/runtime-system-tools.test.ts');
+    const observers = readRepoFile('tests/e2e/observers.test.ts');
+    expect(runtimeSystem).not.toContain('structured headless limitation');
+    expect(observers).not.toContain('structured headless limitation');
   });
 
   it('keeps native platform acceptance jobs aligned with their bounded claim', () => {

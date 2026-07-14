@@ -181,26 +181,29 @@ describe('runtime engine-state tools through MCP', () => {
     expect(before.size.y).toBeGreaterThan(0);
     expect(typeof before.fullscreen).toBe('boolean');
 
-    const unsupported = await game.call('game_window', {
+    const displaySettings = await game.call('game_window', {
       action: 'set', borderless: true, vsync: false,
     });
-    expect(unsupported.isError).toBe(true);
-    expect(unsupported.text).toMatch(/headless display driver/i);
+    expect(displaySettings.isError, displaySettings.text).toBe(false);
     const set = await game.call('game_window', {
       action: 'set', width: 640, height: 360, title: 'e2e-window', position: { x: 17, y: 19 },
     });
     expect(set.isError, set.text).toBe(false);
 
-    // Independent observation: the engine's root Window reports the new size and
-    // title. This holds in headless mode because the root Window still exists.
+    // Independent observation: the engine's root Window reports the display-backed change.
     const observed = await engineEval(game, [
       'var win = get_tree().root',
-      'return {"width": win.size.x, "height": win.size.y, "title": win.title, "position": win.position}',
-    ].join('\n')) as { width: number; height: number; title: string; position: { x: number; y: number } };
-    expect(observed).toMatchObject({ width: 640, height: 360, title: 'e2e-window', position: { x: 17, y: 19 } });
+      'return {"width": win.size.x, "height": win.size.y, "title": win.title, "position": win.position, "borderless": win.borderless}',
+    ].join('\n')) as { width: number; height: number; title: string; position: { x: number; y: number }; borderless: boolean };
+    expect(observed).toMatchObject({
+      width: 640, height: 360, title: 'e2e-window', borderless: true,
+      position: { x: expect.any(Number), y: expect.any(Number) },
+    });
 
     const readBack = await game.call('game_window', { action: 'get' });
-    expect(payload(readBack.text)).toMatchObject({ size: { x: 640, y: 360 }, title: 'e2e-window' });
+    expect(payload(readBack.text)).toMatchObject({
+      size: { x: 640, y: 360 }, title: 'e2e-window', position: observed.position,
+    });
 
     // width and height must be provided together.
     const halfPair = await game.call('game_window', { action: 'set', width: 800 });
@@ -345,18 +348,12 @@ describe('runtime engine-state tools through MCP', () => {
     expect(button?.type).toBe('Button');
   });
 
-  it('game_screenshot returns a decodable PNG or a structured headless limitation', async () => {
+  it('game_screenshot returns a decodable PNG from the required rendering context', async () => {
     const requireRenderedPixels = process.env.GODOT_MCP_RENDER_TEST === '1';
-    const game = await startedGame({ privileged: requireRenderedPixels });
+    const game = await startedGame({ privileged: true });
 
     const result = await game.call('game_screenshot');
-    if (result.isError) {
-      expect(requireRenderedPixels, result.text).toBe(false);
-      // Headless uses a dummy renderer; the product must explain the limitation
-      // rather than crash or return an empty payload.
-      expect(result.text).toMatch(/screenshot|viewport|image|failed|limit/i);
-      return;
-    }
+    expect(result.isError, result.text).toBe(false);
     const raw = result.raw as { content: { type: string; data?: string; mimeType?: string }[] };
     const image = raw.content.find(item => item.type === 'image');
     expect(image?.mimeType).toBe('image/png');
@@ -383,16 +380,11 @@ describe('runtime engine-state tools through MCP', () => {
   });
 
   it('game_visual_regression retains baseline, diff, tolerance, mask, and renderer evidence', async () => {
-    const requireRenderedPixels = process.env.GODOT_MCP_RENDER_TEST === '1';
     const game = await startedGame({ privileged: true });
     const baseline = await game.call('game_visual_regression', {
       action: 'capture_baseline', baselinePath: 'artifacts/baseline.png',
     });
-    if (baseline.isError) {
-      expect(requireRenderedPixels, baseline.text).toBe(false);
-      expect(baseline.text).toMatch(/screenshot|viewport|image|failed|limit/i);
-      return;
-    }
+    expect(baseline.isError, baseline.text).toBe(false);
     const baselineResult = payload(baseline.text) as { width: number; height: number; renderer: object };
     expect(baselineResult.renderer).toEqual(expect.any(Object));
     if (process.env.GODOT_MCP_E2E_RENDERER) {

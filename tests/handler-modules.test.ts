@@ -247,4 +247,41 @@ describe('LifecycleToolHandlers', () => {
       message: 'Godot project stopped', finalOutput: ['done'], finalErrors: [],
     });
   });
+
+  it('ignores a stopped process exit callback after synchronous cleanup', async () => {
+    const projectPath = createProject();
+    const process = { output: [], errors: [] } as GodotProcess;
+    let activeProcess: GodotProcess | null = null;
+    let onExit: (() => void) | undefined;
+    const disconnectFromGame = vi.fn();
+    const removeInteractionServer = vi.fn();
+    const clearConnectedProjectPath = vi.fn();
+    const handlers = new LifecycleToolHandlers(context({
+      getActiveProcess: () => activeProcess,
+      startProjectProcess: (_executable, _args, exitCallback) => {
+        activeProcess = process;
+        onExit = exitCallback;
+      },
+      stopProjectProcess: () => {
+        activeProcess = null;
+        return process;
+      },
+      disconnectFromGame,
+      removeInteractionServer,
+      clearConnectedProjectPath,
+      getConnectedProjectPath: () => projectPath,
+    }));
+
+    await handlers.handleRunProject({ projectPath });
+    await handlers.handleStopProject();
+    disconnectFromGame.mockClear();
+    removeInteractionServer.mockClear();
+    clearConnectedProjectPath.mockClear();
+
+    onExit?.();
+
+    expect(disconnectFromGame).not.toHaveBeenCalled();
+    expect(removeInteractionServer).not.toHaveBeenCalled();
+    expect(clearConnectedProjectPath).not.toHaveBeenCalled();
+  });
 });

@@ -9,7 +9,7 @@
 [![MIT License](https://img.shields.io/badge/License-MIT-red.svg 'MIT License')](https://opensource.org/licenses/MIT)
 
 A [Model Context Protocol](https://modelcontextprotocol.io/introduction) (MCP)
-server for project-file authoring, headless engine operations,
+server for project-file authoring, engine-backed operations,
 and inspection or mutation of running Godot games. Every advertised tool and
 public action has a full MCP-to-Godot test. Support remains intentionally
 bounded by the environment matrix below; editor UI automation, debugger
@@ -78,7 +78,7 @@ additions:
 - **`game_get_nodes_in_group`** - Query nodes by group
 - **`game_find_nodes_by_class`** - Find all nodes of a specific class
 
-### Headless Scene Operations (No Running Game Needed)
+### Scene Authoring Operations (No Running Game Needed)
 
 - **`read_scene`** - Parse any .tscn file and get full node tree with properties as JSON
 - **`modify_scene_node`** - Change node properties in scene files
@@ -325,7 +325,7 @@ parse/load failure restores the prior version and plugin configuration.
 | `get_uid` | Get UID for a file (Godot 4.4+) |
 | `update_project_uids` | Resave resources to update UIDs |
 
-### Headless Scene Operations (5 tools)
+### Scene Authoring Operations (5 tools)
 
 | Tool | Description |
 | ------ | ------------- |
@@ -605,15 +605,15 @@ branch would receive critical fixes rather than new features.
 
 | Area | Status | Evidence or limitation |
 | --- | --- | --- |
-| Linux headless, Godot 4.4 and 4.7 | Verified in CI | Full MCP E2E, direct runtime, headless operations, and strict script parsing |
+| Linux headed (desktop or Xvfb), Godot 4.4 and 4.7 | Verified in CI | Full MCP E2E under Xvfb, direct runtime, subprocess operations, and strict script parsing |
 | GDScript project and running-game workflows | Verified for advertised tools | See the generated [coverage report](docs/coverage/coverage-report.md) |
 | Privileged runtime commands | Opt-in only | Disabled by default; intended for trusted localhost development |
 | Godot .NET/C# | Scaffold, compile, and editor-load verification | Godot .NET 4.4 and 4.7 with .NET SDK 8 |
 | Linux exports | Release/debug template export and smoke-run verification | Godot 4.4 and 4.7 installed templates; other targets are not claimed |
-| Rendering and screenshots | Headless limitations plus virtual-display pixel verification | Compatibility and Forward+ on Linux software rendering |
+| Rendering and screenshots | A headed rendering context is required | Compatibility and Forward+ on Linux software rendering; display-less sessions fail fast with desktop/Xvfb remediation |
 | Windows and macOS | Portable acceptance verified | Godot 4.7 process, Unicode path, runtime input, window query, and teardown workflows |
 | Windows/macOS editor UI, rendering, and exports | Not claimed | Verified on Linux only; Windows/macOS support is bounded to the portable acceptance suite |
-| Editor state and undo/redo bridge | Verified in MCP E2E | Headless editor bridge is authenticated and uses `EditorInterface` plus `EditorUndoRedoManager` |
+| Editor state and undo/redo bridge | Verified in MCP E2E | The headed editor bridge is authenticated and uses `EditorInterface` plus `EditorUndoRedoManager` |
 | Full debugger control | Not claimed | Breakpoints, stack inspection, and frame-local evaluation remain outside the supported boundary |
 | Profiler, leak, asset, localization, and accessibility audits | Verified in MCP E2E | `game_performance` and `analyze_project_integrity` return bounded live/static evidence; native extension builds remain unsupported |
 | GDExtension builds | Not claimed | `analyze_project_integrity` inspects declarations and libraries without invoking arbitrary native toolchains |
@@ -747,17 +747,28 @@ default (configurable up to 10,000) and reports truncation. `game_get_logs` and
 `game_get_errors` return at most 1,000 unread lines per call with `hasMore` and
 `remaining`, while retaining the latest 1,000 lines per stream. Runtime JSON
 responses are capped at 8 MiB, screenshots additionally enforce pixel and
-6 MiB PNG limits, and short-lived headless/import commands cap captured output
+6 MiB PNG limits, and short-lived subprocess/import commands cap captured output
 at 16 MiB. Limit failures are explicit; callers can narrow resource/import
 queries instead of receiving partial unlabelled data.
 
 ## Architecture
 
-The server uses two communication channels:
+The server uses three bounded execution paths:
 
-1. **Headless CLI** - For operations that don't need a running game (scene reading, modification, resource creation). Runs Godot with `--headless --script godot_operations.gd <operation> <json_params>`.
+1. **Persistent authoring session** - The primary scene/resource authoring path.
+   It owns a headed, deterministic Godot main loop and serves authenticated
+   JSON-RPC commands without paying engine startup cost per edit.
 
-2. **TCP Socket** - For runtime interaction with a running game. The `mcp_interaction_server.gd` autoload listens on port 9090 and processes JSON commands sent by the TypeScript MCP server.
+2. **Running-game socket** - `run_project` launches the user's game headed and
+   injects the authenticated `mcp_interaction_server.gd` autoload through
+   `override.cfg` for high-fidelity runtime interaction.
+
+3. **One-shot subprocess fallback** - Isolated authoring, validation, import,
+   and export operations may invoke Godot once and exit. Commands that do not
+   render may internally use `--headless`; this is not a supported display-less
+   agent-loop tier. Authoring sessions, running games, screenshots, and visual
+   verification require a desktop display, Xvfb, or another reachable rendering
+   context and fail fast when none exists.
 
 ### Source layout
 
@@ -765,7 +776,7 @@ The server uses two communication channels:
 | ------ | ------------- |
 | `src/index.ts` | MCP server, tool definitions, and all handlers |
 | `src/utils.ts` | Pure utility functions (parameter mapping, validation, error helpers) |
-| `src/scripts/godot_operations.gd` | Headless GDScript operations runner |
+| `src/scripts/godot_operations.gd` | Persistent and one-shot GDScript operations runner |
 | `src/scripts/mcp_interaction_server.gd` | TCP interaction server autoload |
 | `tests/` | Vitest test suite |
 
@@ -778,7 +789,7 @@ source-derived tool, action, command, and suite inventory is published in the
 ```bash
 npm run check       # TypeScript tests, lint, build, and coverage drift
 npm run test:e2e    # built MCP server through a real client and Godot
-npm run test:godot  # strict parsing, headless operations, runtime protocol
+npm run test:godot  # strict parsing, subprocess operations, runtime protocol
 npm run test:watch  # watch mode
 ```
 

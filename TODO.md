@@ -345,9 +345,16 @@ until that decision is confirmed against a real game.
   only "no rendering context" for the rest of this phase. (The manifest,
   coverage generator, routing contracts, and generated report now use
   `subprocess` for all 16 one-shot authoring operations.)
-- [ ] Retire the headless display tier from the support matrix: update the README
+- [x] Retire the headless display tier from the support matrix: update the README
   support statement and `tests/support-policy.test.ts`, and replace the screenshot
-  limitation path with the fail-fast precondition above.
+  limitation path with the fail-fast precondition above. (The supported Linux
+  matrix is now headed on a desktop or Xvfb. `run_project`, `launch_editor`, and
+  the E2E harness no longer expose a headless lifecycle switch; main Linux CI
+  supplies Xvfb. Screenshot, visual-regression, compound-verification, window,
+  input, and renderer-buffer E2E cases now require their headed success paths
+  instead of accepting dummy-display limitations. Display-less direct runtime
+  requests retain the structured precondition error for actionable diagnosis,
+  but are not a supported agent-loop tier.)
 - [ ] Benchmark a realistic edit -> run -> observe -> edit cycle against today's
   subprocess-per-operation path; the loop-latency delta is this phase's headline
   result and belongs in the coverage report. Record the latency budgets this

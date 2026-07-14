@@ -286,16 +286,15 @@ describe('runtime G+ input tools through MCP', () => {
     });
 
     const warped = await game.call('game_input_state', { action: 'warp_mouse', x: 21, y: 22 });
-    expect(warped.isError).toBe(true);
-    expect(warped.text).toMatch(/headless display driver/i);
+    expect(warped.isError, warped.text).toBe(false);
+    expect(payload(warped.text)).toMatchObject({ action: 'warp_mouse', position: { x: 21, y: 22 } });
 
-    const hidden = await game.call('game_input_state', { action: 'set_mouse_mode', mouseMode: 'hidden' });
-    expect(hidden.isError).toBe(true);
-    expect(hidden.text).toMatch(/headless display driver/i);
-    for (const mouseMode of ['captured', 'confined'] as const) {
-      const unsupported = await game.call('game_input_state', { action: 'set_mouse_mode', mouseMode });
-      expect(unsupported.isError).toBe(true);
-      expect(unsupported.text).toMatch(/headless display driver/i);
+    for (const mouseMode of ['hidden', 'captured', 'confined'] as const) {
+      const changed = await game.call('game_input_state', { action: 'set_mouse_mode', mouseMode });
+      expect(changed.isError, changed.text).toBe(false);
+      expect(payload(changed.text)).toMatchObject({ action: 'set_mouse_mode', mode: mouseMode });
+      const observed = await game.call('game_input_state');
+      expect(payload(observed.text)).toMatchObject({ mouse_mode: mouseMode });
     }
     const restored = await game.call('game_input_state', {
       action: 'set_mouse_mode', mouseMode: 'visible',

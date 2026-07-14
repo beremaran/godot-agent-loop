@@ -128,33 +128,25 @@ describe('3D scene-system tools through MCP', () => {
       'return [node.get_class(), mm.mesh.get_class(), mm.instance_count, mm.transform_format]',
     ].join('\n'))).toEqual(['MultiMeshInstance3D', 'CylinderMesh', 4, 1]);
 
-    // Instance transforms live in the rendering server's buffer, which Godot's
-    // headless dummy renderer never allocates — a write there is dropped. The
-    // tool must SAY so rather than report a success the engine did not perform.
-    // (Verified independently: MultiMesh.buffer is empty under --headless even
-    // when set from plain GDScript.)
+    // Instance transforms live in the rendering server's buffer, so their
+    // availability independently proves this suite has the required renderer.
     const instanceDataAvailable = await engineEval(game, [
       'var mm = get_node("/root/Main/Forest").multimesh',
       'return not mm.buffer.is_empty()',
     ].join('\n')) as boolean;
+    expect(instanceDataAvailable).toBe(true);
 
     const placed = await game.call('game_multimesh', {
       action: 'set_instance', nodePath: '/root/Main/Forest', index: 2,
       transform: { origin: { x: 7, y: 0, z: -3 } },
     });
 
-    if (instanceDataAvailable) {
-      expect(placed.isError, placed.text).toBe(false);
-      expect(payload(placed.text)).toMatchObject({ index: 2 });
-      expect(await engineEval(game, [
-        'var origin = get_node("/root/Main/Forest").multimesh.get_instance_transform(2).origin',
-        'return [origin.x, origin.y, origin.z]',
-      ].join('\n'))).toEqual([7, 0, -3]);
-    } else {
-      expect(placed.isError, placed.text).toBe(true);
-      expect(placed.text).toMatch(/instance data is unavailable|instance_buffer_unavailable/i);
-      expect(placed.text).toMatch(/renderer|display/i);
-    }
+    expect(placed.isError, placed.text).toBe(false);
+    expect(payload(placed.text)).toMatchObject({ index: 2 });
+    expect(await engineEval(game, [
+      'var origin = get_node("/root/Main/Forest").multimesh.get_instance_transform(2).origin',
+      'return [origin.x, origin.y, origin.z]',
+    ].join('\n'))).toEqual([7, 0, -3]);
 
     const info = await game.call('game_multimesh', { action: 'get_info', nodePath: '/root/Main/Forest' });
     expect(info.isError, info.text).toBe(false);
