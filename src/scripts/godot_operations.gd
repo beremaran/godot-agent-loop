@@ -114,6 +114,7 @@ var _diagnostics: DebugDiagnostics = null
 # Operation name -> handler. The single source of truth for which operations
 # exist; the CLI rejects any name that is not registered here.
 var _operations: Dictionary[String, Callable] = {}
+const SERVE_ARGUMENT: String = "--serve-authoring"
 
 func _init() -> void:
     _register_operations()
@@ -122,6 +123,18 @@ func _init() -> void:
     debug_mode = "--debug-godot" in args
     if debug_mode:
         _diagnostics = DebugDiagnostics.new()
+
+    if SERVE_ARGUMENT in args:
+        # Autoloads enter the tree after the script main loop is constructed.
+        # Keep the deferred startup and its exit decision lexically inside this
+        # CLI entry point; helpers report failures but never terminate Godot.
+        var start_authoring_session: Callable = func() -> void:
+            var startup_errors: PackedStringArray = _start_authoring_session()
+            if not startup_errors.is_empty():
+                _report_errors(startup_errors)
+                quit(1)
+        start_authoring_session.call_deferred()
+        return
 
     var invocation := _parse_cli(args)
     if not invocation.is_valid():
@@ -139,6 +152,43 @@ func _init() -> void:
         return
 
     quit(0)
+
+func _start_authoring_session() -> PackedStringArray:
+    var server: Node = get_root().get_node_or_null("McpInteractionServer")
+    if server == null:
+        return PackedStringArray([
+            "Authoring session requires the McpInteractionServer autoload.",
+        ])
+    if not server.has_method("register_authoring_dispatcher"):
+        return PackedStringArray([
+            "McpInteractionServer does not support authoring commands.",
+        ])
+    server.call("register_authoring_dispatcher", execute_operation)
+    log_info("Authoring session ready")
+    return PackedStringArray()
+
+func execute_operation(operation: String, params: Dictionary) -> Dictionary:
+    if not _operations.has(operation):
+        return {
+            "error": "Unknown authoring operation: " + operation,
+            "error_data": {
+                "reason": "unknown_authoring_operation",
+                "operation": operation,
+            },
+        }
+    log_info("Executing operation: " + operation)
+    var handler: Callable = _operations[operation]
+    var result: OperationResult = handler.call(params)
+    if not result.ok:
+        return {
+            "error": "\n".join(result.errors),
+            "error_data": {
+                "reason": "authoring_operation_failed",
+                "operation": operation,
+                "errors": Array(result.errors),
+            },
+        }
+    return {"success": true, "operation": operation}
 
 func _register_operations() -> void:
     _operations = {

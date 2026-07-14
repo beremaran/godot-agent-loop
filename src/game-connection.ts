@@ -1,5 +1,5 @@
 import { createConnection, type Socket } from 'net';
-import { CANCEL_METHOD, HANDSHAKE_METHOD, PRIVILEGED_RUNTIME_CAPABILITY, PRIVILEGED_RUNTIME_COMMANDS, PRIVILEGED_RUNTIME_COMMAND_GROUPS, RUNTIME_CAPABILITIES, RUNTIME_PROTOCOL_VERSION, SESSION_AUTHENTICATION_CAPABILITY, commandMethod, isHandshakeResult, isJsonRpcResponse, isRuntimeCommand, privilegedGroupCapability, type JsonRpcResponse, type PrivilegedRuntimeGroup } from './runtime-protocol.js';
+import { AUTHORING_COMMANDS_CAPABILITY, CANCEL_METHOD, HANDSHAKE_METHOD, PRIVILEGED_RUNTIME_CAPABILITY, PRIVILEGED_RUNTIME_COMMANDS, PRIVILEGED_RUNTIME_COMMAND_GROUPS, RUNTIME_CAPABILITIES, RUNTIME_PROTOCOL_VERSION, SESSION_AUTHENTICATION_CAPABILITY, commandMethod, isAuthoringCommand, isHandshakeResult, isJsonRpcResponse, isSessionCommand, privilegedGroupCapability, type JsonRpcResponse, type PrivilegedRuntimeGroup } from './runtime-protocol.js';
 
 export interface GameConnectionOptions {
   port?: number; host?: string; initialDelayMs?: number; retryDelayMs?: number; maxAttempts?: number; log?: (message: string) => void; allowPrivilegedCommands?: boolean; allowedPrivilegedGroups?: readonly PrivilegedRuntimeGroup[]; authSecret?: string;
@@ -112,7 +112,10 @@ export class GameConnection {
   }
 
   async send(command: string, params: Record<string, unknown> = {}, timeoutMs = 10000): Promise<GameResponse> {
-    if (!isRuntimeCommand(command)) throw new Error(`'${command}' is not a runtime command in the published contract`);
+    if (!isSessionCommand(command)) throw new Error(`'${command}' is not a command in the published session contract`);
+    if (isAuthoringCommand(command) && !this.runtimeCapabilities.includes(AUTHORING_COMMANDS_CAPABILITY)) {
+      throw new Error(`runtime does not expose the harness-owned ${AUTHORING_COMMANDS_CAPABILITY} capability`);
+    }
     const isPrivileged = PRIVILEGED_RUNTIME_COMMANDS.includes(command as typeof PRIVILEGED_RUNTIME_COMMANDS[number]);
     if (isPrivileged) {
       const privilegedCommand = command as typeof PRIVILEGED_RUNTIME_COMMANDS[number];

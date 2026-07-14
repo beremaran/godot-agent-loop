@@ -80,6 +80,7 @@ const SECRET_ENVIRONMENT_VARIABLE: String = "GODOT_MCP_RUNTIME_SECRET"
 @export var port: int = DEFAULT_PORT
 const PROTOCOL_VERSION: String = "1.0"
 const CAPABILITIES: Array[String] = ["runtime-commands", "godot-json-values"]
+const AUTHORING_COMMANDS_CAPABILITY: String = "authoring-commands"
 const METHOD_PREFIX: String = "godot.runtime."
 const CANCELLABLE_COMMANDS: Array[String] = ["wait", "await_signal", "resource", "http_request"]
 const ERROR_LIMIT_EXCEEDED: int = -32006
@@ -113,6 +114,10 @@ var _codec: VariantCodec
 var _privileged_policy: PrivilegedCommandPolicy
 var _profile_active: bool = false
 var _profile_samples: Array[Dictionary] = []
+# Set only by godot_operations.gd when it owns the process main loop. Regular
+# injected game runs publish the command names but do not advertise or execute
+# project-file authoring commands.
+var _authoring_dispatcher: Callable = Callable()
 
 func _ready() -> void:
 	# Ensure MCP server keeps processing even when game is paused
@@ -390,6 +395,22 @@ func _register_domains() -> void:
 
 
 func _register_commands() -> void:
+	_register_command("authoring_add_node", _cmd_authoring_add_node)
+	_register_command("authoring_attach_script", _cmd_authoring_attach_script)
+	_register_command("authoring_create_resource", _cmd_authoring_create_resource)
+	_register_command("authoring_create_scene", _cmd_authoring_create_scene)
+	_register_command("authoring_export_mesh_library", _cmd_authoring_export_mesh_library)
+	_register_command("authoring_get_uid", _cmd_authoring_get_uid)
+	_register_command("authoring_load_sprite", _cmd_authoring_load_sprite)
+	_register_command("authoring_manage_resource", _cmd_authoring_manage_resource)
+	_register_command("authoring_manage_scene_signals", _cmd_authoring_manage_scene_signals)
+	_register_command("authoring_manage_scene_structure", _cmd_authoring_manage_scene_structure)
+	_register_command("authoring_manage_theme_resource", _cmd_authoring_manage_theme_resource)
+	_register_command("authoring_modify_node", _cmd_authoring_modify_node)
+	_register_command("authoring_read_scene", _cmd_authoring_read_scene)
+	_register_command("authoring_remove_node", _cmd_authoring_remove_node)
+	_register_command("authoring_resave_resources", _cmd_authoring_resave_resources)
+	_register_command("authoring_save_scene", _cmd_authoring_save_scene)
 	_register_command("screenshot", _cmd_screenshot)
 	_register_command("eval", _cmd_eval)
 	_register_command("wait", _cmd_wait)
@@ -401,6 +422,92 @@ func _register_commands() -> void:
 	_register_command("create_timer", _cmd_create_timer)
 	_register_command("serialize_state", _cmd_serialize_state)
 	_register_command("script", _cmd_script)
+
+
+func register_authoring_dispatcher(dispatcher: Callable) -> void:
+	_authoring_dispatcher = dispatcher
+
+
+func _dispatch_authoring(operation: String, params: Dictionary) -> void:
+	if not _authoring_dispatcher.is_valid():
+		_send_response({
+			"error": "Authoring commands require the harness-owned operations session",
+			"error_data": {"reason": "authoring_session_required", "operation": operation},
+		})
+		return
+	var raw_result: Variant = _authoring_dispatcher.call(operation, params)
+	if not raw_result is Dictionary:
+		_send_response({
+			"error": "Authoring dispatcher returned an invalid response",
+			"error_data": {"reason": "invalid_authoring_response", "operation": operation},
+		})
+		return
+	var result: Dictionary = raw_result
+	_send_response(result)
+
+
+func _cmd_authoring_add_node(params: Dictionary) -> void:
+	_dispatch_authoring("add_node", params)
+
+
+func _cmd_authoring_attach_script(params: Dictionary) -> void:
+	_dispatch_authoring("attach_script", params)
+
+
+func _cmd_authoring_create_resource(params: Dictionary) -> void:
+	_dispatch_authoring("create_resource", params)
+
+
+func _cmd_authoring_create_scene(params: Dictionary) -> void:
+	_dispatch_authoring("create_scene", params)
+
+
+func _cmd_authoring_export_mesh_library(params: Dictionary) -> void:
+	_dispatch_authoring("export_mesh_library", params)
+
+
+func _cmd_authoring_get_uid(params: Dictionary) -> void:
+	_dispatch_authoring("get_uid", params)
+
+
+func _cmd_authoring_load_sprite(params: Dictionary) -> void:
+	_dispatch_authoring("load_sprite", params)
+
+
+func _cmd_authoring_manage_resource(params: Dictionary) -> void:
+	_dispatch_authoring("manage_resource", params)
+
+
+func _cmd_authoring_manage_scene_signals(params: Dictionary) -> void:
+	_dispatch_authoring("manage_scene_signals", params)
+
+
+func _cmd_authoring_manage_scene_structure(params: Dictionary) -> void:
+	_dispatch_authoring("manage_scene_structure", params)
+
+
+func _cmd_authoring_manage_theme_resource(params: Dictionary) -> void:
+	_dispatch_authoring("manage_theme_resource", params)
+
+
+func _cmd_authoring_modify_node(params: Dictionary) -> void:
+	_dispatch_authoring("modify_node", params)
+
+
+func _cmd_authoring_read_scene(params: Dictionary) -> void:
+	_dispatch_authoring("read_scene", params)
+
+
+func _cmd_authoring_remove_node(params: Dictionary) -> void:
+	_dispatch_authoring("remove_node", params)
+
+
+func _cmd_authoring_resave_resources(params: Dictionary) -> void:
+	_dispatch_authoring("resave_resources", params)
+
+
+func _cmd_authoring_save_scene(params: Dictionary) -> void:
+	_dispatch_authoring("save_scene", params)
 
 
 func _handle_handshake(session: RuntimeSession, req_id: Variant, params: Dictionary) -> void:
@@ -415,6 +522,8 @@ func _handle_handshake(session: RuntimeSession, req_id: Variant, params: Diction
 	session.authenticated = true
 	_audit_event("authentication_succeeded", session)
 	var capabilities: Array[String] = _privileged_policy.capabilities(CAPABILITIES, allow_privileged_commands)
+	if _authoring_dispatcher.is_valid():
+		capabilities.append(AUTHORING_COMMANDS_CAPABILITY)
 	if not runtime_secret.is_empty():
 		capabilities.append("session-authentication")
 	_send_response_raw(session, {"jsonrpc": "2.0", "id": req_id, "result": {

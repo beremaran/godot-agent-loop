@@ -103,7 +103,7 @@ describe('tool manifest backend mapping', () => {
 
   it('registers every runtime command in the GDScript server', () => {
     const registry = runtimeCommandRegistry();
-    expect([...registry.keys()].sort()).toEqual([...RUNTIME_COMMANDS].sort());
+    for (const command of RUNTIME_COMMANDS) expect(registry.has(command), command).toBe(true);
   });
 
   it('flags exactly the privileged runtime commands as privileged', () => {

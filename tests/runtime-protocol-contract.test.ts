@@ -3,7 +3,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { CANCELLABLE_RUNTIME_COMMANDS, CANCEL_METHOD, HANDSHAKE_METHOD, PRIVILEGED_RUNTIME_CAPABILITY, PRIVILEGED_RUNTIME_COMMANDS, PRIVILEGED_RUNTIME_COMMAND_GROUPS, PRIVILEGED_RUNTIME_GROUPS, RUNTIME_CAPABILITIES, RUNTIME_COMMANDS, RUNTIME_PROTOCOL_VERSION, SESSION_AUTHENTICATION_CAPABILITY, commandMethod } from '../src/runtime-protocol.js';
+import { AUTHORING_COMMANDS, AUTHORING_COMMANDS_CAPABILITY, CANCELLABLE_RUNTIME_COMMANDS, CANCEL_METHOD, HANDSHAKE_METHOD, PRIVILEGED_RUNTIME_CAPABILITY, PRIVILEGED_RUNTIME_COMMANDS, PRIVILEGED_RUNTIME_COMMAND_GROUPS, PRIVILEGED_RUNTIME_GROUPS, RUNTIME_CAPABILITIES, RUNTIME_COMMANDS, RUNTIME_PROTOCOL_VERSION, SESSION_AUTHENTICATION_CAPABILITY, SESSION_COMMANDS, commandMethod } from '../src/runtime-protocol.js';
 
 const root = join(fileURLToPath(new URL('..', import.meta.url)));
 
@@ -129,6 +129,18 @@ describe('runtime protocol contract', () => {
     expect(commandMethod('get_scene_tree')).toBe('godot.runtime.get_scene_tree');
   });
 
+  it('publishes the harness-owned authoring surface without routing it prematurely', () => {
+    const schema = JSON.parse(readFileSync(join(root, 'docs/runtime-api.schema.json'), 'utf8'));
+    const authoring = schema['x-runtime-contract'].authoring;
+    const operations = readFileSync(join(root, 'src/scripts/godot_operations.gd'), 'utf8');
+
+    expect(authoring.capability).toBe(AUTHORING_COMMANDS_CAPABILITY);
+    expect(authoring.commands).toEqual([...AUTHORING_COMMANDS]);
+    expect(AUTHORING_COMMANDS.every(command => command.startsWith('authoring_'))).toBe(true);
+    expect(operations).toContain('const SERVE_ARGUMENT: String = "--serve-authoring"');
+    expect(operations).toContain('server.call("register_authoring_dispatcher", execute_operation)');
+  });
+
   it('publishes a well-formed command manifest in the schema', () => {
     const commands = schemaCommands();
     const schema = JSON.parse(readFileSync(join(root, 'docs/runtime-api.schema.json'), 'utf8'));
@@ -146,7 +158,7 @@ describe('runtime protocol contract', () => {
 
   it('keeps the TypeScript command binding identical to the schema manifest', () => {
     // Exact array equality rejects missing, extra, and misnamed commands.
-    expect([...RUNTIME_COMMANDS]).toEqual(schemaCommands());
+    expect([...SESSION_COMMANDS]).toEqual(schemaCommands());
   });
 
   it('registers exactly the schema manifest commands in the GDScript server', () => {
@@ -157,7 +169,7 @@ describe('runtime protocol contract', () => {
 
   it('only sends manifest commands from the TypeScript tool handlers, and exercises all of them', () => {
     const sent = [...new Set(typescriptSentCommands())].sort();
-    expect(sent).toEqual(schemaCommands());
+    expect(sent).toEqual([...RUNTIME_COMMANDS]);
   });
 
   it('keeps request state on a typed connection session', () => {

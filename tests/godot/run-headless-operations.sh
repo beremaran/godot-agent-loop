@@ -20,7 +20,15 @@ GODOT="$(require_godot)"
 echo "Using Godot: $GODOT ($("$GODOT" --version | tail -n 1))"
 
 PROJECT="$(mktemp -d)"
-trap 'rm -rf "$PROJECT"' EXIT
+SESSION_PID=""
+cleanup() {
+  if [[ -n "$SESSION_PID" ]] && kill -0 "$SESSION_PID" 2>/dev/null; then
+    kill "$SESSION_PID" 2>/dev/null || true
+    wait "$SESSION_PID" 2>/dev/null || true
+  fi
+  rm -rf "$PROJECT"
+}
+trap cleanup EXIT
 cp -R "$FIXTURE_TEMPLATE/." "$PROJECT/"
 
 # A 1x1 PNG, written here rather than committed so the fixture stays text-only.
@@ -365,6 +373,44 @@ expect_failure "malformed params JSON fails" "Failed to parse JSON parameters"
 
 run_op create_scene '[1,2,3]'
 expect_failure "a non-object params JSON fails" "Parameters must be a JSON object"
+
+echo
+echo "Persistent authoring session"
+
+cp "$ROOT_DIR/src/scripts/mcp_interaction_server.gd" "$PROJECT/mcp_interaction_server.gd"
+cp -R "$ROOT_DIR/src/scripts/mcp_runtime" "$PROJECT/mcp_runtime"
+cat > "$PROJECT/override.cfg" <<'EOF'
+; BEGIN GODOT MCP MANAGED AUTOLOAD
+[autoload]
+McpInteractionServer="*res://mcp_interaction_server.gd"
+; END GODOT MCP MANAGED AUTOLOAD
+EOF
+SESSION_PORT="$(node -e "const s=require('node:net').createServer();s.listen(0,'127.0.0.1',()=>{console.log(s.address().port);s.close()})")"
+SESSION_SECRET="authoring-session-integration-secret"
+SESSION_LOG="$PROJECT/authoring-session.log"
+GODOT_MCP_RUNTIME_PORT="$SESSION_PORT" GODOT_MCP_RUNTIME_SECRET="$SESSION_SECRET" \
+  "$GODOT" --headless --path "$PROJECT" --script "$OPERATIONS_SCRIPT" --serve-authoring \
+  >"$SESSION_LOG" 2>&1 &
+SESSION_PID=$!
+
+set +e
+node "$ROOT_DIR/tests/godot/authoring-session-client.mjs" "$SESSION_PORT" "$SESSION_SECRET"
+STATUS=$?
+set -e
+OUT="$(cat "$SESSION_LOG")"
+append_godot_log "$OUT"
+expect_ok "the long-lived session serves success, failure, and runtime commands"
+expect_file "the session persisted its successful scene write" "scenes/session_created.tscn"
+expect_no_file "the failed session operation did not create a scene" "scenes/session_invalid.tscn"
+checks=$((checks + 1))
+if ! kill -0 "$SESSION_PID" 2>/dev/null; then
+  fail "the authoring process survives a failed operation" "the Godot session exited prematurely"
+else
+  pass "the authoring process survives a failed operation"
+fi
+kill "$SESSION_PID" 2>/dev/null || true
+wait "$SESSION_PID" 2>/dev/null || true
+SESSION_PID=""
 
 # The operations must not leave diagnostics probe files behind: --debug-godot is
 # off by default, and a probe that does run is removed on every branch.

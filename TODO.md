@@ -308,9 +308,13 @@ until that decision is confirmed against a real game.
 
 #### 6c: the persistent session
 
-- [ ] Extend the runtime JSON-RPC contract with the authoring commands currently
+- [x] Extend the runtime JSON-RPC contract with the authoring commands currently
   served by `godot_operations.gd`, and make the operations script a long-lived
-  `SceneTree` that serves them.
+  `SceneTree` that serves them. (The authenticated session contract now
+  publishes 16 collision-safe `authoring_*` commands. The operations script's
+  `--serve-authoring` mode registers their dispatcher, advertises capability
+  only in a harness-owned process, survives controlled failures, and is covered
+  by real-engine success/write/failure/runtime/teardown checks.)
 - [ ] Port headless tools to the session one at a time through
   `ToolBackend`, which already models backend-per-tool; keep the subprocess path
   as a fallback until parity is proven.

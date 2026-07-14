@@ -1,6 +1,7 @@
 /** Versioned JSON-RPC 2.0 contract for the Godot runtime TCP endpoint. */
 export const RUNTIME_PROTOCOL_VERSION = '1.0';
 export const RUNTIME_CAPABILITIES = ['runtime-commands', 'godot-json-values'] as const;
+export const AUTHORING_COMMANDS_CAPABILITY = 'authoring-commands' as const;
 export const HANDSHAKE_METHOD = 'godot.runtime.handshake';
 export const COMMAND_METHOD_PREFIX = 'godot.runtime.';
 export const CANCEL_METHOD = 'godot.runtime.cancel';
@@ -154,8 +155,45 @@ export const RUNTIME_COMMANDS = [
 export type RuntimeCommand = (typeof RUNTIME_COMMANDS)[number];
 const RUNTIME_COMMAND_SET: ReadonlySet<string> = new Set(RUNTIME_COMMANDS);
 
+/**
+ * File-backed operations exposed only by the harness-owned authoring session.
+ * They share the runtime transport, but remain distinct from game commands so
+ * tools can migrate from the subprocess backend one at a time.
+ */
+export const AUTHORING_COMMANDS = [
+  'authoring_add_node',
+  'authoring_attach_script',
+  'authoring_create_resource',
+  'authoring_create_scene',
+  'authoring_export_mesh_library',
+  'authoring_get_uid',
+  'authoring_load_sprite',
+  'authoring_manage_resource',
+  'authoring_manage_scene_signals',
+  'authoring_manage_scene_structure',
+  'authoring_manage_theme_resource',
+  'authoring_modify_node',
+  'authoring_read_scene',
+  'authoring_remove_node',
+  'authoring_resave_resources',
+  'authoring_save_scene',
+] as const;
+
+export type AuthoringCommand = (typeof AUTHORING_COMMANDS)[number];
+export type SessionCommand = RuntimeCommand | AuthoringCommand;
+export const SESSION_COMMANDS = [...RUNTIME_COMMANDS, ...AUTHORING_COMMANDS].sort() as SessionCommand[];
+const AUTHORING_COMMAND_SET: ReadonlySet<string> = new Set(AUTHORING_COMMANDS);
+
 export function isRuntimeCommand(command: string): command is RuntimeCommand {
   return RUNTIME_COMMAND_SET.has(command);
+}
+
+export function isAuthoringCommand(command: string): command is AuthoringCommand {
+  return AUTHORING_COMMAND_SET.has(command);
+}
+
+export function isSessionCommand(command: string): command is SessionCommand {
+  return isRuntimeCommand(command) || isAuthoringCommand(command);
 }
 
 export type JsonRpcId = number | string;

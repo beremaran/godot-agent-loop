@@ -10,7 +10,9 @@ when this file is stale, and the inventory behind it is validated by
 | Denominator | Count | Source |
 | --- | ---: | --- |
 | Advertised MCP tools | 166 | `src/tool-definitions.ts` |
-| Runtime commands | 108 | `src/runtime-protocol.ts` = `docs/runtime-api.schema.json` |
+| Session commands | 124 | `src/runtime-protocol.ts` = `docs/runtime-api.schema.json` |
+| Game runtime commands | 108 | `src/runtime-protocol.ts` |
+| Authoring session commands | 16 | `src/runtime-protocol.ts` |
 | Privileged runtime commands | 8 | `src/runtime-protocol.ts` |
 | Subprocess operations | 16 | `src/scripts/godot_operations.gd` |
 | Public action rows | 355 | `src/tool-manifest.ts` |

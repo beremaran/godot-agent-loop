@@ -134,6 +134,24 @@ describe('GameConnection lifecycle', () => {
     connection.disconnect();
   });
 
+  it('sends authoring commands only to a harness-owned authoring session', async () => {
+    const ordinaryServer = await startServer();
+    const ordinary = new GameConnection({ port: ordinaryServer.port, initialDelayMs: 0 });
+    await ordinary.connect('/project', () => true);
+    await expect(ordinary.send('authoring_create_scene', {}))
+      .rejects.toThrow('authoring-commands capability');
+    ordinary.disconnect();
+
+    const authoringServer = await startServer([
+      'runtime-commands', 'godot-json-values', 'authoring-commands',
+    ]);
+    const authoring = new GameConnection({ port: authoringServer.port, initialDelayMs: 0 });
+    await authoring.connect('/project', () => true);
+    await expect(authoring.send('authoring_create_scene', { scene_path: 'main.tscn' }))
+      .resolves.toEqual({ jsonrpc: '2.0', id: 2, result: { success: true } });
+    authoring.disconnect();
+  });
+
   it('negotiates and sends privileged commands only after explicit opt-in', async () => {
     const { port } = await startServer(['runtime-commands', 'godot-json-values', 'privileged-commands']);
     const connection = new GameConnection({ port, initialDelayMs: 0, allowPrivilegedCommands: true });
