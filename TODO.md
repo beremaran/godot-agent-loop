@@ -21,10 +21,10 @@ Unlike the authored P1–P3 capability families (closed; see
 mechanically rather than authored:
 `scripts/engine-surface-audit.js` classifies every class in Godot's own
 `--dump-extension-api` output, and `docs/coverage/engine-surface.md` is the
-generated result. Of 1,036 classes in Godot 4.7, 218 are named by our sources,
-720 are generically reachable (`ClassDB`-instantiable, so `add_node` and
+generated result. Of 1,036 classes in Godot 4.7, 221 are named by our sources,
+718 are generically reachable (`ClassDB`-instantiable, so `add_node` and
 `game_eval` construct them; sampled and proven in `tests/e2e/engine-reach.test.ts`),
-and 98 are scoped out in `docs/coverage/engine-scope.json` under 16 grouped
+and 97 are scoped out in `docs/coverage/engine-scope.json` under 16 grouped
 reasons, each of which the audit fails if it stops matching any class. The
 generated report has zero gaps.
 
@@ -654,10 +654,11 @@ A tool may be marked `[x] E2E` only when all applicable items pass:
 ### Release gate
 
 - [x] Build, lint, TypeScript tests, and all Godot suites pass. (Locally verified
-  together on Godot 4.7: 601 TypeScript tests, 184 full-path E2E tests, 16 strict
-  script parses, 70 headless checks, and 383 runtime checks.)
+  together on Godot 4.7: 655 TypeScript tests, 193 full-path E2E tests, 16 strict
+  script parses, 75 authoring-operation checks, and 383 runtime checks.)
 - [x] The generated manifest has no coverage or routing drift. (`npm run check`
-  runs the manifest/coverage contracts and the generated-report freshness gate.)
+  runs the manifest/coverage contracts plus both the tool/action and zero-gap
+  engine-surface report freshness gates.)
 - [x] No unexpected engine warning, error, crash, sanitizer finding, or leak is
   present. (Every Godot runner applies the strict diagnostic allowlist gate.)
 - [x] No required E2E test is skipped or quarantined. (Metadata enforcement

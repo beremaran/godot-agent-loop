@@ -1303,7 +1303,7 @@
     {
       "name": "Button",
       "bucket": "tooled",
-      "why": "src/scripts/mcp_interaction_server.gd, src/tool-definitions.ts, src/tool-handlers/project-handler-services.ts",
+      "why": "src/scripts/mcp_editor_plugin.gd, src/scripts/mcp_interaction_server.gd, src/tool-definitions.ts, src/tool-handlers/project-handler-services.ts",
       "api_type": "core",
       "instantiable": true,
       "is_node": true,
@@ -2040,7 +2040,7 @@
     {
       "name": "Control",
       "bucket": "tooled",
-      "why": "src/scripts/mcp_interaction_server.gd, src/scripts/mcp_runtime/ui_domain.gd, src/tool-definitions.ts, src/tool-handlers/project-handler-services.ts",
+      "why": "src/scripts/mcp_editor_plugin.gd, src/scripts/mcp_interaction_server.gd, src/scripts/mcp_runtime/ui_domain.gd, src/tool-definitions.ts, src/tool-handlers/project-handler-services.ts",
       "api_type": "core",
       "instantiable": true,
       "is_node": true,
@@ -2293,7 +2293,7 @@
     {
       "name": "DisplayServer",
       "bucket": "tooled",
-      "why": "src/scripts/mcp_runtime/input_domain.gd, src/scripts/mcp_runtime/system_domain.gd",
+      "why": "src/scripts/mcp_interaction_server.gd, src/scripts/mcp_runtime/input_domain.gd, src/scripts/mcp_runtime/system_domain.gd",
       "api_type": "core",
       "instantiable": false,
       "is_node": false,
@@ -2567,8 +2567,8 @@
     },
     {
       "name": "EditorFileSystem",
-      "bucket": "out-of-scope",
-      "why": "editor application state: the editor's own settings, paths, and filesystem cache are the IDE's state, not the user's project; mutating them would change the developer's machine rather than their game",
+      "bucket": "tooled",
+      "why": "src/scripts/mcp_editor_plugin.gd",
       "api_type": "editor",
       "instantiable": false,
       "is_node": true,
@@ -3777,8 +3777,8 @@
     },
     {
       "name": "HBoxContainer",
-      "bucket": "reachable",
-      "why": "ClassDB-instantiable: headless add_node and runtime game_eval can construct it",
+      "bucket": "tooled",
+      "why": "src/scripts/mcp_editor_plugin.gd",
       "api_type": "core",
       "instantiable": true,
       "is_node": true,
@@ -4262,7 +4262,7 @@
     {
       "name": "ItemList",
       "bucket": "tooled",
-      "why": "src/scripts/mcp_runtime/ui_domain.gd, src/tool-definitions.ts",
+      "why": "src/scripts/mcp_editor_plugin.gd, src/scripts/mcp_runtime/ui_domain.gd, src/tool-definitions.ts",
       "api_type": "core",
       "instantiable": true,
       "is_node": true,
@@ -4295,7 +4295,7 @@
     {
       "name": "JSON",
       "bucket": "tooled",
-      "why": "src/editor-connection.ts, src/game-command-service.ts, src/game-connection.ts, src/headless-operation-runner.ts, src/index.ts, src/runtime-protocol.ts, src/scripts/godot_operations.gd, src/scripts/mcp_editor_plugin.gd, src/scripts/mcp_interaction_server.gd, src/scripts/mcp_runtime/command_params.gd, src/scripts/mcp_runtime/runtime_domain.gd, src/scripts/mcp_runtime/variant_codec.gd, src/tool-argument-validation.ts, src/tool-definitions.ts, src/tool-handlers/game-tool-handlers.ts, src/tool-handlers/lifecycle-tool-handlers.ts, src/tool-handlers/project-handler-services.ts, src/tool-handlers/project-tool-handlers.ts, src/tool-handlers/visual-regression-service.ts, src/tool-manifest.ts",
+      "why": "src/authoring-session-manager.ts, src/editor-connection.ts, src/game-command-service.ts, src/game-connection.ts, src/headless-operation-runner.ts, src/index.ts, src/runtime-protocol.ts, src/scripts/godot_operations.gd, src/scripts/mcp_editor_plugin.gd, src/scripts/mcp_interaction_server.gd, src/scripts/mcp_runtime/command_params.gd, src/scripts/mcp_runtime/runtime_domain.gd, src/scripts/mcp_runtime/variant_codec.gd, src/tool-argument-validation.ts, src/tool-definitions.ts, src/tool-handlers/game-tool-handlers.ts, src/tool-handlers/lifecycle-tool-handlers.ts, src/tool-handlers/project-handler-services.ts, src/tool-handlers/project-tool-handlers.ts, src/tool-handlers/visual-regression-service.ts, src/tool-manifest.ts, src/tool-surface.ts",
       "api_type": "core",
       "instantiable": true,
       "is_node": false,
@@ -4449,7 +4449,7 @@
     {
       "name": "Label",
       "bucket": "tooled",
-      "why": "src/scripts/mcp_interaction_server.gd, src/tool-handlers/project-handler-services.ts",
+      "why": "src/scripts/mcp_editor_plugin.gd, src/scripts/mcp_interaction_server.gd, src/tool-handlers/project-handler-services.ts",
       "api_type": "core",
       "instantiable": true,
       "is_node": true,
@@ -5329,7 +5329,7 @@
     {
       "name": "Object",
       "bucket": "tooled",
-      "why": "src/domain-tool-registries.ts, src/headless-operation-runner.ts, src/headless-operation-service.ts, src/runtime-protocol.ts, src/scripts/godot_operations.gd, src/scripts/mcp_runtime/system_domain.gd, src/scripts/mcp_runtime/variant_codec.gd, src/tool-argument-validation.ts, src/tool-handlers/game-tool-handlers.ts, src/tool-handlers/project-handler-services.ts, src/tool-handlers/project-tool-handlers.ts, src/tool-registry.ts, src/utils.ts",
+      "why": "src/domain-tool-registries.ts, src/headless-operation-runner.ts, src/headless-operation-service.ts, src/runtime-protocol.ts, src/scripts/godot_operations.gd, src/scripts/mcp_runtime/system_domain.gd, src/scripts/mcp_runtime/variant_codec.gd, src/tool-argument-validation.ts, src/tool-handlers/game-tool-handlers.ts, src/tool-handlers/project-handler-services.ts, src/tool-handlers/project-tool-handlers.ts, src/tool-manifest.ts, src/tool-mutation-policy.ts, src/tool-registry.ts, src/utils.ts",
       "api_type": "core",
       "instantiable": true,
       "is_node": false,
@@ -9497,8 +9497,8 @@
     },
     {
       "name": "VBoxContainer",
-      "bucket": "reachable",
-      "why": "ClassDB-instantiable: headless add_node and runtime game_eval can construct it",
+      "bucket": "tooled",
+      "why": "src/scripts/mcp_editor_plugin.gd",
       "api_type": "core",
       "instantiable": true,
       "is_node": true,
