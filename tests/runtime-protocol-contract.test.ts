@@ -101,6 +101,12 @@ describe('runtime protocol contract', () => {
       expect(`${server}\n${connection}`).toMatch(new RegExp(`["']${event}["']`));
     }
     expect(observability.redaction).toMatch(/never logged/i);
+    expect(observability.editorSink).toMatchObject({
+      bridgeCommand: 'activity', dock: 'Agent Activity', maxEntries: 200,
+    });
+    expect(observability.editorSink.fields).toEqual([
+      'correlation_id', 'command', 'target', 'outcome', 'duration_ms',
+    ]);
     expect(connection).not.toContain('Failed to parse game response: ${line}');
   });
 

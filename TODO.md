@@ -389,9 +389,16 @@ until that decision is confirmed against a real game.
 
 #### 6d: let a human watch
 
-- [ ] Fan `GameConnection`'s existing correlated lifecycle events out over the
+- [x] Fan `GameConnection`'s existing correlated lifecycle events out over the
   editor bridge and render them in an addon dock: command, target, outcome,
-  duration, live.
+  duration, live. (`GameConnection` now emits typed start/finish/timeout events
+  beside its redacted logs, with a bounded dock-only target and monotonic
+  duration. Both running-game and authoring-session connections push them
+  best-effort over the authenticated editor bridge; editor absence never blocks
+  a command. The addon installs a bounded 200-row **Agent Activity** dock and
+  exposes its state through `inspect`. Unit coverage verifies correlation,
+  target, outcome, and duration; a headed real-editor E2E observes a successful
+  targeted runtime command in the live dock.)
 - [ ] Push a filesystem rescan and scene reload to the open editor after the
   session writes, instead of relying on Godot's focus-triggered rescan.
 - [ ] Follow the agent's focus: select and reveal the node a command just touched,

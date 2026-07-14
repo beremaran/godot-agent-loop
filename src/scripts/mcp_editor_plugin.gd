@@ -10,12 +10,17 @@ var _peer: StreamPeerTCP
 var _buffer: PackedByteArray = PackedByteArray()
 var _port: int = 9091
 var _secret: String = ""
+var _activity_dock: VBoxContainer
+var _activity_list: ItemList
+var _activity_entries: Array[Dictionary] = []
+const MAX_ACTIVITY_ENTRIES: int = 200
 
 func _enter_tree() -> void:
 	set_process(true)
 	_port = _read_port()
 	_secret = OS.get_environment("GODOT_MCP_EDITOR_SECRET")
 	_server = TCPServer.new()
+	_create_activity_dock()
 	var error: int = _server.listen(_port, "127.0.0.1")
 	if error != OK:
 		push_error("Godot MCP editor bridge could not listen on %d: %s" % [_port, error_string(error)])
@@ -28,6 +33,11 @@ func _exit_tree() -> void:
 	if _server != null:
 		_server.stop()
 	_server = null
+	if _activity_dock != null:
+		remove_control_from_docks(_activity_dock)
+		_activity_dock.queue_free()
+	_activity_dock = null
+	_activity_list = null
 
 func _process(_delta: float) -> void:
 	if _server != null and _server.is_connection_available():
@@ -78,6 +88,8 @@ func _dispatch(command: String, raw_params: Variant) -> Dictionary:
 	match command:
 		"inspect":
 			return _inspect()
+		"activity":
+			return _record_activity(params)
 		"select":
 			return _select(params)
 		"save":
@@ -106,7 +118,48 @@ func _dispatch(command: String, raw_params: Variant) -> Dictionary:
 			if redo_manager != null: redo_manager.call("redo")
 			return {"success": redo_manager != null, "action": "redo"}
 		_:
-			return {"error": "unknown_command", "allowed": ["inspect", "select", "save", "reload", "open_scene", "set_property", "rename_node", "undo", "redo"]}
+			return {"error": "unknown_command", "allowed": ["inspect", "activity", "select", "save", "reload", "open_scene", "set_property", "rename_node", "undo", "redo"]}
+
+func _create_activity_dock() -> void:
+	_activity_dock = VBoxContainer.new()
+	_activity_dock.name = "Godot MCP Agent"
+	var title := Label.new()
+	title.text = "Agent Activity"
+	title.tooltip_text = "Live authenticated MCP command lifecycle"
+	_activity_dock.add_child(title)
+	_activity_list = ItemList.new()
+	_activity_list.name = "Activity"
+	_activity_list.custom_minimum_size = Vector2(320, 180)
+	_activity_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_activity_dock.add_child(_activity_list)
+	add_control_to_dock(DOCK_SLOT_RIGHT_BL, _activity_dock)
+
+func _record_activity(params: Dictionary) -> Dictionary:
+	var event: String = str(params.get("event", ""))
+	if not event in ["request_started", "request_finished", "request_timed_out"]:
+		return {"error": "invalid_activity_event"}
+	var command: String = str(params.get("command", "unknown"))
+	var target: String = str(params.get("target", "game"))
+	var outcome: String = str(params.get("outcome", "running"))
+	var duration_ms: int = int(params.get("duration_ms", 0))
+	var correlation_id: String = str(params.get("correlation_id", ""))
+	var marker: String = "…" if event == "request_started" else "✓" if outcome == "success" else "✗"
+	var suffix: String = "" if event == "request_started" else " · %d ms" % duration_ms
+	var text: String = "%s %s → %s%s" % [marker, command, target, suffix]
+	var entry: Dictionary = {
+		"event": event, "correlation_id": correlation_id, "command": command,
+		"target": target, "outcome": outcome, "duration_ms": duration_ms, "text": text,
+	}
+	_activity_entries.append(entry)
+	_activity_list.add_item(text)
+	_activity_list.set_item_tooltip(_activity_list.item_count - 1, correlation_id)
+	if event != "request_started":
+		var color := Color(0.35, 0.85, 0.45) if outcome == "success" else Color(1.0, 0.4, 0.35)
+		_activity_list.set_item_custom_fg_color(_activity_list.item_count - 1, color)
+	while _activity_entries.size() > MAX_ACTIVITY_ENTRIES:
+		_activity_entries.pop_front()
+		_activity_list.remove_item(0)
+	return {"success": true, "activity_count": _activity_entries.size()}
 
 func _inspect() -> Dictionary:
 	var interface: EditorInterface = get_editor_interface()
@@ -122,7 +175,8 @@ func _inspect() -> Dictionary:
 	return {"success": true, "edited_scene": "" if root == null else str(root.scene_file_path),
 		"edited_root": null if root == null else {"name": root.name, "type": root.get_class(), "path": str(root.get_path())},
 		"selection": selected, "open_scenes": open_scenes,
-		"has_undo_redo": interface.call("get_editor_undo_redo") != null}
+		"has_undo_redo": interface.call("get_editor_undo_redo") != null,
+		"activity_dock": _activity_dock != null, "activity": _activity_entries.duplicate(true)}
 
 func _select(params: Dictionary) -> Dictionary:
 	var selection: EditorSelection = get_editor_interface().get_selection()

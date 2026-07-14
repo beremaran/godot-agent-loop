@@ -1,8 +1,19 @@
 import { createConnection, type Socket } from 'net';
+import { performance } from 'perf_hooks';
 import { AUTHORING_COMMANDS_CAPABILITY, CANCEL_METHOD, HANDSHAKE_METHOD, PRIVILEGED_RUNTIME_CAPABILITY, PRIVILEGED_RUNTIME_COMMANDS, PRIVILEGED_RUNTIME_COMMAND_GROUPS, RUNTIME_CAPABILITIES, RUNTIME_PROTOCOL_VERSION, SESSION_AUTHENTICATION_CAPABILITY, commandMethod, isAuthoringCommand, isHandshakeResult, isJsonRpcResponse, isSessionCommand, privilegedGroupCapability, type JsonRpcResponse, type PrivilegedRuntimeGroup } from './runtime-protocol.js';
 
 export interface GameConnectionOptions {
-  port?: number; host?: string; initialDelayMs?: number; retryDelayMs?: number; maxAttempts?: number; log?: (message: string) => void; allowPrivilegedCommands?: boolean; allowedPrivilegedGroups?: readonly PrivilegedRuntimeGroup[]; authSecret?: string;
+  port?: number; host?: string; initialDelayMs?: number; retryDelayMs?: number; maxAttempts?: number; log?: (message: string) => void; allowPrivilegedCommands?: boolean; allowedPrivilegedGroups?: readonly PrivilegedRuntimeGroup[]; authSecret?: string; onLifecycleEvent?: (event: GameLifecycleEvent) => void;
+}
+
+export interface GameLifecycleEvent {
+  event: 'request_started' | 'request_finished' | 'request_timed_out';
+  correlation_id: string;
+  command: string;
+  target: string;
+  outcome?: 'success' | 'error' | 'timeout';
+  duration_ms?: number;
+  error_code?: number;
 }
 
 export type GameResponse = JsonRpcResponse;
@@ -27,6 +38,7 @@ export class GameConnection {
   private readonly allowPrivilegedCommands: boolean;
   private readonly allowedPrivilegedGroups: ReadonlySet<PrivilegedRuntimeGroup>;
   private readonly authSecret: string | undefined;
+  private readonly onLifecycleEvent: (event: GameLifecycleEvent) => void;
   private runtimeCapabilities: string[] = [];
   private connectionGeneration = 0;
   private connectingSocket: Socket | null = null;
@@ -42,6 +54,7 @@ export class GameConnection {
     this.allowPrivilegedCommands = options.allowPrivilegedCommands ?? false;
     this.allowedPrivilegedGroups = new Set(options.allowedPrivilegedGroups ?? []);
     this.authSecret = options.authSecret;
+    this.onLifecycleEvent = options.onLifecycleEvent ?? (() => undefined);
   }
 
   get interactionPort(): number { return this.port; }
@@ -141,22 +154,40 @@ export class GameConnection {
     const correlationId = isCommand ? `mcp_${id}` : undefined;
     const wireParams = correlationId === undefined ? params : { ...params, _mcp_correlation_id: correlationId };
     const payload = JSON.stringify({ jsonrpc: '2.0', method, params: wireParams, id }) + '\n';
-    if (correlationId !== undefined) this.logEvent('request_started', { correlation_id: correlationId, method });
+    const startedAt = performance.now();
+    const command = method.slice('godot.runtime.'.length);
+    const target = requestTarget(params);
+    if (correlationId !== undefined) {
+      this.logEvent('request_started', { correlation_id: correlationId, method });
+      this.emitLifecycle({ event: 'request_started', correlation_id: correlationId, command, target });
+    }
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         if (!this.pendingRequests.delete(id)) return;
         this.requestCancellation(id);
         if (correlationId !== undefined) {
-          this.logEvent('request_timed_out', { correlation_id: correlationId, method, timeout_ms: timeoutMs });
+          const durationMs = Math.max(0, Math.round(performance.now() - startedAt));
+          this.logEvent('request_timed_out', { correlation_id: correlationId, method, timeout_ms: timeoutMs, duration_ms: durationMs });
+          this.emitLifecycle({
+            event: 'request_timed_out', correlation_id: correlationId, command, target,
+            outcome: 'timeout', duration_ms: durationMs,
+          });
         }
         reject(new Error(`Game request '${method}' timed out after ${timeoutMs / 1000}s`));
       }, timeoutMs);
       this.pendingRequests.set(id, response => {
         clearTimeout(timeout);
         if (correlationId !== undefined) {
+          const durationMs = Math.max(0, Math.round(performance.now() - startedAt));
+          const outcome = 'error' in response ? 'error' : 'success';
           this.logEvent('request_finished', {
             correlation_id: correlationId, method,
-            outcome: 'error' in response ? 'error' : 'success',
+            outcome, duration_ms: durationMs,
+            ...('error' in response ? { error_code: response.error.code } : {}),
+          });
+          this.emitLifecycle({
+            event: 'request_finished', correlation_id: correlationId, command, target,
+            outcome, duration_ms: durationMs,
             ...('error' in response ? { error_code: response.error.code } : {}),
           });
         }
@@ -258,5 +289,16 @@ export class GameConnection {
   private logEvent(event: string, details: Record<string, unknown> = {}): void {
     this.log(JSON.stringify({ component: 'godot-mcp-server', event, ...details }));
   }
+  private emitLifecycle(event: GameLifecycleEvent): void {
+    try { this.onLifecycleEvent(event); } catch { /* Observation must never break command delivery. */ }
+  }
   private connectionError(id: number | null, message: string): GameResponse { return { jsonrpc: '2.0', id, error: { code: -32000, message } }; }
+}
+
+function requestTarget(params: Record<string, unknown>): string {
+  for (const key of ['node_path', 'scene_path', 'resource_path', 'parent_path', 'group', 'action']) {
+    const value = params[key];
+    if (typeof value === 'string' && value.length > 0) return value.slice(0, 256);
+  }
+  return 'game';
 }

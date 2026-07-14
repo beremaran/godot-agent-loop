@@ -46,7 +46,9 @@ additions:
 - **`editor_control`** - Inspect the edited scene and selection, open/save/reload
   scenes, and apply reversible property or node-name edits through
   `EditorUndoRedoManager`. `launch_editor` installs the authenticated bridge
-  for the lifetime of the MCP-owned editor session.
+  for the lifetime of the MCP-owned editor session. Its **Agent Activity** dock
+  shows each command's target, live outcome, and duration from the same
+  correlated lifecycle events used by server diagnostics.
 
 ### Runtime Node Inspection & Manipulation
 

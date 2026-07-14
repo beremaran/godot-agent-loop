@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { createServer } from 'node:net';
 
-import { GameConnection, type GameResponse } from './game-connection.js';
+import { GameConnection, type GameLifecycleEvent, type GameResponse } from './game-connection.js';
 import { GodotProcessManager } from './godot-process-manager.js';
 import type { HeadlessOperationResult } from './headless-operation-runner.js';
 import type { InteractionServerInstaller } from './interaction-server-installer.js';
@@ -35,6 +35,7 @@ export interface AuthoringSessionManagerOptions {
   createConnection?: (port: number, secret: string) => AuthoringConnection;
   processManager?: GodotProcessManager;
   secretFactory?: () => string;
+  onLifecycleEvent?: (event: GameLifecycleEvent) => void;
 }
 
 /** A startup-only error that is safe to route to the subprocess fallback. */
@@ -155,6 +156,7 @@ export class AuthoringSessionManager {
         maxAttempts: 200,
         authSecret,
         log: this.logDebug,
+        onLifecycleEvent: this.options.onLifecycleEvent,
       })))(port, secret);
       const generation = ++this.generation;
       const state: AuthoringSessionState = { projectPath, ownedInstallation, connection, generation };

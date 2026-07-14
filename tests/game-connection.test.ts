@@ -134,6 +134,29 @@ describe('GameConnection lifecycle', () => {
     connection.disconnect();
   });
 
+  it('emits correlated dock-safe command lifecycle events with target and duration', async () => {
+    const { port } = await startServer();
+    const events: import('../src/game-connection.js').GameLifecycleEvent[] = [];
+    const connection = new GameConnection({
+      port, initialDelayMs: 0, onLifecycleEvent: event => { events.push(event); },
+    });
+
+    await connection.connect('/project', () => true);
+    await connection.send('get_node_info', { node_path: '/root/Main/Player' });
+
+    expect(events).toHaveLength(2);
+    expect(events[0]).toMatchObject({
+      event: 'request_started', correlation_id: 'mcp_2',
+      command: 'get_node_info', target: '/root/Main/Player',
+    });
+    expect(events[1]).toMatchObject({
+      event: 'request_finished', correlation_id: 'mcp_2',
+      command: 'get_node_info', target: '/root/Main/Player', outcome: 'success',
+      duration_ms: expect.any(Number),
+    });
+    connection.disconnect();
+  });
+
   it('sends authoring commands only to a harness-owned authoring session', async () => {
     const ordinaryServer = await startServer();
     const ordinary = new GameConnection({ port: ordinaryServer.port, initialDelayMs: 0 });

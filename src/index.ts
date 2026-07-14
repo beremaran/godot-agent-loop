@@ -148,6 +148,7 @@ export class GodotServer {
     allowedPrivilegedGroups: ALLOWED_PRIVILEGED_GROUPS,
     authSecret: RUNTIME_SECRET,
     log: message => { this.logDebug(message); },
+    onLifecycleEvent: event => { this.forwardEditorActivity(event); },
   });
   private get gameConnection(): GameConnection {
     return this.tcpGameConnection;
@@ -214,6 +215,7 @@ export class GodotServer {
       // A running user game owns the installed runtime artifacts. Authoring
       // calls use their declared subprocess fallback until that process stops.
       canStart: () => this.activeProcess === null,
+      onLifecycleEvent: event => { this.forwardEditorActivity(event); },
     });
     this.headlessOperations = new HeadlessOperationService(this.operationRunner, pathSecurity, this.authoringSession);
     this.gameCommands = new GameCommandService(this.processManager, this.gameConnection);
@@ -300,6 +302,10 @@ export class GodotServer {
     };
     process.on('SIGINT', shutdown);
     process.on('SIGTERM', shutdown);
+  }
+
+  private forwardEditorActivity(event: import('./game-connection.js').GameLifecycleEvent): void {
+    void this.editorConnection.send('activity', { ...event }, 1_000).catch(() => undefined);
   }
 
   /**

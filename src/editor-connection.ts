@@ -11,6 +11,7 @@ export class EditorConnection {
   private buffer = '';
   private nextId = 1;
   private readonly pending = new Map<number, (value: Record<string, unknown>) => void>();
+  private connecting: Promise<void> | null = null;
 
   constructor(private readonly options: EditorConnectionOptions) {}
 
@@ -37,7 +38,8 @@ export class EditorConnection {
 
   private async ensureConnected(timeoutMs: number): Promise<void> {
     if (this.socket) return;
-    await new Promise<void>((resolve, reject) => {
+    if (this.connecting) return this.connecting;
+    this.connecting = new Promise<void>((resolve, reject) => {
       const socket = createConnection({ host: '127.0.0.1', port: this.options.port });
       const timer = setTimeout(() => { socket.destroy(); reject(new Error('Editor bridge connection timed out')); }, timeoutMs);
       socket.once('connect', () => {
@@ -50,6 +52,11 @@ export class EditorConnection {
       });
       socket.once('error', error => { clearTimeout(timer); reject(error); });
     });
+    try {
+      await this.connecting;
+    } finally {
+      this.connecting = null;
+    }
   }
 
   private receive(data: string): void {

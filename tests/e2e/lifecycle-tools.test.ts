@@ -136,7 +136,7 @@ describe('project process ownership', () => {
     expect(stopped.isError).toBe(true);
   });
 
-  it('launches a headless editor process and reports success', async () => {
+  it('launches the headed editor bridge and renders live agent activity', async () => {
     server = await startServer();
     try {
       const launched = await server.call('launch_editor', { projectPath: server.projectPath });
@@ -167,6 +167,31 @@ describe('project process ownership', () => {
         if (!sceneReady) await new Promise(resolve => setTimeout(resolve, 250));
       }
       expect(sceneReady, editorState.text).toBe(true);
+
+      expect((await server.call('run_project', { projectPath: server.projectPath })).isError).toBe(false);
+      await server.waitForGameConnection();
+      const observedCommand = await server.call('game_get_node_info', { nodePath: '/root/Main/Anchor' });
+      expect(observedCommand.isError, observedCommand.text).toBe(false);
+
+      let observedActivity = false;
+      const activityDeadline = Date.now() + 15_000;
+      while (Date.now() < activityDeadline && !observedActivity) {
+        editorState = await server.call('editor_control', { projectPath: server.projectPath, action: 'inspect' });
+        if (!editorState.isError) {
+          const inspected = JSON.parse(editorState.text) as {
+            activity_dock?: boolean;
+            activity?: { command?: string; target?: string; outcome?: string; duration_ms?: number }[];
+          };
+          observedActivity = inspected.activity_dock === true && (inspected.activity ?? []).some(event => (
+            event.command === 'get_node_info'
+              && event.target === '/root/Main/Anchor'
+              && event.outcome === 'success'
+              && typeof event.duration_ms === 'number'
+          ));
+        }
+        if (!observedActivity) await new Promise(resolve => setTimeout(resolve, 250));
+      }
+      expect(observedActivity, editorState.text).toBe(true);
 
       const edited = await server.call('editor_control', {
         projectPath: server.projectPath, action: 'set_property', nodePath: '.', property: 'name', value: 'EditedRoot',
@@ -206,6 +231,7 @@ describe('project process ownership', () => {
         if (!seen) await new Promise(resolve => setTimeout(resolve, 250));
       }
       expect(seen, 'no editor process appeared').toBe(true);
+      expect((await server.call('stop_project')).isError).toBe(false);
     } finally {
       // The editor is intentionally user-owned (no stop_editor tool), so the
       // test always releases it before teardown's leak assertion, including
