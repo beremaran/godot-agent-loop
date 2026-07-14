@@ -14,7 +14,7 @@ export class EditorPluginInstaller {
     const projectFile = join(projectPath, 'project.godot');
     mkdirSync(addon, { recursive: true });
     copyFileSync(this.scriptPath, script);
-    writeFileSync(config, '[plugin]\nname="Godot MCP Editor Bridge"\ndescription="Authenticated MCP editor state and undo/redo bridge"\nauthor="Godot MCP"\nversion="1.0"\nscript="plugin.gd"\n');
+    writeFileSync(config, '[plugin]\nname="Godot Agent Loop Editor Bridge"\ndescription="Authenticated MCP editor state and undo/redo bridge"\nauthor="Godot Agent Loop"\nversion="1.0"\nscript="plugin.gd"\n');
     const content = readFileSync(projectFile, 'utf8');
     if (content.includes(`"${PLUGIN_NAME}"`)) return false;
     const section = '[editor_plugins]';

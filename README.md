@@ -1,35 +1,64 @@
 
-<img width="2752" height="1536" alt="godot_mcp_header" src="https://github.com/user-attachments/assets/ed7ac605-8fb5-4a5f-adf8-4b6912cbc18c" />
+# Godot Agent Loop
 
-# Godot MCP - Engine Automation
+**Build it. Play it. Prove it.**
+
+An evidence-first MCP automation loop for Godot 4.
 
 [![MCP Server](https://badge.mcpx.dev?type=server 'MCP Server')](https://modelcontextprotocol.io/introduction)
 [![Made with Godot](https://img.shields.io/badge/Made%20with-Godot-478CBF?style=flat&logo=godot%20engine&logoColor=white)](https://godotengine.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white 'TypeScript')](https://www.typescriptlang.org/)
 [![MIT License](https://img.shields.io/badge/License-MIT-red.svg 'MIT License')](https://opensource.org/licenses/MIT)
 
-A [Model Context Protocol](https://modelcontextprotocol.io/introduction) (MCP)
-server for project-file authoring, engine-backed operations,
-and inspection or mutation of running Godot games. Every advertised tool and
-public action has a full MCP-to-Godot test. Support remains intentionally
-bounded by the environment matrix below; editor UI automation, debugger
-control, and native extension builds are not claimed.
+Other integrations give agents tools. Godot Agent Loop gives them a tested
+feedback loop to author, run, observe, playtest, and independently verify Godot
+games.
 
 <!-- generated-coverage-badge:start -->
 [![E2E tools: 167/167](https://img.shields.io/badge/E2E_tools-167%2F167-brightgreen)](docs/coverage/coverage-report.md)
 <!-- generated-coverage-badge:end -->
 
-## Acknowledgments
+## Start the loop
 
-This project is built upon and extends [godot-mcp](https://github.com/Coding-Solo/godot-mcp) by [Solomon Elias (Coding-Solo)](https://github.com/Coding-Solo). The original project provided the foundational architecture including the TypeScript MCP server, headless GDScript operations system, and TCP-based runtime interaction server. Thank you for making this possible with your excellent open-source work!
+```bash
+claude mcp add godot-agent-loop -- npx -y @beremaran/godot-agent-loop@1.0.0
+```
 
-## What's New (Improvements Over Original)
+Then point the agent at a project directory—or an empty directory—and describe
+the playable result. The server teaches and supports this loop:
 
-The original godot-mcp provided 20 tools for basic project management and scene
-creation. This fork substantially extends that surface with the following major
-additions:
+```text
+author → validate → run → observe → playtest → assert → refine
+```
 
-### New in 3.0
+The compact default surface exposes 39 tools for that loop. `godot_tools`
+searches, describes, and dispatches the specialized catalog only when needed.
+Runtime and editor bridges are installed transiently and cleaned up
+automatically.
+
+## Proof before claims
+
+- **167/167 tools** exercised through the complete MCP-to-Godot path.
+- **358 public actions** traced to resolving tests.
+- **194 full-path MCP E2E tests** in the current Godot 4.7 release candidate.
+- **81.56% smaller default schema surface**, with all specialized tools still
+  available through `godot_tools`.
+- A cold agent built and independently verified a playable win/lose game with
+  zero human corrections; see the
+  [acceptance record](docs/golden-agent-acceptance.md).
+- Privileged reflection, code execution, and networking groups are denied by
+  default, and the editor provides a human **Pause Agent** control.
+
+Support is deliberately bounded: Godot 4.4 is the compatibility floor and 4.7
+the primary target; editor UI/rendering depth is verified on Linux, while
+Windows and macOS receive the documented portable acceptance path. Full
+debugger automation, native extension builds, and unbounded engine control are
+not claimed.
+
+## Release 1.0
+
+Godot Agent Loop 1.0 turns the inherited tool server into one coherent product
+for agent-driven game development:
 
 - **.NET / C# support** - Scaffold C# projects and generate C# scripts (`create_project` with `dotnet: true`, `create_csharp_script`); the `.csproj` SDK version is matched to your installed Godot.
 - **GDScript diagnostics** - Validate scripts for syntax and type errors without running the game (`validate_script`, and `validate_scripts` for all git-changed or project-wide files).
@@ -635,8 +664,8 @@ branch would receive critical fixes rather than new features.
 ## Installation
 
 ```bash
-git clone https://github.com/beremaran/godot-mcp.git
-cd godot-mcp
+git clone https://github.com/beremaran/godot-agent-loop.git
+cd godot-agent-loop
 npm install
 npm run build
 ```
@@ -649,8 +678,8 @@ The repository ships a Claude Code plugin that starts the matching npm MCP
 server and bundles skills for building, verifying, and debugging Godot games:
 
 ```text
-/plugin marketplace add beremaran/godot-mcp
-/plugin install godot-mcp@godot-mcp
+/plugin marketplace add beremaran/godot-agent-loop
+/plugin install godot-agent-loop@godot-agent-loop
 ```
 
 For a local checkout, use `claude --plugin-dir ./claude-plugin`. See
@@ -666,7 +695,7 @@ Add to your Claude Code MCP settings:
   "mcpServers": {
     "godot": {
       "command": "node",
-      "args": ["/absolute/path/to/godot-mcp/build/index.js"],
+      "args": ["/absolute/path/to/godot-agent-loop/build/index.js"],
       "env": {
         "GODOT_PATH": "/path/to/godot",
         "DEBUG": "true"
@@ -685,7 +714,7 @@ Add to your Cline MCP settings (`cline_mcp_settings.json`):
   "mcpServers": {
     "godot": {
       "command": "node",
-      "args": ["/absolute/path/to/godot-mcp/build/index.js"],
+      "args": ["/absolute/path/to/godot-agent-loop/build/index.js"],
       "disabled": false
     }
   }
@@ -701,7 +730,7 @@ Create `.cursor/mcp.json` in your project:
   "mcpServers": {
     "godot": {
       "command": "node",
-      "args": ["/absolute/path/to/godot-mcp/build/index.js"]
+      "args": ["/absolute/path/to/godot-agent-loop/build/index.js"]
     }
   }
 }
@@ -872,9 +901,17 @@ npm run test:watch  # watch mode
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Credits
+## Lineage
 
-- **Original project**: [godot-mcp](https://github.com/Coding-Solo/godot-mcp) by [Solomon Elias (Coding-Solo)](https://github.com/Coding-Solo) - provided the foundational MCP server architecture, headless operations system, and TCP interaction framework
-- **Inherited from**: [Tugcan Topaloglu](https://github.com/tugcantopaloglu)'s repository, which extended the original project across networking, 3D/2D rendering, UI controls, audio,
+- **Original project:** [godot-mcp](https://github.com/Coding-Solo/godot-mcp)
+  by [Solomon Elias (Coding-Solo)](https://github.com/Coding-Solo), which
+  provided the foundational TypeScript MCP server, headless GDScript operations,
+  and TCP runtime interaction architecture.
+- **Inherited from:** [Tugcan Topaloglu](https://github.com/tugcantopaloglu)'s
+  [godot-mcp](https://github.com/tugcantopaloglu/godot-mcp), which extended the
+  original project across networking, 3D/2D rendering, UI controls, audio,
   animation, file I/O, runtime code execution, project creation, and physics
-- **Maintained and further extended by**: [Berke Arslan](https://github.com/beremaran)
+  while preserving the MIT license.
+- **Godot Agent Loop:** maintained and substantially extended by
+  [Berke Arslan](https://github.com/beremaran), preserving the complete Git
+  history and every inherited MIT notice.

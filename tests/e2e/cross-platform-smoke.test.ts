@@ -27,7 +27,7 @@ describe('portable process, path, input, and window acceptance', () => {
 
     const info = await server.call('get_project_info', { projectPath: server.projectPath });
     expect(info.isError, info.text).toBe(false);
-    expect(info.text).toContain('godot-mcp-e2e-fixture');
+    expect(info.text).toContain('godot-agent-loop-e2e-fixture');
 
     const started = await server.call('run_project', { projectPath: server.projectPath });
     expect(started.isError, started.text).toBe(false);

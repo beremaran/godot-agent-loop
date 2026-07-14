@@ -76,7 +76,7 @@ export interface TempProjectOptions {
 
 /** A minimal runnable Godot project in a throwaway directory. */
 export function createTempProject(options: TempProjectOptions = {}): { root: string; projectPath: string } {
-  const root = mkdtempSync(join(tmpdir(), 'godot-mcp-e2e-'));
+  const root = mkdtempSync(join(tmpdir(), 'godot-agent-loop-e2e-'));
   const projectPath = join(root, options.name ?? 'project');
   mkdirSync(projectPath, { recursive: true });
   const renderer = process.env.GODOT_MCP_E2E_RENDERER;
@@ -85,7 +85,7 @@ export function createTempProject(options: TempProjectOptions = {}): { root: str
     '',
     '[application]',
     '',
-    'config/name="godot-mcp-e2e-fixture"',
+    'config/name="godot-agent-loop-e2e-fixture"',
     'run/main_scene="res://main.tscn"',
     'config/features=PackedStringArray("4.4")',
     '',
@@ -334,7 +334,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<E2E
     stderr: 'pipe',
   });
 
-  const client = new Client({ name: 'godot-mcp-e2e', version: '0.0.0' });
+  const client = new Client({ name: 'godot-agent-loop-e2e', version: '0.0.0' });
   await client.connect(transport);
   const serverLogs: string[] = [];
   transport.stderr?.on('data', (data: Buffer) => {

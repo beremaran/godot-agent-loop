@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import { isAbsolute, relative, resolve } from 'path';
 
 /**
- * Shared utilities for the Godot MCP server.
+ * Shared utilities for the Godot Agent Loop server.
  * Pure functions extracted for testability.
  */
 

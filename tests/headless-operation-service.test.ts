@@ -10,7 +10,7 @@ import { AuthoringSessionUnavailableError, RenderingContextUnavailableError, typ
 const projects: string[] = [];
 
 function makeProject(): string {
-  const projectPath = mkdtempSync(join(tmpdir(), 'godot-mcp-headless-'));
+  const projectPath = mkdtempSync(join(tmpdir(), 'godot-agent-loop-headless-'));
   projects.push(projectPath);
   writeFileSync(join(projectPath, 'project.godot'), '');
   return projectPath;

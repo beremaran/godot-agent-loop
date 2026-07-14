@@ -22,7 +22,7 @@ function writeAddon(root: string, version: string, marker: string, script?: stri
   mkdirSync(root, { recursive: true });
   writeFileSync(join(root, 'plugin.cfg'), [
     '[plugin]', '', 'name="Pinned Agent Add-on"', 'description="E2E fixture"',
-    'author="Godot MCP"', `version="${version}"`, 'script="plugin.gd"',
+    'author="Godot Agent Loop"', `version="${version}"`, 'script="plugin.gd"',
     'minimum_godot_version="4.4"', '',
   ].join('\n'));
   writeFileSync(join(root, 'plugin.gd'), script ?? [

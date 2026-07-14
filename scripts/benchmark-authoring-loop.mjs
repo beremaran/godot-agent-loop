@@ -111,7 +111,7 @@ console.log(`wrote ${outputPath}`);
 console.log(JSON.stringify(result.summary, null, 2));
 
 async function runCycle(mode, executable) {
-  const fixtureRoot = mkdtempSync(join(tmpdir(), `godot-mcp-loop-${mode}-`));
+  const fixtureRoot = mkdtempSync(join(tmpdir(), `godot-agent-loop-loop-${mode}-`));
   const projectPath = join(fixtureRoot, 'project');
   mkdirSync(projectPath);
   writeProject(projectPath);
@@ -268,7 +268,7 @@ function assertCleanProcesses(records) {
 
 function writeProject(projectPath) {
   writeFileSync(join(projectPath, 'project.godot'), [
-    'config_version=5', '', '[application]', 'config/name="godot-mcp-loop-benchmark"',
+    'config_version=5', '', '[application]', 'config/name="godot-agent-loop-loop-benchmark"',
     'run/main_scene="res://cycle.tscn"', 'config/features=PackedStringArray("4.4")', '',
     '[display]', 'window/size/viewport_width=320', 'window/size/viewport_height=180', '',
     '[rendering]', 'renderer/rendering_method="gl_compatibility"',

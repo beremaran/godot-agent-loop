@@ -1,6 +1,6 @@
 // @test-kind: unit
 /**
- * Handler tests for Godot MCP server.
+ * Handler tests for the Godot Agent Loop server.
  *
  * Because GodotServer is not exported and auto-starts on import, we cannot
  * instantiate it directly.  Instead we test the handler logic by:

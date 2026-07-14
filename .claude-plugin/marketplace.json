@@ -1,14 +1,14 @@
 {
-  "name": "godot-mcp",
+  "name": "godot-agent-loop",
   "owner": {
     "name": "Berke Arslan"
   },
-  "description": "Godot game-development tools and agent workflows.",
+  "description": "Evidence-first Godot game-development tools and agent workflows.",
   "plugins": [
     {
-      "name": "godot-mcp",
+      "name": "godot-agent-loop",
       "source": "./claude-plugin",
-      "description": "Build, verify, and debug Godot games through MCP.",
+      "description": "Build, playtest, and prove Godot games through MCP.",
       "category": "development"
     }
   ]

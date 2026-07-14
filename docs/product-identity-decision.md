@@ -1,7 +1,9 @@
 # Product identity decision
 
-Status: **decision pending**  
-Prepared: 2026-07-14  
+Status: **Option 1 selected**
+
+Prepared: 2026-07-14
+
 Decision owner: Berke Arslan
 
 This record defines the product-identity gate for the pre-release plan. It does
@@ -113,7 +115,10 @@ submission, and announcements remain separate explicit-approval gates.
 
 ## Decision
 
-Selected option: **pending**
+Selected option: **1 — Godot Agent Loop in a new independent repository**
 
-The decision is complete only when the selected option number and any deliberate
-deviation from its identifier table are recorded here and in `TODO.md`.
+Confirmed by Berke Arslan on 2026-07-14. Local reversible identity and packaging
+work is authorized. Repository creation, pushes, publication, submission, and
+announcements remain behind their explicit approval gates.
+
+There are no deliberate deviations from the Option 1 identifier table.

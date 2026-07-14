@@ -9,7 +9,7 @@ import { ProjectSupport } from '../src/project-support.js';
 const temporaryDirectories: string[] = [];
 
 function createTemporaryDirectory(): string {
-  const directory = mkdtempSync(join(tmpdir(), 'godot-mcp-project-support-'));
+  const directory = mkdtempSync(join(tmpdir(), 'godot-agent-loop-project-support-'));
   temporaryDirectories.push(directory);
   return directory;
 }

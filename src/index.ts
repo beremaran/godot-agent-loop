@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Godot MCP Server
+ * Godot Agent Loop server
  *
  * This MCP server provides tools for interacting with the Godot game engine.
  * It enables AI assistants to launch the Godot editor, run Godot projects,
@@ -108,7 +108,7 @@ interface GodotServerConfig {
 }
 
 /**
- * Main server class for the Godot MCP server
+ * Main server class for Godot Agent Loop
  */
 export class GodotServer {
   private server: McpServer;
@@ -289,7 +289,7 @@ export class GodotServer {
     // Initialize the MCP server
     this.server = new McpServer(
       {
-        name: 'godot-mcp',
+        name: 'godot-agent-loop',
         version: SERVER_VERSION,
       },
       {
@@ -508,7 +508,7 @@ export class GodotServer {
 
       const transport = new StdioServerTransport();
       await this.server.connect(transport);
-      console.error('Godot MCP server running on stdio');
+      console.error('Godot Agent Loop server running on stdio');
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error('[SERVER] Failed to start:', errorMessage);

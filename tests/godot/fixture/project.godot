@@ -6,5 +6,5 @@ config_version=5
 
 [application]
 
-config/name="godot-mcp-runtime-fixture"
+config/name="godot-agent-loop-runtime-fixture"
 config/features=PackedStringArray("4.4")

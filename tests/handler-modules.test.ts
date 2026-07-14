@@ -17,7 +17,7 @@ afterEach(() => {
 });
 
 function createProject(): string {
-  const directory = mkdtempSync(join(tmpdir(), 'godot-mcp-handler-'));
+  const directory = mkdtempSync(join(tmpdir(), 'godot-agent-loop-handler-'));
   temporaryDirectories.push(directory);
   writeFileSync(join(directory, 'project.godot'), '[application]\nconfig/name="Test Game"\n');
   return directory;

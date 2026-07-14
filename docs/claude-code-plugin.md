@@ -27,8 +27,8 @@ npm pack --dry-run
 Install from GitHub in Claude Code:
 
 ```text
-/plugin marketplace add beremaran/godot-mcp
-/plugin install godot-mcp@godot-mcp
+/plugin marketplace add beremaran/godot-agent-loop
+/plugin install godot-agent-loop@godot-agent-loop
 ```
 
 For a source checkout during development, use

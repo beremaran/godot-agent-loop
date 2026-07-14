@@ -102,7 +102,7 @@ export class GameConnection {
     }
     if (this.isCurrentGeneration(generation)) {
       console.error(JSON.stringify({
-        component: 'godot-mcp-server', event: 'connection_failed', attempts: this.maxAttempts,
+        component: 'godot-agent-loop-server', event: 'connection_failed', attempts: this.maxAttempts,
       }));
     }
   }
@@ -287,7 +287,7 @@ export class GameConnection {
     }
   }
   private logEvent(event: string, details: Record<string, unknown> = {}): void {
-    this.log(JSON.stringify({ component: 'godot-mcp-server', event, ...details }));
+    this.log(JSON.stringify({ component: 'godot-agent-loop-server', event, ...details }));
   }
   private emitLifecycle(event: GameLifecycleEvent): void {
     try { this.onLifecycleEvent(event); } catch { /* Observation must never break command delivery. */ }

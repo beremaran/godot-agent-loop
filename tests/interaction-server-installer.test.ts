@@ -19,7 +19,7 @@ describe('InteractionServerInstaller', () => {
   let installer: InteractionServerInstaller;
 
   beforeEach(() => {
-    workspace = mkdtempSync(join(tmpdir(), 'godot-mcp-installer-'));
+    workspace = mkdtempSync(join(tmpdir(), 'godot-agent-loop-installer-'));
     sourceDir = join(workspace, 'build-scripts');
     projectPath = join(workspace, 'project');
     mkdirSync(join(sourceDir, 'mcp_runtime'), { recursive: true });

@@ -1,0 +1,41 @@
+{
+  "$schema": "./docs/product.schema.json",
+  "schemaVersion": 1,
+  "name": "Godot Agent Loop",
+  "tagline": "Build it. Play it. Prove it.",
+  "category": "An evidence-first MCP automation loop for Godot 4",
+  "description": "Evidence-first MCP automation loop with 167 tested tools for Godot 4",
+  "version": "1.0.0",
+  "repository": {
+    "owner": "beremaran",
+    "name": "godot-agent-loop",
+    "url": "https://github.com/beremaran/godot-agent-loop",
+    "issues": "https://github.com/beremaran/godot-agent-loop/issues"
+  },
+  "npm": {
+    "package": "@beremaran/godot-agent-loop",
+    "binary": "godot-agent-loop"
+  },
+  "mcp": {
+    "registryName": "io.github.beremaran/godot-agent-loop",
+    "serverName": "godot-agent-loop",
+    "title": "Godot Agent Loop"
+  },
+  "agentBundle": {
+    "root": "agent-plugin",
+    "pluginName": "godot-agent-loop",
+    "serverKey": "godot-agent-loop"
+  },
+  "addon": {
+    "directory": "addons/godot_agent_loop",
+    "name": "Godot Agent Loop Bridge"
+  },
+  "observability": {
+    "serverComponent": "godot-agent-loop-server",
+    "runtimeComponent": "godot-agent-loop-runtime"
+  },
+  "lineage": {
+    "originalRepository": "https://github.com/Coding-Solo/godot-mcp",
+    "inheritedRepository": "https://github.com/tugcantopaloglu/godot-mcp"
+  }
+}

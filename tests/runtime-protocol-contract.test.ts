@@ -95,7 +95,7 @@ describe('runtime protocol contract', () => {
     const connection = readFileSync(join(root, 'src/game-connection.ts'), 'utf8');
 
     expect(observability.correlationParam).toBe('_mcp_correlation_id');
-    expect(observability.components).toEqual(['godot-mcp-server', 'godot-mcp-runtime']);
+    expect(observability.components).toEqual(['godot-agent-loop-server', 'godot-agent-loop-runtime']);
     for (const event of ['request_started', 'request_completed', 'request_failed', 'request_timed_out']) {
       expect(observability.events).toContain(event);
       expect(`${server}\n${connection}`).toMatch(new RegExp(`["']${event}["']`));

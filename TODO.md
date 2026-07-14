@@ -1,4 +1,4 @@
-# Godot MCP — working plan
+# Godot Agent Loop — working plan
 
 Phases 0–5 of the verification and capability audit are complete: all 167
 advertised tools are covered through the full MCP-to-Godot path, and all 358
@@ -37,34 +37,39 @@ tool or action.
   `SceneTree._initialize()` with `CACHE_MODE_IGNORE`. The direct Godot suite and
   MCP E2E both resolve two referenced autoloads, rewrite the same target path,
   and observe the genuine line-4 type error on a fresh compile.)
-- [ ] Reconcile release and registry metadata with the source-derived inventory:
+- [x] Reconcile release and registry metadata with the source-derived inventory:
   `server.json` still advertises 165 tools while the callable catalog contains
   167. Update the title, version, package identity, and any other hand-authored
   counts after the fork-versus-new-product decision, and add a contract check so
-  registry metadata cannot drift from the manifest again. (Foundation complete:
-  `server.json` now truthfully advertises 167 tools, and
-  `tests/server-metadata.test.ts` derives the count from `toolDefinitions` and
-  locks registry identity, version, package, description, and repository to
-  `package.json`. Final identity values remain intentionally pending the product
-  decision below.)
+  registry metadata cannot drift from the manifest again. (`product.json` is the
+  selected identity source of truth; `scripts/sync-product-metadata.js` makes
+  stale package or registry JSON fail every build. `server.json` truthfully
+  advertises 167 tools, `tests/server-metadata.test.ts` derives that count from
+  `toolDefinitions`, and the identity contracts lock version, package, binary,
+  description, repository, runtime schema, observability components, editor UI,
+  plugin metadata, README, and lineage to the selected product.)
 
 ### Product identity and release model
 
-- [ ] Decide and record the final identity before publishing anything. Preferred
+- [x] Decide and record the final identity before publishing anything. Preferred
   direction: **Godot Agent Loop**, with the tagline **Build it. Play it. Prove
   it.** and the category statement **an evidence-first MCP automation loop for
   Godot 4**. If another name wins, require the same distinct, searchable product
-  identity rather than another generic `godot-mcp` label. (The verified option
-  matrix and rename surface are recorded in
+  identity rather than another generic `godot-mcp` label. (**Selected:** Godot
+  Agent Loop with the preferred tagline and category statement. The verified
+  option matrix, confirmation, and rename surface are recorded in
   [`docs/product-identity-decision.md`](docs/product-identity-decision.md);
-  selection remains pending.)
-- [ ] Decide the repository relationship without erasing provenance. Preferred
+  public changes remain separately approval-gated.)
+- [x] Decide the repository relationship without erasing provenance. Preferred
   direction: publish `beremaran/godot-agent-loop` as an independent GitHub
   repository while preserving the complete Git history, MIT notices, and a
   prominent Lineage section crediting Coding-Solo and Tugcan. Record whether this
   is done by a new repository or GitHub fork detachment. (The decision record
   captures the verified current fork parent, GitHub's current duplication and
-  detachment paths, metadata-loss tradeoffs, and separate approval boundary.)
+  detachment paths, metadata-loss tradeoffs, and separate approval boundary.
+  **Selected:** a new independent `beremaran/godot-agent-loop` repository with
+  complete Git history and explicit Coding-Solo/Tugcan lineage; the current fork
+  is left untouched unless separately approved later.)
 - [ ] Align every public identifier after the name decision: repository, npm
   package, MCP Registry name, plugin namespace, binary name, AssetLib listing,
   issue URLs, homepage, badges, examples, and generated schemas. Preferred new
@@ -185,7 +190,7 @@ tool or action.
   demonstrate the human Pause Agent control. Publish the exact prompt, model,
   server version, elapsed time, and resulting project or replay.
 - [ ] Create a concise comparison/proof section that leads with 167/167 E2E
-  tools, 358 traced actions, 193 full-path E2E tests, the 39-tool/81.56% compact
+  tools, 358 traced actions, 194 full-path E2E tests, the 39-tool/81.56% compact
   surface, the cold-agent acceptance run, tested Godot versions, and
   default-denied privileged groups. Do not lead with raw tool count or claim
   unbounded/full engine control.
@@ -846,7 +851,7 @@ A tool may be marked `[x] E2E` only when all applicable items pass:
 ### Release gate
 
 - [x] Build, lint, TypeScript tests, and all Godot suites pass. (Locally verified
-  together on Godot 4.7 after the upstream regressions: 661 TypeScript tests,
+  together on Godot 4.7 after the identity contracts: 665 TypeScript tests,
   194 full-path E2E tests, 17 strict script parses, 2 focused validator checks,
   75 authoring-operation checks, and 383 runtime checks.)
 - [x] The generated manifest has no coverage or routing drift. (`npm run check`

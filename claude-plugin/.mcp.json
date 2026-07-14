@@ -1,8 +1,8 @@
 {
   "mcpServers": {
-    "godot-mcp": {
+    "godot-agent-loop": {
       "command": "npx",
-      "args": ["-y", "@beremaran/godot-mcp@3.0.0"]
+      "args": ["-y", "@beremaran/godot-agent-loop@1.0.0"]
     }
   }
 }

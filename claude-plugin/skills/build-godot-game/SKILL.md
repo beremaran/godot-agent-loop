@@ -1,6 +1,6 @@
 ---
 name: build-godot-game
-description: Build a new playable Godot 4 game or substantial gameplay slice through the Godot MCP server. Use for requests to create a game from an empty project or project path, add a complete mechanic, or deliver a playable scene with input, visible state, and win/lose behavior.
+description: Build a new playable Godot 4 game or substantial gameplay slice through Godot Agent Loop. Use for requests to create a game from an empty project or project path, add a complete mechanic, or deliver a playable scene with input, visible state, and win/lose behavior.
 ---
 
 # Build a Godot game

@@ -17,13 +17,13 @@ function skill(name: string): string {
 
 describe('Claude Code plugin package', () => {
   it('keeps manifest, marketplace, MCP command, and npm release aligned', () => {
-    expect(plugin).toMatchObject({ name: 'godot-mcp', version: packageJson.version });
+    expect(plugin).toMatchObject({ name: 'godot-agent-loop', version: packageJson.version });
     expect(marketplace).toMatchObject({
-      name: 'godot-mcp',
-      plugins: [expect.objectContaining({ name: 'godot-mcp', source: './claude-plugin' })],
+      name: 'godot-agent-loop',
+      plugins: [expect.objectContaining({ name: 'godot-agent-loop', source: './claude-plugin' })],
     });
-    expect(mcp.mcpServers['godot-mcp']).toEqual({
-      command: 'npx', args: ['-y', `@beremaran/godot-mcp@${packageJson.version}`],
+    expect(mcp.mcpServers['godot-agent-loop']).toEqual({
+      command: 'npx', args: ['-y', `@beremaran/godot-agent-loop@${packageJson.version}`],
     });
     expect(packageJson.files).toContain('claude-plugin');
   });

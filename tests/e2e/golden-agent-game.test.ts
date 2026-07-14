@@ -123,7 +123,7 @@ describe('golden cold-agent game build', () => {
     expect(liveRun.task.humanCorrections).toBe(0);
     expect(liveRun.toolSelectionFindings.length).toBeGreaterThan(0);
 
-    const root = mkdtempSync(join(tmpdir(), 'godot-mcp-golden-agent-'));
+    const root = mkdtempSync(join(tmpdir(), 'godot-agent-loop-golden-agent-'));
     const projectPath = join(root, 'game');
     mkdirSync(root, { recursive: true });
     server = await startServer({ project: { root, projectPath }, toolSurface: 'core' });

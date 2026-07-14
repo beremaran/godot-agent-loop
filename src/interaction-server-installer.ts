@@ -12,8 +12,10 @@ const RUNTIME_DIR_NAME = 'mcp_runtime';
  * tracks. Proven against Godot 4.7 in the Phase 6a spike (see TODO.md).
  */
 const OVERRIDE_FILE_NAME = 'override.cfg';
-const BLOCK_BEGIN = '; godot-mcp: begin interaction server (generated; removed automatically)';
-const BLOCK_END = '; godot-mcp: end interaction server';
+const BLOCK_BEGIN = '; godot-agent-loop: begin interaction server (generated; removed automatically)';
+const BLOCK_END = '; godot-agent-loop: end interaction server';
+const LEGACY_BLOCK_BEGIN = '; godot-mcp: begin interaction server (generated; removed automatically)';
+const LEGACY_BLOCK_END = '; godot-mcp: end interaction server';
 
 export interface InteractionServerInstallerOptions {
   sourceScriptPath: string;
@@ -172,10 +174,13 @@ export class InteractionServerInstaller {
     const overrideFile = join(projectPath, OVERRIDE_FILE_NAME);
     if (!existsSync(overrideFile)) return false;
     const content = readFileSync(overrideFile, 'utf8');
-    const begin = content.indexOf(BLOCK_BEGIN);
+    const currentBegin = content.indexOf(BLOCK_BEGIN);
+    const legacyBegin = content.indexOf(LEGACY_BLOCK_BEGIN);
+    const begin = currentBegin >= 0 ? currentBegin : legacyBegin;
     if (begin < 0) return false;
-    const endMarker = content.indexOf(BLOCK_END, begin);
-    const end = endMarker < 0 ? content.length : Math.min(endMarker + BLOCK_END.length + 1, content.length);
+    const endToken = currentBegin >= 0 ? BLOCK_END : LEGACY_BLOCK_END;
+    const endMarker = content.indexOf(endToken, begin);
+    const end = endMarker < 0 ? content.length : Math.min(endMarker + endToken.length + 1, content.length);
     const stripped = content.slice(0, begin) + content.slice(end);
     if (stripped.trim() === '') {
       unlinkSync(overrideFile);

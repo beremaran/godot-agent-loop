@@ -1,7 +1,7 @@
 {
-  "name": "@beremaran/godot-mcp",
-  "version": "3.0.0",
-  "description": "MCP server with 167 tested tools for Godot project and runtime automation",
+  "name": "@beremaran/godot-agent-loop",
+  "version": "1.0.0",
+  "description": "Evidence-first MCP automation loop with 167 tested tools for Godot 4",
   "keywords": [
     "godot",
     "mcp",
@@ -11,32 +11,38 @@
     "game-engine",
     "gdscript",
     "runtime",
+    "agent-workflows",
+    "evidence-first",
     "model-context-protocol"
   ],
-  "homepage": "https://github.com/beremaran/godot-mcp",
+  "homepage": "https://github.com/beremaran/godot-agent-loop",
   "bugs": {
-    "url": "https://github.com/beremaran/godot-mcp/issues"
+    "url": "https://github.com/beremaran/godot-agent-loop/issues"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/beremaran/godot-mcp.git"
+    "url": "https://github.com/beremaran/godot-agent-loop.git"
   },
-  "mcpName": "io.github.beremaran/godot-mcp",
+  "mcpName": "io.github.beremaran/godot-agent-loop",
   "license": "MIT",
   "author": "Berke Arslan",
   "contributors": [
+    "Tuğcan Topaloğlu (https://github.com/tugcantopaloglu)",
     "Solomon Elias <solomon@sippy.ai> (https://github.com/Coding-Solo)"
   ],
   "type": "module",
   "bin": {
-    "godot-mcp": "./build/index.js"
+    "godot-agent-loop": "./build/index.js"
   },
   "files": [
     "build",
-    "claude-plugin"
+    "claude-plugin",
+    "product.json"
   ],
   "scripts": {
-    "build": "tsc && node scripts/build.js",
+    "build": "tsc && node scripts/sync-product-metadata.js && node scripts/build.js",
+    "product:sync": "node scripts/sync-product-metadata.js --write && npm install --package-lock-only --ignore-scripts",
+    "product:check": "node scripts/sync-product-metadata.js",
     "inspector": "npx @modelcontextprotocol/inspector build/index.js",
     "prepare": "npm run build && husky",
     "check": "npm test && npm run lint && npm run coverage:check",

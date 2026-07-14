@@ -1,6 +1,7 @@
-# Contributing to Godot MCP
+# Contributing to Godot Agent Loop
 
-Thank you for considering contributing to Godot MCP! This document outlines the process for contributing to the project.
+Thank you for considering contributing to Godot Agent Loop. This document
+outlines the process for contributing to the project.
 
 ## Code of Conduct
 
@@ -62,7 +63,7 @@ files in the repository.
 ### Project Structure
 
 ```text
-godot-mcp/
+godot-agent-loop/
 ├── src/             # Source code
 │   └── index.ts     # Main server implementation
 ├── build/           # Compiled JavaScript (generated)

@@ -547,7 +547,7 @@ func _has_rendering_context() -> bool:
 
 func _audit_event(event: String, session: RuntimeSession, command: String = "", details: Dictionary = {}) -> void:
 	var record: Dictionary = {
-		"component": "godot-mcp-runtime",
+		"component": "godot-agent-loop-runtime",
 		"event": event,
 		"session_id": session.id,
 		"unix_time": int(Time.get_unix_time_from_system()),

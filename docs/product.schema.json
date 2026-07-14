@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/beremaran/godot-agent-loop/product.schema.json",
+  "title": "Godot Agent Loop product identity",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "name",
+    "tagline",
+    "category",
+    "description",
+    "version",
+    "repository",
+    "npm",
+    "mcp",
+    "agentBundle",
+    "addon",
+    "observability",
+    "lineage"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "const": 1 },
+    "name": { "const": "Godot Agent Loop" },
+    "tagline": { "const": "Build it. Play it. Prove it." },
+    "category": { "type": "string", "minLength": 1 },
+    "description": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "repository": { "$ref": "#/$defs/repository" },
+    "npm": { "$ref": "#/$defs/npm" },
+    "mcp": { "$ref": "#/$defs/mcp" },
+    "agentBundle": { "$ref": "#/$defs/agentBundle" },
+    "addon": { "$ref": "#/$defs/addon" },
+    "observability": { "$ref": "#/$defs/observability" },
+    "lineage": { "$ref": "#/$defs/lineage" }
+  },
+  "$defs": {
+    "repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["owner", "name", "url", "issues"],
+      "properties": {
+        "owner": { "const": "beremaran" },
+        "name": { "const": "godot-agent-loop" },
+        "url": { "type": "string", "format": "uri" },
+        "issues": { "type": "string", "format": "uri" }
+      }
+    },
+    "npm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["package", "binary"],
+      "properties": {
+        "package": { "const": "@beremaran/godot-agent-loop" },
+        "binary": { "const": "godot-agent-loop" }
+      }
+    },
+    "mcp": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["registryName", "serverName", "title"],
+      "properties": {
+        "registryName": { "const": "io.github.beremaran/godot-agent-loop" },
+        "serverName": { "const": "godot-agent-loop" },
+        "title": { "const": "Godot Agent Loop" }
+      }
+    },
+    "agentBundle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["root", "pluginName", "serverKey"],
+      "properties": {
+        "root": { "const": "agent-plugin" },
+        "pluginName": { "const": "godot-agent-loop" },
+        "serverKey": { "const": "godot-agent-loop" }
+      }
+    },
+    "addon": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["directory", "name"],
+      "properties": {
+        "directory": { "const": "addons/godot_agent_loop" },
+        "name": { "const": "Godot Agent Loop Bridge" }
+      }
+    },
+    "observability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["serverComponent", "runtimeComponent"],
+      "properties": {
+        "serverComponent": { "const": "godot-agent-loop-server" },
+        "runtimeComponent": { "const": "godot-agent-loop-runtime" }
+      }
+    },
+    "lineage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["originalRepository", "inheritedRepository"],
+      "properties": {
+        "originalRepository": { "type": "string", "format": "uri" },
+        "inheritedRepository": { "type": "string", "format": "uri" }
+      }
+    }
+  }
+}

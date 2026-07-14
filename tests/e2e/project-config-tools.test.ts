@@ -73,7 +73,7 @@ describe('project settings and configuration tools through MCP', () => {
     const initial = await active.call('read_project_settings', { projectPath: active.projectPath });
     expect(initial.isError, initial.text).toBe(false);
     const settings = payload(initial.text) as Record<string, Record<string, string>>;
-    expect(settings.application['config/name']).toBe('"godot-mcp-e2e-fixture"');
+    expect(settings.application['config/name']).toBe('"godot-agent-loop-e2e-fixture"');
 
     // A setting the engine exposes verbatim at runtime, so the round trip is observable.
     const modified = await active.call('modify_project_settings', {

@@ -66,7 +66,7 @@ describe('discovery tools', () => {
     server = await startServer();
     const info = await server.call('get_project_info', { projectPath: server.projectPath });
     expect(info.isError, info.text).toBe(false);
-    expect(info.text).toContain('godot-mcp-e2e-fixture');
+    expect(info.text).toContain('godot-agent-loop-e2e-fixture');
     expect(info.text).toMatch(/"scenes":\s*\d|main\.tscn/);
   });
 
@@ -339,7 +339,7 @@ describe('missing binary behavior', () => {
       },
       stderr: 'pipe',
     });
-    const client = new Client({ name: 'godot-mcp-e2e', version: '0.0.0' });
+    const client = new Client({ name: 'godot-agent-loop-e2e', version: '0.0.0' });
     try {
       await client.connect(transport);
       const result = await client.callTool({ name: 'get_godot_version', arguments: {} });

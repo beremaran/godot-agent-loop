@@ -1,19 +1,19 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.beremaran/godot-mcp",
-  "title": "Godot MCP",
-  "description": "MCP server with 167 tested tools for Godot project and runtime automation",
+  "name": "io.github.beremaran/godot-agent-loop",
+  "title": "Godot Agent Loop",
+  "description": "Evidence-first MCP automation loop with 167 tested tools for Godot 4",
   "repository": {
-    "url": "https://github.com/beremaran/godot-mcp",
+    "url": "https://github.com/beremaran/godot-agent-loop",
     "source": "github"
   },
-  "version": "3.0.0",
-  "websiteUrl": "https://github.com/beremaran/godot-mcp",
+  "version": "1.0.0",
+  "websiteUrl": "https://github.com/beremaran/godot-agent-loop",
   "packages": [
     {
       "registryType": "npm",
-      "identifier": "@beremaran/godot-mcp",
-      "version": "3.0.0",
+      "identifier": "@beremaran/godot-agent-loop",
+      "version": "1.0.0",
       "transport": {
         "type": "stdio"
       }

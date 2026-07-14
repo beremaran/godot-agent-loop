@@ -28,7 +28,7 @@ func _enter_tree() -> void:
 	_create_activity_dock()
 	var error: int = _server.listen(_port, "127.0.0.1")
 	if error != OK:
-		push_error("Godot MCP editor bridge could not listen on %d: %s" % [_port, error_string(error)])
+		push_error("Godot Agent Loop editor bridge could not listen on %d: %s" % [_port, error_string(error)])
 
 func _exit_tree() -> void:
 	set_process(false)
@@ -133,7 +133,7 @@ func _dispatch(command: String, raw_params: Variant) -> Dictionary:
 
 func _create_activity_dock() -> void:
 	_activity_dock = VBoxContainer.new()
-	_activity_dock.name = "Godot MCP Agent"
+	_activity_dock.name = "Godot Agent Loop"
 	var title := Label.new()
 	title.text = "Agent Activity"
 	title.tooltip_text = "Live authenticated MCP command lifecycle"

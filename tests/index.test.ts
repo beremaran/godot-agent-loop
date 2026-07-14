@@ -258,7 +258,7 @@ describe('GodotServer class tests', () => {
 
   it('uses the package version in MCP server metadata', () => {
     expect(mcpServerMetadata).toContainEqual({
-      name: 'godot-mcp',
+      name: 'godot-agent-loop',
       version: packageMetadata.version,
     });
   });

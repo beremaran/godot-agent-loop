@@ -124,7 +124,7 @@ describe('runtime G+ 2D scene tools through MCP', () => {
       { action: 'rect', rect: { x: 5, y: 5, w: 20, h: 10 }, filled: false, color: { r: 0, g: 1, b: 0, a: 1 } },
       { action: 'circle', center: { x: 30, y: 30 }, radius: 8, color: { r: 0, g: 0, b: 1, a: 1 } },
       { action: 'polygon', points: [{ x: 40, y: 5 }, { x: 55, y: 20 }, { x: 35, y: 20 }], color: { r: 1, g: 1, b: 0, a: 1 } },
-      { action: 'text', position: { x: 5, y: 60 }, text: 'Godot MCP', fontSize: 18, color: { r: 1, g: 1, b: 1, a: 1 } },
+      { action: 'text', position: { x: 5, y: 60 }, text: 'Godot Agent Loop', fontSize: 18, color: { r: 1, g: 1, b: 1, a: 1 } },
     ];
     for (const draw of draws) {
       const result = await game.call('game_canvas_draw', draw);

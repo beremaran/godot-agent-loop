@@ -255,16 +255,16 @@ describe('recovery and multi-project isolation', () => {
     const processOutput = (JSON.parse(debug.text) as { output: string[] }).output;
     const runtimeRecords = processOutput.map(parseRecord).filter(record => record !== null);
     expect(runtimeRecords).toContainEqual(expect.objectContaining({
-      component: 'godot-mcp-runtime', event: 'request_started',
+      component: 'godot-agent-loop-runtime', event: 'request_started',
       command: 'wait', correlation_id: waitStart?.correlation_id,
     }));
     expect(runtimeRecords).toContainEqual(expect.objectContaining({
-      component: 'godot-mcp-runtime', event: 'request_completed',
+      component: 'godot-agent-loop-runtime', event: 'request_completed',
       command: 'wait', correlation_id: waitStart?.correlation_id,
       state: 'responded', duration_ms: expect.any(Number),
     }));
     expect(runtimeRecords).toContainEqual(expect.objectContaining({
-      component: 'godot-mcp-runtime', event: 'request_failed',
+      component: 'godot-agent-loop-runtime', event: 'request_failed',
       command: 'get_node_info', error_code: -32000,
     }));
     expect([...server.serverLogs, ...processOutput].join('\n')).not.toContain(secret);
@@ -284,7 +284,7 @@ describe('recovery and multi-project isolation', () => {
       .map(line => { try { return JSON.parse(line) as Record<string, unknown>; } catch { return null; } })
       .find(record => record?.event === 'authentication_succeeded');
     expect(audit).toMatchObject({
-      component: 'godot-mcp-runtime', event: 'authentication_succeeded', session_id: 1,
+      component: 'godot-agent-loop-runtime', event: 'authentication_succeeded', session_id: 1,
     });
     expect(output.text).not.toContain(secret);
   });

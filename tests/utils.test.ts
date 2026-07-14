@@ -17,7 +17,7 @@ import {
 const temporaryDirectories: string[] = [];
 
 function makeTemporaryDirectory(): string {
-  const directory = mkdtempSync(join(tmpdir(), 'godot-mcp-path-security-'));
+  const directory = mkdtempSync(join(tmpdir(), 'godot-agent-loop-path-security-'));
   temporaryDirectories.push(directory);
   return directory;
 }
