@@ -186,7 +186,7 @@ than degraded, because supporting it means maintaining a second execution mode i
 which the product's central promise silently does not work.
 
 **"Headless" currently names two unrelated things and must stop.** In
-`src/tool-manifest.ts`, `backend: { kind: 'headless' }` means *one-shot CLI
+`src/tool-manifest.ts`, `backend: { kind: 'subprocess' }` means *one-shot CLI
 subprocess* and says nothing about displays, while the README support statement
 means *no rendering context*. Phase 6 removes the first and scopes out the second,
 so leaving both called "headless" makes every review in this phase ambiguous.
@@ -320,8 +320,10 @@ until that decision is confirmed against a real game.
   rendering context is reachable. Do not await `RenderingServer.frame_post_draw`
   without one: under `--headless` it never fires, so the session deadlocks instead
   of failing.
-- [ ] Rename `ToolBackend`'s `headless` kind to `subprocess`, so "headless" means
-  only "no rendering context" for the rest of this phase.
+- [x] Rename `ToolBackend`'s `headless` kind to `subprocess`, so "headless" means
+  only "no rendering context" for the rest of this phase. (The manifest,
+  coverage generator, routing contracts, and generated report now use
+  `subprocess` for all 16 one-shot authoring operations.)
 - [ ] Retire the headless display tier from the support matrix: update the README
   support statement and `tests/support-policy.test.ts`, and replace the screenshot
   limitation path with the fail-fast precondition above.

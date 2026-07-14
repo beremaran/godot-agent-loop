@@ -11,8 +11,8 @@ import {
   extractTypescriptActions,
   gdscriptFunctionBody,
   handlerMethodBodies,
-  headlessOperationOf,
-  headlessOperationRegistry,
+  headlessOperationOf as subprocessOperationOf,
+  headlessOperationRegistry as subprocessOperationRegistry,
   readRepoFile,
   registryMappings,
   runtimeCommandOf,
@@ -78,22 +78,22 @@ describe('tool manifest backend mapping', () => {
     }
   });
 
-  it('maps every headless operation to exactly one tool and vice versa', () => {
-    const registry = headlessOperationRegistry();
+  it('maps every subprocess operation to exactly one tool and vice versa', () => {
+    const registry = subprocessOperationRegistry();
     const operations = manifestEntries
-      .filter(([, entry]) => entry.backend.kind === 'headless')
+      .filter(([, entry]) => entry.backend.kind === 'subprocess')
       .map(([, entry]) => (entry.backend as { operation: string }).operation)
       .sort();
     expect(operations).toEqual([...registry.keys()].sort());
   });
 
-  it('executes the declared headless operation from each project handler', () => {
+  it('executes the declared subprocess operation from each project handler', () => {
     for (const [name, entry] of manifestEntries) {
       if (entry.domain !== 'project') continue;
       const body = handlerBodies.project.get(entry.handler);
       expect(body, `${name} handler body`).toBeDefined();
-      const executed = headlessOperationOf(body!);
-      if (entry.backend.kind === 'headless') {
+      const executed = subprocessOperationOf(body!);
+      if (entry.backend.kind === 'subprocess') {
         expect(executed, name).toBe(entry.backend.operation);
       } else {
         expect(executed, `${name} declares ${entry.backend.kind} but executes an operation`).toBeNull();
@@ -117,8 +117,8 @@ describe('tool manifest backend mapping', () => {
 
 describe('tool manifest action declarations', () => {
   const runtimeRegistry = runtimeCommandRegistry();
-  const headlessRegistry = headlessOperationRegistry();
-  const headlessSource = readRepoFile('src/scripts/godot_operations.gd');
+  const subprocessRegistry = subprocessOperationRegistry();
+  const subprocessSource = readRepoFile('src/scripts/godot_operations.gd');
 
   it('declares actions for every tool that exposes an action parameter', () => {
     for (const tool of toolDefinitions) {
@@ -158,11 +158,11 @@ describe('tool manifest action declarations', () => {
     }
   });
 
-  it('matches the actions implemented by each headless operation', () => {
+  it('matches the actions implemented by each subprocess operation', () => {
     for (const [name, entry] of manifestEntries) {
-      if (entry.backend.kind !== 'headless') continue;
-      const implementation = headlessRegistry.get(entry.backend.operation)!;
-      const body = gdscriptFunctionBody(headlessSource, implementation);
+      if (entry.backend.kind !== 'subprocess') continue;
+      const implementation = subprocessRegistry.get(entry.backend.operation)!;
+      const body = gdscriptFunctionBody(subprocessSource, implementation);
       expect(body, `${name} -> ${implementation}`).not.toBeNull();
       assertActionsMatch(name, entry, extractGdscriptActions(body!), body!);
     }
@@ -170,7 +170,7 @@ describe('tool manifest action declarations', () => {
 
   it('matches the actions dispatched by TypeScript-implemented tools', () => {
     for (const [name, entry] of manifestEntries) {
-      if (entry.backend.kind === 'runtime' || entry.backend.kind === 'headless') continue;
+      if (entry.backend.kind === 'runtime' || entry.backend.kind === 'subprocess') continue;
       if (!entry.actions) continue;
       const body = handlerBodies[entry.domain].get(entry.handler)!;
       assertActionsMatch(name, entry, extractTypescriptActions(body), body, "'");

@@ -39,8 +39,8 @@ const tools = toolDefinitions.map(def => {
   return { name: def.name, manifest, entry, actions: actionRows.length, testedActions: tested };
 });
 
-const headlessOperations = new Set(
-  tools.filter(tool => tool.manifest.backend.kind === 'headless').map(tool => tool.manifest.backend.operation),
+const subprocessOperations = new Set(
+  tools.filter(tool => tool.manifest.backend.kind === 'subprocess').map(tool => tool.manifest.backend.operation),
 );
 const levelCounts = Object.fromEntries(LEVELS.map(level => [level, tools.filter(tool => tool.entry.level === level).length]));
 const totalActions = tools.reduce((sum, tool) => sum + tool.actions, 0);
@@ -55,7 +55,7 @@ const generatedBadge = [
 ].join('\n');
 
 function backendLabel(backend) {
-  if (backend.kind === 'headless') return `headless \`${backend.operation}\``;
+  if (backend.kind === 'subprocess') return `subprocess \`${backend.operation}\``;
   if (backend.kind === 'runtime') return `runtime \`${backend.command}\``;
   return backend.kind;
 }
@@ -75,7 +75,7 @@ lines.push('| --- | ---: | --- |');
 lines.push(`| Advertised MCP tools | ${toolDefinitions.length} | \`src/tool-definitions.ts\` |`);
 lines.push(`| Runtime commands | ${RUNTIME_COMMANDS.length} | \`src/runtime-protocol.ts\` = \`docs/runtime-api.schema.json\` |`);
 lines.push(`| Privileged runtime commands | ${PRIVILEGED_RUNTIME_COMMANDS.length} | \`src/runtime-protocol.ts\` |`);
-lines.push(`| Headless operations | ${headlessOperations.size} | \`src/scripts/godot_operations.gd\` |`);
+lines.push(`| Subprocess operations | ${subprocessOperations.size} | \`src/scripts/godot_operations.gd\` |`);
 lines.push(`| Public action rows | ${totalActions} | \`src/tool-manifest.ts\` |`);
 lines.push('');
 lines.push('## Coverage by class');

@@ -12,7 +12,7 @@ when this file is stale, and the inventory behind it is validated by
 | Advertised MCP tools | 166 | `src/tool-definitions.ts` |
 | Runtime commands | 108 | `src/runtime-protocol.ts` = `docs/runtime-api.schema.json` |
 | Privileged runtime commands | 8 | `src/runtime-protocol.ts` |
-| Headless operations | 16 | `src/scripts/godot_operations.gd` |
+| Subprocess operations | 16 | `src/scripts/godot_operations.gd` |
 | Public action rows | 355 | `src/tool-manifest.ts` |
 
 ## Coverage by class
@@ -63,13 +63,13 @@ engine, never a mocked transport.
 | `get_godot_version` | process | no | E2E | 1/1 |
 | `list_projects` | local | no | E2E | 1/1 |
 | `get_project_info` | godot-cli | no | E2E | 1/1 |
-| `create_scene` | headless `create_scene` | no | E2E | 1/1 |
-| `add_node` | headless `add_node` | no | E2E | 1/1 |
-| `load_sprite` | headless `load_sprite` | no | E2E | 1/1 |
-| `export_mesh_library` | headless `export_mesh_library` | no | E2E | 1/1 |
-| `save_scene` | headless `save_scene` | no | E2E | 1/1 |
-| `get_uid` | headless `get_uid` | no | E2E | 1/1 |
-| `update_project_uids` | headless `resave_resources` | no | E2E | 1/1 |
+| `create_scene` | subprocess `create_scene` | no | E2E | 1/1 |
+| `add_node` | subprocess `add_node` | no | E2E | 1/1 |
+| `load_sprite` | subprocess `load_sprite` | no | E2E | 1/1 |
+| `export_mesh_library` | subprocess `export_mesh_library` | no | E2E | 1/1 |
+| `save_scene` | subprocess `save_scene` | no | E2E | 1/1 |
+| `get_uid` | subprocess `get_uid` | no | E2E | 1/1 |
+| `update_project_uids` | subprocess `resave_resources` | no | E2E | 1/1 |
 | `game_screenshot` | runtime `screenshot` | no | E2E | 1/1 |
 | `game_visual_regression` | local | no | E2E | 2/2 |
 | `game_click` | runtime `click` | no | E2E | 1/1 |
@@ -88,9 +88,9 @@ engine, never a mocked transport.
 | `game_pause` | runtime `pause` | no | E2E | 1/1 |
 | `game_performance` | runtime `get_performance` | no | E2E | 5/5 |
 | `game_wait` | runtime `wait` | no | E2E | 1/1 |
-| `read_scene` | headless `read_scene` | no | E2E | 1/1 |
-| `modify_scene_node` | headless `modify_node` | no | E2E | 1/1 |
-| `remove_scene_node` | headless `remove_node` | no | E2E | 1/1 |
+| `read_scene` | subprocess `read_scene` | no | E2E | 1/1 |
+| `modify_scene_node` | subprocess `modify_node` | no | E2E | 1/1 |
+| `remove_scene_node` | subprocess `remove_node` | no | E2E | 1/1 |
 | `read_project_settings` | local | no | E2E | 1/1 |
 | `modify_project_settings` | local | no | E2E | 1/1 |
 | `list_project_files` | local | no | E2E | 1/1 |
@@ -102,8 +102,8 @@ engine, never a mocked transport.
 | `game_get_nodes_in_group` | runtime `get_nodes_in_group` | no | E2E | 1/1 |
 | `game_find_nodes_by_class` | runtime `find_nodes_by_class` | no | E2E | 1/1 |
 | `game_reparent_node` | runtime `reparent_node` | no | E2E | 1/1 |
-| `attach_script` | headless `attach_script` | no | E2E | 1/1 |
-| `create_resource` | headless `create_resource` | no | E2E | 1/1 |
+| `attach_script` | subprocess `attach_script` | no | E2E | 1/1 |
+| `create_resource` | subprocess `create_resource` | no | E2E | 1/1 |
 | `read_file` | local | no | E2E | 1/1 |
 | `write_file` | local | no | E2E | 1/1 |
 | `delete_file` | local | no | E2E | 1/1 |
@@ -186,17 +186,17 @@ engine, never a mocked transport.
 | `game_audio_bus_layout` | runtime `audio_bus_layout` | no | E2E | 5/5 |
 | `game_audio_spatial` | runtime `audio_spatial` | no | E2E | 2/2 |
 | `rename_file` | local | no | E2E | 1/1 |
-| `manage_resource` | headless `manage_resource` | no | E2E | 2/2 |
+| `manage_resource` | subprocess `manage_resource` | no | E2E | 2/2 |
 | `validate_script` | godot-cli | no | E2E | 1/1 |
 | `validate_scripts` | godot-cli | no | E2E | 1/1 |
 | `create_script` | local | no | E2E | 1/1 |
-| `manage_scene_signals` | headless `manage_scene_signals` | no | E2E | 3/3 |
+| `manage_scene_signals` | subprocess `manage_scene_signals` | no | E2E | 3/3 |
 | `manage_layers` | local | no | E2E | 2/2 |
 | `manage_plugins` | local | no | E2E | 3/3 |
 | `manage_shader` | local | no | E2E | 2/2 |
-| `manage_theme_resource` | headless `manage_theme_resource` | no | E2E | 3/3 |
+| `manage_theme_resource` | subprocess `manage_theme_resource` | no | E2E | 3/3 |
 | `set_main_scene` | local | no | E2E | 1/1 |
-| `manage_scene_structure` | headless `manage_scene_structure` | no | E2E | 3/3 |
+| `manage_scene_structure` | subprocess `manage_scene_structure` | no | E2E | 3/3 |
 | `manage_translations` | local | no | E2E | 3/3 |
 | `game_locale` | runtime `locale` | no | E2E | 3/3 |
 | `game_ui_control` | runtime `ui_control` | no | E2E | 4/4 |

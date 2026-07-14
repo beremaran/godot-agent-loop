@@ -4,7 +4,7 @@ import type { ToolName } from './tool-definitions.js';
  * How a tool reaches the Godot engine (or does not).
  *
  * - `process`: owns or inspects a Godot editor/game process launched by the server.
- * - `headless`: dispatches one operation to src/scripts/godot_operations.gd via the CLI.
+ * - `subprocess`: dispatches one operation to src/scripts/godot_operations.gd via the CLI.
  * - `runtime`: sends one JSON-RPC command to the in-game runtime server over TCP.
  * - `runtime-buffer`: reads output buffered from the runtime connection without a command.
  * - `godot-cli`: invokes the Godot executable directly (version, --check-only, export).
@@ -12,7 +12,7 @@ import type { ToolName } from './tool-definitions.js';
  */
 export type ToolBackend =
   | { readonly kind: 'process' }
-  | { readonly kind: 'headless'; readonly operation: string }
+  | { readonly kind: 'subprocess'; readonly operation: string }
   | { readonly kind: 'runtime'; readonly command: string }
   | { readonly kind: 'runtime-buffer' }
   | { readonly kind: 'godot-cli' }
@@ -151,49 +151,49 @@ export const toolManifest: Record<ToolName, ToolManifestEntry> = {
   create_scene: {
     domain: 'project',
     handler: 'handleCreateScene',
-    backend: { kind: 'headless', operation: 'create_scene' },
+    backend: { kind: 'subprocess', operation: 'create_scene' },
     actions: null,
     privileged: false,
   },
   add_node: {
     domain: 'project',
     handler: 'handleAddNode',
-    backend: { kind: 'headless', operation: 'add_node' },
+    backend: { kind: 'subprocess', operation: 'add_node' },
     actions: null,
     privileged: false,
   },
   load_sprite: {
     domain: 'project',
     handler: 'handleLoadSprite',
-    backend: { kind: 'headless', operation: 'load_sprite' },
+    backend: { kind: 'subprocess', operation: 'load_sprite' },
     actions: null,
     privileged: false,
   },
   export_mesh_library: {
     domain: 'project',
     handler: 'handleExportMeshLibrary',
-    backend: { kind: 'headless', operation: 'export_mesh_library' },
+    backend: { kind: 'subprocess', operation: 'export_mesh_library' },
     actions: null,
     privileged: false,
   },
   save_scene: {
     domain: 'project',
     handler: 'handleSaveScene',
-    backend: { kind: 'headless', operation: 'save_scene' },
+    backend: { kind: 'subprocess', operation: 'save_scene' },
     actions: null,
     privileged: false,
   },
   get_uid: {
     domain: 'project',
     handler: 'handleGetUid',
-    backend: { kind: 'headless', operation: 'get_uid' },
+    backend: { kind: 'subprocess', operation: 'get_uid' },
     actions: null,
     privileged: false,
   },
   update_project_uids: {
     domain: 'project',
     handler: 'handleUpdateProjectUids',
-    backend: { kind: 'headless', operation: 'resave_resources' },
+    backend: { kind: 'subprocess', operation: 'resave_resources' },
     actions: null,
     privileged: false,
   },
@@ -327,21 +327,21 @@ export const toolManifest: Record<ToolName, ToolManifestEntry> = {
   read_scene: {
     domain: 'project',
     handler: 'handleReadScene',
-    backend: { kind: 'headless', operation: 'read_scene' },
+    backend: { kind: 'subprocess', operation: 'read_scene' },
     actions: null,
     privileged: false,
   },
   modify_scene_node: {
     domain: 'project',
     handler: 'handleModifySceneNode',
-    backend: { kind: 'headless', operation: 'modify_node' },
+    backend: { kind: 'subprocess', operation: 'modify_node' },
     actions: null,
     privileged: false,
   },
   remove_scene_node: {
     domain: 'project',
     handler: 'handleRemoveSceneNode',
-    backend: { kind: 'headless', operation: 'remove_node' },
+    backend: { kind: 'subprocess', operation: 'remove_node' },
     actions: null,
     privileged: false,
   },
@@ -425,14 +425,14 @@ export const toolManifest: Record<ToolName, ToolManifestEntry> = {
   attach_script: {
     domain: 'project',
     handler: 'handleAttachScript',
-    backend: { kind: 'headless', operation: 'attach_script' },
+    backend: { kind: 'subprocess', operation: 'attach_script' },
     actions: null,
     privileged: false,
   },
   create_resource: {
     domain: 'project',
     handler: 'handleCreateResource',
-    backend: { kind: 'headless', operation: 'create_resource' },
+    backend: { kind: 'subprocess', operation: 'create_resource' },
     actions: null,
     privileged: false,
   },
@@ -1015,7 +1015,7 @@ export const toolManifest: Record<ToolName, ToolManifestEntry> = {
   manage_resource: {
     domain: 'project',
     handler: 'handleManageResource',
-    backend: { kind: 'headless', operation: 'manage_resource' },
+    backend: { kind: 'subprocess', operation: 'manage_resource' },
     actions: ['read', 'modify'],
     privileged: false,
   },
@@ -1043,7 +1043,7 @@ export const toolManifest: Record<ToolName, ToolManifestEntry> = {
   manage_scene_signals: {
     domain: 'project',
     handler: 'handleManageSceneSignals',
-    backend: { kind: 'headless', operation: 'manage_scene_signals' },
+    backend: { kind: 'subprocess', operation: 'manage_scene_signals' },
     actions: ['list', 'add', 'remove'],
     privileged: false,
   },
@@ -1071,7 +1071,7 @@ export const toolManifest: Record<ToolName, ToolManifestEntry> = {
   manage_theme_resource: {
     domain: 'project',
     handler: 'handleManageThemeResource',
-    backend: { kind: 'headless', operation: 'manage_theme_resource' },
+    backend: { kind: 'subprocess', operation: 'manage_theme_resource' },
     actions: ['create', 'read', 'modify'],
     privileged: false,
   },
@@ -1085,7 +1085,7 @@ export const toolManifest: Record<ToolName, ToolManifestEntry> = {
   manage_scene_structure: {
     domain: 'project',
     handler: 'handleManageSceneStructure',
-    backend: { kind: 'headless', operation: 'manage_scene_structure' },
+    backend: { kind: 'subprocess', operation: 'manage_scene_structure' },
     actions: ['rename', 'duplicate', 'move'],
     privileged: false,
   },
