@@ -69,9 +69,11 @@ describe('AuthoringSessionManager', () => {
     expect(second.stdout).toBe('ok');
     expect(starts).toHaveLength(1);
     expect(starts[0].args).toEqual([
-      '--headless', '--path', '/project', '--script', '/build/scripts/godot_operations.gd', '--serve-authoring',
+      '--headless', '--fixed-fps', '60', '--max-fps', '60', '--time-scale', '1',
+      '--path', '/project', '--script', '/build/scripts/godot_operations.gd', '--serve-authoring',
     ]);
     expect(starts[0].env).toEqual({
+      GODOT_MCP_FIXED_FPS: '60',
       GODOT_MCP_RUNTIME_PORT: '23456', GODOT_MCP_RUNTIME_SECRET: 'test-secret',
     });
     expect(connections[0].send).toHaveBeenNthCalledWith(

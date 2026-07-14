@@ -191,6 +191,9 @@ describe('LifecycleToolHandlers', () => {
       getConnectedProjectPath: () => null,
       clearConnectedProjectPath: vi.fn(),
       getInteractionPort: () => 6007,
+      getRuntimeEnvironment: () => ({}),
+      isGameConnected: () => false,
+      sendGameCommand: vi.fn(),
       ...overrides,
     };
   }
@@ -202,6 +205,21 @@ describe('LifecycleToolHandlers', () => {
     const response = await handlers.handleGetDebugOutput();
 
     expect(JSON.parse(textFrom(response))).toEqual({ output: ['ready'], errors: ['warning'] });
+  });
+
+  it('launches MCP-owned runs with deterministic frame and time settings', async () => {
+    const projectPath = createProject();
+    const startProjectProcess = vi.fn();
+    const handlers = new LifecycleToolHandlers(context({ startProjectProcess }));
+
+    const response = await handlers.handleRunProject({ projectPath });
+
+    expect(response.isError).not.toBe(true);
+    expect(startProjectProcess).toHaveBeenCalledOnce();
+    expect(startProjectProcess.mock.calls[0][1]).toEqual([
+      '--fixed-fps', '60', '--max-fps', '60', '--time-scale', '1', '--path', projectPath,
+    ]);
+    expect(startProjectProcess.mock.calls[0][3]).toEqual({ GODOT_MCP_FIXED_FPS: '60' });
   });
 
   it('stops the process and removes its injected interaction server', async () => {

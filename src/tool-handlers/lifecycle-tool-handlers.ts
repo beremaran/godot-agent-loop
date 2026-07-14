@@ -10,6 +10,7 @@ import type { GodotProcess } from '../godot-process-manager.js';
 import type { GodotExecutableService } from '../godot-executable.js';
 import { GODOT_VERSION_OPTIONS } from '../godot-subprocess.js';
 import type { GameResponse } from '../game-connection.js';
+import { deterministicSessionArguments, deterministicSessionEnvironment } from '../session-timing.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -135,7 +136,7 @@ export class LifecycleToolHandlers {
       // bad script hung the whole session. Errors still print with a full
       // backtrace without it, and the editor binary already runs projects as a
       // debug build.
-      const commandArgs = ['--path', args.projectPath];
+      const commandArgs = [...deterministicSessionArguments(), '--path', args.projectPath];
       // Display-less environments (CI, the E2E harness) opt in to headless
       // game processes; the interaction server works the same either way.
       if (process.env.GODOT_MCP_RUN_HEADLESS === 'true') commandArgs.unshift('--headless');
@@ -143,7 +144,10 @@ export class LifecycleToolHandlers {
 
       this.context.logDebug(`Running Godot project: ${args.projectPath}`);
       this.context.startProjectProcess(
-        godotPath, commandArgs, () => { this.handleProjectExit(); }, this.context.getRuntimeEnvironment(),
+        godotPath, commandArgs, () => { this.handleProjectExit(); }, {
+          ...this.context.getRuntimeEnvironment(),
+          ...deterministicSessionEnvironment(),
+        },
       );
       this.context.connectToGame(args.projectPath).catch(error => {
         this.context.logDebug(`Failed to connect to game interaction server: ${error}`);

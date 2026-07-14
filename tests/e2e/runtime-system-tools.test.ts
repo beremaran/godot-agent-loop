@@ -110,7 +110,7 @@ describe('runtime engine-state tools through MCP', () => {
 
     const initial = await game.call('game_time_scale', { action: 'get' });
     expect(initial.isError, initial.text).toBe(false);
-    expect(payload(initial.text)).toMatchObject({ time_scale: 1 });
+    expect(payload(initial.text)).toMatchObject({ time_scale: 1, fixed_fps: 60 });
 
     const set = await game.call('game_time_scale', { action: 'set', timeScale: 2.5 });
     expect(set.isError, set.text).toBe(false);
@@ -119,7 +119,7 @@ describe('runtime engine-state tools through MCP', () => {
     expect(await engineEval(game, 'return Engine.time_scale')).toBe(2.5);
 
     const readBack = await game.call('game_time_scale', { action: 'get' });
-    expect(payload(readBack.text)).toMatchObject({ time_scale: 2.5 });
+    expect(payload(readBack.text)).toMatchObject({ time_scale: 2.5, fixed_fps: 60 });
 
     // A `set` with no value is a structured failure, not a silent default.
     const noValue = await game.call('game_time_scale', { action: 'set' });

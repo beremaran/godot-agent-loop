@@ -66,6 +66,15 @@ if (handshake.error || !handshake.result.capabilities.includes('authoring-comman
   throw new Error(`Authoring capability missing: ${JSON.stringify(handshake)}`);
 }
 
+const timing = await request('godot.runtime.time_scale', { action: 'get' });
+if (timing.error || timing.result.time_scale !== 1 || timing.result.fixed_fps !== 60) {
+  throw new Error(`Deterministic session timing is invalid: ${JSON.stringify(timing)}`);
+}
+const scaled = await request('godot.runtime.time_scale', { action: 'set', time_scale: 0.5 });
+if (scaled.error || scaled.result.time_scale !== 0.5 || scaled.result.fixed_fps !== 60) {
+  throw new Error(`Session time-scale control failed: ${JSON.stringify(scaled)}`);
+}
+
 const created = await request('godot.runtime.authoring_create_scene', {
   scene_path: 'scenes/session_created.tscn',
   root_node_type: 'Node2D',
@@ -87,5 +96,7 @@ const runtime = await request('godot.runtime.os_info', {});
 if (runtime.error || typeof runtime.result?.os_name !== 'string') {
   throw new Error(`Runtime command failed after authoring failure: ${JSON.stringify(runtime)}`);
 }
+
+await request('godot.runtime.time_scale', { action: 'set', time_scale: 1 });
 
 socket.end();

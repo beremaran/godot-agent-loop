@@ -7,6 +7,7 @@ import type { HeadlessOperationResult } from './headless-operation-runner.js';
 import type { InteractionServerInstaller } from './interaction-server-installer.js';
 import type { AuthoringSessionToolBackend } from './tool-manifest.js';
 import { convertCamelToSnakeCase, errorMessage, type OperationParams } from './utils.js';
+import { deterministicSessionArguments, deterministicSessionEnvironment } from './session-timing.js';
 
 interface AuthoringConnection {
   readonly isConnected: boolean;
@@ -150,8 +151,12 @@ export class AuthoringSessionManager {
       this.current = state;
       this.processManager.start({
         executable,
-        args: ['--headless', '--path', projectPath, '--script', this.options.operationsScriptPath, '--serve-authoring'],
+        args: [
+          '--headless', ...deterministicSessionArguments(),
+          '--path', projectPath, '--script', this.options.operationsScriptPath, '--serve-authoring',
+        ],
         env: {
+          ...deterministicSessionEnvironment(),
           GODOT_MCP_RUNTIME_PORT: String(port),
           GODOT_MCP_RUNTIME_SECRET: secret,
         },

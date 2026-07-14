@@ -324,8 +324,13 @@ until that decision is confirmed against a real game.
   command after it may have mutated state. The complete 24-test authoring E2E
   suite runs through the session; a separate live-game case proves the fallback
   remains isolated and leaves the game connection intact.)
-- [ ] Add `--fixed-fps` and time-scale control so "wait N frames, then capture"
+- [x] Add `--fixed-fps` and time-scale control so "wait N frames, then capture"
   means the same thing on every run. Determinism is miserable to retrofit.
+  (Every MCP-owned long-running process now starts at fixed 60 FPS, a 60 FPS
+  wall-clock cap, and time scale 1. The existing `game_time_scale` command is
+  the explicit get/set control and reports the harness fixed-FPS metadata;
+  direct authoring-session and full MCP E2E checks prove both initialization
+  and mutation.)
 - [ ] Launch the session headed, and fail fast with an actionable error when no
   rendering context is reachable. Do not await `RenderingServer.frame_post_draw`
   without one: under `--headless` it never fires, so the session deadlocks instead

@@ -73,7 +73,20 @@ func _cmd_time_scale(params: Dictionary) -> void:
 		return
 	if action == "set":
 		Engine.time_scale = time_scale
-	respond({"success": true, "time_scale": Engine.time_scale, "ticks_msec": Time.get_ticks_msec(), "fps": Engine.get_frames_per_second()})
+	respond({
+		"success": true,
+		"time_scale": Engine.time_scale,
+		"fixed_fps": _configured_fixed_fps(),
+		"ticks_msec": Time.get_ticks_msec(),
+		"fps": Engine.get_frames_per_second(),
+	})
+
+
+func _configured_fixed_fps() -> int:
+	var configured: String = OS.get_environment("GODOT_MCP_FIXED_FPS")
+	if configured.is_valid_int():
+		return int(configured)
+	return 0
 
 
 func _cmd_process_mode(params: Dictionary) -> void:

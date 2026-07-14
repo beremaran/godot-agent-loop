@@ -388,8 +388,9 @@ EOF
 SESSION_PORT="$(node -e "const s=require('node:net').createServer();s.listen(0,'127.0.0.1',()=>{console.log(s.address().port);s.close()})")"
 SESSION_SECRET="authoring-session-integration-secret"
 SESSION_LOG="$PROJECT/authoring-session.log"
-GODOT_MCP_RUNTIME_PORT="$SESSION_PORT" GODOT_MCP_RUNTIME_SECRET="$SESSION_SECRET" \
-  "$GODOT" --headless --path "$PROJECT" --script "$OPERATIONS_SCRIPT" --serve-authoring \
+GODOT_MCP_FIXED_FPS=60 GODOT_MCP_RUNTIME_PORT="$SESSION_PORT" GODOT_MCP_RUNTIME_SECRET="$SESSION_SECRET" \
+  "$GODOT" --headless --fixed-fps 60 --max-fps 60 --time-scale 1 \
+  --path "$PROJECT" --script "$OPERATIONS_SCRIPT" --serve-authoring \
   >"$SESSION_LOG" 2>&1 &
 SESSION_PID=$!
 

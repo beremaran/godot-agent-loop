@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { AUTHORING_COMMANDS, AUTHORING_COMMANDS_CAPABILITY, CANCELLABLE_RUNTIME_COMMANDS, CANCEL_METHOD, HANDSHAKE_METHOD, PRIVILEGED_RUNTIME_CAPABILITY, PRIVILEGED_RUNTIME_COMMANDS, PRIVILEGED_RUNTIME_COMMAND_GROUPS, PRIVILEGED_RUNTIME_GROUPS, RUNTIME_CAPABILITIES, RUNTIME_COMMANDS, RUNTIME_PROTOCOL_VERSION, SESSION_AUTHENTICATION_CAPABILITY, SESSION_COMMANDS, commandMethod } from '../src/runtime-protocol.js';
+import { GODOT_SESSION_FIXED_FPS, GODOT_SESSION_FIXED_FPS_ENV, GODOT_SESSION_INITIAL_TIME_SCALE } from '../src/session-timing.js';
 
 const root = join(fileURLToPath(new URL('..', import.meta.url)));
 
@@ -123,6 +124,22 @@ describe('runtime protocol contract', () => {
     expect(subprocess).toContain('GODOT_PROCESS_LOG_LINE_LIMIT = 1_000');
     expect(subprocess).toContain('GODOT_COMMAND_MAX_BUFFER_BYTES = 16 * 1024 * 1024');
     expect(manager).toContain('remaining: this.activeProcess.output.length - end');
+  });
+
+  it('publishes deterministic session timing and runtime time-scale control', () => {
+    const schema = JSON.parse(readFileSync(join(root, 'docs/runtime-api.schema.json'), 'utf8'));
+    const timing = schema['x-runtime-contract'].determinism;
+    const systemDomain = readFileSync(join(root, 'src/scripts/mcp_runtime/system_domain.gd'), 'utf8');
+
+    expect(timing).toMatchObject({
+      fixedFps: GODOT_SESSION_FIXED_FPS,
+      wallClockFpsCap: GODOT_SESSION_FIXED_FPS,
+      initialTimeScale: GODOT_SESSION_INITIAL_TIME_SCALE,
+      metadataEnvironment: GODOT_SESSION_FIXED_FPS_ENV,
+      controlCommand: 'time_scale',
+    });
+    expect(systemDomain).toContain('Engine.time_scale = time_scale');
+    expect(systemDomain).toContain('"fixed_fps": _configured_fixed_fps()');
   });
 
   it('uses the contract namespace for every runtime command method', () => {
