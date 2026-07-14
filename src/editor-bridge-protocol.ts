@@ -1,0 +1,1 @@
+export const EDITOR_BRIDGE_PROTOCOL_VERSION = '1';

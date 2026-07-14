@@ -1,4 +1,5 @@
 // @test-kind: e2e
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -7,6 +8,7 @@ import {
   assertNoLeakedGodotProcesses,
   createTempProject,
   killGodotProcesses,
+  resolveGodotBinary,
   startServer,
 } from './helpers/harness.js';
 
@@ -72,5 +74,45 @@ describe('crash recovery across the full MCP path', () => {
       await assertNoLeakedGodotProcesses(project.root);
       rmSync(project.root, { recursive: true, force: true });
     }
+  });
+
+  it('reclaims a SIGKILLed transient editor bridge on the next launch', async () => {
+    const project = createTempProject();
+    const projectFile = join(project.projectPath, 'project.godot');
+    execFileSync(resolveGodotBinary(), [
+      '--headless', '--editor', '--path', project.projectPath, '--quit',
+    ]);
+    const projectBefore = readFileSync(projectFile, 'utf8');
+    const transientAddon = join(project.projectPath, 'addons/godot_agent_loop_transient');
+
+    const first = await startServer({ project, preserveProject: true });
+    const firstLaunch = await first.call('launch_editor', { projectPath: project.projectPath });
+    expect(firstLaunch.isError, firstLaunch.text).toBe(false);
+    expect(JSON.parse(firstLaunch.text)).toMatchObject({
+      plugin_distribution: 'transient', plugin_owned: true,
+    });
+    process.kill(first.pid, 'SIGKILL');
+    await first.client.close().catch(() => undefined);
+    await killGodotProcesses(project.root);
+    await assertNoLeakedGodotProcesses(project.root);
+    expect(existsSync(transientAddon)).toBe(true);
+    expect(readFileSync(projectFile, 'utf8')).toContain('godot_agent_loop_transient');
+
+    const second = await startServer({ project, preserveProject: true });
+    try {
+      const secondLaunch = await second.call('launch_editor', { projectPath: project.projectPath });
+      expect(secondLaunch.isError, secondLaunch.text).toBe(false);
+      expect(JSON.parse(secondLaunch.text)).toMatchObject({
+        plugin_distribution: 'transient', plugin_owned: true,
+      });
+    } finally {
+      await second.client.close().catch(() => undefined);
+      await killGodotProcesses(project.root);
+      await assertNoLeakedGodotProcesses(project.root);
+    }
+
+    expect(existsSync(transientAddon)).toBe(false);
+    expect(readFileSync(projectFile, 'utf8')).toBe(projectBefore);
+    rmSync(project.root, { recursive: true, force: true });
   });
 });

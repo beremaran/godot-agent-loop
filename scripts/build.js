@@ -27,7 +27,7 @@ try {
   );
 
   fs.copyFileSync(
-    path.join(__dirname, '..', 'src', 'scripts', 'mcp_editor_plugin.gd'),
+    path.join(__dirname, '..', 'addons', 'godot_agent_loop', 'plugin.gd'),
     path.join(__dirname, '..', 'build', 'scripts', 'mcp_editor_plugin.gd')
   );
 

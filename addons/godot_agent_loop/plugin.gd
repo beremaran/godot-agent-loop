@@ -12,12 +12,19 @@ var _port: int = 9091
 var _secret: String = ""
 var _activity_dock: VBoxContainer
 var _activity_list: ItemList
+var _connection_status: Label
+var _compatibility_status: Label
 var _driver_status: Label
 var _driver_pause_button: Button
 var _driver_paused: bool = false
+var _session_authenticated: bool = false
+var _server_version: String = ""
+var _last_history_id: int = EditorUndoRedoManager.GLOBAL_HISTORY
 var _activity_entries: Array[Dictionary] = []
 var _last_filesystem_sync: Dictionary = {}
 const MAX_ACTIVITY_ENTRIES: int = 200
+const PROTOCOL_VERSION: String = "1"
+const ADDON_VERSION: String = "1.0.0"
 
 func _enter_tree() -> void:
 	set_process(true)
@@ -29,6 +36,11 @@ func _enter_tree() -> void:
 	var error: int = _server.listen(_port, "127.0.0.1")
 	if error != OK:
 		push_error("Godot Agent Loop editor bridge could not listen on %d: %s" % [_port, error_string(error)])
+		_set_connection_status("Unavailable — port %d: %s" % [_port, error_string(error)])
+	elif _secret.is_empty():
+		_set_connection_status("Waiting — relaunch the editor through Godot Agent Loop")
+	else:
+		_set_connection_status("Waiting for an authenticated agent")
 
 func _exit_tree() -> void:
 	set_process(false)
@@ -43,6 +55,8 @@ func _exit_tree() -> void:
 		_activity_dock.queue_free()
 	_activity_dock = null
 	_activity_list = null
+	_connection_status = null
+	_compatibility_status = null
 	_driver_status = null
 	_driver_pause_button = null
 
@@ -52,20 +66,32 @@ func _process(_delta: float) -> void:
 			_server.take_connection().disconnect_from_host()
 		else:
 			_peer = _server.take_connection()
+			_session_authenticated = false
+			_server_version = ""
+			_set_connection_status("Connected — authenticating")
 	if _peer == null:
 		return
-	_peer.poll()
+	var poll_error: Error = _peer.poll()
+	if poll_error != OK:
+		return
 	if _peer.get_status() != StreamPeerTCP.STATUS_CONNECTED:
 		_peer = null
 		_buffer = PackedByteArray()
+		_session_authenticated = false
+		_server_version = ""
+		_set_connection_status("Waiting for an authenticated agent")
 		return
 	var available: int = _peer.get_available_bytes()
 	if available <= 0:
 		return
-	var incoming: Array = _peer.get_data(min(available, 64 * 1024))
+	var incoming: Array = _peer.get_data(mini(available, 64 * 1024))
 	if incoming[0] != OK:
 		return
-	_buffer.append_array(incoming[1])
+	var incoming_variant: Variant = incoming[1]
+	if not incoming_variant is PackedByteArray:
+		return
+	var incoming_bytes: PackedByteArray = incoming_variant
+	_buffer.append_array(incoming_bytes)
 	while true:
 		var newline: int = _buffer.find(10)
 		if newline < 0:
@@ -86,6 +112,14 @@ func _handle_request(line: String) -> void:
 		_send({"id": request.get("id", null), "error": "authentication_required"})
 		return
 	var command: String = str(request.get("command", ""))
+	if command == "handshake":
+		var handshake: Dictionary = _handshake(request.get("params", {}))
+		handshake["id"] = request.get("id", null)
+		_send(handshake)
+		return
+	if not _session_authenticated:
+		_send({"id": request.get("id", null), "error": "handshake_required", "protocol_version": PROTOCOL_VERSION})
+		return
 	var result: Dictionary = _dispatch(command, request.get("params", {}))
 	result["id"] = request.get("id", null)
 	_send(result)
@@ -104,32 +138,60 @@ func _dispatch(command: String, raw_params: Variant) -> Dictionary:
 		"select":
 			return _select(params)
 		"save":
-			get_editor_interface().save_scene()
-			return {"success": true, "saved": true}
+			var save_error: Error = EditorInterface.save_scene()
+			return {"success": save_error == OK, "saved": save_error == OK, "error_code": save_error}
 		"reload":
 			var scene_path: String = str(params.get("scene_path", ""))
-			var reload_result: Variant = get_editor_interface().call("reload_scene_from_path", scene_path)
-			return {"success": reload_result != false, "scene_path": scene_path}
+			EditorInterface.reload_scene_from_path(scene_path)
+			return {"success": true, "scene_path": scene_path}
 		"open_scene":
 			var open_path: String = str(params.get("scene_path", ""))
 			if open_path.is_empty():
 				return {"error": "scene_path is required"}
-			var open_result: Variant = get_editor_interface().call("open_scene_from_path", open_path)
-			return {"success": open_result != false, "scene_path": open_path}
+			EditorInterface.open_scene_from_path(open_path)
+			return {"success": true, "scene_path": open_path}
 		"set_property":
 			return _set_property(params)
 		"rename_node":
 			return _rename_node(params)
 		"undo":
-			var undo_redo: Variant = get_editor_interface().call("get_editor_undo_redo")
-			if undo_redo != null: undo_redo.call("undo")
-			return {"success": undo_redo != null, "action": "undo"}
+			var undo_redo: EditorUndoRedoManager = EditorInterface.get_editor_undo_redo()
+			if undo_redo == null:
+				return {"success": false, "action": "undo"}
+			var undo_history: UndoRedo = undo_redo.get_history_undo_redo(_last_history_id)
+			return {"success": undo_history.undo(), "action": "undo"}
 		"redo":
-			var redo_manager: Variant = get_editor_interface().call("get_editor_undo_redo")
-			if redo_manager != null: redo_manager.call("redo")
-			return {"success": redo_manager != null, "action": "redo"}
+			var redo_manager: EditorUndoRedoManager = EditorInterface.get_editor_undo_redo()
+			if redo_manager == null:
+				return {"success": false, "action": "redo"}
+			var redo_history: UndoRedo = redo_manager.get_history_undo_redo(_last_history_id)
+			return {"success": redo_history.redo(), "action": "redo"}
 		_:
 			return {"error": "unknown_command", "allowed": ["inspect", "activity", "driver_state", "filesystem_changed", "select", "save", "reload", "open_scene", "set_property", "rename_node", "undo", "redo"]}
+
+func _handshake(raw_params: Variant) -> Dictionary:
+	var params: Dictionary = raw_params if raw_params is Dictionary else {}
+	var requested_protocol: String = str(params.get("protocol_version", ""))
+	_server_version = str(params.get("server_version", ""))
+	if requested_protocol != PROTOCOL_VERSION:
+		_session_authenticated = false
+		_set_connection_status("Incompatible protocol — server %s, addon %s" % [requested_protocol, PROTOCOL_VERSION])
+		return {
+			"error": "incompatible_protocol",
+			"requested_protocol": requested_protocol,
+			"protocol_version": PROTOCOL_VERSION,
+			"addon_version": ADDON_VERSION,
+		}
+	_session_authenticated = true
+	_set_connection_status("Authenticated — server %s" % (_server_version if not _server_version.is_empty() else "unknown"))
+	return {
+		"success": true,
+		"product": "Godot Agent Loop",
+		"protocol_version": PROTOCOL_VERSION,
+		"addon_version": ADDON_VERSION,
+		"server_version": _server_version,
+		"godot_version": Engine.get_version_info().get("string", "unknown"),
+	}
 
 func _create_activity_dock() -> void:
 	_activity_dock = VBoxContainer.new()
@@ -138,13 +200,24 @@ func _create_activity_dock() -> void:
 	title.text = "Agent Activity"
 	title.tooltip_text = "Live authenticated MCP command lifecycle"
 	_activity_dock.add_child(title)
+	_connection_status = Label.new()
+	_connection_status.name = "ConnectionStatus"
+	_connection_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_activity_dock.add_child(_connection_status)
+	_compatibility_status = Label.new()
+	_compatibility_status.name = "CompatibilityStatus"
+	_compatibility_status.text = "Addon %s · protocol %s · Godot %s" % [ADDON_VERSION, PROTOCOL_VERSION, Engine.get_version_info().get("string", "unknown")]
+	_compatibility_status.tooltip_text = "The MCP server and addon must use the same editor protocol version."
+	_activity_dock.add_child(_compatibility_status)
 	var driver_row := HBoxContainer.new()
 	driver_row.name = "DriverControls"
 	_driver_status = Label.new()
 	_driver_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	driver_row.add_child(_driver_status)
 	_driver_pause_button = Button.new()
-	_driver_pause_button.pressed.connect(_toggle_driver_pause)
+	var connect_error: Error = _driver_pause_button.pressed.connect(_toggle_driver_pause) as Error
+	if connect_error != OK:
+		push_error("Godot Agent Loop could not connect its pause control: %s" % error_string(connect_error))
 	driver_row.add_child(_driver_pause_button)
 	_activity_dock.add_child(driver_row)
 	_update_driver_controls()
@@ -153,7 +226,20 @@ func _create_activity_dock() -> void:
 	_activity_list.custom_minimum_size = Vector2(320, 180)
 	_activity_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_activity_dock.add_child(_activity_list)
+	var setup_title := Label.new()
+	setup_title.text = "Setup help"
+	_activity_dock.add_child(setup_title)
+	var setup_help := RichTextLabel.new()
+	setup_help.name = "SetupHelp"
+	setup_help.fit_content = true
+	setup_help.custom_minimum_size = Vector2(320, 96)
+	setup_help.text = "Claude Code / Codex: install the Godot Agent Loop plugin\nOpenCode: godot-agent-loop setup opencode --write\nPi: pi install npm:@beremaran/godot-agent-loop\nRelaunch the editor through the MCP launch_editor tool to authenticate."
+	_activity_dock.add_child(setup_help)
 	add_control_to_dock(DOCK_SLOT_RIGHT_BL, _activity_dock)
+
+func _set_connection_status(message: String) -> void:
+	if _connection_status != null:
+		_connection_status.text = "Connection: %s" % message
 
 func _toggle_driver_pause() -> void:
 	_driver_paused = not _driver_paused
@@ -176,7 +262,13 @@ func _record_activity(params: Dictionary) -> Dictionary:
 	var command: String = str(params.get("command", "unknown"))
 	var target: String = str(params.get("target", "game"))
 	var outcome: String = str(params.get("outcome", "running"))
-	var duration_ms: int = int(params.get("duration_ms", 0))
+	var raw_duration_ms: Variant = params.get("duration_ms", 0)
+	var duration_ms: int = 0
+	if raw_duration_ms is int:
+		duration_ms = raw_duration_ms
+	elif raw_duration_ms is float:
+		var float_duration_ms: float = raw_duration_ms
+		duration_ms = roundi(float_duration_ms)
 	var correlation_id: String = str(params.get("correlation_id", ""))
 	var marker: String = "…" if event == "request_started" else "✓" if outcome == "success" else "✗"
 	var suffix: String = "" if event == "request_started" else " · %d ms" % duration_ms
@@ -186,25 +278,25 @@ func _record_activity(params: Dictionary) -> Dictionary:
 		"target": target, "outcome": outcome, "duration_ms": duration_ms, "text": text,
 	}
 	_activity_entries.append(entry)
-	_activity_list.add_item(text)
-	_activity_list.set_item_tooltip(_activity_list.item_count - 1, correlation_id)
+	var item_index: int = _activity_list.add_item(text)
+	_activity_list.set_item_tooltip(item_index, correlation_id)
 	if event != "request_started":
 		var color := Color(0.35, 0.85, 0.45) if outcome == "success" else Color(1.0, 0.4, 0.35)
-		_activity_list.set_item_custom_fg_color(_activity_list.item_count - 1, color)
+		_activity_list.set_item_custom_fg_color(item_index, color)
 	while _activity_entries.size() > MAX_ACTIVITY_ENTRIES:
 		_activity_entries.pop_front()
 		_activity_list.remove_item(0)
 	return {"success": true, "activity_count": _activity_entries.size()}
 
 func _sync_filesystem(params: Dictionary) -> Dictionary:
-	var filesystem: EditorFileSystem = get_editor_interface().get_resource_filesystem()
+	var filesystem: EditorFileSystem = EditorInterface.get_resource_filesystem()
 	filesystem.scan()
 	var scene_path: String = str(params.get("scene_path", ""))
-	var root: Node = get_editor_interface().get_edited_scene_root()
+	var root: Node = EditorInterface.get_edited_scene_root()
 	var reloaded: bool = false
 	if root != null and not scene_path.is_empty() and root.scene_file_path == scene_path:
-		var reload_result: Variant = get_editor_interface().call("reload_scene_from_path", scene_path)
-		reloaded = reload_result != false
+		EditorInterface.reload_scene_from_path(scene_path)
+		reloaded = true
 	var focus_path: String = str(params.get("focus_path", ""))
 	var focused: bool = false
 	if reloaded and not focus_path.is_empty():
@@ -218,28 +310,34 @@ func _sync_filesystem(params: Dictionary) -> Dictionary:
 	return _last_filesystem_sync.duplicate(true)
 
 func _inspect() -> Dictionary:
-	var interface: EditorInterface = get_editor_interface()
-	var root: Node = interface.get_edited_scene_root()
+	var root: Node = EditorInterface.get_edited_scene_root()
 	var selected: Array[String] = []
-	var selection: EditorSelection = interface.get_selection()
+	var selection: EditorSelection = EditorInterface.get_selection()
 	for node: Node in selection.get_selected_nodes():
 		selected.append(str(node.get_path()))
 	var open_scenes: Array = []
-	var open_result: Variant = interface.call("get_open_scenes")
+	var open_result: Variant = EditorInterface.get_open_scenes()
 	if open_result is PackedStringArray:
-		open_scenes = Array(open_result)
+		var packed_open_scenes: PackedStringArray = open_result
+		open_scenes.assign(packed_open_scenes)
+	var edited_root: Variant = null
+	if root != null:
+		edited_root = {"name": root.name, "type": root.get_class(), "path": str(root.get_path())}
 	return {"success": true, "edited_scene": "" if root == null else str(root.scene_file_path),
-		"edited_root": null if root == null else {"name": root.name, "type": root.get_class(), "path": str(root.get_path())},
+		"edited_root": edited_root,
 		"selection": selected, "open_scenes": open_scenes,
-		"has_undo_redo": interface.call("get_editor_undo_redo") != null,
+		"has_undo_redo": EditorInterface.get_editor_undo_redo() != null,
 		"activity_dock": _activity_dock != null, "activity": _activity_entries.duplicate(true),
 		"driver_paused": _driver_paused, "agent_driving": not _driver_paused,
+		"authenticated": _session_authenticated, "server_version": _server_version,
+		"addon_version": ADDON_VERSION, "protocol_version": PROTOCOL_VERSION,
+		"godot_version": Engine.get_version_info().get("string", "unknown"),
 		"last_filesystem_sync": _last_filesystem_sync.duplicate(true)}
 
 func _select(params: Dictionary) -> Dictionary:
-	var selection: EditorSelection = get_editor_interface().get_selection()
+	var selection: EditorSelection = EditorInterface.get_selection()
 	selection.clear()
-	var root: Node = get_editor_interface().get_edited_scene_root()
+	var root: Node = EditorInterface.get_edited_scene_root()
 	if root == null:
 		return {"error": "no_edited_scene"}
 	var selected: Array[String] = []
@@ -253,21 +351,21 @@ func _select(params: Dictionary) -> Dictionary:
 		selection.add_node(node)
 		selected.append(str(node.get_path()))
 		if selected.size() == 1:
-			get_editor_interface().call("edit_node", node)
+			EditorInterface.edit_node(node)
 	return {"success": true, "selection": selected}
 
 func _focus_editor_node(path: String) -> bool:
-	var root: Node = get_editor_interface().get_edited_scene_root()
+	var root: Node = EditorInterface.get_edited_scene_root()
 	if root == null:
 		return false
 	var normalized: String = path.trim_prefix("root/")
 	var node: Node = root if normalized == "." or normalized == "root" or normalized.is_empty() else root.get_node_or_null(NodePath(normalized))
 	if node == null:
 		return false
-	var selection: EditorSelection = get_editor_interface().get_selection()
+	var selection: EditorSelection = EditorInterface.get_selection()
 	selection.clear()
 	selection.add_node(node)
-	get_editor_interface().call("edit_node", node)
+	EditorInterface.edit_node(node)
 	return true
 
 func _set_property(params: Dictionary) -> Dictionary:
@@ -289,24 +387,27 @@ func _rename_node(params: Dictionary) -> Dictionary:
 	return _commit_property_action(target, "name", before, new_name)
 
 func _edited_node(params: Dictionary) -> Node:
-	var root: Node = get_editor_interface().get_edited_scene_root()
+	var root: Node = EditorInterface.get_edited_scene_root()
 	if root == null: return null
 	var path: String = str(params.get("node_path", "."))
 	return root if path == "." or path.is_empty() else root.get_node_or_null(NodePath(path))
 
 func _commit_property_action(target: Node, property: String, before: Variant, after: Variant) -> Dictionary:
-	var manager: Variant = get_editor_interface().call("get_editor_undo_redo")
+	var manager: EditorUndoRedoManager = EditorInterface.get_editor_undo_redo()
 	if manager == null: return {"error": "undo_redo_unavailable"}
-	manager.call("create_action", "MCP %s" % property)
-	manager.call("add_do_property", target, property, after)
-	manager.call("add_undo_property", target, property, before)
-	manager.call("commit_action")
+	manager.create_action("MCP %s" % property)
+	manager.add_do_property(target, property, after)
+	manager.add_undo_property(target, property, before)
+	manager.commit_action()
+	_last_history_id = manager.get_object_history_id(target)
 	return {"success": true, "property": property, "before": before, "after": target.get(property), "undo_recorded": true}
 
 func _send(response: Dictionary) -> void:
 	if _peer == null:
 		return
-	_peer.put_data((JSON.stringify(response) + "\n").to_utf8_buffer())
+	var send_error: Error = _peer.put_data((JSON.stringify(response) + "\n").to_utf8_buffer())
+	if send_error != OK:
+		push_warning("Godot Agent Loop editor bridge send failed: %s" % error_string(send_error))
 
 func _read_port() -> int:
 	var configured: String = OS.get_environment("GODOT_MCP_EDITOR_PORT")

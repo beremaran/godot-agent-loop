@@ -314,6 +314,8 @@ describe('GodotServer class tests', () => {
       .mockResolvedValue({ content: [{ type: 'text', text: '{"ready":true}' }] });
     const addonSpy = vi.spyOn((server as any).projectToolHandlers, 'handleManageAddon')
       .mockResolvedValue({ content: [{ type: 'text', text: '{"installed":true}' }] });
+    const editorLaunchSpy = vi.spyOn((server as any).lifecycleToolHandlers, 'handleLaunchEditor')
+      .mockResolvedValue({ content: [{ type: 'text', text: '{"launched":true}' }] });
 
     for (const tool of toolsResult.tools) {
       // The editor bridge is exercised by the full-path lifecycle suite; this
@@ -374,6 +376,7 @@ describe('GodotServer class tests', () => {
     exportReadinessSpy.mockRestore();
     dotnetWorkflowSpy.mockRestore();
     addonSpy.mockRestore();
+    editorLaunchSpy.mockRestore();
     disconnectSpy.mockRestore();
 
     expect(errors).toEqual([]);

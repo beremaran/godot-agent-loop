@@ -125,7 +125,7 @@ syncJson('.claude-plugin/marketplace.json', claudeMarketplace);
 syncJson('.agents/plugins/marketplace.json', codexMarketplace);
 
 const expectedPackage = {
-  files: ['build', 'agent-plugin', 'product.json'],
+  files: ['build', 'agent-plugin', 'addons/godot_agent_loop', 'product.json'],
   pi: {
     extensions: ['./agent-plugin/pi/extension.ts'],
     skills: ['./agent-plugin/skills'],

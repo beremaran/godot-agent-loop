@@ -1,5 +1,6 @@
 import { isToolCallMutating } from './tool-mutation-policy.js';
 import { createErrorResponse, type ToolArguments, type ToolResponse } from './utils.js';
+import { EditorBridgeCompatibilityError } from './editor-connection.js';
 
 export const EDITOR_DRIVER_STATE_COMMAND = 'driver_state';
 export const EDITOR_DRIVER_STATE_TIMEOUT_MS = 500;
@@ -26,7 +27,10 @@ export class EditorMutationGuard {
         EDITOR_DRIVER_STATE_TIMEOUT_MS,
       );
       if (state.paused === true) return createErrorResponse(AGENT_MUTATIONS_PAUSED_MESSAGE);
-    } catch {
+    } catch (error) {
+      if (error instanceof EditorBridgeCompatibilityError) {
+        return createErrorResponse(`Agent mutation refused: ${error.message}`);
+      }
       // The addon is optional. No reachable editor means there is no human-held
       // cooperative lock to honor, so normal unattended operation continues.
     }

@@ -50,7 +50,7 @@ describe('portable agent plugin package', () => {
       policy: { installation: 'AVAILABLE', authentication: 'ON_INSTALL' },
     });
     expect(packageJson).toMatchObject({
-      files: ['build', 'agent-plugin', 'product.json'],
+      files: ['build', 'agent-plugin', 'addons/godot_agent_loop', 'product.json'],
       pi: {
         extensions: ['./agent-plugin/pi/extension.ts'],
         skills: ['./agent-plugin/skills'],

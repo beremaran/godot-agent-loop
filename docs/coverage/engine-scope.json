@@ -37,7 +37,7 @@
     },
     {
       "group": "editor plugin authoring",
-      "reason": "these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we install one, in mcp_editor_plugin.gd, but do not expose the authoring surface)",
+      "reason": "these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we ship one under addons/godot_agent_loop, but do not expose the authoring surface)",
       "classes": [
         "EditorContextMenuPlugin",
         "EditorExportPlugin",

@@ -1,6 +1,6 @@
 // @test-kind: e2e
 import { execFile } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -149,6 +149,12 @@ describe('project process ownership', () => {
     try {
       const launched = await server.call('launch_editor', { projectPath: server.projectPath });
       expect(launched.isError, launched.text).toBe(false);
+      expect(JSON.parse(launched.text)).toMatchObject({
+        editor_plugin: true,
+        plugin_owned: true,
+        plugin_distribution: 'transient',
+        editor_protocol_version: '1',
+      });
 
       const editorDeadline = Date.now() + 15_000;
       let editorState: { isError: boolean; text: string } = { isError: true, text: '' };
@@ -157,7 +163,10 @@ describe('project process ownership', () => {
         if (editorState.isError) await new Promise(resolve => setTimeout(resolve, 250));
       }
       expect(editorState.isError, editorState.text).toBe(false);
-      expect(JSON.parse(editorState.text)).toMatchObject({ action: 'inspect', has_undo_redo: true });
+      expect(JSON.parse(editorState.text)).toMatchObject({
+        action: 'inspect', has_undo_redo: true, authenticated: true,
+        addon_version: '1.0.0', protocol_version: '1', server_version: '1.0.0',
+      });
 
       // Godot 4.4 brings the headless editor bridge up before it opens the
       // project's main scene. Open it explicitly and wait for the edited root
@@ -235,8 +244,16 @@ describe('project process ownership', () => {
       expect(edited.isError, edited.text).toBe(false);
       const undone = await server.call('editor_control', { projectPath: server.projectPath, action: 'undo' });
       expect(undone.isError, undone.text).toBe(false);
+      expect(JSON.parse(undone.text)).toMatchObject({ success: true });
+      expect(JSON.parse((await server.call('editor_control', {
+        projectPath: server.projectPath, action: 'inspect',
+      })).text).edited_root).toMatchObject({ name: 'Main' });
       const redone = await server.call('editor_control', { projectPath: server.projectPath, action: 'redo' });
       expect(redone.isError, redone.text).toBe(false);
+      expect(JSON.parse(redone.text)).toMatchObject({ success: true });
+      expect(JSON.parse((await server.call('editor_control', {
+        projectPath: server.projectPath, action: 'inspect',
+      })).text).edited_root).toMatchObject({ name: 'EditedRoot' });
       const selected = await server.call('editor_control', { projectPath: server.projectPath, action: 'select', nodePaths: [] });
       expect(selected.isError, selected.text).toBe(false);
       const saved = await server.call('editor_control', { projectPath: server.projectPath, action: 'save' });
@@ -272,6 +289,48 @@ describe('project process ownership', () => {
       // The editor is intentionally user-owned (no stop_editor tool), so the
       // test always releases it before teardown's leak assertion, including
       // when an intermediate editor assertion fails.
+      await execFileAsync('pkill', ['-f', server.projectPath]).catch(() => undefined);
+    }
+  });
+
+  it('uses an installed persistent addon without overwriting it', async () => {
+    server = await startServer();
+    const addonPath = join(server.projectPath, 'addons/godot_agent_loop');
+    mkdirSync(addonPath, { recursive: true });
+    for (const file of ['plugin.gd', 'plugin.cfg', 'README.md', 'LICENSE']) {
+      copyFileSync(join(repoRoot, 'addons/godot_agent_loop', file), join(addonPath, file));
+    }
+    const before = new Map(['plugin.gd', 'plugin.cfg', 'README.md', 'LICENSE'].map(file => (
+      [file, readFileSync(join(addonPath, file), 'utf8')]
+    )));
+
+    try {
+      const launched = await server.call('launch_editor', { projectPath: server.projectPath });
+      expect(launched.isError, launched.text).toBe(false);
+      expect(JSON.parse(launched.text)).toMatchObject({
+        editor_plugin: true,
+        plugin_owned: false,
+        plugin_distribution: 'persistent',
+        editor_protocol_version: '1',
+      });
+
+      const deadline = Date.now() + 15_000;
+      let inspected: { isError: boolean; text: string } = { isError: true, text: '' };
+      while (Date.now() < deadline && inspected.isError) {
+        inspected = await server.call('editor_control', { projectPath: server.projectPath, action: 'inspect' });
+        if (inspected.isError) await new Promise(resolve => setTimeout(resolve, 250));
+      }
+      expect(inspected.isError, inspected.text).toBe(false);
+      expect(JSON.parse(inspected.text)).toMatchObject({
+        authenticated: true,
+        addon_version: '1.0.0',
+        protocol_version: '1',
+        server_version: '1.0.0',
+      });
+      for (const [file, content] of before) {
+        expect(readFileSync(join(addonPath, file), 'utf8'), file).toBe(content);
+      }
+    } finally {
       await execFileAsync('pkill', ['-f', server.projectPath]).catch(() => undefined);
     }
   });

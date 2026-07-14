@@ -1303,7 +1303,7 @@
     {
       "name": "Button",
       "bucket": "tooled",
-      "why": "src/scripts/mcp_editor_plugin.gd, src/scripts/mcp_interaction_server.gd, src/tool-definitions.ts, src/tool-handlers/project-handler-services.ts",
+      "why": "src/scripts/mcp_interaction_server.gd, src/tool-definitions.ts, src/tool-handlers/project-handler-services.ts, addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": true,
       "is_node": true,
@@ -2040,7 +2040,7 @@
     {
       "name": "Control",
       "bucket": "tooled",
-      "why": "src/scripts/mcp_editor_plugin.gd, src/scripts/mcp_interaction_server.gd, src/scripts/mcp_runtime/ui_domain.gd, src/tool-definitions.ts, src/tool-handlers/project-handler-services.ts",
+      "why": "src/scripts/mcp_interaction_server.gd, src/scripts/mcp_runtime/ui_domain.gd, src/tool-definitions.ts, src/tool-handlers/project-handler-services.ts, addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": true,
       "is_node": true,
@@ -2359,7 +2359,7 @@
     {
       "name": "EditorContextMenuPlugin",
       "bucket": "out-of-scope",
-      "why": "editor plugin authoring: these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we install one, in mcp_editor_plugin.gd, but do not expose the authoring surface)",
+      "why": "editor plugin authoring: these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we ship one under addons/godot_agent_loop, but do not expose the authoring surface)",
       "api_type": "editor",
       "instantiable": true,
       "is_node": false,
@@ -2524,7 +2524,7 @@
     {
       "name": "EditorExportPlugin",
       "bucket": "out-of-scope",
-      "why": "editor plugin authoring: these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we install one, in mcp_editor_plugin.gd, but do not expose the authoring surface)",
+      "why": "editor plugin authoring: these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we ship one under addons/godot_agent_loop, but do not expose the authoring surface)",
       "api_type": "editor",
       "instantiable": true,
       "is_node": false,
@@ -2568,7 +2568,7 @@
     {
       "name": "EditorFileSystem",
       "bucket": "tooled",
-      "why": "src/scripts/mcp_editor_plugin.gd",
+      "why": "addons/godot_agent_loop/plugin.gd",
       "api_type": "editor",
       "instantiable": false,
       "is_node": true,
@@ -2590,7 +2590,7 @@
     {
       "name": "EditorFileSystemImportFormatSupportQuery",
       "bucket": "out-of-scope",
-      "why": "editor plugin authoring: these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we install one, in mcp_editor_plugin.gd, but do not expose the authoring surface)",
+      "why": "editor plugin authoring: these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we ship one under addons/godot_agent_loop, but do not expose the authoring surface)",
       "api_type": "editor",
       "instantiable": true,
       "is_node": false,
@@ -2601,7 +2601,7 @@
     {
       "name": "EditorImportPlugin",
       "bucket": "out-of-scope",
-      "why": "editor plugin authoring: these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we install one, in mcp_editor_plugin.gd, but do not expose the authoring surface)",
+      "why": "editor plugin authoring: these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we ship one under addons/godot_agent_loop, but do not expose the authoring surface)",
       "api_type": "editor",
       "instantiable": true,
       "is_node": false,
@@ -2623,7 +2623,7 @@
     {
       "name": "EditorInspectorPlugin",
       "bucket": "out-of-scope",
-      "why": "editor plugin authoring: these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we install one, in mcp_editor_plugin.gd, but do not expose the authoring surface)",
+      "why": "editor plugin authoring: these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we ship one under addons/godot_agent_loop, but do not expose the authoring surface)",
       "api_type": "editor",
       "instantiable": true,
       "is_node": false,
@@ -2634,7 +2634,7 @@
     {
       "name": "EditorInterface",
       "bucket": "tooled",
-      "why": "src/scripts/mcp_editor_plugin.gd",
+      "why": "addons/godot_agent_loop/plugin.gd",
       "api_type": "editor",
       "instantiable": false,
       "is_node": false,
@@ -2645,7 +2645,7 @@
     {
       "name": "EditorNode3DGizmo",
       "bucket": "out-of-scope",
-      "why": "editor plugin authoring: these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we install one, in mcp_editor_plugin.gd, but do not expose the authoring surface)",
+      "why": "editor plugin authoring: these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we ship one under addons/godot_agent_loop, but do not expose the authoring surface)",
       "api_type": "editor",
       "instantiable": true,
       "is_node": false,
@@ -2656,7 +2656,7 @@
     {
       "name": "EditorNode3DGizmoPlugin",
       "bucket": "out-of-scope",
-      "why": "editor plugin authoring: these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we install one, in mcp_editor_plugin.gd, but do not expose the authoring surface)",
+      "why": "editor plugin authoring: these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we ship one under addons/godot_agent_loop, but do not expose the authoring surface)",
       "api_type": "editor",
       "instantiable": true,
       "is_node": false,
@@ -2678,7 +2678,7 @@
     {
       "name": "EditorPlugin",
       "bucket": "tooled",
-      "why": "src/editor-connection.ts, src/scripts/mcp_editor_plugin.gd, src/tool-handlers/project-handler-services.ts",
+      "why": "src/editor-connection.ts, src/tool-handlers/project-handler-services.ts, addons/godot_agent_loop/plugin.gd",
       "api_type": "editor",
       "instantiable": true,
       "is_node": true,
@@ -2700,7 +2700,7 @@
     {
       "name": "EditorResourceConversionPlugin",
       "bucket": "out-of-scope",
-      "why": "editor plugin authoring: these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we install one, in mcp_editor_plugin.gd, but do not expose the authoring surface)",
+      "why": "editor plugin authoring: these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we ship one under addons/godot_agent_loop, but do not expose the authoring surface)",
       "api_type": "editor",
       "instantiable": true,
       "is_node": false,
@@ -2744,7 +2744,7 @@
     {
       "name": "EditorResourceTooltipPlugin",
       "bucket": "out-of-scope",
-      "why": "editor plugin authoring: these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we install one, in mcp_editor_plugin.gd, but do not expose the authoring surface)",
+      "why": "editor plugin authoring: these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we ship one under addons/godot_agent_loop, but do not expose the authoring surface)",
       "api_type": "editor",
       "instantiable": true,
       "is_node": false,
@@ -2755,7 +2755,7 @@
     {
       "name": "EditorSceneFormatImporter",
       "bucket": "out-of-scope",
-      "why": "editor plugin authoring: these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we install one, in mcp_editor_plugin.gd, but do not expose the authoring surface)",
+      "why": "editor plugin authoring: these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we ship one under addons/godot_agent_loop, but do not expose the authoring surface)",
       "api_type": "editor",
       "instantiable": true,
       "is_node": false,
@@ -2766,7 +2766,7 @@
     {
       "name": "EditorSceneFormatImporterBlend",
       "bucket": "out-of-scope",
-      "why": "editor plugin authoring: these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we install one, in mcp_editor_plugin.gd, but do not expose the authoring surface)",
+      "why": "editor plugin authoring: these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we ship one under addons/godot_agent_loop, but do not expose the authoring surface)",
       "api_type": "editor",
       "instantiable": true,
       "is_node": false,
@@ -2777,7 +2777,7 @@
     {
       "name": "EditorSceneFormatImporterFBX2GLTF",
       "bucket": "out-of-scope",
-      "why": "editor plugin authoring: these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we install one, in mcp_editor_plugin.gd, but do not expose the authoring surface)",
+      "why": "editor plugin authoring: these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we ship one under addons/godot_agent_loop, but do not expose the authoring surface)",
       "api_type": "editor",
       "instantiable": true,
       "is_node": false,
@@ -2788,7 +2788,7 @@
     {
       "name": "EditorSceneFormatImporterGLTF",
       "bucket": "out-of-scope",
-      "why": "editor plugin authoring: these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we install one, in mcp_editor_plugin.gd, but do not expose the authoring surface)",
+      "why": "editor plugin authoring: these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we ship one under addons/godot_agent_loop, but do not expose the authoring surface)",
       "api_type": "editor",
       "instantiable": true,
       "is_node": false,
@@ -2799,7 +2799,7 @@
     {
       "name": "EditorSceneFormatImporterUFBX",
       "bucket": "out-of-scope",
-      "why": "editor plugin authoring: these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we install one, in mcp_editor_plugin.gd, but do not expose the authoring surface)",
+      "why": "editor plugin authoring: these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we ship one under addons/godot_agent_loop, but do not expose the authoring surface)",
       "api_type": "editor",
       "instantiable": true,
       "is_node": false,
@@ -2810,7 +2810,7 @@
     {
       "name": "EditorScenePostImport",
       "bucket": "out-of-scope",
-      "why": "editor plugin authoring: these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we install one, in mcp_editor_plugin.gd, but do not expose the authoring surface)",
+      "why": "editor plugin authoring: these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we ship one under addons/godot_agent_loop, but do not expose the authoring surface)",
       "api_type": "editor",
       "instantiable": true,
       "is_node": false,
@@ -2821,7 +2821,7 @@
     {
       "name": "EditorScenePostImportPlugin",
       "bucket": "out-of-scope",
-      "why": "editor plugin authoring: these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we install one, in mcp_editor_plugin.gd, but do not expose the authoring surface)",
+      "why": "editor plugin authoring: these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we ship one under addons/godot_agent_loop, but do not expose the authoring surface)",
       "api_type": "editor",
       "instantiable": true,
       "is_node": false,
@@ -2832,7 +2832,7 @@
     {
       "name": "EditorScript",
       "bucket": "out-of-scope",
-      "why": "editor plugin authoring: these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we install one, in mcp_editor_plugin.gd, but do not expose the authoring surface)",
+      "why": "editor plugin authoring: these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we ship one under addons/godot_agent_loop, but do not expose the authoring surface)",
       "api_type": "editor",
       "instantiable": true,
       "is_node": false,
@@ -2854,7 +2854,7 @@
     {
       "name": "EditorSelection",
       "bucket": "tooled",
-      "why": "src/scripts/mcp_editor_plugin.gd",
+      "why": "addons/godot_agent_loop/plugin.gd",
       "api_type": "editor",
       "instantiable": true,
       "is_node": false,
@@ -2909,7 +2909,7 @@
     {
       "name": "EditorTranslationParserPlugin",
       "bucket": "out-of-scope",
-      "why": "editor plugin authoring: these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we install one, in mcp_editor_plugin.gd, but do not expose the authoring surface)",
+      "why": "editor plugin authoring: these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we ship one under addons/godot_agent_loop, but do not expose the authoring surface)",
       "api_type": "editor",
       "instantiable": true,
       "is_node": false,
@@ -2920,7 +2920,7 @@
     {
       "name": "EditorUndoRedoManager",
       "bucket": "tooled",
-      "why": "src/scripts/mcp_editor_plugin.gd",
+      "why": "addons/godot_agent_loop/plugin.gd",
       "api_type": "editor",
       "instantiable": false,
       "is_node": false,
@@ -2953,7 +2953,7 @@
     {
       "name": "Engine",
       "bucket": "tooled",
-      "why": "src/godot-executable.ts, src/scripts/mcp_runtime/system_domain.gd, src/tool-definitions.ts, src/tool-handlers/project-handler-services.ts, src/tool-handlers/project-tool-handlers.ts",
+      "why": "src/godot-executable.ts, src/scripts/mcp_runtime/system_domain.gd, src/tool-definitions.ts, src/tool-handlers/project-handler-services.ts, src/tool-handlers/project-tool-handlers.ts, addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": true,
       "is_node": false,
@@ -3217,7 +3217,7 @@
     {
       "name": "GDScript",
       "bucket": "tooled",
-      "why": "src/scripts/godot_operations.gd, src/scripts/mcp_interaction_server.gd, src/scripts/mcp_runtime/scene_2d_domain.gd, src/tool-definitions.ts, src/tool-handlers/project-handler-services.ts, src/tool-manifest.ts",
+      "why": "src/scripts/godot_operations.gd, src/scripts/mcp_interaction_server.gd, src/scripts/mcp_runtime/scene_2d_domain.gd, src/scripts/validate_script.gd, src/tool-definitions.ts, src/tool-handlers/project-handler-services.ts, src/tool-manifest.ts",
       "api_type": "core",
       "instantiable": true,
       "is_node": false,
@@ -3756,7 +3756,7 @@
     {
       "name": "GridMapEditorPlugin",
       "bucket": "out-of-scope",
-      "why": "editor plugin authoring: these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we install one, in mcp_editor_plugin.gd, but do not expose the authoring surface)",
+      "why": "editor plugin authoring: these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we ship one under addons/godot_agent_loop, but do not expose the authoring surface)",
       "api_type": "editor",
       "instantiable": true,
       "is_node": true,
@@ -3778,7 +3778,7 @@
     {
       "name": "HBoxContainer",
       "bucket": "tooled",
-      "why": "src/scripts/mcp_editor_plugin.gd",
+      "why": "addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": true,
       "is_node": true,
@@ -4262,7 +4262,7 @@
     {
       "name": "ItemList",
       "bucket": "tooled",
-      "why": "src/scripts/mcp_editor_plugin.gd, src/scripts/mcp_runtime/ui_domain.gd, src/tool-definitions.ts",
+      "why": "src/scripts/mcp_runtime/ui_domain.gd, src/tool-definitions.ts, addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": true,
       "is_node": true,
@@ -4295,7 +4295,7 @@
     {
       "name": "JSON",
       "bucket": "tooled",
-      "why": "src/authoring-session-manager.ts, src/editor-connection.ts, src/game-command-service.ts, src/game-connection.ts, src/headless-operation-runner.ts, src/index.ts, src/runtime-protocol.ts, src/scripts/godot_operations.gd, src/scripts/mcp_editor_plugin.gd, src/scripts/mcp_interaction_server.gd, src/scripts/mcp_runtime/command_params.gd, src/scripts/mcp_runtime/runtime_domain.gd, src/scripts/mcp_runtime/variant_codec.gd, src/tool-argument-validation.ts, src/tool-definitions.ts, src/tool-handlers/game-tool-handlers.ts, src/tool-handlers/lifecycle-tool-handlers.ts, src/tool-handlers/project-handler-services.ts, src/tool-handlers/project-tool-handlers.ts, src/tool-handlers/visual-regression-service.ts, src/tool-manifest.ts, src/tool-surface.ts",
+      "why": "src/authoring-session-manager.ts, src/editor-connection.ts, src/editor-plugin-installer.ts, src/game-command-service.ts, src/game-connection.ts, src/headless-operation-runner.ts, src/index.ts, src/opencode-setup.ts, src/runtime-protocol.ts, src/scripts/godot_operations.gd, src/scripts/mcp_interaction_server.gd, src/scripts/mcp_runtime/command_params.gd, src/scripts/mcp_runtime/runtime_domain.gd, src/scripts/mcp_runtime/variant_codec.gd, src/tool-argument-validation.ts, src/tool-definitions.ts, src/tool-handlers/game-tool-handlers.ts, src/tool-handlers/lifecycle-tool-handlers.ts, src/tool-handlers/project-handler-services.ts, src/tool-handlers/project-tool-handlers.ts, src/tool-handlers/visual-regression-service.ts, src/tool-manifest.ts, src/tool-surface.ts, addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": true,
       "is_node": false,
@@ -4449,7 +4449,7 @@
     {
       "name": "Label",
       "bucket": "tooled",
-      "why": "src/scripts/mcp_editor_plugin.gd, src/scripts/mcp_interaction_server.gd, src/tool-handlers/project-handler-services.ts",
+      "why": "src/scripts/mcp_interaction_server.gd, src/tool-handlers/project-handler-services.ts, addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": true,
       "is_node": true,
@@ -5230,7 +5230,7 @@
     {
       "name": "Node",
       "bucket": "tooled",
-      "why": "src/scripts/godot_operations.gd, src/scripts/mcp_editor_plugin.gd, src/scripts/mcp_interaction_server.gd, src/scripts/mcp_runtime/audio_animation_domain.gd, src/scripts/mcp_runtime/core_domain.gd, src/scripts/mcp_runtime/networking_domain.gd, src/scripts/mcp_runtime/physics_domain.gd, src/scripts/mcp_runtime/rendering_domain.gd, src/scripts/mcp_runtime/runtime_domain.gd, src/scripts/mcp_runtime/scene_2d_domain.gd, src/scripts/mcp_runtime/scene_3d_domain.gd, src/scripts/mcp_runtime/system_domain.gd, src/scripts/mcp_runtime/ui_domain.gd, src/scripts/mcp_runtime/variant_codec.gd, src/tool-definitions.ts, src/tool-handlers/project-tool-handlers.ts, src/utils.ts",
+      "why": "src/scripts/godot_operations.gd, src/scripts/mcp_interaction_server.gd, src/scripts/mcp_runtime/audio_animation_domain.gd, src/scripts/mcp_runtime/core_domain.gd, src/scripts/mcp_runtime/networking_domain.gd, src/scripts/mcp_runtime/physics_domain.gd, src/scripts/mcp_runtime/rendering_domain.gd, src/scripts/mcp_runtime/runtime_domain.gd, src/scripts/mcp_runtime/scene_2d_domain.gd, src/scripts/mcp_runtime/scene_3d_domain.gd, src/scripts/mcp_runtime/system_domain.gd, src/scripts/mcp_runtime/ui_domain.gd, src/scripts/mcp_runtime/variant_codec.gd, src/tool-definitions.ts, src/tool-handlers/project-tool-handlers.ts, src/utils.ts, addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": true,
       "is_node": true,
@@ -5329,7 +5329,7 @@
     {
       "name": "Object",
       "bucket": "tooled",
-      "why": "src/domain-tool-registries.ts, src/headless-operation-runner.ts, src/headless-operation-service.ts, src/runtime-protocol.ts, src/scripts/godot_operations.gd, src/scripts/mcp_runtime/system_domain.gd, src/scripts/mcp_runtime/variant_codec.gd, src/tool-argument-validation.ts, src/tool-handlers/game-tool-handlers.ts, src/tool-handlers/project-handler-services.ts, src/tool-handlers/project-tool-handlers.ts, src/tool-manifest.ts, src/tool-mutation-policy.ts, src/tool-registry.ts, src/utils.ts",
+      "why": "src/domain-tool-registries.ts, src/editor-plugin-installer.ts, src/headless-operation-runner.ts, src/headless-operation-service.ts, src/runtime-protocol.ts, src/scripts/godot_operations.gd, src/scripts/mcp_runtime/system_domain.gd, src/scripts/mcp_runtime/variant_codec.gd, src/tool-argument-validation.ts, src/tool-handlers/game-tool-handlers.ts, src/tool-handlers/project-handler-services.ts, src/tool-handlers/project-tool-handlers.ts, src/tool-manifest.ts, src/tool-mutation-policy.ts, src/tool-registry.ts, src/utils.ts",
       "api_type": "core",
       "instantiable": true,
       "is_node": false,
@@ -7507,7 +7507,7 @@
     {
       "name": "Resource",
       "bucket": "tooled",
-      "why": "src/scripts/godot_operations.gd, src/scripts/mcp_runtime/rendering_domain.gd, src/scripts/mcp_runtime/scene_3d_domain.gd, src/scripts/mcp_runtime/system_domain.gd, src/scripts/mcp_runtime/variant_codec.gd, src/tool-definitions.ts, src/tool-handlers/game-tool-handlers.ts",
+      "why": "src/scripts/godot_operations.gd, src/scripts/mcp_runtime/rendering_domain.gd, src/scripts/mcp_runtime/scene_3d_domain.gd, src/scripts/mcp_runtime/system_domain.gd, src/scripts/mcp_runtime/variant_codec.gd, src/scripts/validate_script.gd, src/tool-definitions.ts, src/tool-handlers/game-tool-handlers.ts",
       "api_type": "core",
       "instantiable": true,
       "is_node": false,
@@ -7727,7 +7727,7 @@
     {
       "name": "ResourceLoader",
       "bucket": "tooled",
-      "why": "src/scripts/godot_operations.gd, src/scripts/mcp_runtime/rendering_domain.gd, src/scripts/mcp_runtime/scene_3d_domain.gd, src/scripts/mcp_runtime/system_domain.gd",
+      "why": "src/scripts/godot_operations.gd, src/scripts/mcp_runtime/rendering_domain.gd, src/scripts/mcp_runtime/scene_3d_domain.gd, src/scripts/mcp_runtime/system_domain.gd, src/scripts/validate_script.gd",
       "api_type": "core",
       "instantiable": true,
       "is_node": false,
@@ -7804,7 +7804,7 @@
     {
       "name": "RichTextLabel",
       "bucket": "tooled",
-      "why": "src/scripts/mcp_interaction_server.gd, src/scripts/mcp_runtime/ui_domain.gd, src/tool-definitions.ts",
+      "why": "src/scripts/mcp_interaction_server.gd, src/scripts/mcp_runtime/ui_domain.gd, src/tool-definitions.ts, addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": true,
       "is_node": true,
@@ -7881,7 +7881,7 @@
     {
       "name": "SceneTree",
       "bucket": "tooled",
-      "why": "src/scripts/godot_operations.gd",
+      "why": "src/project-support.ts, src/scripts/godot_operations.gd, src/scripts/validate_script.gd",
       "api_type": "core",
       "instantiable": true,
       "is_node": false,
@@ -8706,7 +8706,7 @@
     {
       "name": "StreamPeerTCP",
       "bucket": "tooled",
-      "why": "src/scripts/mcp_editor_plugin.gd, src/scripts/mcp_interaction_server.gd",
+      "why": "src/scripts/mcp_interaction_server.gd, addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": true,
       "is_node": false,
@@ -8860,7 +8860,7 @@
     {
       "name": "TCPServer",
       "bucket": "tooled",
-      "why": "src/scripts/mcp_editor_plugin.gd, src/scripts/mcp_interaction_server.gd",
+      "why": "src/scripts/mcp_interaction_server.gd, addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": true,
       "is_node": false,
@@ -8947,8 +8947,8 @@
     },
     {
       "name": "TextServer",
-      "bucket": "reachable",
-      "why": "abstract base; reached through 3 instantiable subclass(es), e.g. TextServerExtension, TextServerAdvanced, TextServerDummy",
+      "bucket": "tooled",
+      "why": "addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": false,
       "is_node": false,
@@ -9475,8 +9475,8 @@
     },
     {
       "name": "UndoRedo",
-      "bucket": "reachable",
-      "why": "ClassDB-instantiable: headless add_node and runtime game_eval can construct it",
+      "bucket": "tooled",
+      "why": "addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": true,
       "is_node": false,
@@ -9498,7 +9498,7 @@
     {
       "name": "VBoxContainer",
       "bucket": "tooled",
-      "why": "src/scripts/mcp_editor_plugin.gd",
+      "why": "addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": true,
       "is_node": true,

@@ -62,6 +62,9 @@ function collectToolReferences() {
     }
   };
   walk(join(root, 'src'));
+  // The persistent editor bridge is shipped from its canonical AssetLib path;
+  // build/scripts contains only the generated npm compatibility copy.
+  walk(join(root, 'addons/godot_agent_loop'));
 
   const references = new Map();
   for (const path of sources) {
@@ -277,6 +280,7 @@ if (!godotBin) {
 const { version, api } = dumpExtensionApi(godotBin);
 validateScope(api, scope);
 const rows = classify(api, collectToolReferences());
+const gaps = rows.filter(row => row.bucket === 'gap');
 const report = render(version, api, rows);
 const data = JSON.stringify({ engine: version, generated_from: '--dump-extension-api', classes: rows }, null, 2) + '\n';
 
@@ -286,10 +290,14 @@ if (process.argv.includes('--check')) {
     console.error('docs/coverage/engine-surface.md is stale; run `npm run coverage:engine`.');
     process.exit(1);
   }
+  if (gaps.length > 0) {
+    console.error(`Engine surface audit has ${gaps.length} unresolved gap(s): ${gaps.map(row => row.name).join(', ')}`);
+    process.exit(1);
+  }
   console.log(`Engine surface report is current for Godot ${version}.`);
 } else {
   writeFileSync(reportPath, report);
   writeFileSync(dataPath, data);
-  const gaps = rows.filter(r => r.bucket === 'gap').length;
-  console.log(`Wrote ${reportPath} for Godot ${version}: ${rows.length} classes, ${gaps} gaps.`);
+  console.log(`Wrote ${reportPath} for Godot ${version}: ${rows.length} classes, ${gaps.length} gaps.`);
+  if (gaps.length > 0) process.exit(1);
 }

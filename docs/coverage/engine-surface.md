@@ -23,8 +23,8 @@ That is the point, and it is what the tool coverage report cannot tell us.
 
 | Bucket | Classes | Meaning |
 | --- | ---: | --- |
-| tooled | 221 | The class is named in our shipped GDScript or in a tool schema |
-| reachable | 718 | No named tool, but generically drivable via `add_node` / `game_eval` |
+| tooled | 223 | The class is named in our shipped GDScript or in a tool schema |
+| reachable | 716 | No named tool, but generically drivable via `add_node` / `game_eval` |
 | out-of-scope | 97 | Declared unsupported in the README support boundary |
 | gap | 0 | No tool, no generic reach, no scope decision |
 | **Total** | **1036** | |
@@ -53,7 +53,7 @@ decision on record; the audit fails if a rule stops matching any class.
 | --- | ---: | --- |
 | editor UI | 17 | editor UI automation is not claimed; the supported boundary is project files plus running games, with editor_control as a narrow authenticated bridge |
 | editor application state | 4 | the editor's own settings, paths, and filesystem cache are the IDE's state, not the user's project; mutating them would change the developer's machine rather than their game |
-| editor plugin authoring | 19 | these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we install one, in mcp_editor_plugin.gd, but do not expose the authoring surface) |
+| editor plugin authoring | 19 | these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we ship one under addons/godot_agent_loop, but do not expose the authoring surface) |
 | debugger control | 3 | full debugger control is not claimed; breakpoints, stack inspection, and frame-local evaluation are outside the boundary, and the running-game tools cover pause, frame waits, evaluation, and logs instead |
 | GDScript language server | 3 | the editor's LSP implementation; script diagnostics are served by validate_script through --check-only rather than by driving the language server |
 | version control | 1 | the editor's VCS plugin interface; version control is the user's own concern and is not mediated through this server |

@@ -13,7 +13,11 @@ const product = JSON.parse(readFileSync(join(repoRoot, 'product.json'), 'utf8'))
   npm: { package: string; binary: string };
   mcp: { registryName: string; serverName: string; title: string };
   agentBundle: { pluginName: string; serverKey: string };
-  addon: { directory: string; name: string };
+  addon: {
+    directory: string; name: string; category: string; minimumGodotVersion: string;
+    primaryGodotVersion: string; protocolVersion: string; license: string;
+    description: string; icon: string; previews: string[];
+  };
   observability: { serverComponent: string; runtimeComponent: string };
   lineage: { originalRepository: string; inheritedRepository: string };
 };
@@ -39,9 +43,29 @@ describe('Godot Agent Loop product identity', () => {
         serverName: 'godot-agent-loop',
         title: 'Godot Agent Loop',
       },
-      addon: { directory: 'addons/godot_agent_loop', name: 'Godot Agent Loop Bridge' },
+      addon: {
+        directory: 'addons/godot_agent_loop', name: 'Godot Agent Loop Bridge',
+        category: 'Addons/Tools', minimumGodotVersion: '4.4', primaryGodotVersion: '4.7',
+        protocolVersion: '1', license: 'MIT',
+      },
     });
     expect(packageJson.files).toContain('product.json');
+  });
+
+  it('keeps AssetLib identity, protocol, and media tied to the product manifest', () => {
+    const config = source(`${product.addon.directory}/plugin.cfg`);
+    expect(config).toContain(`name="${product.addon.name}"`);
+    expect(config).toContain(`version="${product.version}"`);
+    expect(config).toContain(`protocol_version="${product.addon.protocolVersion}"`);
+    const plugin = source(`${product.addon.directory}/plugin.gd`);
+    expect(plugin).toContain(`const PROTOCOL_VERSION: String = "${product.addon.protocolVersion}"`);
+    expect(plugin).toContain(`const ADDON_VERSION: String = "${product.version}"`);
+    expect(source(`${product.addon.directory}/LICENSE`)).toContain('MIT License');
+    expect(source(`${product.addon.directory}/README.md`)).toContain(product.addon.name);
+    expect(() => readFileSync(join(repoRoot, product.addon.icon))).not.toThrow();
+    for (const preview of product.addon.previews) {
+      expect(() => readFileSync(join(repoRoot, preview)), preview).not.toThrow();
+    }
   });
 
   it('aligns the runtime schema, server implementation, and transient editor UI', () => {
@@ -59,7 +83,7 @@ describe('Godot Agent Loop product identity', () => {
     expect(source('src/index.ts')).toContain(`name: '${product.mcp.serverName}'`);
     expect(source('src/game-connection.ts')).toContain(`component: '${product.observability.serverComponent}'`);
     expect(source('src/scripts/mcp_interaction_server.gd')).toContain(`"component": "${product.observability.runtimeComponent}"`);
-    expect(source('src/scripts/mcp_editor_plugin.gd')).toContain(`_activity_dock.name = "${product.name}"`);
+    expect(source('addons/godot_agent_loop/plugin.gd')).toContain(`_activity_dock.name = "${product.name}"`);
   });
 
   it('puts outcome, setup, proof, support boundary, and lineage on the README path', () => {

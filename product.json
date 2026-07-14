@@ -28,7 +28,18 @@
   },
   "addon": {
     "directory": "addons/godot_agent_loop",
-    "name": "Godot Agent Loop Bridge"
+    "name": "Godot Agent Loop Bridge",
+    "category": "Addons/Tools",
+    "minimumGodotVersion": "4.4",
+    "primaryGodotVersion": "4.7",
+    "protocolVersion": "1",
+    "license": "MIT",
+    "description": "Authenticated editor companion with live agent activity, compatibility status, setup help, and human Pause/Resume control.",
+    "icon": "assets/previews/assetlib-icon.png",
+    "previews": [
+      "assets/previews/assetlib-editor-overview.png",
+      "assets/previews/assetlib-editor-dock.png"
+    ]
   },
   "observability": {
     "serverComponent": "godot-agent-loop-server",

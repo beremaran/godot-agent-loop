@@ -1,6 +1,7 @@
 // @test-kind: contract
 import { describe, expect, it } from 'vitest';
 import { EditorMutationGuard, AGENT_MUTATIONS_PAUSED_MESSAGE } from '../src/editor-mutation-guard.js';
+import { EditorBridgeCompatibilityError } from '../src/editor-connection.js';
 import { toolManifest } from '../src/tool-manifest.js';
 import { isToolCallMutating, READ_ONLY_ACTIONS, READ_ONLY_TOOLS } from '../src/tool-mutation-policy.js';
 
@@ -54,6 +55,15 @@ describe('EditorMutationGuard', () => {
   it('allows unattended mutation when no editor bridge is reachable', async () => {
     const guard = new EditorMutationGuard(async () => { throw new Error('ECONNREFUSED'); });
     await expect(guard.check('write_file', {})).resolves.toBeUndefined();
+  });
+
+  it('refuses mutation when the installed addon protocol is incompatible', async () => {
+    const guard = new EditorMutationGuard(async () => {
+      throw new EditorBridgeCompatibilityError('Godot Agent Loop editor protocol is incompatible: server 1, addon 2');
+    });
+    const response = await guard.check('add_node', {});
+    expect(response?.isError).toBe(true);
+    expect(response?.content[0]?.text).toMatch(/mutation refused.*server 1, addon 2/i);
   });
 
   it('returns an actionable tool error while the human pause is active', async () => {

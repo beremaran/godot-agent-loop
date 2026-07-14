@@ -39,13 +39,32 @@ check_script() {
   fi
 }
 
+check_editor_addon() {
+  local project="$1" output status
+  checked=$((checked + 1))
+  set +e
+  output="$(GODOT_MCP_EDITOR_PORT="$((30000 + $$ % 20000))" "$GODOT" --headless --editor --path "$project" --quit 2>&1)"
+  status=$?
+  set -e
+  append_godot_log "$output"
+  if [[ "$status" -ne 0 ]] || grep -q 'SCRIPT ERROR' <<<"$output"; then
+    echo "FAIL addons/godot_agent_loop/plugin.gd"
+    grep -v 'Godot Engine v' <<<"$output" || true
+    failed=$((failed + 1))
+  else
+    echo "  ok addons/godot_agent_loop/plugin.gd"
+  fi
+}
+
 # --- Headless operations script (full strict tier) --------------------------
 HEADLESS_TIER="$TYPECHECK_DIR/headless"
 cp "$ROOT_DIR/src/scripts/godot_operations.gd" "$HEADLESS_TIER/godot_operations.gd"
 cp "$ROOT_DIR/src/scripts/validate_script.gd" "$HEADLESS_TIER/validate_script.gd"
+cp "$ROOT_DIR/tests/godot/normalize_project.gd" "$HEADLESS_TIER/normalize_project.gd"
 echo "Type-checking the headless operations script"
 check_script "$HEADLESS_TIER" "godot_operations.gd"
 check_script "$HEADLESS_TIER" "validate_script.gd"
+check_script "$HEADLESS_TIER" "normalize_project.gd"
 
 # --- Runtime server and its domain scripts ----------------------------------
 RUNTIME_TIER="$TYPECHECK_DIR/runtime"
@@ -57,6 +76,19 @@ check_script "$RUNTIME_TIER" "mcp_interaction_server.gd"
 for domain in "$RUNTIME_TIER"/mcp_runtime/*.gd; do
   check_script "$RUNTIME_TIER" "mcp_runtime/$(basename "$domain")"
 done
+
+# --- Persistent EditorPlugin addon -----------------------------------------
+# Loading the addon as an enabled plugin exercises the real EditorPlugin parse
+# path. Running an EditorPlugin directly with --script leaks editor-owned RIDs
+# in Godot 4.7, whereas the project lifecycle exits cleanly.
+EDITOR_TIER="$(mktemp -d)"
+trap 'rm -rf "$EDITOR_TIER"' EXIT
+mkdir -p "$EDITOR_TIER/addons/godot_agent_loop"
+cp "$RUNTIME_TIER/project.godot" "$EDITOR_TIER/project.godot"
+cp "$ROOT_DIR/addons/godot_agent_loop/plugin.gd" "$ROOT_DIR/addons/godot_agent_loop/plugin.cfg" "$EDITOR_TIER/addons/godot_agent_loop/"
+printf '\n[editor_plugins]\n\nenabled=PackedStringArray("godot_agent_loop")\n' >> "$EDITOR_TIER/project.godot"
+echo "Type-checking the persistent editor addon"
+check_editor_addon "$EDITOR_TIER"
 
 echo
 if [[ "$failed" -gt 0 ]]; then

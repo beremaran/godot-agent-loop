@@ -70,15 +70,23 @@ tool or action.
   **Selected:** a new independent `beremaran/godot-agent-loop` repository with
   complete Git history and explicit Coding-Solo/Tugcan lineage; the current fork
   is left untouched unless separately approved later.)
-- [ ] Align every public identifier after the name decision: repository, npm
+- [x] Align every public identifier after the name decision: repository, npm
   package, MCP Registry name, plugin namespace, binary name, AssetLib listing,
   issue URLs, homepage, badges, examples, and generated schemas. Preferred new
   identifiers are `@beremaran/godot-agent-loop` and
-  `io.github.beremaran/godot-agent-loop`.
-- [ ] Select release numbering from the product decision: `1.0.0` for a new
+  `io.github.beremaran/godot-agent-loop`. (`product.json` is the selected source
+  of truth for the repository and issue URLs, npm package/binary, MCP Registry,
+  neutral agent bundle, AssetLib listing, schemas, observability names, and
+  lineage. Generated-artifact and identity contracts reject legacy public
+  identifiers; actually creating or updating public listings remains approval-
+  gated.)
+- [x] Select release numbering from the product decision: `1.0.0` for a new
   Godot Agent Loop identity, or `4.0.0` if the existing Godot MCP identity and
   lineage continue. Pin the same version in every client manifest and generated
-  artifact.
+  artifact. (The selected independent identity is pinned to `1.0.0` in
+  `product.json`; generation and contract tests lock the npm package, MCP
+  Registry entry, Claude/Codex manifests, Pi adapter, addon, and runtime schema
+  to that version.)
 - [ ] Rewrite the README first screen around the product outcome: name and
   tagline, short demo, one-command setup, proof badges, and the author -> run ->
   observe -> playtest -> verify loop. Move installation ahead of the long tool
@@ -182,33 +190,63 @@ tool or action.
 
 ### Persistent Godot Asset Library addon
 
-- [ ] Productize the transient editor bridge as a real persistent addon under
+- [x] Productize the transient editor bridge as a real persistent addon under
   `addons/godot_agent_loop/`, containing `plugin.cfg`, the editor plugin and
   bridge scripts, README, license, and any addon-local assets. The addon is an
   optional distribution surface; the external MCP server must still work without
-  an AssetLib installation.
-- [ ] Give the addon standalone in-editor value: authenticated connection status,
+  an AssetLib installation. (`addons/godot_agent_loop/` is now the canonical,
+  npm-shipped addon with `plugin.cfg`, plugin, README, and complete MIT license;
+  build compatibility copies its script into the transient server bundle, and
+  the absent-addon E2E path still installs and cleans up the transient bridge.)
+- [x] Give the addon standalone in-editor value: authenticated connection status,
   Agent Activity, Pause/Resume Agent, compatibility diagnostics, and setup help
   for Claude Code, Codex, OpenCode, and Pi. The AssetLib package must not be a
-  marketing-only wrapper around an external install.
-- [ ] Change `EditorPluginInstaller` so a user-managed AssetLib addon is never
+  marketing-only wrapper around an external install. (The real dock shows
+  authenticated connection and protocol status, a bounded live activity feed,
+  compatibility diagnostics, four-client setup help, and a human Pause/Resume
+  control; the reproducible headed capture and lifecycle E2E exercise that UI.)
+- [x] Change `EditorPluginInstaller` so a user-managed AssetLib addon is never
   overwritten or removed. Add an explicit server/addon protocol-version
   handshake, a clear incompatible-version error, and tests for transient,
-  persistent, stale, missing, and user-modified installations.
-- [ ] Make the AssetLib archive project-safe. Export only the addon files; include
+  persistent, stale, missing, and user-modified installations. (Persistent and
+  transient paths are distinct; ownership records include hashes and original
+  project-plugin state. Ten installer cases cover repetition, partial copies,
+  stale recovery, concurrency, foreign edits, and persistent takeover. The
+  authenticated first-message handshake carries protocol/addon/server/Godot
+  versions, and incompatible mutation is refused with a stable diagnostic.)
+- [x] Make the AssetLib archive project-safe. Export only the addon files; include
   README and the complete MIT license inside the addon; exclude screenshots and
   repository-only files with `.gitattributes`/`.gdignore`; require no essential
-  submodules; and fix or suppress every addon script warning.
-- [ ] Add clean-install acceptance tests on the Godot 4.4 compatibility floor and
+  submodules; and fix or suppress every addon script warning. (The deterministic
+  builder emits exactly the four addon files, rejects links and non-regular
+  entries, and produces identical bytes under UTC and Australia/Perth. The
+  addon-local license is complete; the dedicated download-commit
+  `.gitattributes` and preview `.gdignore` exclude repository media, and strict
+  Godot parsing loads the enabled addon without warnings.)
+- [x] Keep the generated engine-surface audit aware of the canonical persistent
+  addon path and fail the gate when a newly shipped script creates an uncovered
+  engine reachability gap. (The audit now scans `addons/godot_agent_loop/` in
+  addition to runtime sources, generation fails on any gap rather than only on
+  stale output, and the regenerated Godot 4.7 report remains at zero gaps.)
+- [x] Add clean-install acceptance tests on the Godot 4.4 compatibility floor and
   Godot 4.7 primary target: install through the package installer, enable the
   plugin, connect the published MCP package, exercise editor observation and the
   human pause lock, restart the editor, disable/uninstall, and prove no project
-  state or temporary bridge files remain.
+  state or temporary bridge files remain. (`tests/e2e/assetlib-addon.test.ts`
+  installs the generated ZIP and proves observation, pause refusal, real
+  undo/redo, restart/reconnect, graceful disable/uninstall, and exact normalized
+  project restoration. It passed against official Godot 4.4.1 and the primary
+  Godot 4.7 engine; the full 4.7 matrix passed 201 tests, and SIGKILL recovery
+  separately proves stale transient reclamation.)
 - [ ] Prepare AssetLib metadata: unique English name **Godot Agent Loop Bridge**
   (or the final product equivalent), Addons/Tools category, supported Godot
   version, SemVer release, repository and issue URLs, exact download commit,
   matching MIT license, plain-English description, square direct-link PNG/JPG
-  icon of at least 128x128, and up to three screenshots/video previews.
+  icon of at least 128x128, and up to three screenshots/video previews. (The
+  source-backed payload generator, provisional exact-name uniqueness check,
+  category/version/license/URLs/description, 1254x1254 icon, and two real-editor
+  previews are ready and contract-tested. The exact download commit is correctly
+  still missing until the tested release tag exists, so this item remains open.)
 - [ ] Submit the tagged, tested addon through the official Godot Asset Library
   account and record review feedback in this plan. Treat AssetLib as a free/open
   community distribution channel; keep sponsorship or paid support separate.

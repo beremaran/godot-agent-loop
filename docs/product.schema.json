@@ -79,10 +79,35 @@
     "addon": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["directory", "name"],
+      "required": [
+        "directory",
+        "name",
+        "category",
+        "minimumGodotVersion",
+        "primaryGodotVersion",
+        "protocolVersion",
+        "license",
+        "description",
+        "icon",
+        "previews"
+      ],
       "properties": {
         "directory": { "const": "addons/godot_agent_loop" },
-        "name": { "const": "Godot Agent Loop Bridge" }
+        "name": { "const": "Godot Agent Loop Bridge" },
+        "category": { "const": "Addons/Tools" },
+        "minimumGodotVersion": { "const": "4.4" },
+        "primaryGodotVersion": { "const": "4.7" },
+        "protocolVersion": { "type": "string", "pattern": "^\\d+$" },
+        "license": { "const": "MIT" },
+        "description": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "icon": { "type": "string", "pattern": "\\.(png|jpg)$" },
+        "previews": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "\\.(png|jpg)$" }
+        }
       }
     },
     "observability": {

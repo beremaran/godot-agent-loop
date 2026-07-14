@@ -165,7 +165,7 @@ describe('runtime protocol contract', () => {
     const schema = JSON.parse(readFileSync(join(root, 'docs/runtime-api.schema.json'), 'utf8'));
     const sync = schema['x-runtime-contract'].editorSync;
     const manager = readFileSync(join(root, 'src/authoring-session-manager.ts'), 'utf8');
-    const plugin = readFileSync(join(root, 'src/scripts/mcp_editor_plugin.gd'), 'utf8');
+    const plugin = readFileSync(join(root, 'addons/godot_agent_loop/plugin.gd'), 'utf8');
 
     expect(sync.bridgeCommand).toBe('filesystem_changed');
     expect(sync.trigger).toMatch(/successful mutating/i);
@@ -174,13 +174,13 @@ describe('runtime protocol contract', () => {
     expect(plugin).toContain('filesystem.scan()');
     expect(plugin).toContain('reload_scene_from_path');
     expect(plugin).toContain('_focus_editor_node');
-    expect(plugin).toContain('get_editor_interface().call("edit_node", node)');
+    expect(plugin).toContain('EditorInterface.edit_node(node)');
   });
 
   it('publishes the human-controlled cooperative driver lock', () => {
     const schema = JSON.parse(readFileSync(join(root, 'docs/runtime-api.schema.json'), 'utf8'));
     const lock = schema['x-runtime-contract'].concurrentEditing;
-    const plugin = readFileSync(join(root, 'src/scripts/mcp_editor_plugin.gd'), 'utf8');
+    const plugin = readFileSync(join(root, 'addons/godot_agent_loop/plugin.gd'), 'utf8');
     const guard = readFileSync(join(root, 'src/editor-mutation-guard.ts'), 'utf8');
 
     expect(lock).toMatchObject({

@@ -302,6 +302,8 @@ export interface StartServerOptions {
   extraEnv?: Record<string, string>;
   /** Existing exhaustive suites request full discovery; product default is core. */
   toolSurface?: 'core' | 'full';
+  /** Acceptance tests may inspect uninstall residue after MCP teardown. */
+  preserveProject?: boolean;
 }
 
 export async function startServer(options: StartServerOptions = {}): Promise<E2EServer> {
@@ -369,7 +371,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<E2E
       await client.close();
     } finally {
       await assertNoLeakedGodotProcesses(project.root);
-      rmSync(project.root, { recursive: true, force: true });
+      if (!options.preserveProject) rmSync(project.root, { recursive: true, force: true });
     }
   };
 

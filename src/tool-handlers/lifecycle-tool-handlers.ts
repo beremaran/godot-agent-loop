@@ -12,6 +12,7 @@ import { GODOT_VERSION_OPTIONS } from '../godot-subprocess.js';
 import type { GameResponse } from '../game-connection.js';
 import { deterministicSessionArguments, deterministicSessionEnvironment } from '../session-timing.js';
 import { describeCatalogTool, searchToolCatalog } from '../tool-surface.js';
+import type { EditorPluginInstallation } from '../editor-plugin-installer.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -32,8 +33,8 @@ export interface LifecycleToolHandlerContext {
   clearConnectedProjectPath: () => void;
   getInteractionPort: () => number;
   getRuntimeEnvironment: () => NodeJS.ProcessEnv;
-  installEditorPlugin?: (projectPath: string) => boolean;
-  removeEditorPlugin?: (projectPath: string, owned: boolean) => void;
+  installEditorPlugin?: (projectPath: string) => EditorPluginInstallation;
+  removeEditorPlugin?: (projectPath: string, installation: EditorPluginInstallation | null) => void;
   getEditorEnvironment?: () => NodeJS.ProcessEnv;
   sendEditorCommand?: (command: string, params?: Record<string, unknown>, timeoutMs?: number) => Promise<Record<string, unknown>>;
   isGameConnected: () => boolean;
@@ -90,14 +91,22 @@ export class LifecycleToolHandlers {
         return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
 
       this.context.logDebug(`Launching Godot editor for project: ${args.projectPath}`);
-      const editorPluginOwned = this.context.installEditorPlugin?.(args.projectPath) ?? false;
+      const editorPlugin = this.context.installEditorPlugin?.(args.projectPath);
       const editorArgs = ['-e', '--path', args.projectPath];
       const editorProcess = spawn(godotPath, editorArgs, {
         stdio: 'pipe', env: { ...process.env, ...this.context.getRuntimeEnvironment(), ...(this.context.getEditorEnvironment?.() ?? {}) },
       });
       editorProcess.on('error', (err: Error) => { console.error('Failed to start Godot editor:', err); });
       const editorEnvironment = this.context.getEditorEnvironment?.() ?? {};
-      return { content: [{ type: 'text', text: JSON.stringify({ launched: true, project_path: args.projectPath, editor_plugin: true, plugin_owned: editorPluginOwned, editor_bridge_port: editorEnvironment.GODOT_MCP_EDITOR_PORT ?? null }, null, 2) }] };
+      return { content: [{ type: 'text', text: JSON.stringify({
+        launched: true,
+        project_path: args.projectPath,
+        editor_plugin: true,
+        plugin_owned: editorPlugin?.owned ?? false,
+        plugin_distribution: editorPlugin?.distribution ?? 'unavailable',
+        editor_protocol_version: editorPlugin?.protocolVersion ?? null,
+        editor_bridge_port: editorEnvironment.GODOT_MCP_EDITOR_PORT ?? null,
+      }, null, 2) }] };
     } catch (error: unknown) {
       return createErrorResponse(`Failed to launch Godot editor: ${this.errorMessage(error)}`);
     }
