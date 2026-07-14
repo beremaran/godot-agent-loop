@@ -56,6 +56,8 @@ describe('Godot support policy', () => {
     expect(workflow).toContain('GODOT_ARCHIVE_SHA256: 0b1a6c54c2c619c12e169fe9241edda4b81080b519451cec2984bf0d2c6cb73c');
     expect(workflow).toContain('echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"');
     expect(workflow).toContain('sha256sum --check --strict');
+    expect(workflow).toContain('mkdir -p dist');
+    expect(workflow).toContain('npm pack --pack-destination dist');
   });
 
   it('keeps generated E2E fixtures compatible with the declared floor', () => {

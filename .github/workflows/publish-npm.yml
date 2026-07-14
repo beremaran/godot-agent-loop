@@ -75,7 +75,9 @@ jobs:
         run: npm run check
 
       - name: Build the exact npm tarball
-        run: npm pack --pack-destination dist
+        run: |
+          mkdir -p dist
+          npm pack --pack-destination dist
 
       - name: Publish the tested tarball with provenance
         env:
