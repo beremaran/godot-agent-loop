@@ -168,6 +168,31 @@ describe('project process ownership', () => {
       }
       expect(sceneReady, editorState.text).toBe(true);
 
+      const authored = await server.call('add_node', {
+        projectPath: server.projectPath, scenePath: 'main.tscn',
+        parentNodePath: 'root', nodeType: 'Node2D', nodeName: 'AgentSynced',
+      });
+      expect(authored.isError, authored.text).toBe(false);
+      let filesystemSynced = false;
+      const syncDeadline = Date.now() + 15_000;
+      while (Date.now() < syncDeadline && !filesystemSynced) {
+        editorState = await server.call('editor_control', { projectPath: server.projectPath, action: 'inspect' });
+        if (!editorState.isError) {
+          const inspected = JSON.parse(editorState.text) as {
+            last_filesystem_sync?: { scene_path?: string; rescanned?: boolean; reloaded?: boolean };
+          };
+          filesystemSynced = inspected.last_filesystem_sync?.scene_path === 'res://main.tscn'
+            && inspected.last_filesystem_sync.rescanned === true
+            && inspected.last_filesystem_sync.reloaded === true;
+        }
+        if (!filesystemSynced) await new Promise(resolve => setTimeout(resolve, 250));
+      }
+      expect(filesystemSynced, editorState.text).toBe(true);
+      const syncedSelection = await server.call('editor_control', {
+        projectPath: server.projectPath, action: 'select', nodePaths: ['AgentSynced'],
+      });
+      expect(syncedSelection.isError, syncedSelection.text).toBe(false);
+
       expect((await server.call('run_project', { projectPath: server.projectPath })).isError).toBe(false);
       await server.waitForGameConnection();
       const observedCommand = await server.call('game_get_node_info', { nodePath: '/root/Main/Anchor' });

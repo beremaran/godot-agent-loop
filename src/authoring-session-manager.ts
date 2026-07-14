@@ -36,6 +36,14 @@ export interface AuthoringSessionManagerOptions {
   processManager?: GodotProcessManager;
   secretFactory?: () => string;
   onLifecycleEvent?: (event: GameLifecycleEvent) => void;
+  onProjectWrite?: (event: AuthoringProjectWrite) => void;
+}
+
+export interface AuthoringProjectWrite {
+  project_path: string;
+  command: string;
+  scene_path?: string;
+  resource_path?: string;
 }
 
 /** A startup-only error that is safe to route to the subprocess fallback. */
@@ -104,6 +112,14 @@ export class AuthoringSessionManager {
           };
         }
         const payload = result as Record<string, unknown>;
+        if (isMutatingAuthoringCommand(backend.command, params)) {
+          this.options.onProjectWrite?.({
+            project_path: projectPath,
+            command: backend.command,
+            ...(typeof params.scenePath === 'string' ? { scene_path: toResourcePath(params.scenePath) } : {}),
+            ...(typeof params.resourcePath === 'string' ? { resource_path: toResourcePath(params.resourcePath) } : {}),
+          });
+        }
         return {
           stdout: typeof payload.stdout === 'string' ? payload.stdout : JSON.stringify(payload),
           stderr: '',
@@ -209,6 +225,19 @@ export class AuthoringSessionManager {
     this.operationTail = result.then(() => undefined, () => undefined);
     return result;
   }
+}
+
+function isMutatingAuthoringCommand(command: string, params: OperationParams): boolean {
+  if (command === 'authoring_get_uid' || command === 'authoring_read_scene') return false;
+  if (command === 'authoring_manage_resource' || command === 'authoring_manage_theme_resource') {
+    return params.action !== 'read';
+  }
+  if (command === 'authoring_manage_scene_signals') return params.action !== 'list';
+  return true;
+}
+
+function toResourcePath(path: string): string {
+  return path.startsWith('res://') ? path : `res://${path.replace(/^\/+/, '')}`;
 }
 
 /** Reserves an ephemeral loopback port long enough to learn its assigned number. */

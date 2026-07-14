@@ -161,6 +161,19 @@ describe('runtime protocol contract', () => {
     expect(server).not.toContain('RenderingServer.frame_post_draw');
   });
 
+  it('publishes the successful-write editor rescan and reload contract', () => {
+    const schema = JSON.parse(readFileSync(join(root, 'docs/runtime-api.schema.json'), 'utf8'));
+    const sync = schema['x-runtime-contract'].editorSync;
+    const manager = readFileSync(join(root, 'src/authoring-session-manager.ts'), 'utf8');
+    const plugin = readFileSync(join(root, 'src/scripts/mcp_editor_plugin.gd'), 'utf8');
+
+    expect(sync.bridgeCommand).toBe('filesystem_changed');
+    expect(sync.trigger).toMatch(/successful mutating/i);
+    expect(manager).toContain('isMutatingAuthoringCommand');
+    expect(plugin).toContain('filesystem.scan()');
+    expect(plugin).toContain('reload_scene_from_path');
+  });
+
   it('uses the contract namespace for every runtime command method', () => {
     expect(commandMethod('get_scene_tree')).toBe('godot.runtime.get_scene_tree');
   });

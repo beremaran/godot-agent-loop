@@ -216,6 +216,9 @@ export class GodotServer {
       // calls use their declared subprocess fallback until that process stops.
       canStart: () => this.activeProcess === null,
       onLifecycleEvent: event => { this.forwardEditorActivity(event); },
+      onProjectWrite: event => {
+        void this.editorConnection.send('filesystem_changed', { ...event }, 2_000).catch(() => undefined);
+      },
     });
     this.headlessOperations = new HeadlessOperationService(this.operationRunner, pathSecurity, this.authoringSession);
     this.gameCommands = new GameCommandService(this.processManager, this.gameConnection);

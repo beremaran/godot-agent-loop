@@ -48,7 +48,9 @@ additions:
   `EditorUndoRedoManager`. `launch_editor` installs the authenticated bridge
   for the lifetime of the MCP-owned editor session. Its **Agent Activity** dock
   shows each command's target, live outcome, and duration from the same
-  correlated lifecycle events used by server diagnostics.
+  correlated lifecycle events used by server diagnostics. Successful session
+  writes also push a FileSystem rescan and reload the affected open scene, so
+  the editor reflects agent-authored files without waiting for a focus change.
 
 ### Runtime Node Inspection & Manipulation
 

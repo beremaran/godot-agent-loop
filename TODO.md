@@ -399,8 +399,15 @@ until that decision is confirmed against a real game.
   exposes its state through `inspect`. Unit coverage verifies correlation,
   target, outcome, and duration; a headed real-editor E2E observes a successful
   targeted runtime command in the live dock.)
-- [ ] Push a filesystem rescan and scene reload to the open editor after the
+- [x] Push a filesystem rescan and scene reload to the open editor after the
   session writes, instead of relying on Godot's focus-triggered rescan.
+  (Successful mutating authoring-session responses now emit normalized affected
+  `res://` paths; reads/lists and failures do not. The authenticated addon calls
+  `EditorFileSystem.scan()` and reloads the scene only when it is currently
+  edited, while editor absence remains best-effort and cannot fail the write.
+  Unit coverage verifies mutation/read classification, and a headed real-editor
+  E2E authors a node, observes rescan/reload metadata, then selects the new node
+  from the reloaded scene.)
 - [ ] Follow the agent's focus: select and reveal the node a command just touched,
   reusing `editor_control`'s `select`/`inspect`.
 - [ ] Resolve concurrent editing. The agent writing a scene while a human holds

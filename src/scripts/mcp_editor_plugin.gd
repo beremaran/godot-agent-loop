@@ -13,6 +13,7 @@ var _secret: String = ""
 var _activity_dock: VBoxContainer
 var _activity_list: ItemList
 var _activity_entries: Array[Dictionary] = []
+var _last_filesystem_sync: Dictionary = {}
 const MAX_ACTIVITY_ENTRIES: int = 200
 
 func _enter_tree() -> void:
@@ -90,6 +91,8 @@ func _dispatch(command: String, raw_params: Variant) -> Dictionary:
 			return _inspect()
 		"activity":
 			return _record_activity(params)
+		"filesystem_changed":
+			return _sync_filesystem(params)
 		"select":
 			return _select(params)
 		"save":
@@ -118,7 +121,7 @@ func _dispatch(command: String, raw_params: Variant) -> Dictionary:
 			if redo_manager != null: redo_manager.call("redo")
 			return {"success": redo_manager != null, "action": "redo"}
 		_:
-			return {"error": "unknown_command", "allowed": ["inspect", "activity", "select", "save", "reload", "open_scene", "set_property", "rename_node", "undo", "redo"]}
+			return {"error": "unknown_command", "allowed": ["inspect", "activity", "filesystem_changed", "select", "save", "reload", "open_scene", "set_property", "rename_node", "undo", "redo"]}
 
 func _create_activity_dock() -> void:
 	_activity_dock = VBoxContainer.new()
@@ -161,6 +164,22 @@ func _record_activity(params: Dictionary) -> Dictionary:
 		_activity_list.remove_item(0)
 	return {"success": true, "activity_count": _activity_entries.size()}
 
+func _sync_filesystem(params: Dictionary) -> Dictionary:
+	var filesystem: EditorFileSystem = get_editor_interface().get_resource_filesystem()
+	filesystem.scan()
+	var scene_path: String = str(params.get("scene_path", ""))
+	var root: Node = get_editor_interface().get_edited_scene_root()
+	var reloaded: bool = false
+	if root != null and not scene_path.is_empty() and root.scene_file_path == scene_path:
+		var reload_result: Variant = get_editor_interface().call("reload_scene_from_path", scene_path)
+		reloaded = reload_result != false
+	_last_filesystem_sync = {
+		"success": true, "rescanned": true, "scene_path": scene_path,
+		"resource_path": str(params.get("resource_path", "")), "reloaded": reloaded,
+		"command": str(params.get("command", "")),
+	}
+	return _last_filesystem_sync.duplicate(true)
+
 func _inspect() -> Dictionary:
 	var interface: EditorInterface = get_editor_interface()
 	var root: Node = interface.get_edited_scene_root()
@@ -176,7 +195,8 @@ func _inspect() -> Dictionary:
 		"edited_root": null if root == null else {"name": root.name, "type": root.get_class(), "path": str(root.get_path())},
 		"selection": selected, "open_scenes": open_scenes,
 		"has_undo_redo": interface.call("get_editor_undo_redo") != null,
-		"activity_dock": _activity_dock != null, "activity": _activity_entries.duplicate(true)}
+		"activity_dock": _activity_dock != null, "activity": _activity_entries.duplicate(true),
+		"last_filesystem_sync": _last_filesystem_sync.duplicate(true)}
 
 func _select(params: Dictionary) -> Dictionary:
 	var selection: EditorSelection = get_editor_interface().get_selection()

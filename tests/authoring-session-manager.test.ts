@@ -10,7 +10,7 @@ import { toolManifest } from '../src/tool-manifest.js';
 const backend = toolManifest.create_scene.backend;
 if (backend.kind !== 'authoring-session') throw new Error('create_scene backend is not authoring-session');
 
-function fixture(options: { canStart?: () => boolean; renderingContext?: boolean; send?: (command: string, params: Record<string, unknown>) => Promise<GameResponse> } = {}) {
+function fixture(options: { canStart?: () => boolean; renderingContext?: boolean; send?: (command: string, params: Record<string, unknown>) => Promise<GameResponse>; onProjectWrite?: ReturnType<typeof vi.fn> } = {}) {
   const starts: StartGodotProcessOptions[] = [];
   const processManager = {
     active: false,
@@ -43,6 +43,7 @@ function fixture(options: { canStart?: () => boolean; renderingContext?: boolean
     allocatePort: async () => 23456,
     secretFactory: () => 'test-secret',
     canStart: options.canStart,
+    onProjectWrite: options.onProjectWrite,
     createConnection: () => {
       const connection = {
         isConnected: false,
@@ -84,6 +85,23 @@ describe('AuthoringSessionManager', () => {
     expect(connections[0].send).toHaveBeenNthCalledWith(
       2, 'authoring_create_scene', { root_node_type: 'Node2D' }, 30_000,
     );
+    manager.stop();
+  });
+
+  it('pushes successful mutations to the editor without reporting reads', async () => {
+    const onProjectWrite = vi.fn();
+    const { manager } = fixture({ onProjectWrite });
+
+    await manager.execute(backend, { scenePath: 'scenes/level.tscn' }, '/project');
+    const readBackend = toolManifest.read_scene.backend;
+    if (readBackend.kind !== 'authoring-session') throw new Error('read_scene backend mismatch');
+    await manager.execute(readBackend, { scenePath: 'scenes/level.tscn' }, '/project');
+
+    expect(onProjectWrite).toHaveBeenCalledOnce();
+    expect(onProjectWrite).toHaveBeenCalledWith({
+      project_path: '/project', command: 'authoring_create_scene',
+      scene_path: 'res://scenes/level.tscn',
+    });
     manager.stop();
   });
 
