@@ -481,16 +481,35 @@ installed by `EditorPluginInstaller`, so the user installs nothing inside Godot.
 
 #### 7b: progressive disclosure of the tool surface
 
-- [ ] Establish the token cost of the tool list as a tracked denominator, in the
+- [x] Establish the token cost of the tool list as a tracked denominator, in the
   same spirit as the coverage denominators, and add a budget gate that fails when
   it regresses. The audit's discipline is that unmeasured things drift.
-- [ ] Cut the default surface an agent sees. Candidates, cheapest first: tighten
+  (`tool-surface.json` now records the exact compact-JSON UTF-8 denominator and
+  the plan's explicit `ceil(bytes / 4)` token estimate. The full 167-tool catalog
+  is 93,694 bytes / ~23,424 tokens; the 39-tool default is 17,278 bytes / ~4,320
+  tokens, an 81.56% reduction. Generation fails above full/core byte, core-token,
+  core-count, or minimum-reduction budgets, and the coverage report publishes the
+  same source-derived values.)
+- [x] Cut the default surface an agent sees. Candidates, cheapest first: tighten
   descriptions and schemas; group tools by domain and expose a core set plus an
   explicit expansion tool; move reference detail out of schemas and into MCP
-  **resources** the agent fetches on demand.
-- [ ] Verify what MCP clients actually support before designing around it —
+  **resources** the agent fetches on demand. (The static core covers the complete
+  build -> run -> observe -> assert loop. `godot_tools` searches and describes
+  all specialized tools, then validates and dispatches a selected hidden tool
+  through the same mutation and privilege gates. `GODOT_MCP_TOOL_SURFACE=full`
+  preserves full static discovery. A real-client/real-engine E2E discovers the
+  hidden `game_light_3d`, creates a light through the dispatcher, independently
+  observes it with a core tool, and covers malformed dispatch and cleanup.)
+- [x] Verify what MCP clients actually support before designing around it —
   dynamic tool lists (`notifications/tools/list_changed`) and resource support vary
   by client, and a disclosure scheme that only works in one client is not shippable.
+  (`docs/tool-disclosure.md` records the 2026-07-14 primary-doc check: MCP leaves
+  resource presentation application-controlled and has no client capability with
+  which the server can require list refresh; Claude Code documents automatic
+  refresh, resources, and deferred Tool Search, while VS Code documents resources
+  and manual cached-tool reset. The shipped core plus `godot_tools` therefore uses
+  only static `tools/list` / `tools/call`; correctness depends on neither optional
+  behavior.)
 
 #### 7c: skills, so the agent lands on its feet
 

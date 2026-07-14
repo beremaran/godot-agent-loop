@@ -23,6 +23,22 @@ export interface ToolDefinition {
 
 export const toolDefinitions = [
 {
+  name: 'godot_tools',
+  description: 'Search, inspect, or call tools outside the default core surface',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      action: { type: 'string', enum: ['search', 'describe', 'call'], description: 'Discovery or dispatch action' },
+      query: { type: 'string', maxLength: 200, description: 'Name/description/action search text' },
+      domain: { type: 'string', enum: ['lifecycle', 'project', 'game'], description: 'Optional domain filter' },
+      limit: { type: 'integer', minimum: 1, maximum: 50, description: 'Maximum search results. Default: 20' },
+      toolName: { type: 'string', pattern: '^[a-z][a-z0-9_]*$', description: 'Tool to describe or call' },
+      arguments: { type: 'object', description: 'Arguments passed to the selected tool' },
+    },
+    required: ['action'],
+  },
+},
+{
   name: 'launch_editor',
   description: 'Launch Godot editor for a specific project',
   inputSchema: {

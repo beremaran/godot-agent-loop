@@ -21,7 +21,7 @@ import {
 import type { GameResponse } from './game-connection.js';
 
 import { PathSecurity, type OperationParams } from './utils.js';
-import { toolDefinitions } from './tool-definitions.js';
+import type { ToolName } from './tool-definitions.js';
 import { GodotExecutableService, GodotExecutableValidator } from './godot-executable.js';
 import { HeadlessOperationRunner } from './headless-operation-runner.js';
 import { HeadlessOperationService } from './headless-operation-service.js';
@@ -41,6 +41,7 @@ import { PRIVILEGED_RUNTIME_GROUPS, type PrivilegedRuntimeGroup } from './runtim
 import { AuthoringSessionManager } from './authoring-session-manager.js';
 import { EditorMutationGuard } from './editor-mutation-guard.js';
 import { SERVER_INSTRUCTIONS } from './server-instructions.js';
+import { advertisedToolDefinitions } from './tool-surface.js';
 
 // Check if debug mode is enabled
 const DEBUG_MODE: boolean = process.env.DEBUG === 'true';
@@ -143,6 +144,7 @@ export class GodotServer {
   private readonly editorMutationGuard = new EditorMutationGuard(
     (command, params, timeoutMs) => this.editorConnection.send(command, params, timeoutMs),
   );
+  private toolRegistry: ToolRegistry<ToolName> | null = null;
   private readonly editorPluginInstaller: EditorPluginInstaller;
   private editorProjectPath: string | null = null;
   private editorPluginOwned = false;
@@ -278,6 +280,10 @@ export class GodotServer {
       sendEditorCommand: (command, params, timeoutMs) => this.editorConnection.send(command, params, timeoutMs),
       isGameConnected: () => this.gameConnection.isConnected,
       sendGameCommand: (command, params, timeoutMs) => this.gameCommands.send(command, params, timeoutMs),
+      dispatchTool: (name, args) => {
+        if (!this.toolRegistry) throw new Error('Tool registry is not initialized');
+        return this.toolRegistry.dispatch(name, args);
+      },
     });
 
     // Initialize the MCP server
@@ -457,9 +463,10 @@ export class GodotServer {
       lifecycle: this.lifecycleToolHandlers,
       project: this.projectToolHandlers,
     }), (name, args) => this.editorMutationGuard.check(name, args));
+    this.toolRegistry = tools;
 
     this.server.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: toolDefinitions,
+      tools: advertisedToolDefinitions(),
     }));
 
     this.server.server.setRequestHandler(CallToolRequestSchema, async (request) => {

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "measurement": {
+    "bytes": "UTF-8 byte length of compact JSON.stringify(toolDefinitions)",
+    "estimatedTokens": "ceil(bytes / 4); deterministic planning estimate, not a model tokenizer"
+  },
+  "budgets": {
+    "fullBytesMax": 100000,
+    "coreBytesMax": 25000,
+    "coreEstimatedTokensMax": 6250,
+    "coreToolCountMax": 40,
+    "coreReductionPercentMin": 70
+  },
+  "full": {
+    "tools": 167,
+    "bytes": 93694,
+    "estimatedTokens": 23424
+  },
+  "core": {
+    "tools": 39,
+    "bytes": 17278,
+    "estimatedTokens": 4320
+  },
+  "coreByteReductionPercent": 81.56
+}

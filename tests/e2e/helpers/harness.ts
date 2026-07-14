@@ -300,6 +300,8 @@ export interface StartServerOptions {
   allowPrivileged?: boolean;
   project?: { root: string; projectPath: string };
   extraEnv?: Record<string, string>;
+  /** Existing exhaustive suites request full discovery; product default is core. */
+  toolSurface?: 'core' | 'full';
 }
 
 export async function startServer(options: StartServerOptions = {}): Promise<E2EServer> {
@@ -321,6 +323,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<E2E
       GODOT_PATH: godotBinary,
       GODOT_MCP_RUNTIME_PORT: String(runtimePort),
       GODOT_MCP_ALLOWED_DIRS: project.root,
+      GODOT_MCP_TOOL_SURFACE: options.toolSurface ?? 'full',
       // Isolate user:// so parallel/leftover state cannot bleed between tests.
       XDG_DATA_HOME: join(userDataDir, 'data'),
       XDG_CONFIG_HOME: join(userDataDir, 'config'),

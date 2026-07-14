@@ -9,7 +9,7 @@ import { ToolRegistry } from '../src/tool-registry.js';
 import type { ToolName } from '../src/tool-definitions.js';
 
 const ALL_TOOL_NAMES = [
-  'launch_editor', 'editor_control', 'run_project', 'verify_project', 'run_project_tests',
+  'godot_tools', 'launch_editor', 'editor_control', 'run_project', 'verify_project', 'run_project_tests',
   'manage_import_pipeline', 'analyze_project_integrity', 'verify_export_readiness',
   'verify_dotnet_project', 'manage_addon', 'get_debug_output', 'stop_project',
   'get_godot_version', 'list_projects', 'get_project_info', 'create_scene',
@@ -111,8 +111,8 @@ const registry = new ToolRegistry(createToolHandlers({
 }));
 
 describe('Tool definitions', () => {
-  it('defines exactly 165 tools', () => {
-    expect(toolDefinitions).toHaveLength(166);
+  it('defines exactly the complete 167-tool catalog', () => {
+    expect(toolDefinitions).toHaveLength(167);
     expect(ALL_TOOL_NAMES).toHaveLength(toolDefinitions.length);
   });
 

@@ -16,7 +16,7 @@ bounded by the environment matrix below; editor UI automation, debugger
 control, and native extension builds are not claimed.
 
 <!-- generated-coverage-badge:start -->
-[![E2E tools: 166/166](https://img.shields.io/badge/E2E_tools-166%2F166-brightgreen)](docs/coverage/coverage-report.md)
+[![E2E tools: 167/167](https://img.shields.io/badge/E2E_tools-167%2F167-brightgreen)](docs/coverage/coverage-report.md)
 <!-- generated-coverage-badge:end -->
 
 ## Acknowledgments
@@ -33,6 +33,10 @@ additions:
 
 - **.NET / C# support** - Scaffold C# projects and generate C# scripts (`create_project` with `dotnet: true`, `create_csharp_script`); the `.csproj` SDK version is matched to your installed Godot.
 - **GDScript diagnostics** - Validate scripts for syntax and type errors without running the game (`validate_script`, and `validate_scripts` for all git-changed or project-wide files).
+- **Progressive tool discovery** - A compact default build/run/observe surface
+  keeps selection tractable. Use `godot_tools` to search, describe, and call any
+  specialized tool on demand; set `GODOT_MCP_TOOL_SURFACE=full` for the complete
+  static catalog.
 - **Correctness and robustness fixes** across the headless scene operations and the runtime interaction server (resource-typed properties now persist, reparenting works, runtime commands are correlated by request id, and the tools survive projects with warnings-as-errors). Godot **4.7** is recommended; Godot 4.4 remains the tested compatibility floor.
 
 ### Runtime Code Execution
@@ -736,6 +740,7 @@ the event name, runtime component, numeric session ID, and timestamp.
 | `GODOT_MCP_ALLOWED_DIRS` | Optional. Restrict `run_project` to projects under these roots (`;`, `,`, or `:` separated). When unset, any project path is allowed. |
 | `GODOT_MCP_RUNTIME_SECRET` | Optional explicit shared runtime secret. The MCP server generates a fresh 256-bit value when omitted and passes it only to Godot processes it launches. Set the same value manually only when connecting to a separately launched runtime. |
 | `GODOT_MCP_EDITOR_START_PAUSED` | Optional, default `false`. Start the editor addon's cooperative lock in human-editing mode so mutating MCP tools are refused until **Resume Agent** is pressed. |
+| `GODOT_MCP_TOOL_SURFACE` | Optional, default `core`. Set to `full` to advertise the complete static tool catalog instead of the compact core plus `godot_tools` discovery/dispatch. |
 | `GODOT_MCP_PRIVILEGED_GROUPS` | Optional comma-separated least-privilege grants: `reflection`, `code-execution`, and/or `network`. All are denied by default. |
 | `GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS` | Optional, default `false`. Explicitly enable runtime `eval`, arbitrary property/method access, script control, RPC, HTTP, and WebSocket commands for a trusted localhost developer workflow. |
 

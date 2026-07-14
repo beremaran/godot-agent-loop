@@ -16,11 +16,18 @@ import { fileURLToPath } from 'node:url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const { toolDefinitions } = await import(join(root, 'build/tool-definitions.js'));
 const { toolManifest } = await import(join(root, 'build/tool-manifest.js'));
+const {
+  TOOL_SURFACE_BUDGETS,
+  advertisedToolDefinitions,
+  compactToolSurfaceBytes,
+  estimatedToolSurfaceTokens,
+} = await import(join(root, 'build/tool-surface.js'));
 const { AUTHORING_COMMANDS, RUNTIME_COMMANDS, SESSION_COMMANDS, PRIVILEGED_RUNTIME_COMMANDS } = await import(join(root, 'build/runtime-protocol.js'));
 
 const coverage = JSON.parse(readFileSync(join(root, 'docs/coverage/tool-coverage.json'), 'utf8'));
 const loopLatency = JSON.parse(readFileSync(join(root, 'docs/coverage/loop-latency.json'), 'utf8'));
 const reportPath = join(root, 'docs/coverage/coverage-report.md');
+const toolSurfacePath = join(root, 'docs/coverage/tool-surface.json');
 const readmePath = join(root, 'README.md');
 
 const LEVELS = ['E2E', 'H', 'G+', 'G-', 'T'];
@@ -50,6 +57,38 @@ const subprocessOperations = new Set(
 const levelCounts = Object.fromEntries(LEVELS.map(level => [level, tools.filter(tool => tool.entry.level === level).length]));
 const totalActions = tools.reduce((sum, tool) => sum + tool.actions, 0);
 const totalTested = tools.reduce((sum, tool) => sum + tool.testedActions, 0);
+const coreToolDefinitions = advertisedToolDefinitions('core');
+const fullSurfaceBytes = compactToolSurfaceBytes(toolDefinitions);
+const coreSurfaceBytes = compactToolSurfaceBytes(coreToolDefinitions);
+const reductionPercent = (1 - coreSurfaceBytes / fullSurfaceBytes) * 100;
+const toolSurface = {
+  schemaVersion: 1,
+  measurement: {
+    bytes: 'UTF-8 byte length of compact JSON.stringify(toolDefinitions)',
+    estimatedTokens: 'ceil(bytes / 4); deterministic planning estimate, not a model tokenizer',
+  },
+  budgets: TOOL_SURFACE_BUDGETS,
+  full: {
+    tools: toolDefinitions.length,
+    bytes: fullSurfaceBytes,
+    estimatedTokens: estimatedToolSurfaceTokens(toolDefinitions),
+  },
+  core: {
+    tools: coreToolDefinitions.length,
+    bytes: coreSurfaceBytes,
+    estimatedTokens: estimatedToolSurfaceTokens(coreToolDefinitions),
+  },
+  coreByteReductionPercent: Number(reductionPercent.toFixed(2)),
+};
+const toolSurfaceJson = `${JSON.stringify(toolSurface, null, 2)}\n`;
+
+if (fullSurfaceBytes > TOOL_SURFACE_BUDGETS.fullBytesMax
+  || coreSurfaceBytes > TOOL_SURFACE_BUDGETS.coreBytesMax
+  || toolSurface.core.estimatedTokens > TOOL_SURFACE_BUDGETS.coreEstimatedTokensMax
+  || coreToolDefinitions.length > TOOL_SURFACE_BUDGETS.coreToolCountMax
+  || reductionPercent < TOOL_SURFACE_BUDGETS.coreReductionPercentMin) {
+  throw new Error(`Tool-surface budget exceeded: ${JSON.stringify(toolSurface)}`);
+}
 const badgeColor = totalTested === totalActions && levelCounts.E2E === tools.length
   ? 'brightgreen'
   : 'yellow';
@@ -80,13 +119,28 @@ lines.push('## Source-derived denominators');
 lines.push('');
 lines.push('| Denominator | Count | Source |');
 lines.push('| --- | ---: | --- |');
-lines.push(`| Advertised MCP tools | ${toolDefinitions.length} | \`src/tool-definitions.ts\` |`);
+lines.push(`| Default advertised MCP tools | ${coreToolDefinitions.length} | \`src/tool-surface.ts\` |`);
+lines.push(`| Full callable tool catalog | ${toolDefinitions.length} | \`src/tool-definitions.ts\` |`);
 lines.push(`| Session commands | ${SESSION_COMMANDS.length} | \`src/runtime-protocol.ts\` = \`docs/runtime-api.schema.json\` |`);
 lines.push(`| Game runtime commands | ${RUNTIME_COMMANDS.length} | \`src/runtime-protocol.ts\` |`);
 lines.push(`| Authoring session commands | ${AUTHORING_COMMANDS.length} | \`src/runtime-protocol.ts\` |`);
 lines.push(`| Privileged runtime commands | ${PRIVILEGED_RUNTIME_COMMANDS.length} | \`src/runtime-protocol.ts\` |`);
 lines.push(`| Subprocess operations | ${subprocessOperations.size} | \`src/scripts/godot_operations.gd\` |`);
 lines.push(`| Public action rows | ${totalActions} | \`src/tool-manifest.ts\` |`);
+lines.push('');
+lines.push('## Tool-surface budget');
+lines.push('');
+lines.push('The default static core remains client-independent; `godot_tools` searches,');
+lines.push('describes, and dispatches the full catalog on demand. Sizes serialize the exact');
+lines.push('definition arrays as compact JSON. The token figure is the plan\'s deterministic');
+lines.push('four-bytes-per-token estimate, not a provider tokenizer. Machine-readable values');
+lines.push('and budgets are in [`tool-surface.json`](tool-surface.json).');
+lines.push('');
+lines.push('| Surface | Tools | Bytes | Estimated tokens |');
+lines.push('| --- | ---: | ---: | ---: |');
+lines.push(`| Full catalog | ${toolSurface.full.tools} | ${toolSurface.full.bytes} | ${toolSurface.full.estimatedTokens} |`);
+lines.push(`| Default core | ${toolSurface.core.tools} | ${toolSurface.core.bytes} | ${toolSurface.core.estimatedTokens} |`);
+lines.push(`| Reduction | — | ${toolSurface.coreByteReductionPercent.toFixed(2)}% | ${((1 - toolSurface.core.estimatedTokens / toolSurface.full.estimatedTokens) * 100).toFixed(2)}% |`);
 lines.push('');
 lines.push('## Coverage by class');
 lines.push('');
@@ -185,6 +239,16 @@ if (process.argv.includes('--check')) {
     console.error('docs/coverage/coverage-report.md is stale. Run: npm run coverage:report');
     process.exit(1);
   }
+  let currentToolSurface = '';
+  try {
+    currentToolSurface = readFileSync(toolSurfacePath, 'utf8');
+  } catch {
+    // Missing generated surface evidence is stale by definition.
+  }
+  if (currentToolSurface !== toolSurfaceJson) {
+    console.error('docs/coverage/tool-surface.json is stale. Run: npm run coverage:report');
+    process.exit(1);
+  }
   const readme = readFileSync(readmePath, 'utf8');
   if (!readme.includes(generatedBadge)) {
     console.error('README.md coverage badge is stale. Run: npm run coverage:report');
@@ -193,6 +257,7 @@ if (process.argv.includes('--check')) {
   console.log('coverage report is current');
 } else {
   writeFileSync(reportPath, report);
+  writeFileSync(toolSurfacePath, toolSurfaceJson);
   const readme = readFileSync(readmePath, 'utf8');
   const badgePattern = /<!-- generated-coverage-badge:start -->[\s\S]*?<!-- generated-coverage-badge:end -->/;
   if (!badgePattern.test(readme)) {

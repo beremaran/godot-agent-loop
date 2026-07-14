@@ -39,6 +39,7 @@ export const READ_ONLY_TOOLS: ReadonlySet<ToolName> = new Set([
 
 /** Read-only modes on tools whose other actions mutate project/runtime state. */
 export const READ_ONLY_ACTIONS: Readonly<Partial<Record<ToolName, readonly string[]>>> = {
+  godot_tools: ['search', 'describe'],
   editor_control: ['inspect'],
   run_project_tests: ['discover'],
   manage_import_pipeline: ['inspect', 'dependencies'],
@@ -105,6 +106,13 @@ export const READ_ONLY_ACTIONS: Readonly<Partial<Record<ToolName, readonly strin
  * missing selectors, and action fields used as data all remain mutating.
  */
 export function isToolCallMutating(name: string, args: ToolArguments): boolean {
+  if (name === 'godot_tools' && args.action === 'call') {
+    if (typeof args.toolName !== 'string' || args.toolName === 'godot_tools') return true;
+    const nested = args.arguments && typeof args.arguments === 'object' && !Array.isArray(args.arguments)
+      ? args.arguments as ToolArguments
+      : {};
+    return isToolCallMutating(args.toolName, nested);
+  }
   if (!Object.prototype.hasOwnProperty.call(toolManifest, name)) return true;
   const toolName = name as ToolName;
   if (READ_ONLY_TOOLS.has(toolName)) return false;

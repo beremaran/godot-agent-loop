@@ -5,12 +5,13 @@ import { join } from 'path';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 
-import { createErrorResponse, normalizeParameters, validatePath, type ToolArguments } from '../utils.js';
+import { createErrorResponse, errorMessage, normalizeParameters, validatePath, type ToolArguments, type ToolResponse } from '../utils.js';
 import type { GodotProcess } from '../godot-process-manager.js';
 import type { GodotExecutableService } from '../godot-executable.js';
 import { GODOT_VERSION_OPTIONS } from '../godot-subprocess.js';
 import type { GameResponse } from '../game-connection.js';
 import { deterministicSessionArguments, deterministicSessionEnvironment } from '../session-timing.js';
+import { describeCatalogTool, searchToolCatalog } from '../tool-surface.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -37,6 +38,7 @@ export interface LifecycleToolHandlerContext {
   sendEditorCommand?: (command: string, params?: Record<string, unknown>, timeoutMs?: number) => Promise<Record<string, unknown>>;
   isGameConnected: () => boolean;
   sendGameCommand: (command: string, params?: Record<string, unknown>, timeoutMs?: number) => Promise<GameResponse>;
+  dispatchTool?: (name: string, args: ToolArguments) => Promise<ToolResponse>;
 }
 
 /** Implements editor launch, project runtime, and Godot version tools. */
@@ -44,6 +46,35 @@ export class LifecycleToolHandlers {
   private processGeneration = 0;
 
   constructor(private readonly context: LifecycleToolHandlerContext) {}
+
+  public async handleGodotTools(args: ToolArguments): Promise<ToolResponse> {
+    args = normalizeParameters(args || {});
+    if (args.action === 'search') {
+      const results = searchToolCatalog(
+        typeof args.query === 'string' ? args.query : '',
+        typeof args.domain === 'string' ? args.domain : undefined,
+        typeof args.limit === 'number' ? args.limit : 20,
+      );
+      return { content: [{ type: 'text', text: JSON.stringify({ results, count: results.length }, null, 2) }] };
+    }
+    if (args.action === 'describe') {
+      if (typeof args.toolName !== 'string') return createErrorResponse('toolName is required for godot_tools describe.');
+      const tool = describeCatalogTool(args.toolName);
+      if (!tool) return createErrorResponse(`Unknown Godot tool: ${args.toolName}`);
+      return { content: [{ type: 'text', text: JSON.stringify(tool, null, 2) }] };
+    }
+    if (args.action === 'call') {
+      if (typeof args.toolName !== 'string') return createErrorResponse('toolName is required for godot_tools call.');
+      if (args.toolName === 'godot_tools') return createErrorResponse('godot_tools cannot call itself.');
+      if (!this.context.dispatchTool) return createErrorResponse('Expanded tool dispatch is unavailable.');
+      try {
+        return await this.context.dispatchTool(args.toolName, args.arguments ?? {});
+      } catch (error: unknown) {
+        return createErrorResponse(`godot_tools call failed: ${errorMessage(error)}`);
+      }
+    }
+    return createErrorResponse('action must be search, describe, or call.');
+  }
 
   public async handleLaunchEditor(args: ToolArguments) {
     args = normalizeParameters(args);

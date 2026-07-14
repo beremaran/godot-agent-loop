@@ -78,6 +78,6 @@ describe('composeToolHandlerRegistries', () => {
 
   it('rejects a composition that does not cover every tool definition', () => {
     expect(() => composeToolHandlerRegistries({}))
-      .toThrow('Missing tool handlers: launch_editor');
+      .toThrow('Missing tool handlers: godot_tools');
   });
 });

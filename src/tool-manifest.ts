@@ -50,6 +50,13 @@ export interface ToolManifestEntry {
  * and tests/tool-manifest.test.ts verifies every mapping against the sources.
  */
 export const toolManifest: Record<ToolName, ToolManifestEntry> = {
+  godot_tools: {
+    domain: 'lifecycle',
+    handler: 'handleGodotTools',
+    backend: { kind: 'local' },
+    actions: ['search', 'describe', 'call'],
+    privileged: false,
+  },
   launch_editor: {
     domain: 'lifecycle',
     handler: 'handleLaunchEditor',

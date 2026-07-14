@@ -1,7 +1,7 @@
 {
   "name": "@beremaran/godot-mcp",
   "version": "3.0.0",
-  "description": "MCP server with 165 tools for tested Godot project and runtime automation",
+  "description": "MCP server with 167 tested tools for Godot project and runtime automation",
   "keywords": [
     "godot",
     "mcp",
