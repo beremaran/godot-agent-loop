@@ -169,9 +169,12 @@ describe('runtime protocol contract', () => {
 
     expect(sync.bridgeCommand).toBe('filesystem_changed');
     expect(sync.trigger).toMatch(/successful mutating/i);
+    expect(sync.focusField).toBe('focus_path');
     expect(manager).toContain('isMutatingAuthoringCommand');
     expect(plugin).toContain('filesystem.scan()');
     expect(plugin).toContain('reload_scene_from_path');
+    expect(plugin).toContain('_focus_editor_node');
+    expect(plugin).toContain('get_editor_interface().call("edit_node", node)');
   });
 
   it('uses the contract namespace for every runtime command method', () => {

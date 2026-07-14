@@ -51,6 +51,8 @@ additions:
   correlated lifecycle events used by server diagnostics. Successful session
   writes also push a FileSystem rescan and reload the affected open scene, so
   the editor reflects agent-authored files without waiting for a focus change.
+  When an operation identifies a scene node, the bridge selects and reveals it
+  in the editor so the human view follows the agent's current target.
 
 ### Runtime Node Inspection & Manipulation
 

@@ -179,19 +179,22 @@ describe('project process ownership', () => {
         editorState = await server.call('editor_control', { projectPath: server.projectPath, action: 'inspect' });
         if (!editorState.isError) {
           const inspected = JSON.parse(editorState.text) as {
-            last_filesystem_sync?: { scene_path?: string; rescanned?: boolean; reloaded?: boolean };
+            selection?: string[];
+            last_filesystem_sync?: {
+              scene_path?: string; rescanned?: boolean; reloaded?: boolean;
+              focus_path?: string; focused?: boolean;
+            };
           };
           filesystemSynced = inspected.last_filesystem_sync?.scene_path === 'res://main.tscn'
             && inspected.last_filesystem_sync.rescanned === true
-            && inspected.last_filesystem_sync.reloaded === true;
+            && inspected.last_filesystem_sync.reloaded === true
+            && inspected.last_filesystem_sync.focus_path === 'AgentSynced'
+            && inspected.last_filesystem_sync.focused === true
+            && (inspected.selection ?? []).some(path => path.endsWith('/AgentSynced'));
         }
         if (!filesystemSynced) await new Promise(resolve => setTimeout(resolve, 250));
       }
       expect(filesystemSynced, editorState.text).toBe(true);
-      const syncedSelection = await server.call('editor_control', {
-        projectPath: server.projectPath, action: 'select', nodePaths: ['AgentSynced'],
-      });
-      expect(syncedSelection.isError, syncedSelection.text).toBe(false);
 
       expect((await server.call('run_project', { projectPath: server.projectPath })).isError).toBe(false);
       await server.waitForGameConnection();

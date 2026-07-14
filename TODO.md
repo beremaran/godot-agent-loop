@@ -408,8 +408,14 @@ until that decision is confirmed against a real game.
   Unit coverage verifies mutation/read classification, and a headed real-editor
   E2E authors a node, observes rescan/reload metadata, then selects the new node
   from the reloaded scene.)
-- [ ] Follow the agent's focus: select and reveal the node a command just touched,
-  reusing `editor_control`'s `select`/`inspect`.
+- [x] Follow the agent's focus: select and reveal the node a command just touched,
+  reusing `editor_control`'s `select`/`inspect`. (Authoring write events now
+  derive a scene-relative `focus_path` for roots, added nodes, node mutations,
+  and removal parents. After scene reload, the addon updates `EditorSelection`
+  and calls `EditorInterface.edit_node`; explicit `editor_control select` shares
+  the reveal behavior, and `inspect` reports the selection/focus outcome. Unit
+  coverage verifies nested add-node path derivation, while headed editor E2E
+  proves the newly authored node becomes selected without a separate tool call.)
 - [ ] Resolve concurrent editing. The agent writing a scene while a human holds
   unsaved changes to it loses someone's work, and Godot will not arbitrate. The
   proposed answer is a cooperative "agent is driving" lock in the addon, with a

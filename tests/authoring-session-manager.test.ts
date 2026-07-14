@@ -100,8 +100,24 @@ describe('AuthoringSessionManager', () => {
     expect(onProjectWrite).toHaveBeenCalledOnce();
     expect(onProjectWrite).toHaveBeenCalledWith({
       project_path: '/project', command: 'authoring_create_scene',
-      scene_path: 'res://scenes/level.tscn',
+      scene_path: 'res://scenes/level.tscn', focus_path: '.',
     });
+    manager.stop();
+  });
+
+  it('derives the newly added scene node as the editor focus target', async () => {
+    const onProjectWrite = vi.fn();
+    const { manager } = fixture({ onProjectWrite });
+    const addBackend = toolManifest.add_node.backend;
+    if (addBackend.kind !== 'authoring-session') throw new Error('add_node backend mismatch');
+
+    await manager.execute(addBackend, {
+      scenePath: 'main.tscn', parentNodePath: 'root/Actors', nodeName: 'Player',
+    }, '/project');
+
+    expect(onProjectWrite).toHaveBeenCalledWith(expect.objectContaining({
+      scene_path: 'res://main.tscn', focus_path: 'Actors/Player',
+    }));
     manager.stop();
   });
 

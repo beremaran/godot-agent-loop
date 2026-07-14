@@ -173,10 +173,15 @@ func _sync_filesystem(params: Dictionary) -> Dictionary:
 	if root != null and not scene_path.is_empty() and root.scene_file_path == scene_path:
 		var reload_result: Variant = get_editor_interface().call("reload_scene_from_path", scene_path)
 		reloaded = reload_result != false
+	var focus_path: String = str(params.get("focus_path", ""))
+	var focused: bool = false
+	if reloaded and not focus_path.is_empty():
+		focused = _focus_editor_node(focus_path)
 	_last_filesystem_sync = {
 		"success": true, "rescanned": true, "scene_path": scene_path,
 		"resource_path": str(params.get("resource_path", "")), "reloaded": reloaded,
-		"command": str(params.get("command", "")),
+		"command": str(params.get("command", "")), "focus_path": focus_path,
+		"focused": focused,
 	}
 	return _last_filesystem_sync.duplicate(true)
 
@@ -214,7 +219,23 @@ func _select(params: Dictionary) -> Dictionary:
 			return {"error": "node_not_found", "node_path": str(raw_path)}
 		selection.add_node(node)
 		selected.append(str(node.get_path()))
+		if selected.size() == 1:
+			get_editor_interface().call("edit_node", node)
 	return {"success": true, "selection": selected}
+
+func _focus_editor_node(path: String) -> bool:
+	var root: Node = get_editor_interface().get_edited_scene_root()
+	if root == null:
+		return false
+	var normalized: String = path.trim_prefix("root/")
+	var node: Node = root if normalized == "." or normalized == "root" or normalized.is_empty() else root.get_node_or_null(NodePath(normalized))
+	if node == null:
+		return false
+	var selection: EditorSelection = get_editor_interface().get_selection()
+	selection.clear()
+	selection.add_node(node)
+	get_editor_interface().call("edit_node", node)
+	return true
 
 func _set_property(params: Dictionary) -> Dictionary:
 	var target: Node = _edited_node(params)

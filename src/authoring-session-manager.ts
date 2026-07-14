@@ -44,6 +44,7 @@ export interface AuthoringProjectWrite {
   command: string;
   scene_path?: string;
   resource_path?: string;
+  focus_path?: string;
 }
 
 /** A startup-only error that is safe to route to the subprocess fallback. */
@@ -113,11 +114,14 @@ export class AuthoringSessionManager {
         }
         const payload = result as Record<string, unknown>;
         if (isMutatingAuthoringCommand(backend.command, params)) {
+          const scenePath = affectedScenePath(params);
+          const focusPath = authoringFocusPath(backend.command, params);
           this.options.onProjectWrite?.({
             project_path: projectPath,
             command: backend.command,
-            ...(typeof params.scenePath === 'string' ? { scene_path: toResourcePath(params.scenePath) } : {}),
+            ...(scenePath === undefined ? {} : { scene_path: toResourcePath(scenePath) }),
             ...(typeof params.resourcePath === 'string' ? { resource_path: toResourcePath(params.resourcePath) } : {}),
+            ...(focusPath === undefined ? {} : { focus_path: focusPath }),
           });
         }
         return {
@@ -238,6 +242,26 @@ function isMutatingAuthoringCommand(command: string, params: OperationParams): b
 
 function toResourcePath(path: string): string {
   return path.startsWith('res://') ? path : `res://${path.replace(/^\/+/, '')}`;
+}
+
+function affectedScenePath(params: OperationParams): string | undefined {
+  if (typeof params.newPath === 'string') return params.newPath;
+  return typeof params.scenePath === 'string' ? params.scenePath : undefined;
+}
+
+function authoringFocusPath(command: string, params: OperationParams): string | undefined {
+  if (command === 'authoring_create_scene' || command === 'authoring_save_scene') return '.';
+  if (command === 'authoring_add_node'
+    && typeof params.nodeName === 'string') {
+    const parent = typeof params.parentNodePath === 'string' ? params.parentNodePath : 'root';
+    const relativeParent = parent.replace(/^\/?root\/?/, '').replace(/^\.\/?/, '').replace(/\/$/, '');
+    return relativeParent ? `${relativeParent}/${params.nodeName}` : params.nodeName;
+  }
+  if (typeof params.nodePath !== 'string') return undefined;
+  const relative = params.nodePath.replace(/^\/?root\/?/, '') || '.';
+  if (command !== 'authoring_remove_node') return relative;
+  const slash = relative.lastIndexOf('/');
+  return slash < 0 ? '.' : relative.slice(0, slash);
 }
 
 /** Reserves an ephemeral loopback port long enough to learn its assigned number. */
