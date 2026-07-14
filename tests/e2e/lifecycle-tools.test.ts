@@ -29,6 +29,14 @@ afterEach(async () => {
 });
 
 describe('discovery tools', () => {
+  it('receives the concise agent method during MCP initialization', async () => {
+    server = await startServer();
+    const instructions = server.client.getInstructions();
+    expect(instructions).toMatch(/author → run → observe → assert/);
+    expect(instructions).toContain('verify_project');
+    expect(instructions).toMatch(/injection and cleanup are automatic/i);
+  });
+
   it('reports the real engine version', async () => {
     server = await startServer();
     const version = await server.call('get_godot_version');

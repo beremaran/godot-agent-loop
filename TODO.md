@@ -467,12 +467,17 @@ installed by `EditorPluginInstaller`, so the user installs nothing inside Godot.
 
 #### 7a: ship a method, not just tools
 
-- [ ] Populate the MCP `instructions` field: the author -> run -> observe -> assert
+- [x] Populate the MCP `instructions` field: the author -> run -> observe -> assert
   loop, when to reach for a compound tool instead of composing primitives, the
   privileged-command policy and how to enable it, and the fact that runtime
-  injection and cleanup are automatic.
-- [ ] Keep `instructions` short enough to earn its place in every context window;
-  anything procedural and long belongs in 7c, not here.
+  injection and cleanup are automatic. (The initialization response now teaches
+  that loop, names `verify_project` / `run_project_tests`, states automatic
+  bridge lifecycle, and gives least-privilege and all-groups environment knobs;
+  a full MCP client test reads the instructions from the handshake.)
+- [x] Keep `instructions` short enough to earn its place in every context window;
+  anything procedural and long belongs in 7c, not here. (The durable method is
+  111 whitespace-delimited words and contract-gated at 120 words / 1,200 UTF-8 bytes;
+  longer task procedures are reserved for the Phase 7c skills.)
 
 #### 7b: progressive disclosure of the tool surface
 

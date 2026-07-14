@@ -40,6 +40,7 @@ import { EditorPluginInstaller } from './editor-plugin-installer.js';
 import { PRIVILEGED_RUNTIME_GROUPS, type PrivilegedRuntimeGroup } from './runtime-protocol.js';
 import { AuthoringSessionManager } from './authoring-session-manager.js';
 import { EditorMutationGuard } from './editor-mutation-guard.js';
+import { SERVER_INSTRUCTIONS } from './server-instructions.js';
 
 // Check if debug mode is enabled
 const DEBUG_MODE: boolean = process.env.DEBUG === 'true';
@@ -289,6 +290,7 @@ export class GodotServer {
         capabilities: {
           tools: {},
         },
+        instructions: SERVER_INSTRUCTIONS,
       }
     );
 
