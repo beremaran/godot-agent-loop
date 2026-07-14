@@ -2,6 +2,7 @@
 export const RUNTIME_PROTOCOL_VERSION = '1.0';
 export const RUNTIME_CAPABILITIES = ['runtime-commands', 'godot-json-values'] as const;
 export const AUTHORING_COMMANDS_CAPABILITY = 'authoring-commands' as const;
+export const RENDERING_CONTEXT_CAPABILITY = 'rendering-context' as const;
 export const HANDSHAKE_METHOD = 'godot.runtime.handshake';
 export const COMMAND_METHOD_PREFIX = 'godot.runtime.';
 export const CANCEL_METHOD = 'godot.runtime.cancel';

@@ -47,6 +47,7 @@ export class GameConnection {
   get interactionPort(): number { return this.port; }
   get isConnected(): boolean { return this.connected; }
   get connectedProjectPath(): string | null { return this.projectPath; }
+  public supportsCapability(capability: string): boolean { return this.runtimeCapabilities.includes(capability); }
 
   /** Records whether this server added the interaction autoload for the active project. */
   public recordInteractionServerInstallation(installed: boolean): void {

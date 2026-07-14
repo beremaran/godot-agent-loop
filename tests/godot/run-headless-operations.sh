@@ -389,7 +389,7 @@ SESSION_PORT="$(node -e "const s=require('node:net').createServer();s.listen(0,'
 SESSION_SECRET="authoring-session-integration-secret"
 SESSION_LOG="$PROJECT/authoring-session.log"
 GODOT_MCP_FIXED_FPS=60 GODOT_MCP_RUNTIME_PORT="$SESSION_PORT" GODOT_MCP_RUNTIME_SECRET="$SESSION_SECRET" \
-  "$GODOT" --headless --fixed-fps 60 --max-fps 60 --time-scale 1 \
+  "$GODOT" --fixed-fps 60 --max-fps 60 --time-scale 1 \
   --path "$PROJECT" --script "$OPERATIONS_SCRIPT" --serve-authoring \
   >"$SESSION_LOG" 2>&1 &
 SESSION_PID=$!
@@ -409,6 +409,29 @@ if ! kill -0 "$SESSION_PID" 2>/dev/null; then
 else
   pass "the authoring process survives a failed operation"
 fi
+kill "$SESSION_PID" 2>/dev/null || true
+wait "$SESSION_PID" 2>/dev/null || true
+SESSION_PID=""
+
+echo
+echo "Rendering-context precondition"
+
+SESSION_PORT="$(node -e "const s=require('node:net').createServer();s.listen(0,'127.0.0.1',()=>{console.log(s.address().port);s.close()})")"
+SESSION_LOG="$PROJECT/headless-authoring-session.log"
+GODOT_MCP_FIXED_FPS=60 GODOT_MCP_RUNTIME_PORT="$SESSION_PORT" GODOT_MCP_RUNTIME_SECRET="$SESSION_SECRET" \
+  "$GODOT" --headless --fixed-fps 60 --max-fps 60 --time-scale 1 \
+  --path "$PROJECT" --script "$OPERATIONS_SCRIPT" --serve-authoring \
+  >"$SESSION_LOG" 2>&1 &
+SESSION_PID=$!
+
+set +e
+node "$ROOT_DIR/tests/godot/authoring-session-client.mjs" \
+  "$SESSION_PORT" "$SESSION_SECRET" expect-no-render
+STATUS=$?
+set -e
+OUT="$(cat "$SESSION_LOG")"
+append_godot_log "$OUT"
+expect_ok "a display-less session rejects screenshots before waiting for a rendered frame"
 kill "$SESSION_PID" 2>/dev/null || true
 wait "$SESSION_PID" 2>/dev/null || true
 SESSION_PID=""

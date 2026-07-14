@@ -8,9 +8,11 @@ import type { InteractionServerInstaller } from './interaction-server-installer.
 import type { AuthoringSessionToolBackend } from './tool-manifest.js';
 import { convertCamelToSnakeCase, errorMessage, type OperationParams } from './utils.js';
 import { deterministicSessionArguments, deterministicSessionEnvironment } from './session-timing.js';
+import { RENDERING_CONTEXT_CAPABILITY } from './runtime-protocol.js';
 
 interface AuthoringConnection {
   readonly isConnected: boolean;
+  supportsCapability(capability: string): boolean;
   connect(projectPath: string, isProcessActive: () => boolean): Promise<void>;
   disconnect(): void;
   send(command: string, params?: Record<string, unknown>, timeoutMs?: number): Promise<GameResponse>;
@@ -40,6 +42,14 @@ export class AuthoringSessionUnavailableError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'AuthoringSessionUnavailableError';
+  }
+}
+
+/** A headed session could not reach a real or virtual desktop renderer. */
+export class RenderingContextUnavailableError extends Error {
+  constructor(message = 'Headed authoring session requires a reachable rendering context. Set DISPLAY or WAYLAND_DISPLAY on Linux, or run under a virtual display such as Xvfb.') {
+    super(message);
+    this.name = 'RenderingContextUnavailableError';
   }
 }
 
@@ -152,7 +162,7 @@ export class AuthoringSessionManager {
       this.processManager.start({
         executable,
         args: [
-          '--headless', ...deterministicSessionArguments(),
+          ...deterministicSessionArguments(),
           '--path', projectPath, '--script', this.options.operationsScriptPath, '--serve-authoring',
         ],
         env: {
@@ -168,12 +178,18 @@ export class AuthoringSessionManager {
       });
       await connection.connect(projectPath, () => this.current === state && this.processManager.active);
       if (!connection.isConnected) {
-        throw new Error('Godot exited or the authoring JSON-RPC endpoint did not become reachable');
+        throw new RenderingContextUnavailableError(
+          'Headed authoring session exited before its renderer became reachable. Set DISPLAY or WAYLAND_DISPLAY on Linux, or run under a virtual display such as Xvfb.',
+        );
+      }
+      if (!connection.supportsCapability(RENDERING_CONTEXT_CAPABILITY)) {
+        throw new RenderingContextUnavailableError();
       }
       this.logDebug(`Started authoring session for ${projectPath} on port ${port}`);
     } catch (error: unknown) {
       if (this.current) this.stop();
       else if (ownedInstallation) this.options.installer.remove(projectPath, true);
+      if (error instanceof RenderingContextUnavailableError) throw error;
       throw new AuthoringSessionUnavailableError(`Could not start authoring session: ${errorMessage(error)}`);
     }
   }

@@ -5,7 +5,7 @@ import { join } from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { HeadlessOperationService } from '../src/headless-operation-service.js';
 import type { HeadlessOperationResult, HeadlessOperationRunner } from '../src/headless-operation-runner.js';
-import { AuthoringSessionUnavailableError, type AuthoringSessionManager } from '../src/authoring-session-manager.js';
+import { AuthoringSessionUnavailableError, RenderingContextUnavailableError, type AuthoringSessionManager } from '../src/authoring-session-manager.js';
 
 const projects: string[] = [];
 
@@ -62,6 +62,15 @@ describe('HeadlessOperationService authoring routing', () => {
     ).execute('create_scene', {}, makeProject());
 
     expect(response).toEqual(sessionResult);
+  });
+
+  it('does not hide a missing rendering context behind the subprocess fallback', async () => {
+    const session = {
+      execute: async () => { throw new RenderingContextUnavailableError(); },
+    };
+    await expect(makeService(
+      { stdout: 'must not run', stderr: '', exitCode: 0, signal: null }, session,
+    ).execute('create_scene', {}, makeProject())).rejects.toThrow(/Xvfb|DISPLAY/);
   });
 });
 

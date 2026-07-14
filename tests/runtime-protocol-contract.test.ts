@@ -3,7 +3,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { AUTHORING_COMMANDS, AUTHORING_COMMANDS_CAPABILITY, CANCELLABLE_RUNTIME_COMMANDS, CANCEL_METHOD, HANDSHAKE_METHOD, PRIVILEGED_RUNTIME_CAPABILITY, PRIVILEGED_RUNTIME_COMMANDS, PRIVILEGED_RUNTIME_COMMAND_GROUPS, PRIVILEGED_RUNTIME_GROUPS, RUNTIME_CAPABILITIES, RUNTIME_COMMANDS, RUNTIME_PROTOCOL_VERSION, SESSION_AUTHENTICATION_CAPABILITY, SESSION_COMMANDS, commandMethod } from '../src/runtime-protocol.js';
+import { AUTHORING_COMMANDS, AUTHORING_COMMANDS_CAPABILITY, CANCELLABLE_RUNTIME_COMMANDS, CANCEL_METHOD, HANDSHAKE_METHOD, PRIVILEGED_RUNTIME_CAPABILITY, PRIVILEGED_RUNTIME_COMMANDS, PRIVILEGED_RUNTIME_COMMAND_GROUPS, PRIVILEGED_RUNTIME_GROUPS, RENDERING_CONTEXT_CAPABILITY, RUNTIME_CAPABILITIES, RUNTIME_COMMANDS, RUNTIME_PROTOCOL_VERSION, SESSION_AUTHENTICATION_CAPABILITY, SESSION_COMMANDS, commandMethod } from '../src/runtime-protocol.js';
 import { GODOT_SESSION_FIXED_FPS, GODOT_SESSION_FIXED_FPS_ENV, GODOT_SESSION_INITIAL_TIME_SCALE } from '../src/session-timing.js';
 
 const root = join(fileURLToPath(new URL('..', import.meta.url)));
@@ -140,6 +140,19 @@ describe('runtime protocol contract', () => {
     });
     expect(systemDomain).toContain('Engine.time_scale = time_scale');
     expect(systemDomain).toContain('"fixed_fps": _configured_fixed_fps()');
+  });
+
+  it('publishes and checks the headed rendering-context precondition', () => {
+    const schema = JSON.parse(readFileSync(join(root, 'docs/runtime-api.schema.json'), 'utf8'));
+    const rendering = schema['x-runtime-contract'].renderingContext;
+    const server = readFileSync(join(root, 'src/scripts/mcp_interaction_server.gd'), 'utf8');
+
+    expect(rendering.capability).toBe(RENDERING_CONTEXT_CAPABILITY);
+    expect(rendering.unavailableReason).toBe('rendering_context_unavailable');
+    expect(server).toContain('if not _has_rendering_context():');
+    expect(server.indexOf('if not _has_rendering_context():'))
+      .toBeLessThan(server.indexOf('await get_tree().process_frame', server.indexOf('func _cmd_screenshot')));
+    expect(server).not.toContain('RenderingServer.frame_post_draw');
   });
 
   it('uses the contract namespace for every runtime command method', () => {

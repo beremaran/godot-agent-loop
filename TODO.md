@@ -331,10 +331,16 @@ until that decision is confirmed against a real game.
   the explicit get/set control and reports the harness fixed-FPS metadata;
   direct authoring-session and full MCP E2E checks prove both initialization
   and mutation.)
-- [ ] Launch the session headed, and fail fast with an actionable error when no
+- [x] Launch the session headed, and fail fast with an actionable error when no
   rendering context is reachable. Do not await `RenderingServer.frame_post_draw`
   without one: under `--headless` it never fires, so the session deadlocks instead
-  of failing.
+  of failing. (The session no longer passes `--headless` and requires the
+  authenticated `rendering-context` capability before dispatch. Missing display
+  access raises an actionable desktop/Xvfb error without falling back to a
+  mutating subprocess. Screenshot checks the same precondition before yielding
+  a frame; the real-engine suite proves both headed startup and immediate,
+  structured `rendering_context_unavailable` rejection in a headless process.
+  Linux CI now runs the session-bearing suites under Xvfb.)
 - [x] Rename `ToolBackend`'s `headless` kind to `subprocess`, so "headless" means
   only "no rendering context" for the rest of this phase. (The manifest,
   coverage generator, routing contracts, and generated report now use

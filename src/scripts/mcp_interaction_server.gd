@@ -82,6 +82,7 @@ const DISABLED_ENVIRONMENT_VARIABLE: String = "GODOT_MCP_RUNTIME_DISABLED"
 const PROTOCOL_VERSION: String = "1.0"
 const CAPABILITIES: Array[String] = ["runtime-commands", "godot-json-values"]
 const AUTHORING_COMMANDS_CAPABILITY: String = "authoring-commands"
+const RENDERING_CONTEXT_CAPABILITY: String = "rendering-context"
 const METHOD_PREFIX: String = "godot.runtime."
 const CANCELLABLE_COMMANDS: Array[String] = ["wait", "await_signal", "resource", "http_request"]
 const ERROR_LIMIT_EXCEEDED: int = -32006
@@ -528,6 +529,8 @@ func _handle_handshake(session: RuntimeSession, req_id: Variant, params: Diction
 	session.authenticated = true
 	_audit_event("authentication_succeeded", session)
 	var capabilities: Array[String] = _privileged_policy.capabilities(CAPABILITIES, allow_privileged_commands)
+	if _has_rendering_context():
+		capabilities.append(RENDERING_CONTEXT_CAPABILITY)
 	if _authoring_dispatcher.is_valid():
 		capabilities.append(AUTHORING_COMMANDS_CAPABILITY)
 	if not runtime_secret.is_empty():
@@ -536,6 +539,10 @@ func _handle_handshake(session: RuntimeSession, req_id: Variant, params: Diction
 		"protocolVersion": PROTOCOL_VERSION,
 		"capabilities": capabilities,
 	}})
+
+
+func _has_rendering_context() -> bool:
+	return DisplayServer.get_name() != "headless"
 
 
 func _audit_event(event: String, session: RuntimeSession, command: String = "", details: Dictionary = {}) -> void:
@@ -739,6 +746,16 @@ func _godot_error_data(err: int) -> Dictionary:
 
 # --- Screenshot ---
 func _cmd_screenshot(_params: Dictionary) -> void:
+	if not _has_rendering_context():
+		_send_response({
+			"error": "Screenshot requires a headed Godot session with a reachable rendering context",
+			"error_data": {
+				"reason": "rendering_context_unavailable",
+				"display_driver": DisplayServer.get_name(),
+				"remediation": "Run Godot with a desktop display or a virtual display such as Xvfb",
+			},
+		})
+		return
 	# Wait one frame so the viewport is fully rendered
 	await get_tree().process_frame
 	var viewport: Viewport = get_viewport()

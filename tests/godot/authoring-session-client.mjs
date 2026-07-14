@@ -2,10 +2,10 @@ import { createConnection } from 'node:net';
 
 /* global clearTimeout, process, setTimeout */
 
-const [, , portText, secret] = process.argv;
+const [, , portText, secret, mode = 'headed'] = process.argv;
 const port = Number(portText);
-if (!Number.isInteger(port) || port < 1 || !secret) {
-  throw new Error('Usage: node authoring-session-client.mjs <port> <secret>');
+if (!Number.isInteger(port) || port < 1 || !secret || !['headed', 'expect-no-render'].includes(mode)) {
+  throw new Error('Usage: node authoring-session-client.mjs <port> <secret> [headed|expect-no-render]');
 }
 
 let buffer = '';
@@ -66,37 +66,54 @@ if (handshake.error || !handshake.result.capabilities.includes('authoring-comman
   throw new Error(`Authoring capability missing: ${JSON.stringify(handshake)}`);
 }
 
-const timing = await request('godot.runtime.time_scale', { action: 'get' });
-if (timing.error || timing.result.time_scale !== 1 || timing.result.fixed_fps !== 60) {
-  throw new Error(`Deterministic session timing is invalid: ${JSON.stringify(timing)}`);
-}
-const scaled = await request('godot.runtime.time_scale', { action: 'set', time_scale: 0.5 });
-if (scaled.error || scaled.result.time_scale !== 0.5 || scaled.result.fixed_fps !== 60) {
-  throw new Error(`Session time-scale control failed: ${JSON.stringify(scaled)}`);
-}
+if (mode === 'expect-no-render') {
+  if (handshake.result.capabilities.includes('rendering-context')) {
+    throw new Error(`Headless session advertised a rendering context: ${JSON.stringify(handshake)}`);
+  }
+  const screenshot = await request('godot.runtime.screenshot', {});
+  if (screenshot.error?.code !== -32000
+    || screenshot.error?.data?.reason !== 'rendering_context_unavailable') {
+    throw new Error(`Headless screenshot did not fail fast: ${JSON.stringify(screenshot)}`);
+  }
+  socket.end();
+  process.exitCode = 0;
+} else {
+  if (!handshake.result.capabilities.includes('rendering-context')) {
+    throw new Error(`Rendering capability missing: ${JSON.stringify(handshake)}`);
+  }
 
-const created = await request('godot.runtime.authoring_create_scene', {
-  scene_path: 'scenes/session_created.tscn',
-  root_node_type: 'Node2D',
-});
-if (created.error || created.result.success !== true || created.result.operation !== 'create_scene'
-  || !created.result.stdout.includes('Scene created successfully')) {
-  throw new Error(`Authoring success response is invalid: ${JSON.stringify(created)}`);
+  const timing = await request('godot.runtime.time_scale', { action: 'get' });
+  if (timing.error || timing.result.time_scale !== 1 || timing.result.fixed_fps !== 60) {
+    throw new Error(`Deterministic session timing is invalid: ${JSON.stringify(timing)}`);
+  }
+  const scaled = await request('godot.runtime.time_scale', { action: 'set', time_scale: 0.5 });
+  if (scaled.error || scaled.result.time_scale !== 0.5 || scaled.result.fixed_fps !== 60) {
+    throw new Error(`Session time-scale control failed: ${JSON.stringify(scaled)}`);
+  }
+
+  const created = await request('godot.runtime.authoring_create_scene', {
+    scene_path: 'scenes/session_created.tscn',
+    root_node_type: 'Node2D',
+  });
+  if (created.error || created.result.success !== true || created.result.operation !== 'create_scene'
+    || !created.result.stdout.includes('Scene created successfully')) {
+    throw new Error(`Authoring success response is invalid: ${JSON.stringify(created)}`);
+  }
+
+  const failed = await request('godot.runtime.authoring_create_scene', {
+    scene_path: 'scenes/session_invalid.tscn',
+    root_node_type: 'NotARealClass',
+  });
+  if (failed.error?.code !== -32000 || failed.error?.data?.reason !== 'authoring_operation_failed') {
+    throw new Error(`Authoring failure response is invalid: ${JSON.stringify(failed)}`);
+  }
+
+  const runtime = await request('godot.runtime.os_info', {});
+  if (runtime.error || typeof runtime.result?.os_name !== 'string') {
+    throw new Error(`Runtime command failed after authoring failure: ${JSON.stringify(runtime)}`);
+  }
+
+  await request('godot.runtime.time_scale', { action: 'set', time_scale: 1 });
+
+  socket.end();
 }
-
-const failed = await request('godot.runtime.authoring_create_scene', {
-  scene_path: 'scenes/session_invalid.tscn',
-  root_node_type: 'NotARealClass',
-});
-if (failed.error?.code !== -32000 || failed.error?.data?.reason !== 'authoring_operation_failed') {
-  throw new Error(`Authoring failure response is invalid: ${JSON.stringify(failed)}`);
-}
-
-const runtime = await request('godot.runtime.os_info', {});
-if (runtime.error || typeof runtime.result?.os_name !== 'string') {
-  throw new Error(`Runtime command failed after authoring failure: ${JSON.stringify(runtime)}`);
-}
-
-await request('godot.runtime.time_scale', { action: 'set', time_scale: 1 });
-
-socket.end();

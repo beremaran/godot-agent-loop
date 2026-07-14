@@ -59,6 +59,8 @@ jobs:
 
       - name: Install Godot ${{ matrix.godot-version }}
         run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb mesa-vulkan-drivers
           curl -sSL -o godot.zip \
             "https://github.com/godotengine/godot-builds/releases/download/${{ matrix.godot-version }}/Godot_v${{ matrix.godot-version }}_linux.x86_64.zip"
           unzip -q godot.zip
@@ -71,8 +73,8 @@ jobs:
       - name: Type-check the shipped scripts with warnings promoted to errors
         run: tests/godot/run-typecheck.sh
 
-      - name: Run every headless operation against a fixture project
-        run: tests/godot/run-headless-operations.sh
+      - name: Run every operation against a fixture project
+        run: xvfb-run -a tests/godot/run-headless-operations.sh
 
       - name: Run the runtime server integration tests
         run: tests/godot/run-integration-tests.sh
@@ -86,7 +88,7 @@ jobs:
         run: npm ci --ignore-scripts
 
       - name: Run the full MCP-to-Godot E2E suite
-        run: npm run test:e2e
+        run: xvfb-run -a npm run test:e2e
 
       # The suite logs contain the complete raw engine output that the
       # diagnostics gate inspects; keep them (plus the staged fixtures) so a

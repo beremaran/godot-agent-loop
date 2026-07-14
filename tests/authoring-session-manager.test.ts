@@ -1,7 +1,7 @@
 // @test-kind: unit
 import { describe, expect, it, vi } from 'vitest';
 
-import { AuthoringSessionManager, AuthoringSessionUnavailableError } from '../src/authoring-session-manager.js';
+import { AuthoringSessionManager, AuthoringSessionUnavailableError, RenderingContextUnavailableError } from '../src/authoring-session-manager.js';
 import type { GameResponse } from '../src/game-connection.js';
 import type { GodotProcessManager, StartGodotProcessOptions } from '../src/godot-process-manager.js';
 import type { InteractionServerInstaller } from '../src/interaction-server-installer.js';
@@ -10,7 +10,7 @@ import { toolManifest } from '../src/tool-manifest.js';
 const backend = toolManifest.create_scene.backend;
 if (backend.kind !== 'authoring-session') throw new Error('create_scene backend is not authoring-session');
 
-function fixture(options: { canStart?: () => boolean; send?: (command: string, params: Record<string, unknown>) => Promise<GameResponse> } = {}) {
+function fixture(options: { canStart?: () => boolean; renderingContext?: boolean; send?: (command: string, params: Record<string, unknown>) => Promise<GameResponse> } = {}) {
   const starts: StartGodotProcessOptions[] = [];
   const processManager = {
     active: false,
@@ -30,6 +30,7 @@ function fixture(options: { canStart?: () => boolean; send?: (command: string, p
   };
   const connections: {
     isConnected: boolean;
+    supportsCapability: ReturnType<typeof vi.fn>;
     connect: ReturnType<typeof vi.fn>;
     disconnect: ReturnType<typeof vi.fn>;
     send: ReturnType<typeof vi.fn>;
@@ -45,6 +46,7 @@ function fixture(options: { canStart?: () => boolean; send?: (command: string, p
     createConnection: () => {
       const connection = {
         isConnected: false,
+        supportsCapability: vi.fn(() => options.renderingContext !== false),
         connect: vi.fn(async function () { connection.isConnected = true; }),
         disconnect: vi.fn(() => { connection.isConnected = false; }),
         send: vi.fn(options.send ?? (async () => ({
@@ -69,7 +71,7 @@ describe('AuthoringSessionManager', () => {
     expect(second.stdout).toBe('ok');
     expect(starts).toHaveLength(1);
     expect(starts[0].args).toEqual([
-      '--headless', '--fixed-fps', '60', '--max-fps', '60', '--time-scale', '1',
+      '--fixed-fps', '60', '--max-fps', '60', '--time-scale', '1',
       '--path', '/project', '--script', '/build/scripts/godot_operations.gd', '--serve-authoring',
     ]);
     expect(starts[0].env).toEqual({
@@ -127,6 +129,16 @@ describe('AuthoringSessionManager', () => {
     await expect(manager.execute(backend, {}, '/project'))
       .rejects.toBeInstanceOf(AuthoringSessionUnavailableError);
     expect(installer.install).not.toHaveBeenCalled();
+  });
+
+  it('fails fast and cleans up when a headed rendering context is unavailable', async () => {
+    const { manager, installer, connections } = fixture({ renderingContext: false });
+
+    await expect(manager.execute(backend, {}, '/project'))
+      .rejects.toThrow(RenderingContextUnavailableError);
+    expect(connections[0].supportsCapability).toHaveBeenCalledWith('rendering-context');
+    expect(connections[0].disconnect).toHaveBeenCalledOnce();
+    expect(installer.remove).toHaveBeenCalledWith('/project', true);
   });
 
   it('returns command failures without throwing a fallback-safe startup error', async () => {
