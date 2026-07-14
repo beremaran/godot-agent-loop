@@ -1,0 +1,42 @@
+name: Configure npm trusted publishing
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type trust-@beremaran/godot-agent-loop-via-publish-npm.yml
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+    environment: npm
+    steps:
+      - name: Require the exact trust confirmation
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: test "$CONFIRMATION" = "trust-@beremaran/godot-agent-loop-via-publish-npm.yml"
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Require the published release
+        run: test "$(npm view @beremaran/godot-agent-loop@1.0.0 version)" = "1.0.0"
+
+      - name: Trust the permanent publication workflow
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: >-
+          npm trust github @beremaran/godot-agent-loop
+          --file publish-npm.yml
+          --repo beremaran/godot-agent-loop
+          --env npm
+          --allow-publish
+          --yes
+          --json
