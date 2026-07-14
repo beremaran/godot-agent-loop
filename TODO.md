@@ -283,10 +283,14 @@ until that decision is confirmed against a real game.
   SIGKILL the MCP server, assert the stale artifacts exist, then a second
   server reaps on first contact and a run/stop cycle restores the tree to an
   identical snapshot. Passing against Godot 4.7.)
-- [ ] Re-run the full MCP E2E matrix and Godot suites on 4.4 and 4.7 over the
-  override.cfg injection (deferred at the user's request on 2026-07-14; the
-  affected suites — crash-recovery, installer unit tests — pass on 4.7, and
-  the three suites asserting the old `project.godot` mechanism were updated).
+- [x] Re-run the full MCP E2E matrix and Godot suites on 4.4 and 4.7 over the
+  `override.cfg` injection. (Both engines pass 16 strict script parses, 70
+  authoring-operation checks, 383 runtime checks, and the complete 29-file / 188
+  test MCP E2E matrix. The floor run exposed and fixed two test-contract gaps:
+  the 4.7-generated engine sample now records classes absent from 4.4 as
+  explicitly inapplicable while retaining a minimum applicable sample, and the
+  editor E2E opens and awaits its scene on 4.4 and always reaps the user-owned
+  editor process.)
 
 #### 6c: the persistent session
 

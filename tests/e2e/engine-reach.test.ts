@@ -69,36 +69,53 @@ describe('generic engine reach for untooled classes', () => {
   it('constructs a sample of untooled non-Node classes through game_eval', async () => {
     const game = await startedGame();
     const unreached: string[] = [];
+    let applicable = 0;
 
     for (const row of nonNodes) {
       // Report the class name the engine itself gives the instance, so a silent
-      // null or a wrong type cannot pass as success.
+      // null or a wrong type cannot pass as success. The denominator is
+      // generated from the primary Godot target, so classes introduced after
+      // the compatibility floor are explicitly inapplicable there rather than
+      // being mistaken for broken reachability.
       const reported = await engineEval(game, [
+        `if not ClassDB.class_exists("${row.name}"):`,
+        '\treturn "<unavailable>"',
         `var instance = ClassDB.instantiate("${row.name}")`,
         'if instance == null:',
         '\treturn "<null>"',
         'return instance.get_class()',
       ].join('\n'));
+      if (reported === '<unavailable>') continue;
+      applicable++;
       if (reported !== row.name) unreached.push(`${row.name} -> ${String(reported)}`);
     }
 
     expect(unreached, `game_eval could not construct: ${unreached.join(', ')}`).toEqual([]);
-    expect(nonNodes.length).toBeGreaterThan(10);
+    expect(applicable).toBeGreaterThan(10);
   });
 
   it('adds a sample of untooled Node classes to the live tree and finds them again', async () => {
     const game = await startedGame();
     const unreached: string[] = [];
+    let applicable = 0;
 
     for (const row of nodes) {
-      await engineEval(game, [
+      const outcome = await engineEval(game, [
+        `if not ClassDB.class_exists("${row.name}"):`,
+        '\treturn "<unavailable>"',
         `var node = ClassDB.instantiate("${row.name}")`,
         'if node == null:',
-        '\treturn false',
+        '\treturn "<null>"',
         `node.name = "reach_${row.name}"`,
         'get_tree().root.add_child(node)',
-        'return true',
+        'return "<added>"',
       ].join('\n'));
+      if (outcome === '<unavailable>') continue;
+      applicable++;
+      if (outcome !== '<added>') {
+        unreached.push(`${row.name} -> ${String(outcome)}`);
+        continue;
+      }
 
       // Independent observation: read the node back through the scene-tree tool
       // rather than trusting the eval that created it.
@@ -108,6 +125,6 @@ describe('generic engine reach for untooled classes', () => {
     }
 
     expect(unreached, `nodes never appeared in the scene tree: ${unreached.join(', ')}`).toEqual([]);
-    expect(nodes.length).toBeGreaterThan(10);
+    expect(applicable).toBeGreaterThan(10);
   });
 });
