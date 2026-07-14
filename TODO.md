@@ -87,67 +87,98 @@ tool or action.
 
 ### Shared agent workflow bundle
 
-- [ ] Rename or replace `claude-plugin/` with a client-neutral `agent-plugin/`
+- [x] Rename or replace `claude-plugin/` with a client-neutral `agent-plugin/`
   root. Keep one canonical `skills/` directory and one MCP server configuration;
   do not maintain Claude-, Codex-, OpenCode-, and Pi-specific copies of the same
-  workflow text.
-- [ ] Preserve the current focused skills (`build-godot-game`,
+  workflow text. (`agent-plugin/` is the sole bundle and all adapters consume
+  its root `.mcp.json` and canonical `skills/` tree.)
+- [x] Preserve the current focused skills (`build-godot-game`,
   `debug-godot-game`, and `verify-godot-change`) as portable Agent Skills. Add a
   focused `ship-godot-game` skill for export readiness, project tests, .NET
   verification, addon/import integrity, artifact inspection, and deterministic
-  teardown. Keep detailed client setup out of the skills themselves.
-- [ ] Add a generated client-adapter manifest that is the single source for
+  teardown. Keep detailed client setup out of the skills themselves. (The three
+  existing workflows are preserved and the validated `ship-godot-game` skill
+  covers every requested release-readiness and cleanup gate.)
+- [x] Add a generated client-adapter manifest that is the single source for
   package version, skill inventory, MCP command, environment variables, and
   default prompts. Generate or validate every client-specific file from it.
-- [ ] Add adapter contract tests that fail on version, command, skill-name,
+  (`agent-plugin/adapter-manifest.json` drives
+  `scripts/sync-agent-adapters.js`; every build rejects Claude, Codex, MCP,
+  marketplace, Pi, package, or skill metadata drift.)
+- [x] Add adapter contract tests that fail on version, command, skill-name,
   skill-description, environment, or package-identity drift. For every supported
   client, smoke-test initialization, the 39-tool default surface, one real tool
   call, hidden-tool discovery through `godot_tools`, and clean server teardown.
+  (`tests/agent-plugin.test.ts` locks every generated field;
+  `tests/e2e/agent-adapter-smoke.test.ts` runs the required real-Godot path for
+  all four clients, including Pi's dynamic extension. Native isolated-client
+  evidence is recorded in `docs/agent-adapter-acceptance.md`.)
 
 #### Claude Code distribution
 
-- [ ] Keep `.claude-plugin/plugin.json`, `.mcp.json`, and the shared `skills/`
+- [x] Keep `.claude-plugin/plugin.json`, `.mcp.json`, and the shared `skills/`
   directory at the neutral plugin root. Update the existing marketplace entry,
   install instructions, namespace examples, and plugin tests for the final name
-  and version.
+  and version. (The generator pins `godot-agent-loop` 1.0.0 and
+  `./agent-plugin`; Claude Code 2.1.208 validates both manifests and installs
+  the plugin from an isolated local marketplace.)
 - [ ] Test both local development (`claude --plugin-dir`) and a clean marketplace
   install from the tagged repository. Confirm the bundled MCP server starts
   without manual configuration and the three core workflows plus
-  `ship-godot-game` are discoverable.
+  `ship-godot-game` are discoverable. (Local manifests validate and an isolated
+  marketplace install enables all four skills. The exact npx server command and
+  tagged-repository install remain publication-dependent.)
 
 #### Codex distribution
 
-- [ ] Add `.codex-plugin/plugin.json` beside the Claude manifest, pointing its
+- [x] Add `.codex-plugin/plugin.json` beside the Claude manifest, pointing its
   `skills` and `mcpServers` fields at the same shared resources. Add install UI
   metadata and `agents/openai.yaml` only where it improves discovery; do not fork
-  the workflow instructions.
+  the workflow instructions. (The validated manifest points at `./skills/` and
+  `./.mcp.json`; only the shipping skill adds generated OpenAI discovery
+  metadata, while its workflow remains in the canonical `SKILL.md`.)
 - [ ] Add a native `.agents/plugins/marketplace.json` entry for Codex while
   retaining Claude marketplace compatibility. Test a clean marketplace install
-  in Codex CLI/IDE and the ChatGPT desktop plugin surface.
+  in Codex CLI/IDE and the ChatGPT desktop plugin surface. (Codex CLI 0.144.1
+  cleanly installs and enables the generated local marketplace entry in an
+  isolated cache; IDE/desktop and tagged/public-source pickup remain pending.)
 
 #### OpenCode distribution
 
-- [ ] Add an explicit `setup opencode` command to the published CLI. It must
+- [x] Add an explicit `setup opencode` command to the published CLI. It must
   safely merge a local MCP entry into `opencode.json`/`opencode.jsonc` and install
   the canonical skills into a project or user `.agents/skills` location. It must
   preview changes, preserve unrelated configuration, be idempotent, and support
   uninstall; do not mutate configuration from an npm lifecycle script.
-- [ ] Generate the OpenCode MCP command as a local `npx -y <package>@<version>`
+  (`setup opencode` previews by default, writes only with `--write`, supports
+  project/user scope and JSONC, hashes owned skills, refuses foreign edits, and
+  removes only unchanged owned entries in tested install/uninstall loops.)
+- [x] Generate the OpenCode MCP command as a local `npx -y <package>@<version>`
   command with the compact surface enabled. Test discovery through OpenCode's
   native skill tool and verify that no bespoke OpenCode copy of a skill exists.
+  (The generated entry pins `npx -y @beremaran/godot-agent-loop@1.0.0` and the
+  compact environment. OpenCode 1.17.13 discovers all four canonical skills
+  under `.agents/skills`; there is no OpenCode workflow copy.)
 
 #### Pi distribution
 
-- [ ] Add a Pi package manifest to `package.json` with the `pi-package` keyword,
+- [x] Add a Pi package manifest to `package.json` with the `pi-package` keyword,
   the shared skills path, and a thin TypeScript MCP-client extension path.
-- [ ] Implement the Pi extension: start the stdio MCP server, complete the MCP
+- [x] Implement the Pi extension: start the stdio MCP server, complete the MCP
   handshake, call `tools/list`, register the 39 default tools with
   `pi.registerTool`, forward structured content and errors, refresh tools when
   required, and terminate the server on session shutdown. Keep the specialized
   catalog behind `godot_tools` rather than statically registering all 167 tools.
+  (`agent-plugin/pi/extension.ts` uses the official MCP client and Pi lifecycle,
+  maps structured text/image results and MCP errors, refreshes changed tool
+  lists, and closes on `session_shutdown`; the live adapter smoke proves its 39
+  registrations, real tool call, and hidden discovery.)
 - [ ] Test local, Git, and npm Pi installation, plus update, disable, reload, and
   uninstall behavior. Document that Pi extensions execute with the user's system
   access and keep all mutation/privilege gates enforced by the MCP server.
+  (Pi 0.80.2 installs, lists, runs the MCP smoke, and removes the local package;
+  the portable bundle guide documents the trust boundary. Git/npm/update and
+  configuration disable/reload paths remain pending candidate artifacts.)
 
 ### Persistent Godot Asset Library addon
 
@@ -190,7 +221,7 @@ tool or action.
   demonstrate the human Pause Agent control. Publish the exact prompt, model,
   server version, elapsed time, and resulting project or replay.
 - [ ] Create a concise comparison/proof section that leads with 167/167 E2E
-  tools, 358 traced actions, 194 full-path E2E tests, the 39-tool/81.56% compact
+  tools, 358 traced actions, 198 full-path E2E tests, the 39-tool/81.56% compact
   surface, the cold-agent acceptance run, tested Godot versions, and
   default-denied privileged groups. Do not lead with raw tool count or claim
   unbounded/full engine control.
@@ -712,7 +743,7 @@ and a durable editor experience without making it an execution prerequisite.
 
 - [x] Ship the server as a plugin bundling **skills** alongside the MCP config, so
   procedural knowledge travels with the tools instead of living in a README the
-  agent never reads. (`claude-plugin/` contains the Claude manifest, root MCP
+  agent never reads. (`agent-plugin/` contains the Claude manifest, root MCP
   configuration pinned to the matching npm server release, and its skills; the
   npm package includes that directory. The repository also publishes a validated
   `.claude-plugin/marketplace.json`, so Claude Code can add the GitHub repository
@@ -727,7 +758,7 @@ and a durable editor experience without making it an execution prerequisite.
   language.)
 - [x] Confirm the plugin/skill packaging mechanism against current Claude Code
   documentation rather than assumption; treat the bundling format as unverified
-  until checked. (`docs/claude-code-plugin.md` records the 2026-07-14 primary-doc
+  until checked. (`docs/agent-plugin.md` records the 2026-07-14 primary-doc
   check for `.claude-plugin/plugin.json`, `.mcp.json`, `skills/<name>/SKILL.md`,
   and repository marketplaces. Claude Code 2.1.208 validates both marketplace
   and plugin, all three skill-creator validators pass, and `npm pack --dry-run`
@@ -851,8 +882,8 @@ A tool may be marked `[x] E2E` only when all applicable items pass:
 ### Release gate
 
 - [x] Build, lint, TypeScript tests, and all Godot suites pass. (Locally verified
-  together on Godot 4.7 after the identity contracts: 665 TypeScript tests,
-  194 full-path E2E tests, 17 strict script parses, 2 focused validator checks,
+  together on Godot 4.7 after the portable agent bundle: 670 TypeScript tests,
+  198 full-path E2E tests, 17 strict script parses, 2 focused validator checks,
   75 authoring-operation checks, and 383 runtime checks.)
 - [x] The generated manifest has no coverage or routing drift. (`npm run check`
   runs the manifest/coverage contracts plus both the tool/action and zero-gap

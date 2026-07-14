@@ -10,5 +10,10 @@
   "homepage": "https://github.com/beremaran/godot-agent-loop",
   "repository": "https://github.com/beremaran/godot-agent-loop",
   "license": "MIT",
-  "keywords": ["godot", "mcp", "game-development"]
+  "keywords": [
+    "godot",
+    "mcp",
+    "game-development"
+  ],
+  "mcpServers": "./.mcp.json"
 }

@@ -13,7 +13,8 @@
     "runtime",
     "agent-workflows",
     "evidence-first",
-    "model-context-protocol"
+    "model-context-protocol",
+    "pi-package"
   ],
   "homepage": "https://github.com/beremaran/godot-agent-loop",
   "bugs": {
@@ -36,13 +37,15 @@
   },
   "files": [
     "build",
-    "claude-plugin",
+    "agent-plugin",
     "product.json"
   ],
   "scripts": {
-    "build": "tsc && node scripts/sync-product-metadata.js && node scripts/build.js",
-    "product:sync": "node scripts/sync-product-metadata.js --write && npm install --package-lock-only --ignore-scripts",
+    "build": "tsc && node scripts/sync-product-metadata.js && node scripts/sync-agent-adapters.js && node scripts/build.js",
+    "product:sync": "node scripts/sync-product-metadata.js --write && npm run adapters:sync",
     "product:check": "node scripts/sync-product-metadata.js",
+    "adapters:sync": "node scripts/sync-agent-adapters.js --write && npm install --package-lock-only --ignore-scripts",
+    "adapters:check": "node scripts/sync-agent-adapters.js",
     "inspector": "npx @modelcontextprotocol/inspector build/index.js",
     "prepare": "npm run build && husky",
     "check": "npm test && npm run lint && npm run coverage:check",
@@ -65,7 +68,9 @@
     "test:golden-agent": "npm run build && vitest run --config vitest.e2e.config.ts tests/e2e/golden-agent-game.test.ts"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0"
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "jsonc-parser": "^3.3.1",
+    "pngjs": "^7.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -77,12 +82,19 @@
     "eslint": "^10.7.0",
     "husky": "^9.1.7",
     "markdownlint-cli2": "^0.23.0",
-    "pngjs": "^7.0.0",
     "typescript": "^5.3.3",
     "typescript-eslint": "^8.63.0",
     "vitest": "^4.1.10"
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "pi": {
+    "extensions": [
+      "./agent-plugin/pi/extension.ts"
+    ],
+    "skills": [
+      "./agent-plugin/skills"
+    ]
   }
 }

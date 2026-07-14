@@ -1,0 +1,20 @@
+{
+  "name": "godot-agent-loop",
+  "interface": {
+    "displayName": "Godot Agent Loop"
+  },
+  "plugins": [
+    {
+      "name": "godot-agent-loop",
+      "source": {
+        "source": "local",
+        "path": "./agent-plugin"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

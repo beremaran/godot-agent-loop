@@ -7,7 +7,7 @@
   "plugins": [
     {
       "name": "godot-agent-loop",
-      "source": "./claude-plugin",
+      "source": "./agent-plugin",
       "description": "Build, playtest, and prove Godot games through MCP.",
       "category": "development"
     }

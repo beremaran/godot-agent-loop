@@ -90,11 +90,14 @@ describe('Godot Agent Loop product identity', () => {
       'server.json',
       'README.md',
       'CONTRIBUTING.md',
-      'docs/claude-code-plugin.md',
+      'docs/agent-plugin.md',
       'docs/runtime-api.schema.json',
-      'claude-plugin/.mcp.json',
-      'claude-plugin/.claude-plugin/plugin.json',
+      'agent-plugin/adapter-manifest.json',
+      'agent-plugin/.mcp.json',
+      'agent-plugin/.claude-plugin/plugin.json',
+      'agent-plugin/.codex-plugin/plugin.json',
       '.claude-plugin/marketplace.json',
+      '.agents/plugins/marketplace.json',
     ];
     for (const path of releaseFacing) {
       const content = source(path);

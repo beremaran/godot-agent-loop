@@ -1,0 +1,37 @@
+{
+  "name": "godot-agent-loop",
+  "version": "1.0.0",
+  "description": "Build, playtest, and prove Godot games with an evidence-first MCP automation loop.",
+  "author": {
+    "name": "Berke Arslan",
+    "url": "https://github.com/beremaran"
+  },
+  "homepage": "https://github.com/beremaran/godot-agent-loop",
+  "repository": "https://github.com/beremaran/godot-agent-loop",
+  "license": "MIT",
+  "keywords": [
+    "godot",
+    "mcp",
+    "game-development"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Godot Agent Loop",
+    "shortDescription": "Build, playtest, and prove Godot games",
+    "longDescription": "Build, playtest, and prove Godot games with an evidence-first MCP automation loop.",
+    "developerName": "Berke Arslan",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/beremaran/godot-agent-loop",
+    "defaultPrompt": [
+      "Build a small playable Godot game and prove both its win and lose states.",
+      "Debug this Godot project from a reproducible failure and verify the fix independently.",
+      "Prepare this Godot game for release and report export evidence and remaining gates."
+    ],
+    "brandColor": "#478CBF"
+  }
+}

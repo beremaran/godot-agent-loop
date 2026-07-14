@@ -42,6 +42,7 @@ import { AuthoringSessionManager } from './authoring-session-manager.js';
 import { EditorMutationGuard } from './editor-mutation-guard.js';
 import { SERVER_INSTRUCTIONS } from './server-instructions.js';
 import { advertisedToolDefinitions } from './tool-surface.js';
+import { runOpenCodeSetup } from './opencode-setup.js';
 
 // Check if debug mode is enabled
 const DEBUG_MODE: boolean = process.env.DEBUG === 'true';
@@ -517,12 +518,24 @@ export class GodotServer {
   }
 }
 
-// Create and run the server
-if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
+async function main(): Promise<void> {
+  const args = process.argv.slice(2);
+  if (args[0] === 'setup' && args[1] === 'opencode') {
+    await runOpenCodeSetup(args.slice(2));
+    return;
+  }
+  if (args.includes('--help') || args.includes('-h')) {
+    console.log('Godot Agent Loop\n\nUsage:\n  godot-agent-loop\n  godot-agent-loop setup opencode [uninstall] [--scope project|user] [--config PATH] [--write]');
+    return;
+  }
   const server = new GodotServer();
-  server.run().catch((error: unknown) => {
+  await server.run();
+}
+
+if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
+  main().catch((error: unknown) => {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Failed to run server:', errorMessage);
+    console.error('Godot Agent Loop failed:', errorMessage);
     process.exit(1);
   });
 }

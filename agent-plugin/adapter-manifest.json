@@ -1,0 +1,45 @@
+{
+  "$schema": "../docs/agent-adapter.schema.json",
+  "name": "godot-agent-loop",
+  "displayName": "Godot Agent Loop",
+  "version": "1.0.0",
+  "description": "Build, playtest, and prove Godot games with an evidence-first MCP automation loop.",
+  "package": "@beremaran/godot-agent-loop",
+  "mcp": {
+    "command": ["npx", "-y", "@beremaran/godot-agent-loop@1.0.0"],
+    "environment": {
+      "GODOT_MCP_TOOL_SURFACE": "compact"
+    },
+    "defaultToolCount": 39,
+    "discoveryTool": "godot_tools"
+  },
+  "skills": [
+    {
+      "name": "build-godot-game",
+      "description": "Build a new playable Godot 4 game or substantial gameplay slice through Godot Agent Loop. Use for requests to create a game from an empty project or project path, add a complete mechanic, or deliver a playable scene with input, visible state, and win/lose behavior."
+    },
+    {
+      "name": "debug-godot-game",
+      "description": "Diagnose and fix a Godot 4 game that crashes, logs errors, renders incorrectly, ignores input, has wrong scene state, or fails a gameplay expectation. Use for runtime bugs, script failures, broken scenes/resources, flaky behavior, and regressions that need reproduction before repair."
+    },
+    {
+      "name": "ship-godot-game",
+      "description": "Prepare and verify a Godot 4 game for a reproducible release. Use for export readiness, project test gates, .NET/C# verification, addon and import integrity, export artifact inspection, smoke runs, release evidence, or deterministic teardown before shipping."
+    },
+    {
+      "name": "verify-godot-change",
+      "description": "Verify a Godot 4 project change with static checks and independent evidence from the running game. Use after editing scenes, scripts, resources, input, UI, rendering, or gameplay, and when deciding whether a Godot task is genuinely complete."
+    }
+  ],
+  "defaultPrompts": [
+    "Build a small playable Godot game and prove both its win and lose states.",
+    "Debug this Godot project from a reproducible failure and verify the fix independently.",
+    "Prepare this Godot game for release and report export evidence and remaining gates."
+  ],
+  "clients": {
+    "claudeCode": { "manifest": ".claude-plugin/plugin.json" },
+    "codex": { "manifest": ".codex-plugin/plugin.json" },
+    "openCode": { "setupCommand": "godot-agent-loop setup opencode" },
+    "pi": { "extension": "pi/extension.ts" }
+  }
+}

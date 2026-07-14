@@ -40,7 +40,7 @@ automatically.
 
 - **167/167 tools** exercised through the complete MCP-to-Godot path.
 - **358 public actions** traced to resolving tests.
-- **194 full-path MCP E2E tests** in the current Godot 4.7 release candidate.
+- **198 full-path MCP E2E tests** in the current Godot 4.7 release candidate.
 - **81.56% smaller default schema surface**, with all specialized tools still
   available through `godot_tools`.
 - A cold agent built and independently verified a playable win/lose game with
@@ -672,19 +672,20 @@ npm run build
 
 ## Configuration
 
-### Claude Code plugin
+### Portable agent bundle
 
-The repository ships a Claude Code plugin that starts the matching npm MCP
-server and bundles skills for building, verifying, and debugging Godot games:
+The repository ships one neutral bundle that starts the matching npm MCP server
+and provides the same build, debug, verify, and ship skills to Claude Code,
+Codex, OpenCode, and Pi. For Claude Code:
 
 ```text
 /plugin marketplace add beremaran/godot-agent-loop
 /plugin install godot-agent-loop@godot-agent-loop
 ```
 
-For a local checkout, use `claude --plugin-dir ./claude-plugin`. See
-[`docs/claude-code-plugin.md`](docs/claude-code-plugin.md) for the verified
-layout and validation commands.
+For a local checkout, use `claude --plugin-dir ./agent-plugin`. See the
+[portable agent bundle guide](docs/agent-plugin.md) for verified Claude Code,
+Codex, OpenCode, and Pi install paths.
 
 ### Claude Code
 
