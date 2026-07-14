@@ -270,7 +270,9 @@ tool or action.
   compilation, select dummy audio for the headed authoring test, and account
   narrowly for Godot 4.4's fixed-upstream headless-import diagnostics. Move the
   hosted workflow to the current Node 24 action majors so the release run has no
-  forced-runtime deprecation annotations. (The
+  forced-runtime deprecation annotations, and keep an explicitly configured
+  missing Godot path authoritative so missing-binary acceptance cannot silently
+  use a runner-installed fallback. (The
   focused regressions and local Godot 4.4/4.7 suites pass; completion awaits a
   green hosted matrix on the repaired commit.)
 

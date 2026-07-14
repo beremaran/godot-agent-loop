@@ -122,7 +122,13 @@ export async function detectGodotExecutablePath(options: GodotPathDetectionOptio
       logDebug(`Using Godot path from environment: ${environmentPath}`);
       return environmentPath;
     }
-    logDebug('GODOT_PATH environment variable is invalid');
+    // An explicit executable selection is authoritative. Falling through to a
+    // different auto-detected engine makes a stale or deliberately invalid
+    // configuration silently target the wrong binary. GodotServer.run() applies
+    // the strict/compatibility policy after this returns: strict mode exits,
+    // while compatibility mode keeps structured tool failures available.
+    logDebug(`GODOT_PATH environment variable is invalid: ${environmentPath}`);
+    return environmentPath;
   }
 
   const platform = process.platform;
