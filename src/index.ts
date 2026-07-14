@@ -39,6 +39,7 @@ import { EditorConnection } from './editor-connection.js';
 import { EditorPluginInstaller } from './editor-plugin-installer.js';
 import { PRIVILEGED_RUNTIME_GROUPS, type PrivilegedRuntimeGroup } from './runtime-protocol.js';
 import { AuthoringSessionManager } from './authoring-session-manager.js';
+import { EditorMutationGuard } from './editor-mutation-guard.js';
 
 // Check if debug mode is enabled
 const DEBUG_MODE: boolean = process.env.DEBUG === 'true';
@@ -138,6 +139,9 @@ export class GodotServer {
   private readonly headlessOperations: HeadlessOperationService;
   private readonly gameCommands: GameCommandService;
   private readonly editorConnection = new EditorConnection({ port: resolveEditorPort(), secret: RUNTIME_SECRET });
+  private readonly editorMutationGuard = new EditorMutationGuard(
+    (command, params, timeoutMs) => this.editorConnection.send(command, params, timeoutMs),
+  );
   private readonly editorPluginInstaller: EditorPluginInstaller;
   private editorProjectPath: string | null = null;
   private editorPluginOwned = false;
@@ -450,7 +454,7 @@ export class GodotServer {
       game: this.gameToolHandlers,
       lifecycle: this.lifecycleToolHandlers,
       project: this.projectToolHandlers,
-    }));
+    }), (name, args) => this.editorMutationGuard.check(name, args));
 
     this.server.server.setRequestHandler(ListToolsRequestSchema, async () => ({
       tools: toolDefinitions,

@@ -12,6 +12,9 @@ var _port: int = 9091
 var _secret: String = ""
 var _activity_dock: VBoxContainer
 var _activity_list: ItemList
+var _driver_status: Label
+var _driver_pause_button: Button
+var _driver_paused: bool = false
 var _activity_entries: Array[Dictionary] = []
 var _last_filesystem_sync: Dictionary = {}
 const MAX_ACTIVITY_ENTRIES: int = 200
@@ -20,6 +23,7 @@ func _enter_tree() -> void:
 	set_process(true)
 	_port = _read_port()
 	_secret = OS.get_environment("GODOT_MCP_EDITOR_SECRET")
+	_driver_paused = OS.get_environment("GODOT_MCP_EDITOR_START_PAUSED").strip_edges().to_lower() in ["1", "true", "yes"]
 	_server = TCPServer.new()
 	_create_activity_dock()
 	var error: int = _server.listen(_port, "127.0.0.1")
@@ -39,6 +43,8 @@ func _exit_tree() -> void:
 		_activity_dock.queue_free()
 	_activity_dock = null
 	_activity_list = null
+	_driver_status = null
+	_driver_pause_button = null
 
 func _process(_delta: float) -> void:
 	if _server != null and _server.is_connection_available():
@@ -91,6 +97,8 @@ func _dispatch(command: String, raw_params: Variant) -> Dictionary:
 			return _inspect()
 		"activity":
 			return _record_activity(params)
+		"driver_state":
+			return _driver_state()
 		"filesystem_changed":
 			return _sync_filesystem(params)
 		"select":
@@ -121,7 +129,7 @@ func _dispatch(command: String, raw_params: Variant) -> Dictionary:
 			if redo_manager != null: redo_manager.call("redo")
 			return {"success": redo_manager != null, "action": "redo"}
 		_:
-			return {"error": "unknown_command", "allowed": ["inspect", "activity", "filesystem_changed", "select", "save", "reload", "open_scene", "set_property", "rename_node", "undo", "redo"]}
+			return {"error": "unknown_command", "allowed": ["inspect", "activity", "driver_state", "filesystem_changed", "select", "save", "reload", "open_scene", "set_property", "rename_node", "undo", "redo"]}
 
 func _create_activity_dock() -> void:
 	_activity_dock = VBoxContainer.new()
@@ -130,12 +138,36 @@ func _create_activity_dock() -> void:
 	title.text = "Agent Activity"
 	title.tooltip_text = "Live authenticated MCP command lifecycle"
 	_activity_dock.add_child(title)
+	var driver_row := HBoxContainer.new()
+	driver_row.name = "DriverControls"
+	_driver_status = Label.new()
+	_driver_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	driver_row.add_child(_driver_status)
+	_driver_pause_button = Button.new()
+	_driver_pause_button.pressed.connect(_toggle_driver_pause)
+	driver_row.add_child(_driver_pause_button)
+	_activity_dock.add_child(driver_row)
+	_update_driver_controls()
 	_activity_list = ItemList.new()
 	_activity_list.name = "Activity"
 	_activity_list.custom_minimum_size = Vector2(320, 180)
 	_activity_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_activity_dock.add_child(_activity_list)
 	add_control_to_dock(DOCK_SLOT_RIGHT_BL, _activity_dock)
+
+func _toggle_driver_pause() -> void:
+	_driver_paused = not _driver_paused
+	_update_driver_controls()
+
+func _update_driver_controls() -> void:
+	if _driver_status != null:
+		_driver_status.text = "Agent paused — human editing" if _driver_paused else "Agent is driving"
+	if _driver_pause_button != null:
+		_driver_pause_button.text = "Resume Agent" if _driver_paused else "Pause Agent"
+		_driver_pause_button.tooltip_text = "Allow subsequent MCP mutations" if _driver_paused else "Refuse subsequent MCP mutations while you edit"
+
+func _driver_state() -> Dictionary:
+	return {"success": true, "paused": _driver_paused, "agent_driving": not _driver_paused}
 
 func _record_activity(params: Dictionary) -> Dictionary:
 	var event: String = str(params.get("event", ""))
@@ -201,6 +233,7 @@ func _inspect() -> Dictionary:
 		"selection": selected, "open_scenes": open_scenes,
 		"has_undo_redo": interface.call("get_editor_undo_redo") != null,
 		"activity_dock": _activity_dock != null, "activity": _activity_entries.duplicate(true),
+		"driver_paused": _driver_paused, "agent_driving": not _driver_paused,
 		"last_filesystem_sync": _last_filesystem_sync.duplicate(true)}
 
 func _select(params: Dictionary) -> Dictionary:

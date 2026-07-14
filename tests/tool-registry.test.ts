@@ -37,6 +37,26 @@ describe('ToolRegistry', () => {
     expect(() => registry.dispatch('game_click', { x: 'not-a-number' })).toThrow(/Invalid arguments/);
     expect(handler).not.toHaveBeenCalled();
   });
+
+  it('runs preflight after parsing and refuses dispatch when it returns a response', async () => {
+    const handler = vi.fn(async () => ({ content: [] }));
+    const blocked = { content: [{ type: 'text', text: 'paused' }], isError: true };
+    const preflight = vi.fn(async () => blocked);
+    const registry = new ToolRegistry({ game_click: handler }, preflight);
+
+    await expect(registry.dispatch('game_click', { x: 12, y: 34 })).resolves.toBe(blocked);
+    expect(preflight).toHaveBeenCalledWith('game_click', { x: 12, y: 34 });
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it('dispatches when preflight allows the call', async () => {
+    const response = { content: [{ type: 'text', text: 'ok' }] };
+    const handler = vi.fn(async () => response);
+    const registry = new ToolRegistry({ game_click: handler }, async () => undefined);
+
+    await expect(registry.dispatch('game_click', { x: 1, y: 2 })).resolves.toBe(response);
+    expect(handler).toHaveBeenCalledOnce();
+  });
 });
 
 describe('composeToolHandlerRegistries', () => {

@@ -177,6 +177,25 @@ describe('runtime protocol contract', () => {
     expect(plugin).toContain('get_editor_interface().call("edit_node", node)');
   });
 
+  it('publishes the human-controlled cooperative driver lock', () => {
+    const schema = JSON.parse(readFileSync(join(root, 'docs/runtime-api.schema.json'), 'utf8'));
+    const lock = schema['x-runtime-contract'].concurrentEditing;
+    const plugin = readFileSync(join(root, 'src/scripts/mcp_editor_plugin.gd'), 'utf8');
+    const guard = readFileSync(join(root, 'src/editor-mutation-guard.ts'), 'utf8');
+
+    expect(lock).toMatchObject({
+      bridgeCommand: 'driver_state',
+      defaultState: 'agent_driving',
+      absentEditor: 'allow',
+      pausedMutation: 'refuse_before_dispatch',
+    });
+    expect(plugin).toContain('"Pause Agent"');
+    expect(plugin).toContain('"Resume Agent"');
+    expect(plugin).toContain('"paused": _driver_paused');
+    expect(guard).toContain("EDITOR_DRIVER_STATE_COMMAND = 'driver_state'");
+    expect(guard).toContain('isToolCallMutating');
+  });
+
   it('uses the contract namespace for every runtime command method', () => {
     expect(commandMethod('get_scene_tree')).toBe('godot.runtime.get_scene_tree');
   });

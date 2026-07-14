@@ -416,12 +416,21 @@ until that decision is confirmed against a real game.
   the reveal behavior, and `inspect` reports the selection/focus outcome. Unit
   coverage verifies nested add-node path derivation, while headed editor E2E
   proves the newly authored node becomes selected without a separate tool call.)
-- [ ] Resolve concurrent editing. The agent writing a scene while a human holds
+- [x] Resolve concurrent editing. The agent writing a scene while a human holds
   unsaved changes to it loses someone's work, and Godot will not arbitrate. The
   proposed answer is a cooperative "agent is driving" lock in the addon, with a
   pause button that makes the server refuse mutating tools until resumed;
   dirty-buffer detection is more permissive but strands the agent in a state it
-  cannot resolve on its own.
+  cannot resolve on its own. (The **Agent Activity** dock now owns a visible
+  agent-driving / human-editing state with **Pause Agent** and **Resume Agent**
+  controls. Before handler dispatch, the server queries that authenticated state
+  for every deny-by-default mutation classification; paused calls return an
+  actionable MCP error while explicitly allowlisted observations still work.
+  Editor absence allows unattended operation, and an optional start-paused
+  environment setting supports human-first sessions. Contract coverage audits
+  every allowlist exemption against the complete tool/action manifest, while a
+  headed editor E2E proves a paused `add_node` is refused and leaves the scene
+  unchanged.)
 
 Exit criteria: an agent completes a non-trivial game end to end through the MCP
 server, unattended, in a session whose loop latency is dominated by agent thinking

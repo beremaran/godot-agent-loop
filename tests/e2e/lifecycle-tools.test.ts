@@ -268,6 +268,44 @@ describe('project process ownership', () => {
     }
   });
 
+  it('refuses mutations while the editor cooperative lock is paused', async () => {
+    server = await startServer({ extraEnv: { GODOT_MCP_EDITOR_START_PAUSED: 'true' } });
+    try {
+      const launched = await server.call('launch_editor', { projectPath: server.projectPath });
+      expect(launched.isError, launched.text).toBe(false);
+
+      const deadline = Date.now() + 15_000;
+      let inspected: { isError: boolean; text: string } = { isError: true, text: '' };
+      while (Date.now() < deadline) {
+        inspected = await server.call('editor_control', { projectPath: server.projectPath, action: 'inspect' });
+        if (!inspected.isError && JSON.parse(inspected.text).driver_paused === true) break;
+        await new Promise(resolve => setTimeout(resolve, 250));
+      }
+      expect(inspected.isError, inspected.text).toBe(false);
+      expect(JSON.parse(inspected.text)).toMatchObject({ driver_paused: true, agent_driving: false });
+
+      const observed = await server.call('read_file', {
+        projectPath: server.projectPath, filePath: 'main.tscn',
+      });
+      expect(observed.isError, observed.text).toBe(false);
+
+      const refused = await server.call('add_node', {
+        projectPath: server.projectPath, scenePath: 'main.tscn',
+        parentNodePath: 'root', nodeType: 'Node2D', nodeName: 'MustNotBeWritten',
+      });
+      expect(refused.isError).toBe(true);
+      expect(refused.text).toMatch(/mutation refused.*paused.*Resume Agent/is);
+
+      const reread = await server.call('read_file', {
+        projectPath: server.projectPath, filePath: 'main.tscn',
+      });
+      expect(reread.isError, reread.text).toBe(false);
+      expect(reread.text).not.toContain('MustNotBeWritten');
+    } finally {
+      await execFileAsync('pkill', ['-f', server.projectPath]).catch(() => undefined);
+    }
+  });
+
   it('fails run_project cleanly for an invalid project directory', async () => {
     server = await startServer();
     const result = await server.call('run_project', { projectPath: server.root });

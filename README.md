@@ -52,7 +52,11 @@ additions:
   writes also push a FileSystem rescan and reload the affected open scene, so
   the editor reflects agent-authored files without waiting for a focus change.
   When an operation identifies a scene node, the bridge selects and reveals it
-  in the editor so the human view follows the agent's current target.
+  in the editor so the human view follows the agent's current target. The dock's
+  **Pause Agent** button gives the human a cooperative editing lock: subsequent
+  mutating tools are refused before dispatch while inspection remains available;
+  **Resume Agent** returns control. The lock defaults to agent-driving and does
+  not affect unattended use when no editor is open.
 
 ### Runtime Node Inspection & Manipulation
 
@@ -731,6 +735,7 @@ the event name, runtime component, numeric session ID, and timestamp.
 | `DEBUG` | Set to `"true"` for detailed server-side logging. This also runs the headless operations script with `--debug-godot`, which logs diagnostics and writes a temporary write-access probe file into the project (removed again on every branch). Parameter values are summarized by type and size in both logs, never printed. |
 | `GODOT_MCP_ALLOWED_DIRS` | Optional. Restrict `run_project` to projects under these roots (`;`, `,`, or `:` separated). When unset, any project path is allowed. |
 | `GODOT_MCP_RUNTIME_SECRET` | Optional explicit shared runtime secret. The MCP server generates a fresh 256-bit value when omitted and passes it only to Godot processes it launches. Set the same value manually only when connecting to a separately launched runtime. |
+| `GODOT_MCP_EDITOR_START_PAUSED` | Optional, default `false`. Start the editor addon's cooperative lock in human-editing mode so mutating MCP tools are refused until **Resume Agent** is pressed. |
 | `GODOT_MCP_PRIVILEGED_GROUPS` | Optional comma-separated least-privilege grants: `reflection`, `code-execution`, and/or `network`. All are denied by default. |
 | `GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS` | Optional, default `false`. Explicitly enable runtime `eval`, arbitrary property/method access, script control, RPC, HTTP, and WebSocket commands for a trusted localhost developer workflow. |
 
