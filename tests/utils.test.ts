@@ -1,8 +1,8 @@
 // @test-kind: unit
-import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'fs';
+import { mkdtempSync, mkdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
-import { join } from 'path';
-import { afterEach, describe, it, expect } from 'vitest';
+import { join, relative } from 'path';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import {
   PARAMETER_MAPPINGS,
   REVERSE_PARAMETER_MAPPINGS,
@@ -242,6 +242,50 @@ describe('PathSecurity', () => {
 
     expect(security.resolveProjectPath(project, 'linked-outside/secret.gd')).toBeNull();
     expect(security.isRelativePathAllowed(project, 'linked-outside/secret.gd')).toBe(false);
+  });
+
+  it('exposes one canonical namespace for project-relative calculations', () => {
+    const workspace = makeTemporaryDirectory();
+    const realRoot = join(workspace, 'real-root');
+    const project = join(realRoot, 'project');
+    const linkedRoot = join(workspace, 'linked-root');
+    mkdirSync(project, { recursive: true });
+    writeFileSync(join(project, 'project.godot'), '');
+    symlinkSync(realRoot, linkedRoot);
+
+    const linkedProject = join(linkedRoot, 'project');
+    const security = new PathSecurity([linkedRoot]);
+    const canonicalProject = security.canonicalProjectPath(linkedProject);
+    const resolvedScript = security.resolveProjectPath(linkedProject, 'scripts/player.gd');
+
+    expect(canonicalProject).toBe(realpathSync(project));
+    expect(relative(canonicalProject!, resolvedScript!)).toBe(join('scripts', 'player.gd'));
+
+    const otherRoot = join(workspace, 'other-root');
+    mkdirSync(join(otherRoot, 'project'), { recursive: true });
+    rmSync(linkedRoot);
+    symlinkSync(otherRoot, linkedRoot);
+
+    const resolvedAfterRetarget = security.resolveProjectPath(canonicalProject!, 'scripts/player.gd');
+    expect(relative(canonicalProject!, resolvedAfterRetarget!)).toBe(join('scripts', 'player.gd'));
+    expect(resolvedAfterRetarget).not.toContain(otherRoot);
+  });
+
+  it('authorizes the same single resolution that canonicalProjectPath returns', () => {
+    const workspace = makeTemporaryDirectory();
+    const allowedRoot = join(workspace, 'allowed');
+    const project = join(allowedRoot, 'project');
+    const outsideProject = join(workspace, 'outside-project');
+    mkdirSync(project, { recursive: true });
+    mkdirSync(outsideProject);
+
+    const resolver = vi.fn()
+      .mockReturnValueOnce(realpathSync(allowedRoot))
+      .mockReturnValueOnce(realpathSync(outsideProject));
+    const security = new PathSecurity([allowedRoot], resolver);
+
+    expect(security.canonicalProjectPath(project)).toBeNull();
+    expect(resolver).toHaveBeenCalledTimes(2);
   });
 });
 

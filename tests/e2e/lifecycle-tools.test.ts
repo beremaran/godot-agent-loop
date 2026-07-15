@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport, getDefaultEnvironment } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { createTempProject, repoRoot, startServer, type E2EServer } from './helpers/harness.js';
+import { createTempProject, findProcesses, repoRoot, startServer, type E2EServer } from './helpers/harness.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -275,12 +275,8 @@ describe('project process ownership', () => {
       const deadline = Date.now() + 15_000;
       let seen = false;
       while (!seen && Date.now() < deadline) {
-        try {
-          const { stdout } = await execFileAsync('pgrep', ['-af', server.projectPath]);
-          seen = stdout.split('\n').some(line => line.includes('-e'));
-        } catch {
-          // No match yet.
-        }
+        const processes = await findProcesses(server.projectPath);
+        seen = processes.some(line => /(?:^|\s)-e(?:\s|$)/.test(line));
         if (!seen) await new Promise(resolve => setTimeout(resolve, 250));
       }
       expect(seen, 'no editor process appeared').toBe(true);

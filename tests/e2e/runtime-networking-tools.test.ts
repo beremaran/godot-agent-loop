@@ -66,6 +66,11 @@ async function startWebSocketFixture(): Promise<{
     let buffer = Buffer.alloc(0);
     let upgraded = false;
     socket.on('close', () => sockets.delete(socket));
+    // macOS reports a peer disappearing during fixture teardown as ECONNRESET.
+    // The protocol assertions already prove active socket failures; teardown
+    // must still consume the socket error event so Node does not treat it as an
+    // uncaught exception after the test has completed.
+    socket.on('error', () => sockets.delete(socket));
     socket.on('data', chunk => {
       buffer = Buffer.concat([buffer, chunk]);
       if (!upgraded) {

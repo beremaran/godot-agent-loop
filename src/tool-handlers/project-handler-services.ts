@@ -156,11 +156,13 @@ export class ScriptValidationService {
     if (!args.projectPath || !args.scriptPath) return createErrorResponse('projectPath and scriptPath are required.');
     if (!validProject(this.context, args.projectPath) || !validatePath(args.scriptPath)) return createErrorResponse('Invalid path.');
     if (!/\.gd$/i.test(args.scriptPath)) return createErrorResponse('validate_script only checks GDScript (.gd) files.');
-    const scriptPath = projectRelativePath(this.context, args.projectPath, args.scriptPath);
+    const projectPath = this.context.pathSecurity.canonicalProjectPath(args.projectPath);
+    if (!projectPath) return createErrorResponse('Invalid path.');
+    const scriptPath = projectRelativePath(this.context, projectPath, args.scriptPath);
     if (!existsSync(scriptPath)) return createErrorResponse(`Script does not exist: ${args.scriptPath}`);
     if (!this.context.executable.path) await this.context.executable.detect();
     if (!this.context.executable.path) return createErrorResponse('Could not find a valid Godot executable path');
-    const check = await this.context.projectSupport.runGdScriptCheck(args.projectPath, scriptPath);
+    const check = await this.context.projectSupport.runGdScriptCheck(projectPath, scriptPath);
     if (!check.completed) return createErrorResponse(`validate_script could not check the script; ${check.error}`);
     return { content: [{ type: 'text', text: JSON.stringify({ valid: check.errors.length === 0, scriptPath: args.scriptPath, errorCount: check.errors.length, errors: check.errors }, null, 2) }] };
   }
