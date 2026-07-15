@@ -2,11 +2,11 @@
   "$schema": "../docs/agent-adapter.schema.json",
   "name": "godot-agent-loop",
   "displayName": "Godot Agent Loop",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Build, playtest, and prove Godot games with an MCP automation loop.",
   "package": "@beremaran/godot-agent-loop",
   "mcp": {
-    "command": ["npx", "-y", "@beremaran/godot-agent-loop@1.1.0"],
+    "command": ["npx", "-y", "@beremaran/godot-agent-loop@1.1.1"],
     "environment": {
       "GODOT_MCP_TOOL_SURFACE": "compact"
     },

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-07-16
+
+### Packaging
+
+- Keep the generated Godot extension API audit cache outside the shipped
+  `build/` tree so npm publication produces the same bounded package contents
+  as the deterministic release candidate.
+
 ## [1.1.0] - 2026-07-16
 
 ### Editor-native workflow
@@ -73,7 +81,8 @@ identity. Full release notes: [`docs/releases/1.0.0.md`](docs/releases/1.0.0.md)
 - Runtime connections are authenticated with a per-session secret; transports
   bind to loopback and retained logs are bounded and redacted.
 
-[Unreleased]: https://github.com/beremaran/godot-agent-loop/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/beremaran/godot-agent-loop/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/beremaran/godot-agent-loop/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/beremaran/godot-agent-loop/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/beremaran/godot-agent-loop/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/beremaran/godot-agent-loop/releases/tag/v1.0.0
