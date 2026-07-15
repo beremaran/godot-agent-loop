@@ -2,7 +2,7 @@
 import { mkdtempSync, mkdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join, relative } from 'path';
-import { afterEach, describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import {
   PARAMETER_MAPPINGS,
   REVERSE_PARAMETER_MAPPINGS,
@@ -269,6 +269,23 @@ describe('PathSecurity', () => {
     const resolvedAfterRetarget = security.resolveProjectPath(canonicalProject!, 'scripts/player.gd');
     expect(relative(canonicalProject!, resolvedAfterRetarget!)).toBe(join('scripts', 'player.gd'));
     expect(resolvedAfterRetarget).not.toContain(otherRoot);
+  });
+
+  it('authorizes the same single resolution that canonicalProjectPath returns', () => {
+    const workspace = makeTemporaryDirectory();
+    const allowedRoot = join(workspace, 'allowed');
+    const project = join(allowedRoot, 'project');
+    const outsideProject = join(workspace, 'outside-project');
+    mkdirSync(project, { recursive: true });
+    mkdirSync(outsideProject);
+
+    const resolver = vi.fn()
+      .mockReturnValueOnce(realpathSync(allowedRoot))
+      .mockReturnValueOnce(realpathSync(outsideProject));
+    const security = new PathSecurity([allowedRoot], resolver);
+
+    expect(security.canonicalProjectPath(project)).toBeNull();
+    expect(resolver).toHaveBeenCalledTimes(2);
   });
 });
 

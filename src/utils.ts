@@ -101,7 +101,10 @@ export class PathSecurity {
   private readonly allowedRoots: string[];
   private readonly supportsRealpath = Object.keys(fs).includes('realpathSync');
 
-  constructor(allowedRoots?: string[]) {
+  constructor(
+    allowedRoots?: string[],
+    private readonly realpathResolver?: (target: string) => string,
+  ) {
     const configured = allowedRoots ?? (process.env.GODOT_MCP_ALLOWED_DIRS || '')
       .split(process.platform === 'win32' ? /[;,]/ : /[:,]/)
       .map(value => value.trim())
@@ -135,8 +138,9 @@ export class PathSecurity {
 
   /** Return the allowed project's real path for relative-path calculations. */
   canonicalProjectPath(projectPath: string): string | null {
-    if (!fs.existsSync(projectPath) || !this.isProjectPathAllowed(projectPath)) return null;
-    return this.realpathWithFallback(projectPath);
+    if (!validatePath(projectPath) || !fs.existsSync(projectPath)) return null;
+    const canonical = this.realpathWithFallback(projectPath);
+    return this.isWithinAllowedRoots(canonical) ? canonical : null;
   }
 
   isRelativePathAllowed(projectPath: string, relativePath: string): boolean {
@@ -155,6 +159,7 @@ export class PathSecurity {
   private realpathWithFallback(target: string): string {
     const absolute = resolve(target);
     if (fs.existsSync(absolute)) {
+      if (this.realpathResolver) return this.realpathResolver(absolute);
       const mockedRealpath = (Object.keys(fs).includes('realpathSync'))
         ? fs.realpathSync as typeof fs.realpathSync & { native?: typeof fs.realpathSync }
         : undefined;
