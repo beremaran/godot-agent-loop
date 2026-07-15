@@ -23,12 +23,12 @@ context.
 
 ## Decision
 
-The default is a static 39-tool core plus `godot_tools`, which can search,
-describe, and call every entry in the complete catalog. This requires only the
-universally usable tools primitive and keeps discovery functional even when a
-client ignores resources and dynamic-list notifications. The full static catalog
-remains available with `GODOT_MCP_TOOL_SURFACE=full` for clients with native tool
-search or workflows that require exact legacy discovery.
+The default is a static 39-tool core that includes `godot_tools`, which can
+search, describe, and call every entry in the complete catalog. This requires
+only the universally usable tools primitive and keeps discovery functional even
+when a client ignores resources and dynamic-list notifications. The full static
+catalog remains available with `GODOT_MCP_TOOL_SURFACE=full` for clients with
+native tool search or workflows that require exact legacy discovery.
 
 Dynamic list changes are not needed because the visible set never changes during
 a connection. Resources may later carry long reference material, but no required

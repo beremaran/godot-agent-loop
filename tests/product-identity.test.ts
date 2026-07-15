@@ -34,7 +34,7 @@ describe('Godot Agent Loop product identity', () => {
     expect(product).toMatchObject({
       name: 'Godot Agent Loop',
       tagline: 'Build it. Play it. Prove it.',
-      category: 'An evidence-first MCP automation loop for Godot 4',
+      category: 'An MCP automation loop for Godot 4',
       version: '1.0.0',
       repository: { url: 'https://github.com/beremaran/godot-agent-loop' },
       npm: { package: '@beremaran/godot-agent-loop', binary: 'godot-agent-loop' },

@@ -1,7 +1,7 @@
 {
   "name": "@beremaran/godot-agent-loop",
   "version": "1.0.0",
-  "description": "Evidence-first MCP automation loop with 167 tested tools for Godot 4",
+  "description": "MCP automation loop with 167 tested tools for Godot 4",
   "keywords": [
     "godot",
     "mcp",
@@ -12,7 +12,6 @@
     "gdscript",
     "runtime",
     "agent-workflows",
-    "evidence-first",
     "model-context-protocol",
     "pi-package"
   ],

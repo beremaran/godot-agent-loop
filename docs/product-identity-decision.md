@@ -36,7 +36,7 @@ identity decision.
 | --- | --- |
 | Product | **Godot Agent Loop** |
 | Tagline | **Build it. Play it. Prove it.** |
-| Category | **An evidence-first MCP automation loop for Godot 4** |
+| Category | **An MCP automation loop for Godot 4** |
 | Repository | `beremaran/godot-agent-loop` |
 | npm package | `@beremaran/godot-agent-loop` |
 | MCP Registry name | `io.github.beremaran/godot-agent-loop` |

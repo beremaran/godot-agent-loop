@@ -1,7 +1,7 @@
 {
   "name": "godot-agent-loop",
   "version": "1.0.0",
-  "description": "Build, playtest, and prove Godot games with an evidence-first MCP automation loop.",
+  "description": "Build, playtest, and prove Godot games with an MCP automation loop.",
   "author": {
     "name": "Berke Arslan",
     "url": "https://github.com/beremaran"
@@ -19,7 +19,7 @@
   "interface": {
     "displayName": "Godot Agent Loop",
     "shortDescription": "Build, playtest, and prove Godot games",
-    "longDescription": "Build, playtest, and prove Godot games with an evidence-first MCP automation loop.",
+    "longDescription": "Build, playtest, and prove Godot games with an MCP automation loop.",
     "developerName": "Berke Arslan",
     "category": "Developer Tools",
     "capabilities": [

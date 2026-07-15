@@ -92,7 +92,7 @@ describe('portable agent plugin package', () => {
     expect(parseSkillFrontmatter(frontmatter.join('\r\n'), expected.name)).toEqual(expected);
   });
 
-  it('keeps build, debug, verify, and shipping workflows evidence-first', () => {
+  it('requires verification evidence in build, debug, verify, and shipping workflows', () => {
     const build = skill('build-godot-game');
     expect(build.indexOf('1. Inspect before writing.')).toBeLessThan(build.indexOf('2. Author the smallest complete game.'));
     expect(build).toContain('`verify_project`');

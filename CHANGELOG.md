@@ -14,7 +14,7 @@ identity. Full release notes: [`docs/releases/1.0.0.md`](docs/releases/1.0.0.md)
 
 ### Added
 
-- Evidence-first MCP automation loop for Godot 4 with 167 tools exercised
+- MCP automation loop for Godot 4 with 167 tools exercised
   through the complete MCP-to-Godot path and 358 traced public actions.
 - Compact 39-tool default surface (81.56% smaller by schema bytes) with the full
   catalog reachable through the `godot_tools` meta-tool.

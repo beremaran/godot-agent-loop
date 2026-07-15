@@ -97,7 +97,7 @@ const codexPlugin = {
 const claudeMarketplace = {
   name: manifest.name,
   owner: { name: 'Berke Arslan' },
-  description: 'Evidence-first Godot game-development tools and agent workflows.',
+  description: 'Godot game-development tools and agent workflows.',
   plugins: [{
     name: manifest.name,
     source: './agent-plugin',

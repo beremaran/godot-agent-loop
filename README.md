@@ -1,57 +1,58 @@
-
 # Godot Agent Loop
 
 **Build it. Play it. Prove it.**
 
-An evidence-first MCP automation loop for Godot 4.
+An MCP automation loop for Godot 4.
 
-[![MCP Server](https://badge.mcpx.dev?type=server 'MCP Server')](https://modelcontextprotocol.io/introduction)
-[![Made with Godot](https://img.shields.io/badge/Made%20with-Godot-478CBF?style=flat&logo=godot%20engine&logoColor=white)](https://godotengine.org)
-[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white 'TypeScript')](https://www.typescriptlang.org/)
-[![MIT License](https://img.shields.io/badge/License-MIT-red.svg 'MIT License')](https://opensource.org/licenses/MIT)
-
-Other integrations give agents tools. Godot Agent Loop gives them a tested
-feedback loop to author, run, observe, playtest, and independently verify Godot
-games.
-
-[![Watch the 65-second cold-agent proof](assets/demo/godot-agent-loop-launch-poster.png)](assets/demo/godot-agent-loop-launch.mp4)
-
-[Watch the 65-second proof](assets/demo/godot-agent-loop-launch.mp4) ·
-[Read the exact run evidence](docs/launch/launch-evidence.md) ·
-[Inspect the resulting project](examples/launch-demo)
-
+[![npm version](https://img.shields.io/npm/v/%40beremaran%2Fgodot-agent-loop)](https://www.npmjs.com/package/@beremaran/godot-agent-loop)
+[![Godot integration tests](https://github.com/beremaran/godot-agent-loop/actions/workflows/godot-integration.yml/badge.svg)](https://github.com/beremaran/godot-agent-loop/actions/workflows/godot-integration.yml)
 <!-- generated-coverage-badge:start -->
 [![E2E tools: 167/167](https://img.shields.io/badge/E2E_tools-167%2F167-brightgreen)](docs/coverage/coverage-report.md)
 <!-- generated-coverage-badge:end -->
+[![MCP Server](https://badge.mcpx.dev?type=server 'MCP Server')](https://modelcontextprotocol.io/introduction)
+[![Made with Godot](https://img.shields.io/badge/Made%20with-Godot-478CBF?style=flat&logo=godot%20engine&logoColor=white)](https://godotengine.org)
+[![MIT License](https://img.shields.io/badge/License-MIT-blue.svg 'MIT License')](LICENSE)
 
-## Start the loop
-
-```bash
-claude mcp add godot-agent-loop -- npx -y @beremaran/godot-agent-loop@1.0.0
-```
-
-Then point the agent at a project directory—or an empty directory—and describe
-the playable result. The server teaches and supports this loop:
+Other integrations give agents tools. Godot Agent Loop gives them a tested
+feedback loop to author, run, observe, playtest, and independently verify Godot
+games:
 
 ```text
 author → validate → run → observe → playtest → verify → refine
 ```
 
-The compact default surface exposes 39 tools for that loop. `godot_tools`
-searches, describes, and dispatches the specialized catalog only when needed.
-Runtime and editor bridges are installed transiently and cleaned up
-automatically.
+[![Watch the 65-second cold-agent demo](assets/demo/godot-agent-loop-launch-poster.png)](assets/demo/godot-agent-loop-launch.mp4)
+
+<img src="assets/demo/launch-playing.png" alt="Agent-built game during play" width="32%"> <img src="assets/demo/launch-win.png" alt="Win screen" width="32%"> <img src="assets/demo/launch-lose.png" alt="Lose screen" width="32%">
+
+[Watch the 65-second demo](assets/demo/godot-agent-loop-launch.mp4) ·
+[Read the exact run evidence](docs/launch/launch-evidence.md) ·
+[Inspect the resulting project](examples/launch-demo)
+
+## Quickstart
+
+```bash
+claude mcp add godot-agent-loop -- npx -y @beremaran/godot-agent-loop
+```
+
+Then point the agent at a project directory—or an empty directory—and describe
+the playable result. The compact default surface exposes 39 tools for the loop
+above; the `godot_tools` meta-tool searches, describes, and dispatches the full
+167-tool catalog on demand. Runtime and editor bridges are installed
+transiently and cleaned up automatically.
+
+Using Cline, Cursor, or another MCP client? See
+[Configuration](#configuration).
 
 ## Proof before claims
 
-- **167/167 tools** exercised through the complete MCP-to-Godot path.
-- **358 public actions** traced to resolving tests.
-- **201 full-path MCP E2E tests** in the current Godot 4.7 release candidate.
-- **81.56% smaller default schema surface**, with all specialized tools still
-  available through `godot_tools`.
+- **167/167 tools** exercised through the complete MCP-to-Godot path, with
+  **358 public actions** traced to resolving tests; see the generated
+  [coverage report](docs/coverage/coverage-report.md).
+- **201 full-path MCP E2E tests** run against real Godot builds in CI.
 - A cold agent built and independently verified a playable win/lose game with
-  zero human corrections in 391.795 seconds using 103 MCP calls and no built-in
-  tools; see the [launch evidence](docs/launch/launch-evidence.md) and
+  zero human corrections, in under seven minutes, using 103 MCP calls and no
+  built-in tools; see the [launch evidence](docs/launch/launch-evidence.md) and
   [deterministic acceptance record](docs/golden-agent-acceptance.md).
 - Privileged reflection, code execution, and networking groups are denied by
   default, and the editor provides a human **Pause Agent** control.
@@ -60,584 +61,51 @@ Support is deliberately bounded: Godot 4.4 is the compatibility floor and 4.7
 the primary target; editor UI/rendering depth is verified on Linux, while
 Windows and macOS receive the documented portable acceptance path. Full
 debugger automation, native extension builds, and unbounded engine control are
-not claimed.
-
-## Release 1.0
-
-Godot Agent Loop 1.0 turns the inherited tool server into one coherent product
-for agent-driven game development:
-
-- **.NET / C# support** - Scaffold C# projects and generate C# scripts (`create_project` with `dotnet: true`, `create_csharp_script`); the `.csproj` SDK version is matched to your installed Godot.
-- **GDScript diagnostics** - Validate scripts for syntax and type errors without running the game (`validate_script`, and `validate_scripts` for all git-changed or project-wide files).
-- **Progressive tool discovery** - A compact default build/run/observe surface
-  keeps selection tractable. Use `godot_tools` to search, describe, and call any
-  specialized tool on demand; set `GODOT_MCP_TOOL_SURFACE=full` for the complete
-  static catalog.
-- **Correctness and robustness fixes** across the headless scene operations and the runtime interaction server (resource-typed properties now persist, reparenting works, runtime commands are correlated by request id, and the tools survive projects with warnings-as-errors). Godot **4.7** is recommended; Godot 4.4 remains the tested compatibility floor.
-
-### Runtime Code Execution
-
-- **`game_eval`** - Execute arbitrary GDScript code in the running game with return values
-- Full `await` support for async GDScript code
-- Works even when the game is paused (`PROCESS_MODE_ALWAYS`)
-
-### Editor state and undo/redo
-
-- **`editor_control`** - Inspect the edited scene and selection, open/save/reload
-  scenes, and apply reversible property or node-name edits through
-  `EditorUndoRedoManager`. `launch_editor` installs the authenticated bridge
-  for the lifetime of the MCP-owned editor session. Its **Agent Activity** dock
-  shows each command's target, live outcome, and duration from the same
-  correlated lifecycle events used by server diagnostics. Successful session
-  writes also push a FileSystem rescan and reload the affected open scene, so
-  the editor reflects agent-authored files without waiting for a focus change.
-  When an operation identifies a scene node, the bridge selects and reveals it
-  in the editor so the human view follows the agent's current target. The dock's
-  **Pause Agent** button gives the human a cooperative editing lock: subsequent
-  mutating tools are refused before dispatch while inspection remains available;
-  **Resume Agent** returns control. The lock defaults to agent-driving and does
-  not affect unattended use when no editor is open.
-
-### Runtime Node Inspection & Manipulation
-
-- **`game_get_property`** / **`game_set_property`** - Read/write any property on any node by path
-- **`game_call_method`** - Call any method on any node with arguments
-- **`game_get_node_info`** - Full node introspection: properties, signals, methods, children
-- **`game_instantiate_scene`** - Dynamically add scenes to the running game
-- **`game_remove_node`** - Remove nodes at runtime
-- **`game_change_scene`** - Switch scenes at runtime
-- **`game_reparent_node`** - Move nodes between parents
-
-### Signal System
-
-- **`game_connect_signal`** - Wire up signal connections at runtime
-- **`game_disconnect_signal`** - Remove signal connections
-- **`game_emit_signal`** - Emit signals with arguments
-
-### Animation & Tweening
-
-- **`game_play_animation`** - Control AnimationPlayer (play, stop, pause, list)
-- **`game_tween_property`** - Smooth property animation with configurable easing
-
-### Game Control & Debugging
-
-- **`game_pause`** - Pause/unpause the game
-- **`game_performance`** - FPS, frame time, memory, object counts, draw calls,
-  bounded profiler sessions, and live orphan-node diagnostics
-- **`game_wait`** - Wait N frames (timing-sensitive operations)
-- **`game_get_nodes_in_group`** - Query nodes by group
-- **`game_find_nodes_by_class`** - Find all nodes of a specific class
-
-### Scene Authoring Operations (No Running Game Needed)
-
-- **`read_scene`** - Parse any .tscn file and get full node tree with properties as JSON
-- **`modify_scene_node`** - Change node properties in scene files
-- **`remove_scene_node`** - Remove nodes from scene files
-- **`attach_script`** - Attach GDScript files to nodes in scenes
-- **`create_resource`** - Create .tres resource files (materials, themes, etc.)
-
-### Project Management
-
-- **`read_project_settings`** - Parse project.godot as structured JSON
-- **`modify_project_settings`** - Change project settings programmatically
-- **`list_project_files`** - Paginate project files with extension/subdirectory filters
-- **`run_project_tests`** - Discover or run native, GUT, and GdUnit4 tests with structured results
-- **`manage_import_pipeline`** - Inspect/change import metadata, synchronously reimport, and trace imported files
-- **`analyze_project_integrity`** - Find dependency/integrity defects and preview rename impact without mutation
-- **`verify_export_readiness`** - Validate templates/presets, export, inspect artifacts, and smoke-run supported builds
-- **`verify_dotnet_project`** - Detect managed prerequisites, restore/build, report diagnostics, and run C# projects
-- **`manage_addon`** - Install and manage hash-pinned local EditorPlugins with rollback and reload validation
-
-### File I/O
-
-- **`read_file`** / **`write_file`** / **`delete_file`** - Full file system access within Godot projects
-- **`create_directory`** - Create directory structures for scripts, scenes, assets
-
-### Error & Log Capture
-
-- **`game_get_errors`** - Get new push_error/push_warning messages since last call
-- **`game_get_logs`** - Get new print output from the running game since last call
-
-### Enhanced Input
-
-- **`game_key_hold`** / **`game_key_release`** - Hold keys down for movement testing (WASD etc.)
-- **`game_scroll`** - Mouse scroll wheel events
-- **`game_mouse_drag`** - Drag between two points over multiple frames
-- **`game_gamepad`** - Gamepad button and axis input events
-
-### Project Creation & Configuration
-
-- **`create_project`** - Create a new Godot project from scratch (pass `dotnet: true` to scaffold a .NET/C# project)
-- **`create_csharp_script`** - Create a C# script in a Godot .NET project
-- **`manage_autoloads`** - Add, remove, or list autoloads
-- **`manage_input_map`** - Add, remove, or list input actions and key bindings
-- **`manage_export_presets`** - Create or modify export preset configuration
-
-### .NET / C# Support
-
-- **`create_project`** with `dotnet: true` - Scaffold a Godot .NET project (`.csproj` with `Godot.NET.Sdk` matched to your Godot version, plus the `"C#"` feature flag)
-- **`create_csharp_script`** - Generate an idiomatic C# script (partial class, correct `_Ready`/`_Process` override signatures); the class name is kept in sync with the file name so Godot can attach it
-- **`get_project_info`** reports an `isDotnet` field
-
-### GDScript Diagnostics
-
-- **`validate_script`** - Check a single GDScript file for syntax and type errors headlessly, returning `{ valid, errors: [{ message, file, line }] }`
-- **`validate_scripts`** - Batch-validate all git-changed `.gd` files (or the whole project), so an agent can verify its edits before running the game
-
-### Camera, Physics & Audio
-
-- **`game_get_camera`** / **`game_set_camera`** - Query and control 2D/3D cameras
-- **`game_raycast`** - Cast physics rays (auto-detects 2D vs 3D)
-- **`game_get_audio`** - Get audio bus layout and playing streams
-- **`game_spawn_node`** - Create any node type at runtime with properties
-- **`game_set_shader_param`** - Set shader parameters on materials
-- **`game_audio_play`** / **`game_audio_bus`** - Full audio playback and bus control
-- **`game_navigate_path`** - Query navigation paths (2D/3D)
-- **`game_tilemap`** - Get/set TileMapLayer cells
-- **`game_add_collision`** - Add collision shapes to physics bodies
-- **`game_environment`** - Configure post-processing (fog, glow, SSAO, tonemap, etc.)
-- **`game_manage_group`** - Add/remove nodes from groups
-- **`game_create_timer`** - Create timer nodes programmatically
-- **`game_set_particles`** - Configure GPUParticles2D/3D properties and process materials
-- **`game_create_animation`** - Create animations with value/method/bezier/audio tracks and keyframes
-- **`export_project`** - Trigger headless project export builds (CI/CD ready)
-- **`game_serialize_state`** - Save/load entire node tree state as JSON
-- **`game_physics_body`** - Configure mass, velocity, damping, friction, bounce
-- **`game_create_joint`** - Create physics joints (pin, spring, hinge, cone, slider)
-- **`game_bone_pose`** - Get/set skeleton bone poses for character animation
-- **`game_ui_theme`** - Apply color, constant, and font size theme overrides
-- **`game_viewport`** - Create/configure SubViewport nodes
-- **`game_debug_draw`** - Draw debug geometry (lines, spheres, boxes)
-
-### Networking
-
-- **`game_http_request`** - HTTP GET/POST/PUT/DELETE with headers and body
-- **`game_websocket`** - WebSocket client connect/disconnect/send messages
-- **`game_multiplayer`** - ENet multiplayer create server/client/disconnect
-- **`game_rpc`** - Call or configure RPC methods on nodes
-
-### System & Window Control
-
-- **`game_script`** - Attach, detach, or get source of node scripts at runtime
-- **`game_window`** - Get/set window size, fullscreen, title, position
-- **`game_os_info`** - Get platform, locale, screen, adapter, memory info
-- **`game_time_scale`** - Get/set Engine.time_scale and timing info
-- **`game_process_mode`** - Set node process mode (pausable/always/disabled)
-- **`game_world_settings`** - Get/set gravity, physics FPS, and world settings
-
-### Advanced Signals & Input
-
-- **`game_list_signals`** - List all signals on a node with connections
-- **`game_await_signal`** - Await a signal with timeout and return args
-- **`game_touch`** - Simulate touch press/release/drag and gestures
-- **`game_input_state`** - Query pressed keys, mouse position, connected pads
-- **`game_input_action`** - Manage runtime InputMap actions and strength
-
-### 3D Rendering & Geometry
-
-- **`game_csg`** - Create/configure CSG nodes with boolean operations
-- **`game_multimesh`** - Create/configure MultiMeshInstance3D for instancing
-- **`game_procedural_mesh`** - Generate meshes via ArrayMesh from vertex data
-- **`game_light_3d`** - Create/configure 3D lights (directional/omni/spot)
-- **`game_mesh_instance`** - Create MeshInstance3D with primitive meshes
-- **`game_gridmap`** - GridMap set/get/clear cells and query used cells
-- **`game_3d_effects`** - Create ReflectionProbe, Decal, or FogVolume
-- **`game_gi`** - Create/configure VoxelGI or LightmapGI
-- **`game_path_3d`** - Create Path3D/Curve3D and manage curve points
-- **`game_sky`** - Create/configure Sky with procedural/physical sky
-- **`game_camera_attributes`** - Configure DOF, exposure, auto-exposure on camera
-- **`game_navigation_3d`** - Create/configure NavigationRegion3D and bake
-- **`game_physics_3d`** - Area3D queries and point/shape intersection tests
-
-### 2D Systems
-
-- **`game_canvas`** - Create/configure CanvasLayer and CanvasModulate
-- **`game_canvas_draw`** - 2D drawing: line/rect/circle/polygon/text/clear
-- **`game_light_2d`** - Create/configure 2D lights and light occluders
-- **`game_parallax`** - Create/configure ParallaxBackground and layers
-- **`game_shape_2d`** - Line2D/Polygon2D point manipulation
-- **`game_path_2d`** - Path2D/Curve2D management and AnimatedSprite2D
-- **`game_physics_2d`** - Area2D queries and 2D point/shape intersections
-
-### Advanced Animation
-
-- **`game_animation_tree`** - AnimationTree state machine travel and params
-- **`game_animation_control`** - AnimationPlayer seek/queue/speed/info control
-- **`game_skeleton_ik`** - SkeletonIK3D start/stop/set target position
-
-### Advanced Audio
-
-- **`game_audio_effect`** - Add/remove/configure audio bus effects
-- **`game_audio_bus_layout`** - Create/remove/reorder audio buses and routing
-- **`game_audio_spatial`** - Configure AudioStreamPlayer3D spatial properties
-
-### Editor & Project Tools
-
-- **`rename_file`** - Rename or move a file within the project
-- **`manage_resource`** - Read or modify .tres/.res resource files
-- **`create_script`** - Create a GDScript file from a template
-- **`validate_script`** - Check a GDScript file for syntax/type errors headlessly (no run needed)
-- **`validate_scripts`** - Batch-check GDScript files: git-changed ones by default, or all
-- **`manage_scene_signals`** - List/add/remove signal connections in .tscn files
-- **`manage_layers`** - List/set named layer definitions in project
-- **`manage_plugins`** - List/enable/disable editor plugins
-- **`manage_shader`** - Create or read .gdshader files
-- **`manage_theme_resource`** - Create/read/modify Theme .tres resources
-- **`set_main_scene`** - Set the main scene in project.godot
-- **`manage_scene_structure`** - Rename/duplicate/move nodes within .tscn scenes
-- **`manage_translations`** - List/add/remove translation files in project
-- **`game_locale`** - Set/get locale and translate strings at runtime
-
-### UI Controls
-
-- **`game_ui_control`** - Set focus, anchors, tooltip, mouse filter on Control
-- **`game_ui_text`** - LineEdit/TextEdit/RichTextLabel text operations
-- **`game_ui_popup`** - Show/hide/popup for Popup/Dialog/Window nodes
-- **`game_ui_tree`** - Tree control: get/select/collapse/add/remove items
-- **`game_ui_item_list`** - ItemList/OptionButton: get/select/add/remove items
-- **`game_ui_tabs`** - TabContainer/TabBar: get/set current tab
-- **`game_ui_menu`** - PopupMenu/MenuBar: add/remove/get menu items
-- **`game_ui_range`** - ProgressBar/Slider/SpinBox/ColorPicker get/set
-
-### Rendering & Resources
-
-- **`game_render_settings`** - Get/set MSAA, FXAA, TAA, scaling mode/scale
-- **`game_resource`** - Runtime resource load, save, or preload
-
-### Robustness Improvements
-
-- **Reentrancy guard** - Prevents concurrent command processing during async operations
-- **Full type conversion** - Supports Vector2/3, Color, Quaternion, Basis, Transform2D/3D, AABB, Rect2, and all packed array types
-- **Smart property type detection** - Uses node's `get_property_list()` for automatic type conversion
-- **PackedArray serialization** - Proper JSON arrays instead of string fallback
-- **Graceful error handling** - Scene read fallback to raw .tscn text on missing dependencies
-
-## Tool inventory
-
-### Project Management (14 tools)
-
-| Tool | Description |
-| ------ | ------------- |
-| `launch_editor` | Launch Godot editor for a project |
-| `run_project` | Run a Godot project and capture output |
-| `verify_project` | Run, assert bounded runtime evidence, optionally capture, and tear down |
-| `run_project_tests` | Discover or run native, GUT, and GdUnit4 tests with structured cases and logs |
-| `manage_import_pipeline` | Inspect/change importer settings, reimport, and query generated dependencies |
-| `analyze_project_integrity` | Analyze resource graphs and preview non-mutating rename impact |
-| `verify_export_readiness` | Validate export prerequisites and return artifact plus smoke-run evidence |
-| `verify_dotnet_project` | Inspect, restore, build, and run against the matching Godot.NET.Sdk |
-| `manage_addon` | Inspect/install/update/remove and toggle hash-pinned local EditorPlugins |
-| `stop_project` | Stop the running project |
-| `get_debug_output` | Get console output and errors |
-| `get_godot_version` | Get installed Godot version |
-| `list_projects` | Find Godot projects in a directory |
-| `get_project_info` | Get project metadata |
-
-Import changes require an editor-capable Godot binary. `reimport` runs Godot's
-bounded `--import` workflow and returns diagnostics; it may rewrite `.import`
-metadata and `.godot/imported` cache files. Integrity analysis is read-only,
-skips generated/vendor directories, defaults to 10,000 resource files, and
-labels unreferenced resources as candidates because dynamic loads cannot be
-proven statically. Use `preview_rename` before moving a resource; it reports
-direct textual dependents, destination conflicts, and UID sidecars but never
-changes files.
-
-Export readiness recognizes the bounded Linux, Windows, macOS, and Web template
-filenames for the active Godot version. Local smoke execution is intentionally
-limited to Linux exports on Linux; other targets are inspected but not claimed
-as locally runnable. Export writes the requested artifact and companion files,
-returns bounded process output and SHA-256 evidence, and classifies missing
-templates, unsupported platforms, invalid output paths, timeouts, export errors,
-missing artifacts, and smoke failures.
-
-The managed workflow requires both a .NET-enabled Godot editor and a 64-bit
-.NET SDK. It verifies that the versioned `Godot.NET.Sdk` in the unique or
-selected `.csproj` matches the active engine, returns bounded structured MSBuild
-diagnostics, and hashes the resulting assembly. Standard Godot builds return a
-controlled `dotnet_editor_required` result and do not attempt restore or build.
-
-Add-on installation is deliberately offline and provenance-first: `sourcePath`
-must be an allowed local directory and `expectedSha256` must match its authored
-tree before any write. Symlinks, oversized trees, malformed `plugin.cfg`,
-non-`@tool` scripts, incompatible minimum Godot versions, and traversal are
-rejected. Replacement is staged atomically, editor reload is mandatory, and a
-parse/load failure restores the prior version and plugin configuration.
-
-### Scene Management (7 tools)
-
-| Tool | Description |
-| ------ | ------------- |
-| `create_scene` | Create a new scene with a root node type |
-| `add_node` | Add a node to an existing scene |
-| `load_sprite` | Load a texture into a Sprite2D node |
-| `export_mesh_library` | Export a scene as MeshLibrary |
-| `save_scene` | Save a scene (with optional variant path) |
-| `get_uid` | Get UID for a file (Godot 4.4+) |
-| `update_project_uids` | Resave resources to update UIDs |
-
-### Scene Authoring Operations (5 tools)
-
-| Tool | Description |
-| ------ | ------------- |
-| `read_scene` | Read full scene tree as JSON |
-| `modify_scene_node` | Modify node properties in a scene file |
-| `remove_scene_node` | Remove a node from a scene file |
-| `attach_script` | Attach a GDScript to a scene node |
-| `create_resource` | Create a .tres resource file |
-
-### Project Settings (3 tools)
-
-| Tool | Description |
-| ------ | ------------- |
-| `read_project_settings` | Parse project.godot as JSON |
-| `modify_project_settings` | Change a project setting |
-| `list_project_files` | Paginate/filter project files |
-
-### Runtime Input (5 tools)
-
-| Tool | Description |
-| ------ | ------------- |
-| `game_screenshot` | Capture a screenshot (base64 PNG) |
-| `game_visual_regression` | Capture baselines or compare frames with masks, tolerances, and retained PNG diffs |
-| `game_click` | Click at a position |
-| `game_key_press` | Send key press or input action |
-| `game_mouse_move` | Move the mouse |
-
-### Runtime Inspection (3 tools)
-
-| Tool | Description |
-| ------ | ------------- |
-| `game_get_ui` | Get all visible UI elements |
-| `game_get_scene_tree` | Get full scene tree structure |
-| `game_get_node_info` | Detailed node introspection |
-
-### Runtime Code Execution (1 tool)
-
-| Tool | Description |
-| ------ | ------------- |
-| `game_eval` | Execute arbitrary GDScript with return values |
-
-### Runtime Node Manipulation (7 tools)
-
-| Tool | Description |
-| ------ | ------------- |
-| `game_get_property` | Get any node property |
-| `game_set_property` | Set any node property (auto type conversion) |
-| `game_call_method` | Call any method on a node |
-| `game_instantiate_scene` | Add a PackedScene to the running tree |
-| `game_remove_node` | Remove a node from the tree |
-| `game_change_scene` | Switch to a different scene |
-| `game_reparent_node` | Move a node to a new parent |
-
-### Runtime Signals (5 tools)
-
-| Tool | Description |
-| ------ | ------------- |
-| `game_connect_signal` | Connect a signal to a method |
-| `game_disconnect_signal` | Disconnect a signal |
-| `game_emit_signal` | Emit a signal with arguments |
-| `game_list_signals` | List all signals on a node with connections |
-| `game_await_signal` | Await a signal with timeout and return args |
-
-### Runtime Animation (2 tools)
-
-| Tool | Description |
-| ------ | ------------- |
-| `game_play_animation` | Control AnimationPlayer |
-| `game_tween_property` | Tween a property with easing |
-
-### Runtime Utilities (5 tools)
-
-| Tool | Description |
-| ------ | ------------- |
-| `game_pause` | Pause/unpause the game |
-| `game_performance` | Get FPS, memory, draw calls |
-| `game_wait` | Wait N frames |
-| `game_get_nodes_in_group` | Query nodes by group |
-| `game_find_nodes_by_class` | Find nodes by class type |
-
-### File I/O (4 tools)
-
-| Tool | Description |
-| ------ | ------------- |
-| `read_file` | Read a text file from a Godot project |
-| `write_file` | Create or overwrite a text file |
-| `delete_file` | Delete a file from a project |
-| `create_directory` | Create a directory inside a project |
-
-### Error & Log Capture (2 tools)
-
-| Tool | Description |
-| ------ | ------------- |
-| `game_get_errors` | Get new errors/warnings since last call |
-| `game_get_logs` | Get new print output since last call |
-
-### Enhanced Input (8 tools)
-
-| Tool | Description |
-| ------ | ------------- |
-| `game_key_hold` | Hold a key down (no auto-release) |
-| `game_key_release` | Release a held key |
-| `game_scroll` | Mouse scroll wheel event |
-| `game_mouse_drag` | Drag between two points over N frames |
-| `game_gamepad` | Gamepad button or axis input |
-| `game_touch` | Simulate touch press/release/drag and gestures |
-| `game_input_state` | Query pressed keys, mouse position, connected pads |
-| `game_input_action` | Manage runtime InputMap actions and strength |
-
-### Project Creation (5 tools)
-
-| Tool | Description |
-| ------ | ------------- |
-| `create_project` | Create a new Godot project (supports `dotnet: true` for C#) |
-| `create_csharp_script` | Create a C# script in a Godot .NET project |
-| `manage_autoloads` | Add, remove, or list autoloads |
-| `manage_input_map` | Add, remove, or list input actions |
-| `manage_export_presets` | Create or modify export presets |
-
-### Advanced Runtime (24 tools)
-
-| Tool | Description |
-| ------ | ------------- |
-| `game_get_camera` | Get active camera position/rotation/zoom |
-| `game_set_camera` | Move or rotate the active camera |
-| `game_raycast` | Cast a ray and return collision results |
-| `game_get_audio` | Get audio bus layout and playing streams |
-| `game_spawn_node` | Create a new node of any type at runtime |
-| `game_set_shader_param` | Set a shader parameter on a node's material |
-| `game_audio_play` | Play, stop, or pause an AudioStreamPlayer node |
-| `game_audio_bus` | Set volume, mute, or solo on an audio bus |
-| `game_navigate_path` | Query a navigation path between two points |
-| `game_tilemap` | Get or set cells in a TileMapLayer node |
-| `game_add_collision` | Add a collision shape to a physics body node |
-| `game_environment` | Get or set environment and post-processing settings |
-| `game_manage_group` | Add or remove a node from a group, or list groups |
-| `game_create_timer` | Create a Timer node with configuration |
-| `game_set_particles` | Configure GPUParticles2D/3D node properties |
-| `game_create_animation` | Create an animation with tracks and keyframes |
-| `game_serialize_state` | Save or load node tree state as JSON |
-| `game_physics_body` | Configure physics body properties (mass, velocity) |
-| `game_create_joint` | Create a physics joint between two bodies |
-| `game_bone_pose` | Get or set bone poses on a Skeleton3D node |
-| `game_ui_theme` | Apply theme overrides to a Control node |
-| `game_viewport` | Create or configure a SubViewport node |
-| `game_debug_draw` | Draw debug lines, spheres, or boxes in 3D |
-
-### Build & Export (1 tool)
-
-| Tool | Description |
-| ------ | ------------- |
-| `export_project` | Export a Godot project using a preset |
-
-### Networking (4 tools)
-
-| Tool | Description |
-| ------ | ------------- |
-| `game_http_request` | HTTP GET/POST/PUT/DELETE with headers and body |
-| `game_websocket` | WebSocket client connect/disconnect/send messages |
-| `game_multiplayer` | ENet multiplayer create server/client/disconnect |
-| `game_rpc` | Call or configure RPC methods on nodes |
-
-### System & Window (6 tools)
-
-| Tool | Description |
-| ------ | ------------- |
-| `game_script` | Attach, detach, or get source of node scripts |
-| `game_window` | Get/set window size, fullscreen, title, position |
-| `game_os_info` | Get platform, locale, screen, adapter, memory info |
-| `game_time_scale` | Get/set Engine.time_scale and timing info |
-| `game_process_mode` | Set node process mode (pausable/always/disabled) |
-| `game_world_settings` | Get/set gravity, physics FPS, and world settings |
-
-### 3D Rendering & Geometry (13 tools)
-
-| Tool | Description |
-| ------ | ------------- |
-| `game_csg` | Create/configure CSG nodes with boolean operations |
-| `game_multimesh` | Create/configure MultiMeshInstance3D for instancing |
-| `game_procedural_mesh` | Generate meshes via ArrayMesh from vertex data |
-| `game_light_3d` | Create/configure 3D lights (directional/omni/spot) |
-| `game_mesh_instance` | Create MeshInstance3D with primitive meshes |
-| `game_gridmap` | GridMap set/get/clear cells and query used cells |
-| `game_3d_effects` | Create ReflectionProbe, Decal, or FogVolume |
-| `game_gi` | Create/configure VoxelGI or LightmapGI |
-| `game_path_3d` | Create Path3D/Curve3D and manage curve points |
-| `game_sky` | Create/configure Sky with procedural/physical sky |
-| `game_camera_attributes` | Configure DOF, exposure, auto-exposure on camera |
-| `game_navigation_3d` | Create/configure NavigationRegion3D and bake |
-| `game_physics_3d` | Area3D queries and point/shape intersection tests |
-
-### 2D Systems (7 tools)
-
-| Tool | Description |
-| ------ | ------------- |
-| `game_canvas` | Create/configure CanvasLayer and CanvasModulate |
-| `game_canvas_draw` | 2D drawing: line/rect/circle/polygon/text/clear |
-| `game_light_2d` | Create/configure 2D lights and light occluders |
-| `game_parallax` | Create/configure ParallaxBackground and layers |
-| `game_shape_2d` | Line2D/Polygon2D point manipulation |
-| `game_path_2d` | Path2D/Curve2D management and AnimatedSprite2D |
-| `game_physics_2d` | Area2D queries and 2D point/shape intersections |
-
-### Advanced Animation (3 tools)
-
-| Tool | Description |
-| ------ | ------------- |
-| `game_animation_tree` | AnimationTree state machine travel and params |
-| `game_animation_control` | AnimationPlayer seek/queue/speed/info control |
-| `game_skeleton_ik` | SkeletonIK3D start/stop/set target position |
-
-### Advanced Audio (3 tools)
-
-| Tool | Description |
-| ------ | ------------- |
-| `game_audio_effect` | Add/remove/configure audio bus effects |
-| `game_audio_bus_layout` | Create/remove/reorder audio buses and routing |
-| `game_audio_spatial` | Configure AudioStreamPlayer3D spatial properties |
-
-### Editor & Project Tools (14 tools)
-
-| Tool | Description |
-| ------ | ------------- |
-| `rename_file` | Rename or move a file within the project |
-| `manage_resource` | Read or modify .tres/.res resource files |
-| `create_script` | Create a GDScript file from a template |
-| `validate_script` | Check a GDScript file for syntax/type errors (headless) |
-| `validate_scripts` | Batch-check GDScript files (git-changed by default, or all) |
-| `manage_scene_signals` | List/add/remove signal connections in .tscn files |
-| `manage_layers` | List/set named layer definitions in project |
-| `manage_plugins` | List/enable/disable editor plugins |
-| `manage_shader` | Create or read .gdshader files |
-| `manage_theme_resource` | Create/read/modify Theme .tres resources |
-| `set_main_scene` | Set the main scene in project.godot |
-| `manage_scene_structure` | Rename/duplicate/move nodes within .tscn scenes |
-| `manage_translations` | List/add/remove translation files in project |
-| `game_locale` | Set/get locale and translate strings at runtime |
-
-### UI Controls (8 tools)
-
-| Tool | Description |
-| ------ | ------------- |
-| `game_ui_control` | Set focus, anchors, tooltip, mouse filter on Control |
-| `game_ui_text` | LineEdit/TextEdit/RichTextLabel text operations |
-| `game_ui_popup` | Show/hide/popup for Popup/Dialog/Window nodes |
-| `game_ui_tree` | Tree control: get/select/collapse/add/remove items |
-| `game_ui_item_list` | ItemList/OptionButton: get/select/add/remove items |
-| `game_ui_tabs` | TabContainer/TabBar: get/set current tab |
-| `game_ui_menu` | PopupMenu/MenuBar: add/remove/get menu items |
-| `game_ui_range` | ProgressBar/Slider/SpinBox/ColorPicker get/set |
-
-### Rendering & Resources (2 tools)
-
-| Tool | Description |
-| ------ | ------------- |
-| `game_render_settings` | Get/set MSAA, FXAA, TAA, scaling mode/scale |
-| `game_resource` | Runtime resource load, save, or preload |
+not claimed. Details in the
+[verified support boundary](#verified-support-boundary).
+
+## Highlights
+
+- **Author without running** — create and edit scenes, nodes, scripts,
+  resources, shaders, and project settings directly in project files.
+- **Run and observe** — launch the game, capture logs and errors
+  incrementally, take screenshots, and run visual-regression comparisons with
+  baselines, masks, and retained diffs.
+- **Playtest like a player** — mouse, keyboard, key-hold, drag, scroll, touch,
+  and gamepad input against the running game.
+- **Verify independently** — headless GDScript validation (`validate_script`,
+  `validate_scripts`), test runners for native/GUT/GdUnit4
+  (`run_project_tests`), bounded runtime evidence (`verify_project`), export
+  checks (`verify_export_readiness`), and static integrity analysis
+  (`analyze_project_integrity`).
+- **Reach into the runtime** — inspect and manipulate any node, signal,
+  animation, physics body, or UI control through 100+ runtime tools;
+  `game_eval` executes GDScript with `await` support (privileged, opt-in).
+- **Drive the editor** — `editor_control` applies reversible edits through
+  `EditorUndoRedoManager`, with a live Agent Activity dock and a human
+  **Pause Agent** lock.
+- **.NET / C# support** — scaffold C# projects with a `Godot.NET.Sdk` matched
+  to your installed Godot, generate idiomatic scripts, and restore/build/run
+  via `verify_dotnet_project`.
+- **Bounded by design** — deterministic pagination and size caps on large
+  responses, structured correlated diagnostics, and least-privilege security
+  defaults.
+
+## Tool catalog
+
+The full inventory of 167 tools — runtime interaction, scene authoring,
+project management, verification, 2D/3D rendering, audio, UI, networking, and
+more — lives in [docs/tools.md](docs/tools.md). Per-tool verification status
+and test references are in the generated
+[coverage report](docs/coverage/coverage-report.md).
 
 ## Requirements
 
-- [Godot Engine](https://godotengine.org/download) 4.4 or later; the latest stable release, currently Godot **4.7**, is recommended
-- (Optional) [.NET SDK](https://dotnet.microsoft.com/download) 8.0+ and the Godot .NET (C#) build, only if you use `create_project`'s `dotnet: true` flag or `create_csharp_script`
+- [Godot Engine](https://godotengine.org/download) 4.4 or later; the latest
+  stable release, currently Godot **4.7**, is recommended
+- (Optional) [.NET SDK](https://dotnet.microsoft.com/download) 8.0+ and the
+  Godot .NET (C#) build, only if you use `create_project`'s `dotnet: true`
+  flag or `create_csharp_script`
 - [Node.js](https://nodejs.org/) >= 22.0.0 (active LTS)
 - An AI assistant that supports MCP (Claude Code, Cline, Cursor, etc.)
 
@@ -668,16 +136,10 @@ branch would receive critical fixes rather than new features.
 | Profiler, leak, asset, localization, and accessibility audits | Verified in MCP E2E | `game_performance` and `analyze_project_integrity` return bounded live/static evidence; native extension builds remain unsupported |
 | GDExtension builds | Not claimed | `analyze_project_integrity` inspects declarations and libraries without invoking arbitrary native toolchains |
 
-## Installation
-
-```bash
-git clone https://github.com/beremaran/godot-agent-loop.git
-cd godot-agent-loop
-npm install
-npm run build
-```
-
 ## Configuration
+
+The [quickstart](#quickstart) `npx` command is all most setups need. The
+sections below cover other clients and a source checkout.
 
 ### Portable agent bundle
 
@@ -694,7 +156,10 @@ For a local checkout, use `claude --plugin-dir ./agent-plugin`. See the
 [portable agent bundle guide](docs/agent-plugin.md) for verified Claude Code,
 Codex, OpenCode, and Pi install paths.
 
-### Claude Code
+### MCP client configuration
+
+<details>
+<summary>Claude Code (manual settings)</summary>
 
 Add to your Claude Code MCP settings:
 
@@ -702,8 +167,8 @@ Add to your Claude Code MCP settings:
 {
   "mcpServers": {
     "godot": {
-      "command": "node",
-      "args": ["/absolute/path/to/godot-agent-loop/build/index.js"],
+      "command": "npx",
+      "args": ["-y", "@beremaran/godot-agent-loop"],
       "env": {
         "GODOT_PATH": "/path/to/godot",
         "DEBUG": "true"
@@ -713,7 +178,10 @@ Add to your Claude Code MCP settings:
 }
 ```
 
-### Cline (VS Code)
+</details>
+
+<details>
+<summary>Cline (VS Code)</summary>
 
 Add to your Cline MCP settings (`cline_mcp_settings.json`):
 
@@ -721,15 +189,18 @@ Add to your Cline MCP settings (`cline_mcp_settings.json`):
 {
   "mcpServers": {
     "godot": {
-      "command": "node",
-      "args": ["/absolute/path/to/godot-agent-loop/build/index.js"],
+      "command": "npx",
+      "args": ["-y", "@beremaran/godot-agent-loop"],
       "disabled": false
     }
   }
 }
 ```
 
-### Cursor
+</details>
+
+<details>
+<summary>Cursor</summary>
 
 Create `.cursor/mcp.json` in your project:
 
@@ -737,11 +208,32 @@ Create `.cursor/mcp.json` in your project:
 {
   "mcpServers": {
     "godot": {
-      "command": "node",
-      "args": ["/absolute/path/to/godot-agent-loop/build/index.js"]
+      "command": "npx",
+      "args": ["-y", "@beremaran/godot-agent-loop"]
     }
   }
 }
+```
+
+</details>
+
+For a source checkout, use `node` as the executable and pass the built server
+path as a separate argument:
+
+```json
+{
+  "command": "node",
+  "args": ["/absolute/path/to/godot-agent-loop/build/index.js"]
+}
+```
+
+### Installation from source
+
+```bash
+git clone https://github.com/beremaran/godot-agent-loop.git
+cd godot-agent-loop
+npm install
+npm run build
 ```
 
 ## Runtime Tools Setup
@@ -791,7 +283,7 @@ the event name, runtime component, numeric session ID, and timestamp.
 | `GODOT_MCP_ALLOWED_DIRS` | Optional. Restrict `run_project` to projects under these roots (`;`, `,`, or `:` separated). When unset, any project path is allowed. |
 | `GODOT_MCP_RUNTIME_SECRET` | Optional explicit shared runtime secret. The MCP server generates a fresh 256-bit value when omitted and passes it only to Godot processes it launches. Set the same value manually only when connecting to a separately launched runtime. |
 | `GODOT_MCP_EDITOR_START_PAUSED` | Optional, default `false`. Start the editor addon's cooperative lock in human-editing mode so mutating MCP tools are refused until **Resume Agent** is pressed. |
-| `GODOT_MCP_TOOL_SURFACE` | Optional, default `core`. Set to `full` to advertise the complete static tool catalog instead of the compact core plus `godot_tools` discovery/dispatch. |
+| `GODOT_MCP_TOOL_SURFACE` | Optional, default `core`. Set to `full` to advertise the complete static tool catalog instead of the compact 39-tool core, which includes `godot_tools` discovery/dispatch. |
 | `GODOT_MCP_PRIVILEGED_GROUPS` | Optional comma-separated least-privilege grants: `reflection`, `code-execution`, and/or `network`. All are denied by default. |
 | `GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS` | Optional, default `false`. Explicitly enable runtime `eval`, arbitrary property/method access, script control, RPC, HTTP, and WebSocket commands for a trusted localhost developer workflow. |
 
@@ -841,11 +333,13 @@ The server uses three bounded execution paths:
 
 | Path | Description |
 | ------ | ------------- |
-| `src/index.ts` | MCP server, tool definitions, and all handlers |
-| `src/utils.ts` | Pure utility functions (parameter mapping, validation, error helpers) |
+| `src/index.ts` | MCP server entry point |
+| `src/tool-definitions.ts` | Tool names and JSON schemas |
+| `src/tool-manifest.ts` | Per-tool domain, backend, and action declarations |
+| `src/tool-handlers/` | Lifecycle, project, and game handler implementations |
 | `src/scripts/godot_operations.gd` | Persistent and one-shot GDScript operations runner |
 | `src/scripts/mcp_interaction_server.gd` | TCP interaction server autoload |
-| `tests/` | Vitest test suite |
+| `tests/` | Vitest unit, E2E, and Godot suites |
 
 ## Testing
 
@@ -866,44 +360,35 @@ npm run test:watch  # watch mode
 ```text
 "Run my Godot project and check for errors"
 
-"Eval this in my running game: return get_tree().current_scene.name"
-
-"Get the player's position in the running game"
-
-"Set the player's health to 100"
-
-"Read the test_level.tscn scene and show me the node tree"
-
-"Change the player's speed property in the player.tscn scene file"
-
-"List all .gd files in my project"
-
-"Connect the enemy's 'died' signal to the game manager's 'on_enemy_died' method"
-
-"Tween the camera's position to (0, 10, -5) over 2 seconds with ease-out"
-
-"Get performance metrics - what's my FPS and draw call count?"
-
-"Pause the game and take a screenshot"
-
-"Find all CharacterBody3D nodes in the scene"
-
 "Create a new Godot project called 'MyGame' and write a player script"
 
-"Create a new C# (.NET) Godot project and add a CharacterBody2D script"
-
-"Validate player.gd for errors"
+"Read the test_level.tscn scene and show me the node tree"
 
 "Check all my changed GDScript files for syntax errors before I run the game"
 
 "Hold down the W key for 2 seconds to test walking"
 
-"Cast a ray from the player downward to check for ground"
+"Pause the game and take a screenshot"
 
-"Get the camera position and move it to look at the player"
+"Get performance metrics - what's my FPS and draw call count?"
 
-"Show me the latest error messages from the running game"
+"Set the player's health to 100"
+
+"Connect the enemy's 'died' signal to the game manager's 'on_enemy_died' method"
+
+"Create a new C# (.NET) Godot project and add a CharacterBody2D script"
 ```
+
+## Community
+
+- [Contributing guide](CONTRIBUTING.md) — development workflow, checks, and
+  PR expectations
+- [Security policy](SECURITY.md) — how to report vulnerabilities
+- [Code of conduct](CODE_OF_CONDUCT.md)
+- [Changelog](CHANGELOG.md) and
+  [release notes](docs/releases)
+- [Issues](https://github.com/beremaran/godot-agent-loop/issues) — bug reports
+  and feature requests
 
 ## License
 

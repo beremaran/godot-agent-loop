@@ -3,8 +3,8 @@
   "schemaVersion": 1,
   "name": "Godot Agent Loop",
   "tagline": "Build it. Play it. Prove it.",
-  "category": "An evidence-first MCP automation loop for Godot 4",
-  "description": "Evidence-first MCP automation loop with 167 tested tools for Godot 4",
+  "category": "An MCP automation loop for Godot 4",
+  "description": "MCP automation loop with 167 tested tools for Godot 4",
   "version": "1.0.0",
   "repository": {
     "owner": "beremaran",
