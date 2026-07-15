@@ -18,7 +18,9 @@ describe('authoring session client startup', () => {
     let connections = 0;
     const server = createServer(socket => {
       connections += 1;
-      socket.resetAndDestroy();
+      // Receiving the handshake proves the client's connect event has fired;
+      // only then reset the established socket to exercise operational errors.
+      socket.once('data', () => socket.resetAndDestroy());
     });
     servers.push(server);
     await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
