@@ -179,6 +179,7 @@ export class GodotServer {
   });
   private readonly editorAuthoring = new EditorAuthoringRouter({
     status: projectPath => this.editorSessions.status(projectPath),
+    ensure: (projectPath, timeoutMs) => this.editorSessions.ensure(projectPath, timeoutMs),
     send: (projectPath, command, params, timeoutMs) => this.editorSessions.send(
       projectPath, command, params, timeoutMs,
     ),

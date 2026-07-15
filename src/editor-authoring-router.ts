@@ -10,6 +10,7 @@ export interface EditorAuthoringAttempt {
 
 export interface EditorAuthoringRouterOptions {
   status(projectPath: string): Promise<PublicEditorSession>;
+  ensure(projectPath: string, timeoutMs: number): Promise<PublicEditorSession>;
   send(
     projectPath: string,
     command: string,
@@ -44,7 +45,13 @@ export class EditorAuthoringRouter {
         fallbackReason: `The editor backend does not support ${command}; using the declared authoring fallback`,
       };
     }
-    const session = await this.options.status(projectPath);
+    let session = await this.options.status(projectPath);
+    // A cooperative-lock probe or busy editor frame can briefly drop the TCP
+    // session. Reattach when discovery still identifies a live editor, but do
+    // not delay ordinary headless authoring when no editor record exists.
+    if (!session.connected && session.editor_pid !== null) {
+      session = await this.options.ensure(projectPath, 5_000);
+    }
     if (!session.connected) {
       return {
         handled: false,

@@ -25,7 +25,8 @@ function session(overrides: Partial<PublicEditorSession> = {}): PublicEditorSess
 function fixture(editorSession = session()) {
   const send = vi.fn(async () => ({ success: true, undo_recorded: true }));
   const status = vi.fn(async () => editorSession);
-  return { router: new EditorAuthoringRouter({ status, send }), send, status };
+  const ensure = vi.fn(async () => editorSession);
+  return { router: new EditorAuthoringRouter({ status, ensure, send }), send, status, ensure };
 }
 
 describe('EditorAuthoringRouter', () => {
@@ -57,7 +58,10 @@ describe('EditorAuthoringRouter', () => {
   });
 
   it('discloses a detached editor and leaves the operation to the declared fallback', async () => {
-    const { router, send } = fixture(session({ state: 'no_editor', connected: false }));
+    const { router, send, ensure } = fixture(session({
+      state: 'no_editor', connected: false, editor_pid: null, editor_start_identity: null,
+      port: null, protocol_version: null, addon_version: null, godot_version: null, created_at: null,
+    }));
 
     const attempt = await router.tryExecute(
       'authoring_add_node',
@@ -67,7 +71,27 @@ describe('EditorAuthoringRouter', () => {
 
     expect(attempt).toMatchObject({ handled: false });
     expect(attempt.fallbackReason).toContain('no_editor');
+    expect(ensure).not.toHaveBeenCalled();
     expect(send).not.toHaveBeenCalled();
+  });
+
+  it('reattaches a temporarily unreachable live editor before falling back', async () => {
+    const disconnected = session({ state: 'no_editor', connected: false });
+    const reattached = session({ reused: true });
+    const status = vi.fn(async () => disconnected);
+    const ensure = vi.fn(async () => reattached);
+    const send = vi.fn(async () => ({ success: true, undo_recorded: true }));
+    const router = new EditorAuthoringRouter({ status, ensure, send });
+
+    const attempt = await router.tryExecute(
+      'authoring_manage_resource',
+      { resourcePath: 'materials/paddle.tres', action: 'modify', properties: { roughness: 0.2 } },
+      '/project',
+    );
+
+    expect(attempt).toMatchObject({ handled: true, result: { exitCode: 0 } });
+    expect(ensure).toHaveBeenCalledWith('/project', 5_000);
+    expect(send).toHaveBeenCalledWith('/project', 'resource_transaction', expect.any(Object), 30_000);
   });
 
   it('does not fall back after the editor rejects a transaction', async () => {
