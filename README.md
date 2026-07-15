@@ -115,22 +115,23 @@ and test references are in the generated
 ### Godot compatibility policy
 
 Development targets the latest stable Godot release. The project also keeps a
-tested compatibility floor while the same implementation remains cleanly
-portable; currently, CI covers Godot 4.4 and 4.7. The floor may be raised when
-it blocks useful features or creates meaningful maintenance cost. In that case,
-the last compatible release remains available, and an older-version maintenance
-branch will be created only when user demand justifies maintaining it. Such a
-branch would receive critical fixes rather than new features.
+declared compatibility floor while the same implementation remains cleanly
+portable; CI currently covers the primary Godot 4.7 target. The floor may be
+raised when it blocks useful features or creates meaningful maintenance cost.
+In that case, the last compatible release remains available, and an
+older-version maintenance branch will be created only when user demand
+justifies maintaining it. Such a branch would receive critical fixes rather
+than new features.
 
 ### Verified support boundary
 
 | Area | Status | Evidence or limitation |
 | --- | --- | --- |
-| Linux headed (desktop or Xvfb), Godot 4.4 and 4.7 | Verified in CI | Full MCP E2E under Xvfb, direct runtime, subprocess operations, and strict script parsing |
+| Linux headed (desktop or Xvfb), Godot 4.7 | Verified in CI | Full MCP E2E under Xvfb, direct runtime, subprocess operations, and strict script parsing |
 | GDScript project and running-game workflows | Verified for advertised tools | See the generated [coverage report](docs/coverage/coverage-report.md) |
 | Privileged runtime commands | Opt-in only | Disabled by default; intended for trusted localhost development |
-| Godot .NET/C# | Scaffold, compile, and editor-load verification | Godot .NET 4.4 and 4.7 with .NET SDK 8 |
-| Linux exports | Release/debug template export and smoke-run verification | Godot 4.4 and 4.7 installed templates; other targets are not claimed |
+| Godot .NET/C# | Scaffold, compile, and editor-load verification | Godot .NET 4.7 with .NET SDK 8 |
+| Linux exports | Release/debug template export and smoke-run verification | Godot 4.7 installed templates; other targets are not claimed |
 | Rendering and screenshots | A headed rendering context is required | Compatibility and Forward+ on Linux software rendering; display-less sessions fail fast with desktop/Xvfb remediation |
 | Windows | Portable acceptance verified | Godot 4.7 process, Unicode path, runtime input, window query, and teardown workflows; editor UI, rendering, and exports are not claimed |
 | macOS | Portable acceptance and attached-editor workflow verified | Godot 4.7.1 headed replay opens Godot normally, reconnects the MCP, authors and synchronizes without focus switching/manual reload, exercises undoable transactions, and cleans the discovery record; see the [interactive acceptance record](docs/coverage/interactive-golden-agent-run.json) |

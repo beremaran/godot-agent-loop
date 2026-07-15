@@ -47,7 +47,7 @@ persistent-addon files, and clean discovery-record removal. The macOS/Godot
 [`coverage/interactive-golden-agent-run.json`](coverage/interactive-golden-agent-run.json).
 
 `npm run test:golden-agent` runs the focused gate. The test is also part of
-`npm run test:e2e`, which CI runs on both Godot 4.4 and 4.7; it cannot be skipped
+`npm run test:e2e`, which CI runs on Godot 4.7; it cannot be skipped
 or quarantined under the repository's E2E metadata policy.
 
 The release gate intentionally does not call a hosted model. Model availability,
