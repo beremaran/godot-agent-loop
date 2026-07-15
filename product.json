@@ -34,7 +34,7 @@
     "primaryGodotVersion": "4.7",
     "protocolVersion": "1",
     "license": "MIT",
-    "description": "Authenticated editor companion with live agent activity, compatibility status, setup help, and human Pause/Resume control.",
+    "description": "Godot Agent Loop Bridge is an authenticated editor companion that shows live agent activity and compatibility status, provides setup help, and gives you a human Pause/Resume control.",
     "icon": "assets/previews/assetlib-icon.png",
     "previews": [
       "assets/previews/assetlib-editor-overview.png",

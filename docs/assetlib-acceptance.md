@@ -53,3 +53,17 @@ Unit and contract coverage additionally proves:
 - partial file-copy failures remove the partially created addon;
 - the first bridge message is the authenticated version handshake; and
 - protocol mismatches become explicit compatibility errors and refuse mutation.
+
+## Public submission
+
+Wave 4 published branch `assetlib-v1.0.0` at
+`dc576948024cbef039b01e9aca71464a550fd268`, the single `.gitattributes` child
+of signed `v1.0.0`. GitHub's computed commit ZIP contains only the four expected
+addon files, and every extracted file matches the tested release ZIP
+byte-for-byte. The commit-pinned icon and two preview URLs return valid PNGs at
+1254x1254, 3440x1358, and 900x1050 respectively.
+
+Official Asset Library asset `23661` was submitted on 2026-07-15. Its public
+pending-detail page reports **New**, Godot 4.4, version 1.0.0, MIT, and the exact
+audited commit and computed download URL. Moderator approval and a searchable
+catalog entry remain external pending gates; no reviewer feedback has arrived.

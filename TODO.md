@@ -272,13 +272,16 @@ tool or action.
   icon of at least 128x128, and up to three screenshots/video previews. (The
   source-backed payload generator, category/version/license/URLs/description,
   1254x1254 icon, and two real-editor previews are contract-tested. The live
-  official Asset Library API returned zero name matches on 2026-07-14. Local
-  download commit `dc576948` is the single export-attributes child of the green
-  signed tag; its four exported addon files match the tested release ZIP
-  byte-for-byte, and `dist/assetlib-submission.json` pins that exact commit.)
-- [ ] Submit the tagged, tested addon through the official Godot Asset Library
+  official Asset Library API returned zero name matches again immediately before
+  submission on 2026-07-15. Public download commit `dc576948` is the single
+  export-attributes child of the green signed tag; its real GitHub archive's four
+  addon files match the tested release ZIP byte-for-byte.)
+- [x] Submit the tagged, tested addon through the official Godot Asset Library
   account and record review feedback in this plan. Treat AssetLib as a free/open
   community distribution channel; keep sponsorship or paid support separate.
+  (Official Asset Library asset `23661` was submitted on 2026-07-15 with the
+  exact audited commit and entered the moderator queue as **New / Pending**. No
+  reviewer feedback has been received yet; approval remains externally pending.)
 
 ### Launch evidence and publication
 
@@ -337,8 +340,9 @@ tool or action.
 - [ ] Publish the Claude Code and Codex marketplace entries, OpenCode setup path,
   Pi package, and Godot AssetLib addon against the same tested release rather
   than launching adapters with different server versions. (Wave 3 public Claude,
-  Codex CLI/IDE/Desktop, OpenCode, and Pi paths resolve version 1.0.0; only the
-  Wave 4 AssetLib publication remains pending.)
+  Codex CLI/IDE/Desktop, OpenCode, and Pi paths resolve version 1.0.0. AssetLib
+  asset `23661` pins the same version and commit and is awaiting moderator
+  approval before it becomes searchable.)
 - [ ] Announce the release with one consistent message: **other integrations give
   agents tools; this project gives them a tested feedback loop to author, run,
   observe, playtest, and independently verify Godot games.** Link the demo and
