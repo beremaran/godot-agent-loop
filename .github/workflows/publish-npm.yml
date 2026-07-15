@@ -80,6 +80,4 @@ jobs:
           npm pack --pack-destination dist
 
       - name: Publish the tested tarball with provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish ./dist/beremaran-godot-agent-loop-1.0.0.tgz --access public --provenance

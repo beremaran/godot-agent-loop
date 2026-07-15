@@ -195,7 +195,7 @@ tool or action.
   maps structured text/image results and MCP errors, refreshes changed tool
   lists, and closes on `session_shutdown`; the live adapter smoke proves its 39
   registrations, real tool call, and hidden discovery.)
-- [ ] Test local, Git, and npm Pi installation, plus update, disable, reload, and
+- [x] Test local, Git, and npm Pi installation, plus update, disable, reload, and
   uninstall behavior. Document that Pi extensions execute with the user's system
   access and keep all mutation/privilege gates enforced by the MCP server.
   (Pi 0.80.2 installs, lists, updates, disables/re-enables, live-reloads, and
@@ -204,9 +204,11 @@ tool or action.
   filtering suppresses the extension without suppressing its skills, and
   uninstall leaves no package or server process. The exact candidate also
   installs/loads/removes from a dependency-complete npm-installed tree, and the
-  portable bundle guide documents the trust boundary. Tagged Git and public npm
-  installs, plus update behavior against those public sources, remain
-  publication-dependent.)
+  portable bundle guide documents the trust boundary. Pi 0.80.2 also installed,
+  reconciled with `pi update`, loaded, and removed the signed Git tag and public
+  `npm:@beremaran/godot-agent-loop@1.0.0` source in isolated native homes. The
+  public npm startup reported 39 tools and all four skills; removal left an
+  empty package list and no server process.)
 
 ### Persistent Godot Asset Library addon
 
@@ -323,7 +325,9 @@ tool or action.
   `313019350` after the workflow-file update.)
 - [ ] Publish a clean GitHub release with signed/tagged source and release notes,
   publish the npm package, publish/update the MCP Registry entry, then verify
-  installation from each public artifact on a clean machine or container.
+  installation from each public artifact on a clean machine or container. (The
+  signed GitHub release and provenance-backed npm package are public and their
+  clean-install paths pass; MCP Registry publication remains Wave 3.)
 - [ ] Publish the Claude Code and Codex marketplace entries, OpenCode setup path,
   Pi package, and Godot AssetLib addon against the same tested release rather
   than launching adapters with different server versions.

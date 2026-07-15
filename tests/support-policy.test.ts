@@ -60,6 +60,10 @@ describe('Godot support policy', () => {
     expect(workflow).toContain('npm pack --pack-destination dist');
     expect(workflow).toContain('npm publish ./dist/beremaran-godot-agent-loop-1.0.0.tgz --access public --provenance');
     expect(workflow).not.toContain('npm publish dist/beremaran-godot-agent-loop-1.0.0.tgz');
+    expect(workflow).toContain('id-token: write');
+    expect(workflow).toContain('runs-on: ubuntu-latest');
+    expect(workflow).not.toContain('NODE_AUTH_TOKEN');
+    expect(workflow).not.toContain('secrets.NPM_TOKEN');
   });
 
   it('keeps generated E2E fixtures compatible with the declared floor', () => {

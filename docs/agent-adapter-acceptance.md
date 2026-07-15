@@ -50,16 +50,25 @@ package tree. Pi does not load a raw `.tgz` path directly; the public `npm:` pat
 performs that installation step. This check caught and fixed a missing runtime
 declaration for `pngjs` before the candidate was accepted.
 
-## Publication-dependent cases
+## Public-source acceptance
 
-The exact `npx -y @beremaran/godot-agent-loop@1.0.0` command cannot resolve from
-the public npm registry until publication is approved and complete. Public
-signed tag `v1.0.0` was cloned and signature-verified at `75f8241`. From isolated
-homes, Claude Code installed version 1.0.0 with all four skills and the pinned
-MCP entry, Codex installed and removed the same public tag marketplace snapshot,
-and Pi installed, reconciled, and removed `git:github.com/beremaran/godot-agent-loop@v1.0.0`
-using its production-only dependency path. The final npm tarball independently
-starts the 39-tool server, calls Godot 4.7, discovers a hidden tool, and performs
-the OpenCode install/uninstall lifecycle. Public npm/npx startup, npm-source Pi
-update behavior, and ChatGPT desktop cache pickup remain release-gated and must
-be rerun after their publication waves.
+Public signed tag `v1.0.0` was cloned and signature-verified at `75f8241`. From
+isolated homes, Claude Code installed version 1.0.0 with all four skills and the
+pinned MCP entry, Codex installed and removed the same public tag marketplace
+snapshot, and Pi installed, reconciled, and removed
+`git:github.com/beremaran/godot-agent-loop@v1.0.0` using its production-only
+dependency path.
+
+After npm publication, a fresh registry cache installed
+`@beremaran/godot-agent-loop@1.0.0` with zero vulnerabilities. Its downloaded
+tarball matched the signed release artifact byte-for-byte. The exact public
+`npx -y @beremaran/godot-agent-loop@1.0.0` command completed an MCP handshake,
+exposed 39 tools, called the real Godot 4.7 binary, discovered hidden
+`game_light_3d`, and shut down without a server-process leak. The public CLI
+also previewed, installed, and uninstalled the OpenCode adapter.
+
+Pi 0.80.2 installed the public npm source into an isolated native home, listed
+version 1.0.0, reconciled it through `pi update`, and started the extension.
+Native startup reported `Godot Agent Loop connected (39 tools)`, all four
+canonical skills, and the npm extension path. Removal left an empty package
+list and no server process. ChatGPT desktop cache pickup remains a Wave 3 case.
