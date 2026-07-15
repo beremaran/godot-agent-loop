@@ -134,12 +134,15 @@ tool or action.
   and version. (The generator pins `godot-agent-loop` 1.0.0 and
   `./agent-plugin`; Claude Code 2.1.208 validates both manifests and installs
   the plugin from an isolated local marketplace.)
-- [ ] Test both local development (`claude --plugin-dir`) and a clean marketplace
+- [x] Test both local development (`claude --plugin-dir`) and a clean marketplace
   install from the tagged repository. Confirm the bundled MCP server starts
   without manual configuration and the three core workflows plus
-  `ship-godot-game` are discoverable. (Local manifests validate and an isolated
-  marketplace install enables all four skills. The exact npx server command and
-  tagged-repository install remain publication-dependent.)
+  `ship-godot-game` are discoverable. (`claude --plugin-dir ... plugin details`
+  resolves inline Godot Agent Loop 1.0.0 with all four skills and its bundled
+  MCP server. Claude Code 2.1.208 also installs the signed public tag into an
+  isolated marketplace home with the pinned MCP entry. The exact public `npx`
+  command completes a 39-tool handshake, calls Godot 4.7, discovers a hidden
+  tool, and tears down without residue.)
 
 #### Codex distribution
 

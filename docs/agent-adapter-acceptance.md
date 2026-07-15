@@ -26,7 +26,8 @@ changed.
 
 - Claude Code validated the repository marketplace and neutral plugin, then
   installed and enabled `godot-agent-loop@godot-agent-loop` from the isolated
-  local marketplace.
+  local marketplace. Its native `--plugin-dir` details command resolves inline
+  version 1.0.0 with the four canonical skills and one bundled MCP server.
 - Codex added the isolated repository marketplace, installed version 1.0.0 into
   its cache, and reported the plugin enabled with the local source path.
 - OpenCode ran the built `setup opencode --write`, resolved the generated MCP
