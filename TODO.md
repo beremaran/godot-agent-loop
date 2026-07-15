@@ -155,8 +155,10 @@ tool or action.
 - [ ] Add a native `.agents/plugins/marketplace.json` entry for Codex while
   retaining Claude marketplace compatibility. Test a clean marketplace install
   in Codex CLI/IDE and the ChatGPT desktop plugin surface. (Codex CLI 0.144.1
-  cleanly installs and enables the generated local marketplace entry in an
-  isolated cache; IDE/desktop and tagged/public-source pickup remain pending.)
+  and the VS Code extension's bundled Codex 0.144.0-alpha.4 host cleanly install,
+  enable, inventory, and remove version 1.0.0 from the signed public tag in
+  isolated caches. This Linux host has no ChatGPT desktop app, so the desktop UI
+  pickup remains the only unverified surface.)
 
 #### OpenCode distribution
 
@@ -326,14 +328,17 @@ tool or action.
   exact target, and has a contract regression; `actionlint` 1.7.12 and the
   699-test local contract pass. GitHub Actions registered it as active workflow
   `313019350` after the workflow-file update.)
-- [ ] Publish a clean GitHub release with signed/tagged source and release notes,
+- [x] Publish a clean GitHub release with signed/tagged source and release notes,
   publish the npm package, publish/update the MCP Registry entry, then verify
   installation from each public artifact on a clean machine or container. (The
-  signed GitHub release and provenance-backed npm package are public and their
-  clean-install paths pass; MCP Registry publication remains Wave 3.)
+  signed GitHub release, provenance-backed npm package, and active MCP Registry
+  version 1.0.0 are public. The release and npm tarballs are byte-identical, and
+  clean public package, registry, MCP, and adapter paths pass.)
 - [ ] Publish the Claude Code and Codex marketplace entries, OpenCode setup path,
   Pi package, and Godot AssetLib addon against the same tested release rather
-  than launching adapters with different server versions.
+  than launching adapters with different server versions. (Wave 3 public Claude,
+  Codex CLI/IDE, OpenCode, and Pi paths resolve version 1.0.0; ChatGPT desktop UI
+  pickup and the Wave 4 AssetLib publication remain pending.)
 - [ ] Announce the release with one consistent message: **other integrations give
   agents tools; this project gives them a tested feedback loop to author, run,
   observe, playtest, and independently verify Godot games.** Link the demo and

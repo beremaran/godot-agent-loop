@@ -52,8 +52,17 @@ codex plugin add godot-agent-loop@godot-agent-loop
 codex plugin list
 ```
 
-The ChatGPT desktop app reads the same repo marketplace and installs a cached
-copy. Restart the app after changing a locally installed plugin.
+Install the signed public snapshot with:
+
+```bash
+codex plugin marketplace add beremaran/godot-agent-loop --ref v1.0.0
+codex plugin add godot-agent-loop@godot-agent-loop
+```
+
+In the ChatGPT desktop app, open **Plugins** from Work or Codex, add the same
+repository marketplace, and install `godot-agent-loop@godot-agent-loop`. Start a
+new chat after installation. Remove a prior local-cache copy before checking the
+public version, and restart the app after changing a locally installed plugin.
 
 ## OpenCode
 

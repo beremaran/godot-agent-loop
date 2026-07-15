@@ -72,4 +72,19 @@ Pi 0.80.2 installed the public npm source into an isolated native home, listed
 version 1.0.0, reconciled it through `pi update`, and started the extension.
 Native startup reported `Godot Agent Loop connected (39 tools)`, all four
 canonical skills, and the npm extension path. Removal left an empty package
-list and no server process. ChatGPT desktop cache pickup remains a Wave 3 case.
+list and no server process.
+
+On 2026-07-15, Wave 3 repeated the public repository marketplace lifecycle in
+isolated homes. Claude Code installed, inventoried, and removed
+`godot-agent-loop@godot-agent-loop`. Codex CLI 0.144.1 and the OpenAI VS Code
+extension's bundled Codex 0.144.0-alpha.4 host each discovered the signed
+`v1.0.0` marketplace snapshot, installed it enabled, found all four skills and
+the pinned compact-surface MCP command, then removed both plugin and marketplace
+state. OpenCode repeated its public npm user-scope install, native skill
+discovery, and clean uninstall.
+
+The official MCP Registry record is active and latest at version 1.0.0, with an
+exact stdio binding to `@beremaran/godot-agent-loop@1.0.0`. ChatGPT desktop cache
+pickup remains pending because this Linux verification host has no ChatGPT
+desktop executable or process; the CLI and IDE-host results are not substituted
+for that UI check.
