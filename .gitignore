@@ -1,8 +1,5 @@
 .prompts/
 
-AGENTS.md
-CLAUDE.md
-
 # Dependencies
 node_modules/
 
