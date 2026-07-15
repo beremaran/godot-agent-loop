@@ -7,10 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-07-16
+
+### Editor-native workflow
+
+- Add secure, persistent editor-native attachment with per-project discovery,
+  acknowledged external synchronization, compound transactions, and trace
+  replay.
+- Add an idempotent `editor_session` lifecycle contract plus bounded waits,
+  scenarios, and richer screenshot and performance evidence.
+
 ### Compatibility
 
 - Raise the supported Godot compatibility floor to 4.7 across the editor addon,
   generated projects, .NET defaults, export generators, CI, and agent workflows.
+- Require protocol 1 persistent editor addons to be replaced and Godot to be
+  restarted; detached authoring and CI remain supported.
 
 ## [1.0.1] - 2026-07-15
 
@@ -61,6 +73,7 @@ identity. Full release notes: [`docs/releases/1.0.0.md`](docs/releases/1.0.0.md)
 - Runtime connections are authenticated with a per-session secret; transports
   bind to loopback and retained logs are bounded and redacted.
 
-[Unreleased]: https://github.com/beremaran/godot-agent-loop/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/beremaran/godot-agent-loop/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/beremaran/godot-agent-loop/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/beremaran/godot-agent-loop/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/beremaran/godot-agent-loop/releases/tag/v1.0.0

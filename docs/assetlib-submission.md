@@ -35,12 +35,12 @@ license, commit, repository, and icon. No reviewer feedback has been received.
 
 ## Candidate artifacts
 
-The following artifacts describe the next `1.0.1` candidate. They do not alter
+The following artifacts describe the next `1.1.0` candidate. They do not alter
 the pending `1.0.0` submission above; an Asset Library update requires a new
 download commit and a separate moderator submission.
 
 - `npm run assetlib:pack` creates
-  `dist/godot-agent-loop-1.0.1.zip`, containing only
+  `dist/godot-agent-loop-1.1.0.zip`, containing only
   `addons/godot_agent_loop/`. Its contract test proves identical bytes across
   UTC and Australia/Perth release environments.
 - `npm run assetlib:preview` reproducibly captures the real headed editor UI.

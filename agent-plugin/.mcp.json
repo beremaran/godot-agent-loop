@@ -4,7 +4,7 @@
       "command": "npx",
       "args": [
         "-y",
-        "@beremaran/godot-agent-loop@1.0.1"
+        "@beremaran/godot-agent-loop@1.1.0"
       ],
       "env": {
         "GODOT_MCP_TOOL_SURFACE": "compact"

@@ -183,7 +183,7 @@ describe('project process ownership', () => {
       expect(editorState.isError, editorState.text).toBe(false);
       expect(JSON.parse(editorState.text)).toMatchObject({
         action: 'inspect', has_undo_redo: true, authenticated: true,
-        addon_version: '1.1.0', protocol_version: '2', server_version: '1.0.1',
+        addon_version: '1.1.0', protocol_version: '2', server_version: '1.1.0',
       });
 
       // Godot can bring the headless editor bridge up before it opens the
@@ -478,7 +478,7 @@ describe('project process ownership', () => {
         authenticated: true,
         addon_version: '1.1.0',
         protocol_version: '2',
-        server_version: '1.0.1',
+        server_version: '1.1.0',
       });
       for (const [file, content] of before) {
         expect(readFileSync(join(addonPath, file), 'utf8'), file).toBe(content);
