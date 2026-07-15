@@ -158,7 +158,7 @@ export class ScriptValidationService {
     if (!/\.gd$/i.test(args.scriptPath)) return createErrorResponse('validate_script only checks GDScript (.gd) files.');
     const projectPath = this.context.pathSecurity.canonicalProjectPath(args.projectPath);
     if (!projectPath) return createErrorResponse('Invalid path.');
-    const scriptPath = projectRelativePath(this.context, args.projectPath, args.scriptPath);
+    const scriptPath = projectRelativePath(this.context, projectPath, args.scriptPath);
     if (!existsSync(scriptPath)) return createErrorResponse(`Script does not exist: ${args.scriptPath}`);
     if (!this.context.executable.path) await this.context.executable.detect();
     if (!this.context.executable.path) return createErrorResponse('Could not find a valid Godot executable path');

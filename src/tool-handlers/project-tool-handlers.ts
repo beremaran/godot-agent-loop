@@ -884,7 +884,7 @@ export class ProjectToolHandlers {
       const projectRoot = this.context.pathSecurity.canonicalProjectPath(args.projectPath);
       if (!projectRoot) return createErrorResponse('Invalid path.');
       const baseDir = args.subdirectory
-        ? this.projectRelativePath(args.projectPath, args.subdirectory)
+        ? this.projectRelativePath(projectRoot, args.subdirectory)
         : projectRoot;
 
       if (!existsSync(baseDir)) {

@@ -25,6 +25,36 @@ async function startedServer(): Promise<E2EServer> {
   return server;
 }
 
+async function createLinuxExportFixture(game: E2EServer): Promise<string> {
+  const projectPath = join(game.root, 'Export Project');
+  expect((await game.call('create_project', { projectPath, projectName: 'Export Project' })).isError).toBe(false);
+  const godotBinary = resolveGodotBinary();
+  const useInstalledExportTemplates = process.env.GODOT_MCP_EXPORT_TEMPLATE_TEST === '1';
+  const files: Record<string, string> = {
+    'main.gd': [
+      'extends Node', '', 'func _ready() -> void:', '\tprint("MCP_EXPORTED_GAME_OK")', '\tget_tree().quit()', '',
+    ].join('\n'),
+    'main.tscn': [
+      '[gd_scene load_steps=2 format=3]', '', '[ext_resource type="Script" path="res://main.gd" id="1"]', '',
+      '[node name="Main" type="Node"]', 'script = ExtResource("1")', '',
+    ].join('\n'),
+    'export_presets.cfg': [
+      '[preset.0]', '', 'name="Linux Agent"', 'platform="Linux"', 'runnable=true', 'advanced_options=false',
+      'dedicated_server=false', 'custom_features=""', 'export_filter="all_resources"', 'include_filter=""',
+      'exclude_filter=""', 'export_path="build/release.x86_64"', 'script_export_mode=2', '', '[preset.0.options]', '',
+      `custom_template/debug=${JSON.stringify(useInstalledExportTemplates ? '' : godotBinary)}`,
+      `custom_template/release=${JSON.stringify(useInstalledExportTemplates ? '' : godotBinary)}`,
+      'binary_format/embed_pck=false', '',
+    ].join('\n'),
+  };
+  for (const [filePath, content] of Object.entries(files)) {
+    const written = await game.call('write_file', { projectPath, filePath, content });
+    expect(written.isError, `${filePath}: ${written.text}`).toBe(false);
+  }
+  expect((await game.call('set_main_scene', { projectPath, scenePath: 'main.tscn' })).isError).toBe(false);
+  return projectPath;
+}
+
 describe('project creation and delivery tools through MCP', () => {
   it('create_project produces engine-loadable GDScript and .NET projects and create_csharp_script compiles', async () => {
     const game = await startedServer();
@@ -212,61 +242,15 @@ describe('project creation and delivery tools through MCP', () => {
     })).rejects.toThrow(/exportPreset must match/i);
   });
 
-  it.runIf(process.platform === 'linux')('export_project creates release/debug artifacts and the release boots its packed project', async () => {
+  it('keeps export inspection, classification, and output paths portable', async () => {
     const game = await startedServer();
-    const projectPath = join(game.root, 'Export Project');
-    expect((await game.call('create_project', { projectPath, projectName: 'Export Project' })).isError).toBe(false);
-    const godotBinary = resolveGodotBinary();
-    const useInstalledExportTemplates = process.env.GODOT_MCP_EXPORT_TEMPLATE_TEST === '1';
-    const files: Record<string, string> = {
-      'main.gd': [
-        'extends Node', '', 'func _ready() -> void:', '\tprint("MCP_EXPORTED_GAME_OK")', '\tget_tree().quit()', '',
-      ].join('\n'),
-      'main.tscn': [
-        '[gd_scene load_steps=2 format=3]', '', '[ext_resource type="Script" path="res://main.gd" id="1"]', '',
-        '[node name="Main" type="Node"]', 'script = ExtResource("1")', '',
-      ].join('\n'),
-      'export_presets.cfg': [
-        '[preset.0]', '', 'name="Linux Agent"', 'platform="Linux"', 'runnable=true', 'advanced_options=false',
-        'dedicated_server=false', 'custom_features=""', 'export_filter="all_resources"', 'include_filter=""',
-        'exclude_filter=""', 'export_path="build/release.x86_64"', 'script_export_mode=2', '', '[preset.0.options]', '',
-        `custom_template/debug=${JSON.stringify(useInstalledExportTemplates ? '' : godotBinary)}`,
-        `custom_template/release=${JSON.stringify(useInstalledExportTemplates ? '' : godotBinary)}`,
-        'binary_format/embed_pck=false', '',
-      ].join('\n'),
-    };
-    for (const [filePath, content] of Object.entries(files)) {
-      const written = await game.call('write_file', { projectPath, filePath, content });
-      expect(written.isError, `${filePath}: ${written.text}`).toBe(false);
-    }
-    expect((await game.call('set_main_scene', { projectPath, scenePath: 'main.tscn' })).isError).toBe(false);
+    const projectPath = await createLinuxExportFixture(game);
 
     const readiness = await game.call('verify_export_readiness', {
       projectPath, action: 'inspect', presetName: 'Linux Agent',
     });
     expect(readiness.isError, readiness.text).toBe(false);
     expect(JSON.parse(readiness.text)).toMatchObject({ ready: true, preset: { platform: 'Linux' } });
-
-    const release = await game.call('verify_export_readiness', {
-      projectPath, action: 'export_smoke', presetName: 'Linux Agent',
-      outputPath: 'build/release.x86_64', smoke: true, expectedOutput: 'MCP_EXPORTED_GAME_OK',
-      timeoutSeconds: 120, smokeTimeoutSeconds: 5,
-    });
-    expect(release.isError, release.text).toBe(false);
-    expect(JSON.parse(release.text)).toMatchObject({
-      category: 'success', artifact: { path: 'build/release.x86_64', executable: true,
-        companion_pck: 'build/release.pck' }, smoke: { attempted: true, passed: true, output_matched: true },
-    });
-    const releaseBinary = join(projectPath, 'build', 'release.x86_64');
-    expect(existsSync(releaseBinary)).toBe(true);
-    expect(existsSync(join(projectPath, 'build', 'release.pck'))).toBe(true);
-
-    const debug = await game.call('export_project', {
-      projectPath, presetName: 'Linux Agent', outputPath: 'build/debug.x86_64', debug: true,
-    });
-    expect(debug.isError, debug.text).toBe(false);
-    expect(existsSync(join(projectPath, 'build', 'debug.x86_64'))).toBe(true);
-    expect(existsSync(join(projectPath, 'build', 'debug.pck'))).toBe(true);
 
     const missingPreset = await game.call('verify_export_readiness', {
       projectPath, action: 'inspect', presetName: 'Missing Preset',
@@ -282,6 +266,8 @@ describe('project creation and delivery tools through MCP', () => {
     expect(unsupported.isError).toBe(true);
     expect(JSON.parse(unsupported.text)).toMatchObject({ ready: false, category: 'unsupported_platform', platform_known: false });
 
+    mkdirSync(join(projectPath, 'build'), { recursive: true });
+    writeFileSync(join(projectPath, 'build', 'release.x86_64'), 'existing artifact');
     const invalidOutput = await game.call('verify_export_readiness', {
       projectPath, action: 'export_smoke', presetName: 'Linux Agent',
       outputPath: 'build/release.x86_64/child', smoke: false,
@@ -294,6 +280,31 @@ describe('project creation and delivery tools through MCP', () => {
     });
     expect(escaped.isError).toBe(true);
     expect(escaped.text).toMatch(/Invalid output path/i);
+  });
+
+  it.runIf(process.platform === 'linux')('export_project creates release/debug artifacts and the release boots its packed project', async () => {
+    const game = await startedServer();
+    const projectPath = await createLinuxExportFixture(game);
+
+    const release = await game.call('verify_export_readiness', {
+      projectPath, action: 'export_smoke', presetName: 'Linux Agent',
+      outputPath: 'build/release.x86_64', smoke: true, expectedOutput: 'MCP_EXPORTED_GAME_OK',
+      timeoutSeconds: 120, smokeTimeoutSeconds: 5,
+    });
+    expect(release.isError, release.text).toBe(false);
+    expect(JSON.parse(release.text)).toMatchObject({
+      category: 'success', artifact: { path: 'build/release.x86_64', executable: true,
+        companion_pck: 'build/release.pck' }, smoke: { attempted: true, passed: true, output_matched: true },
+    });
+    expect(existsSync(join(projectPath, 'build', 'release.x86_64'))).toBe(true);
+    expect(existsSync(join(projectPath, 'build', 'release.pck'))).toBe(true);
+
+    const debug = await game.call('export_project', {
+      projectPath, presetName: 'Linux Agent', outputPath: 'build/debug.x86_64', debug: true,
+    });
+    expect(debug.isError, debug.text).toBe(false);
+    expect(existsSync(join(projectPath, 'build', 'debug.x86_64'))).toBe(true);
+    expect(existsSync(join(projectPath, 'build', 'debug.pck'))).toBe(true);
   });
 
   it('verify_export_readiness classifies missing templates before export work', async () => {

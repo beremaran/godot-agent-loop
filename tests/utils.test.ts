@@ -260,6 +260,15 @@ describe('PathSecurity', () => {
 
     expect(canonicalProject).toBe(realpathSync(project));
     expect(relative(canonicalProject!, resolvedScript!)).toBe(join('scripts', 'player.gd'));
+
+    const otherRoot = join(workspace, 'other-root');
+    mkdirSync(join(otherRoot, 'project'), { recursive: true });
+    rmSync(linkedRoot);
+    symlinkSync(otherRoot, linkedRoot);
+
+    const resolvedAfterRetarget = security.resolveProjectPath(canonicalProject!, 'scripts/player.gd');
+    expect(relative(canonicalProject!, resolvedAfterRetarget!)).toBe(join('scripts', 'player.gd'));
+    expect(resolvedAfterRetarget).not.toContain(otherRoot);
   });
 });
 
