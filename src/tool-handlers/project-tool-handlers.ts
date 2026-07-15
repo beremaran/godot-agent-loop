@@ -881,9 +881,11 @@ export class ProjectToolHandlers {
     }
 
     try {
+      const projectRoot = this.context.pathSecurity.canonicalProjectPath(args.projectPath);
+      if (!projectRoot) return createErrorResponse('Invalid path.');
       const baseDir = args.subdirectory
         ? this.projectRelativePath(args.projectPath, args.subdirectory)
-        : args.projectPath;
+        : projectRoot;
 
       if (!existsSync(baseDir)) {
         return createErrorResponse(`Subdirectory does not exist: ${args.subdirectory}`);
@@ -914,7 +916,7 @@ export class ProjectToolHandlers {
         }
       };
 
-      scanDir(baseDir, args.projectPath);
+      scanDir(baseDir, projectRoot);
       files.sort((left, right) => left.localeCompare(right, 'en'));
       const cursor = args.cursor ?? 0;
       const limit = args.limit ?? 1000;

@@ -426,7 +426,7 @@ export async function assertNoLeakedGodotProcesses(rootDir: string): Promise<voi
   throw new Error(`Leaked Godot processes for ${rootDir}:\n${survivors.join('\n')}`);
 }
 
-async function findProcesses(needle: string): Promise<string[]> {
+export async function findProcesses(needle: string): Promise<string[]> {
   if (process.platform === 'win32') {
     try {
       const script = [
@@ -438,6 +438,16 @@ async function findProcesses(needle: string): Promise<string[]> {
         env: { ...process.env, GODOT_MCP_PROCESS_NEEDLE: needle },
       });
       return stdout.split(/\r?\n/).filter(line => line.trim() !== '');
+    } catch {
+      return [];
+    }
+  }
+  if (process.platform === 'darwin') {
+    try {
+      // BSD pgrep has no GNU -a flag, so `pgrep -af` returns only PIDs. Use
+      // ps to retain the command line needed by lifecycle assertions.
+      const { stdout } = await execFileAsync('ps', ['-axo', 'pid=,command=']);
+      return stdout.split(/\r?\n/).filter(line => line.includes(needle));
     } catch {
       return [];
     }

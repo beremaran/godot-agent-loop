@@ -285,7 +285,22 @@ const report = render(version, api, rows);
 const data = JSON.stringify({ engine: version, generated_from: '--dump-extension-api', classes: rows }, null, 2) + '\n';
 
 if (process.argv.includes('--check')) {
-  const stale = !existsSync(reportPath) || readFileSync(reportPath, 'utf8') !== report;
+  const baseline = existsSync(dataPath) ? JSON.parse(readFileSync(dataPath, 'utf8')) : null;
+  const versionFamily = value => /^(\d+\.\d+)/.exec(value ?? '')?.[1] ?? null;
+  const baselineVersion = typeof baseline?.engine === 'string' ? baseline.engine : version;
+  // Patch releases often change only the version stamp. Accept them when the
+  // complete generated report and class data remain identical to the audited
+  // baseline; a changed class, method count, singleton count, or bucket still
+  // makes the report stale. Different major/minor releases always need a new
+  // checked-in audit.
+  const comparisonVersion = versionFamily(version) === versionFamily(baselineVersion)
+    ? baselineVersion
+    : version;
+  const comparableReport = render(comparisonVersion, api, rows);
+  const comparableData = JSON.stringify({ engine: comparisonVersion, generated_from: '--dump-extension-api', classes: rows }, null, 2) + '\n';
+  const stale = !existsSync(reportPath) || !existsSync(dataPath)
+    || readFileSync(reportPath, 'utf8') !== comparableReport
+    || readFileSync(dataPath, 'utf8') !== comparableData;
   if (stale) {
     console.error('docs/coverage/engine-surface.md is stale; run `npm run coverage:engine`.');
     process.exit(1);
@@ -294,7 +309,8 @@ if (process.argv.includes('--check')) {
     console.error(`Engine surface audit has ${gaps.length} unresolved gap(s): ${gaps.map(row => row.name).join(', ')}`);
     process.exit(1);
   }
-  console.log(`Engine surface report is current for Godot ${version}.`);
+  const compatibility = comparisonVersion === version ? '' : ` (verified with compatible ${version})`;
+  console.log(`Engine surface report is current for Godot ${comparisonVersion}${compatibility}.`);
 } else {
   writeFileSync(reportPath, report);
   writeFileSync(dataPath, data);

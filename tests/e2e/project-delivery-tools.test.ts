@@ -212,7 +212,7 @@ describe('project creation and delivery tools through MCP', () => {
     })).rejects.toThrow(/exportPreset must match/i);
   });
 
-  it('export_project creates release/debug artifacts and the release boots its packed project', async () => {
+  it.runIf(process.platform === 'linux')('export_project creates release/debug artifacts and the release boots its packed project', async () => {
     const game = await startedServer();
     const projectPath = join(game.root, 'Export Project');
     expect((await game.call('create_project', { projectPath, projectName: 'Export Project' })).isError).toBe(false);

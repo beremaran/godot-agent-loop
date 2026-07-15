@@ -133,6 +133,12 @@ export class PathSecurity {
       : null;
   }
 
+  /** Return the allowed project's real path for relative-path calculations. */
+  canonicalProjectPath(projectPath: string): string | null {
+    if (!fs.existsSync(projectPath) || !this.isProjectPathAllowed(projectPath)) return null;
+    return this.realpathWithFallback(projectPath);
+  }
+
   isRelativePathAllowed(projectPath: string, relativePath: string): boolean {
     return this.resolveProjectPath(projectPath, relativePath) !== null;
   }

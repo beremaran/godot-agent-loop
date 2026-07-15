@@ -1,7 +1,7 @@
 // @test-kind: unit
-import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'fs';
+import { mkdtempSync, mkdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
-import { join } from 'path';
+import { join, relative } from 'path';
 import { afterEach, describe, it, expect } from 'vitest';
 import {
   PARAMETER_MAPPINGS,
@@ -242,6 +242,24 @@ describe('PathSecurity', () => {
 
     expect(security.resolveProjectPath(project, 'linked-outside/secret.gd')).toBeNull();
     expect(security.isRelativePathAllowed(project, 'linked-outside/secret.gd')).toBe(false);
+  });
+
+  it('exposes one canonical namespace for project-relative calculations', () => {
+    const workspace = makeTemporaryDirectory();
+    const realRoot = join(workspace, 'real-root');
+    const project = join(realRoot, 'project');
+    const linkedRoot = join(workspace, 'linked-root');
+    mkdirSync(project, { recursive: true });
+    writeFileSync(join(project, 'project.godot'), '');
+    symlinkSync(realRoot, linkedRoot);
+
+    const linkedProject = join(linkedRoot, 'project');
+    const security = new PathSecurity([linkedRoot]);
+    const canonicalProject = security.canonicalProjectPath(linkedProject);
+    const resolvedScript = security.resolveProjectPath(linkedProject, 'scripts/player.gd');
+
+    expect(canonicalProject).toBe(realpathSync(project));
+    expect(relative(canonicalProject!, resolvedScript!)).toBe(join('scripts', 'player.gd'));
   });
 });
 
