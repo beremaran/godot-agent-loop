@@ -55,12 +55,12 @@ for (const path of files) {
     forceDosTimestamp: true,
   });
 }
-archive.end({ comment: `${product.addon.name} ${product.version}` });
+archive.end({ comment: `${product.addon.name} ${product.addon.version}` });
 await completion;
 
 console.log(JSON.stringify({
   archive: outputPath,
   addon: product.addon.directory,
-  version: product.version,
+  version: product.addon.version,
   files: files.length,
 }, null, 2));

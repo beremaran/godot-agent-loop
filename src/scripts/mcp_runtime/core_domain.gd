@@ -35,7 +35,8 @@ func _cmd_get_scene_tree(params: Dictionary) -> void:
 		return
 	var traversal: Dictionary = {"count": 0, "truncated": false, "max_nodes": max_nodes}
 	var tree: Dictionary = _build_tree_node(get_tree().root, traversal)
-	respond({"success": true, "tree": tree, "node_count": traversal["count"], "truncated": traversal["truncated"], "max_nodes": max_nodes})
+	respond({"success": true, "tree": tree, "node_count": traversal["count"], "truncated": traversal["truncated"], "max_nodes": max_nodes,
+		"current_scene": "" if get_tree().current_scene == null else get_tree().current_scene.scene_file_path})
 
 func _build_tree_node(node: Node, traversal: Dictionary) -> Dictionary:
 	var count_value: Variant = traversal.get("count", 0)

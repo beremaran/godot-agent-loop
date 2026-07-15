@@ -125,6 +125,8 @@ describe('Godot support policy', () => {
 
     const readme = readRepoFile('README.md');
     expect(readme).toContain('Godot 4.7 process, Unicode path, runtime input, window query, and teardown workflows');
-    expect(readme).toContain('Windows/macOS editor UI, rendering, and exports | Not claimed');
+    expect(readme).toContain('Windows editor UI remains outside the claimed boundary');
+    expect(readme).toContain('macOS | Portable acceptance and attached-editor workflow verified');
+    expect(readme).toContain('interactive-golden-agent-run.json');
   });
 });

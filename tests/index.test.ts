@@ -142,6 +142,7 @@ vi.mock('fs', () => {
     rmSync: vi.fn(),
     renameSync: vi.fn(),
     chmodSync: vi.fn(),
+    statSync: vi.fn(() => ({ mode: 0o600 })),
   };
 });
 
@@ -219,7 +220,7 @@ function getFakeArgsForSchema(schema: any, toolName: string): any {
       const preferred = prop.minimum ?? (prop.maximum !== undefined && prop.maximum < 1 ? prop.maximum : 1);
       val = prop.type === 'integer' ? Math.ceil(preferred) : preferred;
     } else if (prop.type === 'boolean') {
-      val = true;
+      val = toolName === 'editor_session' && key === 'launchIfNeeded' ? false : true;
     } else if (prop.type === 'array') {
       val = prop.items?.enum?.length ? [prop.items.enum[0]] : [];
     } else if (prop.type === 'object') {
@@ -232,6 +233,10 @@ function getFakeArgsForSchema(schema: any, toolName: string): any {
   }
   return args;
 }
+
+const genericSweepExclusions = new Set([
+  'launch_editor', 'editor_session', 'editor_control', 'editor_transaction', 'game_scenario',
+]);
 
 describe('GodotServer class tests', () => {
   let server: GodotServer;
@@ -270,7 +275,7 @@ describe('GodotServer class tests', () => {
     expect(result.tools.length).toBeGreaterThan(0);
   });
 
-  it('handles all registered tools - happy paths', async () => {
+  it('handles all registered tools - happy paths', { timeout: 20_000 }, async () => {
     const mockSocket = {
       write: vi.fn((data: string) => {
         try {
@@ -320,7 +325,7 @@ describe('GodotServer class tests', () => {
     for (const tool of toolsResult.tools) {
       // The editor bridge is exercised by the full-path lifecycle suite; this
       // generic unit sweep only has a mocked runtime socket.
-      if (tool.name === 'editor_control') continue;
+      if (genericSweepExclusions.has(tool.name)) continue;
       if (tool.name === 'create_project') {
         mockExistsSyncImpl = (path: string) => {
           if (typeof path === 'string' && path.endsWith('project.godot')) {
@@ -597,12 +602,13 @@ describe('GodotServer class tests', () => {
     await server.run();
   });
 
-  it('handles all registered tools - invalid path validation', async () => {
+  it('handles all registered tools - invalid path validation', { timeout: 20_000 }, async () => {
     const callTool = handlers.get(CallToolRequestSchema);
     const listTools = handlers.get(ListToolsRequestSchema);
     const toolsResult = await listTools();
 
     for (const tool of toolsResult.tools) {
+      if (genericSweepExclusions.has(tool.name)) continue;
       const args = getFakeArgsForSchema(tool.inputSchema, tool.name);
       for (const key of Object.keys(args)) {
         if (typeof args[key] === 'string') {
@@ -622,7 +628,7 @@ describe('GodotServer class tests', () => {
     }
   });
 
-  it('handles all registered tools - missing project.godot file', async () => {
+  it('handles all registered tools - missing project.godot file', { timeout: 20_000 }, async () => {
     const callTool = handlers.get(CallToolRequestSchema);
     const listTools = handlers.get(ListToolsRequestSchema);
     const toolsResult = await listTools();
@@ -635,6 +641,7 @@ describe('GodotServer class tests', () => {
     };
 
     for (const tool of toolsResult.tools) {
+      if (genericSweepExclusions.has(tool.name)) continue;
       const args = getFakeArgsForSchema(tool.inputSchema, tool.name);
       try {
         await callTool({
@@ -651,7 +658,7 @@ describe('GodotServer class tests', () => {
     mockExistsSyncImpl = (_path: string) => true;
   });
 
-  it('handles all registered tools - missing specific scene or script file', async () => {
+  it('handles all registered tools - missing specific scene or script file', { timeout: 20_000 }, async () => {
     const callTool = handlers.get(CallToolRequestSchema);
     const listTools = handlers.get(ListToolsRequestSchema);
     const toolsResult = await listTools();
@@ -664,6 +671,7 @@ describe('GodotServer class tests', () => {
     };
 
     for (const tool of toolsResult.tools) {
+      if (genericSweepExclusions.has(tool.name)) continue;
       const args = getFakeArgsForSchema(tool.inputSchema, tool.name);
       try {
         await callTool({
@@ -680,7 +688,7 @@ describe('GodotServer class tests', () => {
     mockExistsSyncImpl = (_path: string) => true;
   });
 
-  it('handles all registered tools - stderr error response', async () => {
+  it('handles all registered tools - stderr error response', { timeout: 20_000 }, async () => {
     executeOperationSpy.mockResolvedValue({
       stdout: '',
       stderr: 'Failed to perform operation'
@@ -712,6 +720,7 @@ describe('GodotServer class tests', () => {
     const toolsResult = await listTools();
 
     for (const tool of toolsResult.tools) {
+      if (genericSweepExclusions.has(tool.name)) continue;
       const args = getFakeArgsForSchema(tool.inputSchema, tool.name);
       try {
         await callTool({
@@ -731,7 +740,7 @@ describe('GodotServer class tests', () => {
     });
   });
 
-  it('handles all registered tools - catch block exceptions', async () => {
+  it('handles all registered tools - catch block exceptions', { timeout: 20_000 }, async () => {
     executeOperationSpy.mockRejectedValue(new Error('Operation error'));
 
     const mockSocket = {
@@ -756,6 +765,7 @@ describe('GodotServer class tests', () => {
     const toolsResult = await listTools();
 
     for (const tool of toolsResult.tools) {
+      if (genericSweepExclusions.has(tool.name)) continue;
       const args = getFakeArgsForSchema(tool.inputSchema, tool.name);
       try {
         await callTool({

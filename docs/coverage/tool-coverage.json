@@ -69,6 +69,39 @@
         "security": "applicable"
       }
     },
+    "editor_session": {
+      "level": "E2E",
+      "tests": [
+        "tests/e2e/lifecycle-tools.test.ts::'editor_session'",
+        "tests/editor-session-registry.test.ts::EditorSessionRegistry"
+      ],
+      "actions": {
+        "ensure": {
+          "tests": ["tests/e2e/lifecycle-tools.test.ts::action: 'ensure'"]
+        },
+        "status": {
+          "tests": ["tests/e2e/lifecycle-tools.test.ts::action: 'status'"]
+        },
+        "disconnect": {
+          "tests": ["tests/e2e/lifecycle-tools.test.ts::action: 'disconnect'"]
+        }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: session attachment does not author project content",
+        "frame-behavior": "n/a: editor bridge runs outside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: EditorPlugin is language-independent",
+        "security": "applicable"
+      }
+    },
     "editor_control": {
       "level": "E2E",
       "tests": [
@@ -130,6 +163,32 @@
         "cleanup": "applicable",
         "persistence": "applicable",
         "frame-behavior": "n/a: editor bridge runs outside the game loop",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: EditorPlugin is language-independent",
+        "security": "applicable"
+      }
+    },
+    "editor_transaction": {
+      "level": "E2E",
+      "tests": [
+        "tests/e2e/lifecycle-tools.test.ts::'editor_transaction'"
+      ],
+      "actions": {
+        "*": {
+          "tests": ["tests/e2e/lifecycle-tools.test.ts::'editor_transaction'"]
+        }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "applicable",
+        "frame-behavior": "n/a: editor transaction runs outside the game loop",
         "exotic-paths": "applicable",
         "limits": "applicable",
         "compatibility": "applicable",
@@ -1406,6 +1465,11 @@
           "tests": [
             "tests/e2e/runtime-system-tools.test.ts::game_performance reports live engine counters"
           ]
+        },
+        "stress": {
+          "tests": [
+            "tests/e2e/runtime-system-tools.test.ts::game_performance reports live engine counters"
+          ]
         }
       },
       "dimensions": {
@@ -1454,6 +1518,60 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      }
+    },
+    "game_wait_until": {
+      "level": "E2E",
+      "tests": [
+        "tests/e2e/representative-path.test.ts::'game_wait_until'",
+        "tests/handler-modules.test.ts::handleGameWaitUntil"
+      ],
+      "actions": {
+        "*": {
+          "tests": ["tests/e2e/representative-path.test.ts::'game_wait_until'"]
+        }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: bounded observation does not author project content",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: runtime node and scene paths are protocol values",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: runtime protocol is language-independent",
+        "security": "applicable"
+      }
+    },
+    "game_scenario": {
+      "level": "E2E",
+      "tests": [
+        "tests/e2e/representative-path.test.ts::'game_scenario'",
+        "tests/handler-modules.test.ts::handleGameScenario"
+      ],
+      "actions": {
+        "*": {
+          "tests": ["tests/e2e/representative-path.test.ts::'game_scenario'"]
+        }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: scenario steps interact with the running game",
+        "frame-behavior": "applicable",
+        "exotic-paths": "n/a: runtime node paths are protocol values",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: runtime protocol is language-independent",
+        "security": "applicable"
       }
     },
     "read_scene": {

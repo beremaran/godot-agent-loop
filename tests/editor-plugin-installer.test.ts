@@ -24,7 +24,7 @@ function fixture(projectSource = '[application]\nconfig/name="Fixture"\n'): {
   return { root, projectPath, installer: new EditorPluginInstaller(scriptPath) };
 }
 
-function addPersistentAddon(projectPath: string, protocol = '1'): void {
+function addPersistentAddon(projectPath: string, protocol = '2'): void {
   const addon = join(projectPath, PERSISTENT_EDITOR_ADDON_DIR);
   mkdirSync(addon, { recursive: true });
   writeFileSync(join(addon, 'plugin.gd'), 'persistent-content\n');
@@ -49,7 +49,7 @@ describe('EditorPluginInstaller', () => {
     const installed = installer.install(projectPath);
     expect(installed).toMatchObject({
       distribution: 'transient', pluginName: 'godot_agent_loop_transient',
-      protocolVersion: '1', owned: true, enabledByServer: true,
+      protocolVersion: '2', owned: true, enabledByServer: true,
     });
     expect(readFileSync(join(projectPath, 'project.godot'), 'utf8'))
       .toContain('enabled=PackedStringArray("godot_agent_loop_transient")');
@@ -106,7 +106,7 @@ describe('EditorPluginInstaller', () => {
     const incompatible = fixture();
     addPersistentAddon(incompatible.projectPath, '999');
     expect(() => incompatible.installer.install(incompatible.projectPath))
-      .toThrow(/protocol is incompatible: server 1, addon 999/);
+      .toThrow(/protocol is incompatible: server 2, addon 999/);
   });
 
   it('refuses to overwrite a foreign or modified transient addon', () => {

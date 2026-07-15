@@ -1,20 +1,52 @@
 // @test-kind: e2e
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync } from 'node:fs';
+import { spawn, type ChildProcess } from 'node:child_process';
+import {
+  copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { PNG } from 'pngjs';
 import { afterEach, describe, expect, it } from 'vitest';
-import { repoRoot, startServer, type E2EServer } from './helpers/harness.js';
+import {
+  assertNoLeakedGodotProcesses, findProcesses, killGodotProcesses, repoRoot,
+  resolveGodotBinary, startServer, type E2EServer,
+} from './helpers/harness.js';
 
 let server: E2EServer | null = null;
+let editorChild: ChildProcess | null = null;
+let goldenRoot: string | null = null;
 
 afterEach(async () => {
+  if (goldenRoot) await killGodotProcesses(goldenRoot);
   if (server) {
     const active = server;
     server = null;
     await active.close();
   }
+  if (goldenRoot) rmSync(goldenRoot, { recursive: true, force: true });
+  editorChild = null;
+  goldenRoot = null;
 });
+
+function installPersistentAddon(projectPath: string): void {
+  const addonPath = join(projectPath, 'addons/godot_agent_loop');
+  mkdirSync(addonPath, { recursive: true });
+  for (const file of ['plugin.gd', 'plugin.cfg', 'README.md', 'LICENSE']) {
+    copyFileSync(join(repoRoot, 'addons/godot_agent_loop', file), join(addonPath, file));
+  }
+  const projectFile = join(projectPath, 'project.godot');
+  const source = readFileSync(projectFile, 'utf8').replace(/\n*$/, '\n');
+  writeFileSync(projectFile, `${source}\n[editor_plugins]\nenabled=PackedStringArray("res://addons/godot_agent_loop/plugin.cfg")\n`);
+}
+
+async function waitForEditorDiscovery(projectPath: string, diagnostics: string[]): Promise<void> {
+  const record = join(projectPath, '.godot/godot_agent_loop/editor-session.json');
+  const deadline = Date.now() + 20_000;
+  while (!existsSync(record) && Date.now() < deadline) {
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  expect(existsSync(record), diagnostics.join('\n')).toBe(true);
+}
 
 function gameFiles(projectPath: string): string[] {
   const files: string[] = [];
@@ -124,21 +156,45 @@ describe('golden cold-agent game build', () => {
     expect(liveRun.toolSelectionFindings.length).toBeGreaterThan(0);
 
     const root = mkdtempSync(join(tmpdir(), 'godot-agent-loop-golden-agent-'));
+    goldenRoot = root;
     const projectPath = join(root, 'game');
     mkdirSync(root, { recursive: true });
-    server = await startServer({ project: { root, projectPath }, toolSurface: 'core' });
+    server = await startServer({ project: { root, projectPath }, toolSurface: 'core', preserveProject: true });
 
     const listed = await server.client.listTools();
-    expect(listed.tools).toHaveLength(39);
+    expect(listed.tools).toHaveLength(40);
     expect(listed.tools.map(tool => tool.name)).not.toContain('game_key_hold');
 
     await requiredCall(server, 'create_project', { projectPath, projectName: 'Golden Agent Game' });
-    await requiredCall(server, 'create_scene', {
+    await server.client.close();
+    server = null;
+    installPersistentAddon(projectPath);
+    const editorDiagnostics: string[] = [];
+    editorChild = spawn(resolveGodotBinary(), ['--editor', '--path', projectPath], {
+      env: { ...process.env, GODOT_MCP_EDITOR_START_PAUSED: 'false' }, stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    editorChild.stdout?.on('data', data => editorDiagnostics.push(String(data)));
+    editorChild.stderr?.on('data', data => editorDiagnostics.push(String(data)));
+    await waitForEditorDiscovery(projectPath, editorDiagnostics);
+    server = await startServer({ project: { root, projectPath }, toolSurface: 'core', preserveProject: true });
+    const attached = await requiredCall(server, 'editor_session', {
+      projectPath, action: 'ensure', launchIfNeeded: false, timeoutSeconds: 2,
+    });
+    expect(JSON.parse(attached.text)).toMatchObject({
+      editor_session: {
+        connected: true, reused: true, spawned: false, plugin_distribution: 'persistent',
+      },
+    });
+
+    const createdScene = await requiredCall(server, 'create_scene', {
       projectPath, scenePath: 'scenes/main.tscn', rootNodeType: 'Node2D',
     });
-    await requiredCall(server, 'create_script', {
+    expect(createdScene.text).toMatch(/"backend":"editor"/);
+    const createdScript = await requiredCall(server, 'create_script', {
       projectPath, scriptPath: 'scripts/main.gd', source: GAME_SCRIPT,
     });
+    expect(createdScript.text).toMatch(/"backend"\s*:\s*"file-backed"/);
+    expect(createdScript.text).toMatch(/"sync_status"\s*:\s*"acknowledged"/);
 
     const nodes = [
       { nodeType: 'ColorRect', nodeName: 'Background', properties: {
@@ -166,13 +222,18 @@ describe('golden cold-agent game build', () => {
       } },
     ] as const;
     for (const node of nodes) {
-      await requiredCall(server, 'add_node', {
+      const authoredNode = await requiredCall(server, 'add_node', {
         projectPath, scenePath: 'scenes/main.tscn', ...node,
       });
+      expect(authoredNode.text).toMatch(/"backend":"editor"/);
     }
-    await requiredCall(server, 'attach_script', {
+    const focusedNode = await requiredCall(server, 'editor_control', { projectPath, action: 'inspect' });
+    expect((JSON.parse(focusedNode.text) as { selection: string[] }).selection)
+      .toEqual(expect.arrayContaining([expect.stringMatching(/Instructions$/)]));
+    const attachedScript = await requiredCall(server, 'attach_script', {
       projectPath, scenePath: 'scenes/main.tscn', nodePath: 'root', scriptPath: 'scripts/main.gd',
     });
+    expect(attachedScript.text).toMatch(/"backend":"editor"/);
     await requiredCall(server, 'manage_input_map', {
       projectPath, action: 'add', actionName: 'move_right', key: 'D',
     });
@@ -180,6 +241,23 @@ describe('golden cold-agent game build', () => {
       projectPath, action: 'add', actionName: 'lose', key: 'L',
     });
     await requiredCall(server, 'set_main_scene', { projectPath, scenePath: 'scenes/main.tscn' });
+
+    const structure = await requiredCall(server, 'analyze_project_integrity', {
+      projectPath, action: 'analyze', maxFiles: 100, allowProceduralMainScene: false,
+    });
+    expect(JSON.parse(structure.text)).toMatchObject({
+      main_scene_structure: {
+        inspectable: true, meaningful_persisted_structure: true,
+        explicit_procedural_requirement: false, warning: null,
+      },
+    });
+    const editorEvidence = await requiredCall(server, 'editor_control', { projectPath, action: 'inspect' });
+    const editorState = JSON.parse(editorEvidence.text) as {
+      activity_dock: boolean; selection: string[]; activity: { event_id?: number; correlation_id?: string }[];
+    };
+    expect(editorState.activity_dock).toBe(true);
+    expect(editorState.selection.length).toBeGreaterThan(0);
+    expect(editorState.activity.some(event => Number.isInteger(event.event_id) && event.correlation_id)).toBe(true);
 
     const source = readFileSync(join(projectPath, 'scripts/main.gd'), 'utf8');
     expect(source).toContain('Input.is_action_pressed("move_right")');
@@ -192,8 +270,8 @@ describe('golden cold-agent game build', () => {
       waitFrames: 3,
       captureScreenshot: true,
       assertions: [
-        { kind: 'node_exists', nodePath: '/root/root/Player' },
-        { kind: 'node_exists', nodePath: '/root/root/Goal' },
+        { kind: 'node_exists', nodePath: '/root/Main/Player' },
+        { kind: 'node_exists', nodePath: '/root/Main/Goal' },
         { kind: 'log_contains', text: 'golden-game-ready' },
       ],
     });
@@ -202,9 +280,19 @@ describe('golden cold-agent game build', () => {
       screenshot: { captured: true, width: expect.any(Number), height: expect.any(Number) },
     });
 
-    await requiredCall(server, 'run_project', { projectPath });
+    await requiredCall(server, 'run_project', { projectPath, timingMode: 'realtime' });
     await server.waitForGameConnection();
-    await requiredCall(server, 'game_wait', { frames: 2, frameType: 'physics' });
+    const initialScenario = await requiredCall(server, 'game_scenario', {
+      projectPath, name: 'ordinary-play baseline', timeoutSeconds: 10,
+      steps: [
+        { type: 'wait', condition: { condition: 'node', nodePath: '/root/Main/Player', timeoutSeconds: 2 } },
+        { type: 'observe', tool: 'game_get_ui' },
+        { type: 'performance' },
+      ],
+    });
+    expect(JSON.parse(initialScenario.text)).toMatchObject({
+      passed: true, step_count: 3, teardown: { time_scale_restored: true },
+    });
     const initialUi = uiElements((await requiredCall(server, 'game_get_ui')).text);
     expect(initialUi.find(element => element.name === 'StateLabel')?.text).toBe('PLAYING');
     const initialX = initialUi.find(element => element.name === 'Player')?.position?.x;
@@ -237,7 +325,7 @@ describe('golden cold-agent game build', () => {
     expect(winPixel[1]).toBeGreaterThan(winPixel[2]);
     await requiredCall(server, 'stop_project');
 
-    await requiredCall(server, 'run_project', { projectPath });
+    await requiredCall(server, 'run_project', { projectPath, timingMode: 'realtime' });
     await server.waitForGameConnection();
     await requiredCall(server, 'game_key_press', { action: 'lose' });
     await requiredCall(server, 'game_wait', { frames: 2, frameType: 'physics' });
@@ -247,12 +335,36 @@ describe('golden cold-agent game build', () => {
     const losePixel = pixelAt(loseShot, 10, 10);
     expect(losePixel[0]).toBeGreaterThan(losePixel[1]);
     expect(losePixel[0]).toBeGreaterThan(losePixel[2]);
+    const performance = await requiredCall(server, 'game_performance', { action: 'stress', sampleCount: 3 });
+    expect(JSON.parse(performance.text)).toMatchObject({
+      stress_window: { available: true, baseline: {}, peak: {}, recovery: {} },
+      metric_availability: { gpu_time: { available: false } },
+    });
     await requiredCall(server, 'stop_project');
 
     expect(gameFiles(projectPath)).toEqual([
+      'addons/godot_agent_loop/LICENSE',
+      'addons/godot_agent_loop/README.md',
+      'addons/godot_agent_loop/plugin.cfg',
+      'addons/godot_agent_loop/plugin.gd',
+      'addons/godot_agent_loop/plugin.gd.uid',
       'project.godot',
       'scenes/main.tscn',
       'scripts/main.gd',
+      'scripts/main.gd.uid',
     ]);
+    editorChild.kill('SIGTERM');
+    const editorDeadline = Date.now() + 10_000;
+    while ((await findProcesses(root)).length > 0 && Date.now() < editorDeadline) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    await assertNoLeakedGodotProcesses(root);
+    expect(existsSync(join(projectPath, '.godot/godot_agent_loop/editor-session.json'))).toBe(false);
+    editorChild = null;
+    const active = server;
+    server = null;
+    if (active) await active.close();
+    rmSync(root, { recursive: true, force: true });
+    goldenRoot = null;
   }, 120_000);
 });

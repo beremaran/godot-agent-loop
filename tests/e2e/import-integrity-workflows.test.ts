@@ -89,6 +89,7 @@ describe('import pipeline and project integrity workflows through MCP', () => {
 
     const analyzed = await server.call('analyze_project_integrity', {
       projectPath: server.projectPath, action: 'analyze', maxFiles: 100,
+      allowProceduralMainScene: false,
     });
     expect(analyzed.isError, analyzed.text).toBe(false);
     const report = json(analyzed.text);
@@ -105,6 +106,9 @@ describe('import pipeline and project integrity workflows through MCP', () => {
       scene: 'orphan_scene.tscn', node: 'Lost', parent: 'Missing',
     });
     expect(report.orphan_resources).toContain('resources/broken.tres');
+    expect(report.main_scene_structure).toMatchObject({
+      configured: true, inspectable: true, explicit_procedural_requirement: false,
+    });
 
     const preview = await server.call('analyze_project_integrity', {
       projectPath: server.projectPath, action: 'preview_rename',

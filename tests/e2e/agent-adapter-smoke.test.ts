@@ -17,7 +17,7 @@ describe('generated client adapter MCP smoke path', () => {
     async () => {
       server = await startServer({ toolSurface: 'core' });
       const listed = await server.client.listTools();
-      expect(listed.tools).toHaveLength(39);
+      expect(listed.tools).toHaveLength(40);
       expect(listed.tools.map(tool => tool.name)).toContain('godot_tools');
       expect(listed.tools.map(tool => tool.name)).not.toContain('game_light_3d');
 
@@ -50,8 +50,8 @@ describe('generated client adapter MCP smoke path', () => {
       await handlers.get('session_start')?.({}, {
         ui: { notify(message: string, type?: string) { notices.push({ message, type }); } },
       });
-      expect(notices).toContainEqual({ message: 'Godot Agent Loop connected (39 tools)', type: 'info' });
-      expect(tools.size).toBe(39);
+      expect(notices).toContainEqual({ message: 'Godot Agent Loop connected (40 tools)', type: 'info' });
+      expect(tools.size).toBe(40);
       expect(tools.has('godot_tools')).toBe(true);
       expect(tools.has('game_light_3d')).toBe(false);
 

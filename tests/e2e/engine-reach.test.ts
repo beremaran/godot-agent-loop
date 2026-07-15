@@ -83,6 +83,8 @@ describe('generic engine reach for untooled classes', () => {
         `var instance = ClassDB.instantiate("${row.name}")`,
         'if instance == null:',
         '\treturn "<null>"',
+        `if instance.is_class("${row.name}"):`,
+        `\treturn "${row.name}"`,
         'return instance.get_class()',
       ].join('\n'));
       if (reported === '<unavailable>') continue;

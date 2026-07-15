@@ -10,6 +10,7 @@ import type { ToolArguments } from './utils.js';
 export const READ_ONLY_TOOLS: ReadonlySet<ToolName> = new Set([
   'get_debug_output',
   'get_godot_version',
+  'editor_session',
   'list_projects',
   'get_project_info',
   'get_uid',

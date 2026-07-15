@@ -9,5 +9,10 @@
     "MD041": false
   },
   "gitignore": true,
+  "ignores": [
+    "IMPLEMENTATION_GOAL.md",
+    "TODO.md",
+    "prompt-*.md"
+  ],
   "noProgress": true
 }

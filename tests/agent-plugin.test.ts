@@ -31,7 +31,7 @@ describe('portable agent plugin package', () => {
       name: 'godot-agent-loop',
       version: packageJson.version,
       package: packageJson.name,
-      mcp: { defaultToolCount: 39, discoveryTool: 'godot_tools' },
+      mcp: { defaultToolCount: 40, discoveryTool: 'godot_tools' },
     });
     expect(claude).toMatchObject({ name: adapter.name, version: adapter.version, mcpServers: './.mcp.json' });
     expect(codex).toMatchObject({

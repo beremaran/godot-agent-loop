@@ -60,9 +60,13 @@ export function createLifecycleToolRegistry(
   return {
       'godot_tools': args => handlers.handleGodotTools(args),
       'launch_editor': args => handlers.handleLaunchEditor(args),
+      'editor_session': args => handlers.handleEditorSession(args),
       'editor_control': args => handlers.handleEditorControl(args),
+      'editor_transaction': args => handlers.handleEditorTransaction(args),
       'run_project': args => handlers.handleRunProject(args),
       'verify_project': args => handlers.handleVerifyProject(args),
+      'game_wait_until': args => handlers.handleGameWaitUntil(args),
+      'game_scenario': args => handlers.handleGameScenario(args),
       'get_debug_output': () => handlers.handleGetDebugOutput(),
       'stop_project': () => handlers.handleStopProject(),
       'get_godot_version': () => handlers.handleGetGodotVersion(),
@@ -128,7 +132,7 @@ export function createGameToolRegistry(
   handlers: GameToolHandlers,
 ): ToolHandlerRegistry {
   return {
-      'game_screenshot': () => handlers.handleGameScreenshot(),
+      'game_screenshot': args => handlers.handleGameScreenshot(args),
       'game_visual_regression': args => handlers.handleGameVisualRegression(args),
       'game_click': args => handlers.handleGameClick(args),
       'game_key_press': args => handlers.handleGameKeyPress(args),

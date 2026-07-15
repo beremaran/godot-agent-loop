@@ -16,7 +16,7 @@ const payload = {
   category: product.addon.category,
   godotVersion: product.addon.minimumGodotVersion,
   testedThroughGodotVersion: product.addon.primaryGodotVersion,
-  version: product.version,
+  version: product.addon.version,
   repositoryHost: 'GitHub',
   repositoryUrl: product.repository.url,
   issuesUrl: product.repository.issues,

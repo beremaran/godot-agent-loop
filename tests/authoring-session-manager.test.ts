@@ -77,6 +77,7 @@ describe('AuthoringSessionManager', () => {
     ]);
     expect(starts[0].env).toEqual({
       GODOT_MCP_FIXED_FPS: '60',
+      GODOT_MCP_TIMING_MODE: 'deterministic',
       GODOT_MCP_RUNTIME_PORT: '23456', GODOT_MCP_RUNTIME_SECRET: 'test-secret',
     });
     expect(connections[0].send).toHaveBeenNthCalledWith(
@@ -187,5 +188,25 @@ describe('AuthoringSessionManager', () => {
     expect(result).toMatchObject({ exitCode: 1, signal: null });
     expect(result.stderr).toContain('authoring_operation_failed');
     manager.stop();
+  });
+
+  it('returns a handled editor operation without starting the authoring process', async () => {
+    const result = { stdout: 'editor', stderr: '', exitCode: 0, signal: null };
+    const starts: StartGodotProcessOptions[] = [];
+    const processManager = {
+      active: false,
+      start(options: StartGodotProcessOptions) { starts.push(options); return {}; },
+      stop() { return null; },
+    };
+    const manager = new AuthoringSessionManager({
+      operationsScriptPath: '/operations.gd',
+      resolveGodotPath: async () => '/godot',
+      installer: { install: vi.fn(), remove: vi.fn() } as unknown as InteractionServerInstaller,
+      processManager: processManager as unknown as GodotProcessManager,
+      tryEditorOperation: vi.fn(async () => ({ handled: true, result })),
+    });
+
+    await expect(manager.execute(backend, { scenePath: 'main.tscn' }, '/project')).resolves.toEqual(result);
+    expect(starts).toHaveLength(0);
   });
 });

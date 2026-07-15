@@ -95,17 +95,20 @@ describe('runtime protocol contract', () => {
     const connection = readFileSync(join(root, 'src/game-connection.ts'), 'utf8');
 
     expect(observability.correlationParam).toBe('_mcp_correlation_id');
-    expect(observability.components).toEqual(['godot-agent-loop-server', 'godot-agent-loop-runtime']);
+    expect(observability.components).toEqual([
+      'godot-agent-loop-server', 'godot-agent-loop-runtime', 'godot-agent-loop-editor',
+    ]);
     for (const event of ['request_started', 'request_completed', 'request_failed', 'request_timed_out']) {
       expect(observability.events).toContain(event);
       expect(`${server}\n${connection}`).toMatch(new RegExp(`["']${event}["']`));
     }
-    expect(observability.redaction).toMatch(/never logged/i);
+    expect(observability.redaction).toMatch(/removes token, secret/i);
     expect(observability.editorSink).toMatchObject({
       bridgeCommand: 'activity', dock: 'Agent Activity', maxEntries: 200,
     });
-    expect(observability.editorSink.fields).toEqual([
-      'correlation_id', 'command', 'target', 'outcome', 'duration_ms',
+    expect(observability.fields).toEqual([
+      'event_id', 'timestamp', 'correlation_id', 'tool', 'command', 'target_backend',
+      'phase', 'outcome', 'duration_ms', 'source', 'details',
     ]);
     expect(connection).not.toContain('Failed to parse game response: ${line}');
   });
@@ -138,12 +141,18 @@ describe('runtime protocol contract', () => {
     const systemDomain = readFileSync(join(root, 'src/scripts/mcp_runtime/system_domain.gd'), 'utf8');
 
     expect(timing).toMatchObject({
-      fixedFps: GODOT_SESSION_FIXED_FPS,
-      wallClockFpsCap: GODOT_SESSION_FIXED_FPS,
-      initialTimeScale: GODOT_SESSION_INITIAL_TIME_SCALE,
-      metadataEnvironment: GODOT_SESSION_FIXED_FPS_ENV,
+      modes: {
+        realtime: { runProjectDefault: true, displayPacing: true },
+        deterministic: {
+          verifyProjectDefault: true,
+          fixedFps: GODOT_SESSION_FIXED_FPS,
+          maxFps: GODOT_SESSION_FIXED_FPS,
+        },
+      },
+      metadataEnvironment: ['GODOT_MCP_TIMING_MODE', GODOT_SESSION_FIXED_FPS_ENV],
       controlCommand: 'time_scale',
     });
+    expect(timing.modes.deterministic.arguments).toContain(String(GODOT_SESSION_INITIAL_TIME_SCALE));
     expect(systemDomain).toContain('Engine.time_scale = time_scale');
     expect(systemDomain).toContain('"fixed_fps": _configured_fixed_fps()');
   });
@@ -168,7 +177,11 @@ describe('runtime protocol contract', () => {
     const plugin = readFileSync(join(root, 'addons/godot_agent_loop/plugin.gd'), 'utf8');
 
     expect(sync.bridgeCommand).toBe('filesystem_changed');
-    expect(sync.trigger).toMatch(/successful mutating/i);
+    expect(sync.trigger).toMatch(/successful file-backed persistent mutation/i);
+    expect(sync.statuses).toEqual(['acknowledged', 'detached', 'timeout', 'conflict', 'failed']);
+    expect(sync.resultFields).toEqual([
+      'backend', 'editor_session', 'sync_status', 'fallback_reason', 'observed_target_state',
+    ]);
     expect(sync.focusField).toBe('focus_path');
     expect(manager).toContain('isMutatingAuthoringCommand');
     expect(plugin).toContain('filesystem.scan()');

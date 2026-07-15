@@ -77,6 +77,8 @@ func _cmd_time_scale(params: Dictionary) -> void:
 		"success": true,
 		"time_scale": Engine.time_scale,
 		"fixed_fps": _configured_fixed_fps(),
+		"timing_mode": OS.get_environment("GODOT_MCP_TIMING_MODE") if not OS.get_environment("GODOT_MCP_TIMING_MODE").is_empty() else "external",
+		"display_pacing": OS.get_environment("GODOT_MCP_TIMING_MODE") == "realtime",
 		"ticks_msec": Time.get_ticks_msec(),
 		"fps": Engine.get_frames_per_second(),
 	})
