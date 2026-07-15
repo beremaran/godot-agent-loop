@@ -30,7 +30,7 @@ var _last_filesystem_sync: Dictionary = {}
 var _saved_history_versions: Dictionary = {}
 const MAX_ACTIVITY_ENTRIES: int = 200
 const PROTOCOL_VERSION: String = "2"
-const ADDON_VERSION: String = "1.1.0"
+const ADDON_VERSION: String = "1.1.1"
 const SESSION_DIRECTORY: String = ".godot/godot_agent_loop"
 const SESSION_FILE: String = "editor-session.json"
 

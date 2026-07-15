@@ -53,7 +53,7 @@ describe('Godot support policy', () => {
   it('keeps npm publication manual and verifies the registered SSH signing key', () => {
     const workflow = readRepoFile('.github/workflows/publish-npm.yml');
     expect(workflow).toContain('workflow_dispatch:');
-    expect(workflow).toContain('publish-@beremaran/godot-agent-loop@1.1.0');
+    expect(workflow).toContain('publish-@beremaran/godot-agent-loop@1.1.1');
     expect(workflow).toContain('gpg.ssh.allowedSignersFile="$ALLOWED_SIGNERS"');
     expect(workflow).toContain('berke@beremaran.com');
     expect(workflow).toContain('AAAAC3NzaC1lZDI1NTE5AAAAILjYS4yppZ4WvM2fzE4jMkMd9kn+psrlErcOR19rK5DZ');
@@ -64,12 +64,18 @@ describe('Godot support policy', () => {
     expect(workflow).toContain('sha256sum --check --strict');
     expect(workflow).toContain('mkdir -p dist');
     expect(workflow).toContain('npm pack --pack-destination dist');
-    expect(workflow).toContain('npm publish ./dist/beremaran-godot-agent-loop-1.1.0.tgz --access public --provenance');
-    expect(workflow).not.toContain('npm publish dist/beremaran-godot-agent-loop-1.1.0.tgz');
+    expect(workflow).toContain('npm publish ./dist/beremaran-godot-agent-loop-1.1.1.tgz --access public --provenance');
+    expect(workflow).not.toContain('npm publish dist/beremaran-godot-agent-loop-1.1.1.tgz');
     expect(workflow).toContain('id-token: write');
     expect(workflow).toContain('runs-on: ubuntu-latest');
     expect(workflow).not.toContain('NODE_AUTH_TOKEN');
     expect(workflow).not.toContain('secrets.NPM_TOKEN');
+  });
+
+  it('keeps generated engine API caches outside the npm package tree', () => {
+    const audit = readRepoFile('scripts/engine-surface-audit.js');
+    expect(audit).toContain("const cacheDir = join(root, '.cache/engine-api');");
+    expect(audit).not.toContain("const cacheDir = join(root, 'build/engine-api');");
   });
 
   it('keeps generated E2E fixtures compatible with the declared floor', () => {

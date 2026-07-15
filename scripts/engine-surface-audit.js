@@ -30,7 +30,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const reportPath = join(root, 'docs/coverage/engine-surface.md');
 const dataPath = join(root, 'docs/coverage/engine-surface.json');
 const scopePath = join(root, 'docs/coverage/engine-scope.json');
-const cacheDir = join(root, 'build/engine-api');
+const cacheDir = join(root, '.cache/engine-api');
 
 /**
  * Classes the README declares unsupported. Kept as an explicit list with a

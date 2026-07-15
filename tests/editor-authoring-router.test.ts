@@ -15,7 +15,7 @@ function session(overrides: Partial<PublicEditorSession> = {}): PublicEditorSess
     editor_start_identity: '123:1',
     port: 49152,
     protocol_version: '2',
-    addon_version: '1.1.0',
+    addon_version: '1.1.1',
     godot_version: '4.7',
     created_at: '1',
     ...overrides,

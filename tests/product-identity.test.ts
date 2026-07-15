@@ -35,7 +35,7 @@ describe('Godot Agent Loop product identity', () => {
       name: 'Godot Agent Loop',
       tagline: 'Build it. Play it. Prove it.',
       category: 'An MCP automation loop for Godot 4',
-      version: '1.1.0',
+      version: '1.1.1',
       repository: { url: 'https://github.com/beremaran/godot-agent-loop' },
       npm: { package: '@beremaran/godot-agent-loop', binary: 'godot-agent-loop' },
       mcp: {
@@ -46,7 +46,7 @@ describe('Godot Agent Loop product identity', () => {
       addon: {
         directory: 'addons/godot_agent_loop', name: 'Godot Agent Loop Bridge',
         category: 'Addons/Tools', minimumGodotVersion: '4.7', primaryGodotVersion: '4.7',
-        version: '1.1.0', protocolVersion: '2', license: 'MIT',
+        version: '1.1.1', protocolVersion: '2', license: 'MIT',
       },
     });
     expect(packageJson.files).toContain('product.json');
