@@ -186,7 +186,7 @@ describe('project process ownership', () => {
         addon_version: '1.1.0', protocol_version: '2', server_version: '1.0.1',
       });
 
-      // Godot 4.4 brings the headless editor bridge up before it opens the
+      // Godot can bring the headless editor bridge up before it opens the
       // project's main scene. Open it explicitly and wait for the edited root
       // so node mutations exercise the same state on every supported version.
       const opened = await server.call('editor_control', { projectPath: server.projectPath, action: 'open_scene', scenePath: 'res://main.tscn' });

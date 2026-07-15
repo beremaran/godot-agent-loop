@@ -1312,10 +1312,8 @@ export class AddonManagementService {
     const matched = expected === null || result.stdout.includes(expected);
     const rawDiagnostics = `${result.stdout}\n${result.stderr}`.split(/\r?\n/)
       .filter(line => /SCRIPT ERROR|Parse Error|\bERROR:/i.test(line)).slice(0, 256);
-    const godot44 = result.stdout.includes('Godot Engine v4.4.');
-    const knownDiagnostics = godot44 ? rawDiagnostics.filter(line =>
-      /progress dialog \(task\)|tasks\.has\(p_task\)/i.test(line)) : [];
-    const diagnostics = rawDiagnostics.filter(line => !knownDiagnostics.includes(line));
+    const knownDiagnostics: string[] = [];
+    const diagnostics = rawDiagnostics;
     return { ...result, ok: result.ok && matched && diagnostics.length === 0,
       expected_output: expected, output_matched: matched, diagnostics, known_diagnostics: knownDiagnostics };
   }

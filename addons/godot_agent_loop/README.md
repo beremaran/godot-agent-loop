@@ -5,6 +5,8 @@ An optional Godot 4 editor addon for
 dock with authenticated connection status, live and replayed Agent Activity,
 human Pause/Resume Agent control, and compatibility diagnostics.
 
+Godot 4.7 or later is required.
+
 ## Install
 
 Install this directory as `addons/godot_agent_loop` in the Godot project, then

@@ -65,7 +65,7 @@ describe('persistent authoring operation path', () => {
     // Independent observation 1: the file exists and is a Godot scene.
     const sceneFile = join(server.projectPath, 'scenes/level.tscn');
     expect(existsSync(sceneFile)).toBe(true);
-    // Godot 4.7 appends a unique_id attribute to node headers; 4.4 does not.
+    // Godot 4.7 can append a unique_id attribute to node headers.
     expect(readFileSync(sceneFile, 'utf8')).toMatch(/\[node name="root" type="Node2D"[^\]]*\]/);
 
     const added = await server.call('add_node', {

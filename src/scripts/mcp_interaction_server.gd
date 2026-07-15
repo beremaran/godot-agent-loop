@@ -917,7 +917,7 @@ func _cmd_get_performance(params: Dictionary) -> void:
 		"realtime_fps": {"available": true, "metric": "fps"},
 		"process_time": {"available": true, "metric": "process_time_ms"},
 		"rendering_time": {"available": true, "metric": "render_setup_cpu_ms", "scope": "CPU render setup only"},
-		"gpu_time": {"available": false, "reason": "Renderer/platform does not expose a stable GPU frame timer through the Godot 4.4 public runtime API"},
+		"gpu_time": {"available": false, "reason": "Renderer/platform does not expose a stable GPU frame timer through the public runtime API"},
 	}
 	if action == "stress":
 		result["stress_window"] = _stress_comparison(samples)

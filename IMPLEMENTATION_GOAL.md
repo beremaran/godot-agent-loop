@@ -58,8 +58,8 @@ Execution requirements
    code, focused tests, real-engine evidence where applicable, and accurate
    documentation. Leave an item unchecked if only a mock or design exists.
 4. Preserve headless authoring, CI workflows, runtime interaction, security
-   defaults, the human Pause Agent control, and Godot 4.4 compatibility while
-   targeting 4.7. Do not trade away unattended workflows to improve the editor.
+   defaults, the human Pause Agent control, and Godot 4.7 compatibility. Do not
+   trade away unattended workflows to improve the editor.
 5. Prefer a persistent addon for interactive projects and retain transient
    installation for disposable MCP-owned sessions. Never remove a user's
    persistent addon during cleanup.

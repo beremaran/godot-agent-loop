@@ -253,7 +253,7 @@ export function collectGdPaths(outputs: string[]): string[] {
   return result;
 }
 
-export const DEFAULT_GODOT_NET_SDK_VERSION = '4.4.0';
+export const DEFAULT_GODOT_NET_SDK_VERSION = '4.7.0';
 export const DEFAULT_DOTNET_TARGET_FRAMEWORK = 'net8.0';
 
 export function toDotnetIdentifier(name: string): string {
@@ -273,7 +273,7 @@ export function isValidCsharpIdentifier(name: string): boolean {
   return /^[A-Za-z_][A-Za-z0-9_]*$/.test(name);
 }
 
-export function generateGodotProjectFeatures(isDotnet: boolean, version = '4.4'): string {
+export function generateGodotProjectFeatures(isDotnet: boolean, version = '4.7'): string {
   return isDotnet
     ? `PackedStringArray("${version}", "C#")`
     : `PackedStringArray("${version}")`;

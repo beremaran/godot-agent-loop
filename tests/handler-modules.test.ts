@@ -204,6 +204,7 @@ describe('LifecycleToolHandlers', () => {
       executable: { requirePath: vi.fn().mockResolvedValue('godot') } as any,
       getActiveProcess: () => null,
       isPathAllowed: () => true,
+      isRelativePathAllowed: () => true,
       logDebug: vi.fn(),
       startProjectProcess: vi.fn(),
       stopProjectProcess: vi.fn(),
@@ -279,6 +280,84 @@ describe('LifecycleToolHandlers', () => {
     expect(JSON.parse(textFrom(first)).editor_session).toMatchObject({ connected: true, reused: true });
     expect(textFrom(second)).toBe(textFrom(first));
   });
+
+  it('rejects editor_control scene traversal before dispatching to the editor', async () => {
+    const sendEditorCommand = vi.fn();
+    const isRelativePathAllowed = vi.fn((_projectPath: string, relativePath: string) => !relativePath.includes('..'));
+    const handlers = new LifecycleToolHandlers(context({ isRelativePathAllowed, sendEditorCommand }));
+
+    const response = await handlers.handleEditorControl({
+      projectPath: '/project', action: 'open_scene', scenePath: 'res://../outside.tscn',
+    });
+
+    expect(response.isError).toBe(true);
+    expect(textFrom(response)).toContain('scenePath is outside the project root');
+    expect(isRelativePathAllowed).toHaveBeenCalledWith('/project', 'res://../outside.tscn');
+    expect(sendEditorCommand).not.toHaveBeenCalled();
+  });
+
+  it('rejects editor_transaction scene traversal before inspecting operations', async () => {
+    const sendEditorCommand = vi.fn();
+    const isRelativePathAllowed = vi.fn((_projectPath: string, relativePath: string) => !relativePath.includes('..'));
+    const handlers = new LifecycleToolHandlers(context({ isRelativePathAllowed, sendEditorCommand }));
+
+    const response = await handlers.handleEditorTransaction({
+      projectPath: '/project', scenePath: '../outside.tscn', name: 'Unsafe scene',
+      operations: [{ op: 'save' }],
+    });
+
+    expect(response.isError).toBe(true);
+    expect(textFrom(response)).toContain('scenePath is outside the project root');
+    expect(isRelativePathAllowed).toHaveBeenCalledWith('/project', '../outside.tscn');
+    expect(sendEditorCommand).not.toHaveBeenCalled();
+  });
+
+  it('allows safe editor_control and editor_transaction resource paths', async () => {
+    const sendEditorCommand = vi.fn().mockResolvedValue({ success: true });
+    const isRelativePathAllowed = vi.fn().mockReturnValue(true);
+    const handlers = new LifecycleToolHandlers(context({ isRelativePathAllowed, sendEditorCommand }));
+
+    const control = await handlers.handleEditorControl({
+      projectPath: '/project', action: 'open_scene', scenePath: 'res://scenes/main.tscn',
+    });
+    const transaction = await handlers.handleEditorTransaction({
+      projectPath: '/project', scenePath: 'scenes/main.tscn', name: 'Safe paths',
+      operations: [
+        { op: 'instantiate_scene', scenePath: 'res://scenes/enemy.tscn' },
+        { op: 'attach_script', scriptPath: 'scripts/player.gd' },
+        { op: 'assign_resource', resourcePath: 'res://materials/player.tres' },
+      ],
+    });
+
+    expect(control.isError).not.toBe(true);
+    expect(transaction.isError).not.toBe(true);
+    expect(isRelativePathAllowed.mock.calls.map(call => call[1])).toEqual([
+      'res://scenes/main.tscn',
+      'scenes/main.tscn',
+      'res://scenes/enemy.tscn',
+      'scripts/player.gd',
+      'res://materials/player.tres',
+    ]);
+    expect(sendEditorCommand).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(['scenePath', 'scriptPath', 'resourcePath'])(
+    'rejects traversal in editor_transaction operation %s before dispatch',
+    async pathKey => {
+      const sendEditorCommand = vi.fn();
+      const isRelativePathAllowed = vi.fn((_projectPath: string, relativePath: string) => !relativePath.includes('..'));
+      const handlers = new LifecycleToolHandlers(context({ isRelativePathAllowed, sendEditorCommand }));
+
+      const response = await handlers.handleEditorTransaction({
+        projectPath: '/project', scenePath: 'scenes/main.tscn', name: 'Unsafe path',
+        operations: [{ op: 'save', [pathKey]: `res://../outside/${pathKey}` }],
+      });
+
+      expect(response.isError).toBe(true);
+      expect(textFrom(response)).toContain(`operations[0].${pathKey} is outside the project root`);
+      expect(sendEditorCommand).not.toHaveBeenCalled();
+    },
+  );
 
   it('waits server-side for a property and returns timeout last-observed evidence', async () => {
     const sendGameCommand = vi.fn().mockResolvedValue({

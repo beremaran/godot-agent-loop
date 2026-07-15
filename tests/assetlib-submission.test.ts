@@ -27,7 +27,7 @@ describe('AssetLib submission payload', () => {
       status: 'prepared-not-submitted',
       assetName: 'Godot Agent Loop Bridge',
       category: 'Addons/Tools',
-      godotVersion: '4.4',
+      godotVersion: '4.7',
       testedThroughGodotVersion: '4.7',
       version: '1.1.0',
       repositoryUrl: 'https://github.com/beremaran/godot-agent-loop',

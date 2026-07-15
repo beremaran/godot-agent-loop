@@ -23,7 +23,7 @@ function writeAddon(root: string, version: string, marker: string, script?: stri
   writeFileSync(join(root, 'plugin.cfg'), [
     '[plugin]', '', 'name="Pinned Agent Add-on"', 'description="E2E fixture"',
     'author="Godot Agent Loop"', `version="${version}"`, 'script="plugin.gd"',
-    'minimum_godot_version="4.4"', '',
+    'minimum_godot_version="4.7"', '',
   ].join('\n'));
   writeFileSync(join(root, 'plugin.gd'), script ?? [
     '@tool', 'extends EditorPlugin', '',
@@ -83,7 +83,7 @@ describe('pinned add-on management through MCP', () => {
     expect(installed.isError, installed.text).toBe(false);
     expect(payload(installed.text)).toMatchObject({
       installed: true, enabled: true, metadata: { version: '1.0.0' },
-      compatibility: { compatible: true, minimum_godot_version: '4.4' },
+      compatibility: { compatible: true, minimum_godot_version: '4.7' },
     });
     expect(readFileSync(join(server.projectPath, 'project.godot'), 'utf8'))
       .toContain('enabled=PackedStringArray("res://addons/pinned_agent/plugin.cfg")');
@@ -138,7 +138,7 @@ describe('pinned add-on management through MCP', () => {
     const future = join(server.root, 'sources', 'future');
     writeAddon(future, '9.0.0', 'FUTURE');
     writeFileSync(join(future, 'plugin.cfg'), readFileSync(join(future, 'plugin.cfg'), 'utf8')
-      .replace('minimum_godot_version="4.4"', 'minimum_godot_version="99.0"'));
+      .replace('minimum_godot_version="4.7"', 'minimum_godot_version="99.0"'));
     const incompatible = await server.call('manage_addon', {
       projectPath: server.projectPath, action: 'install', pluginName: 'future_plugin',
       sourcePath: future, expectedSha256: treeHash(future),

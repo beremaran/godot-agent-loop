@@ -2953,7 +2953,7 @@
     {
       "name": "Engine",
       "bucket": "tooled",
-      "why": "src/godot-executable.ts, src/scripts/mcp_runtime/system_domain.gd, src/tool-definitions.ts, src/tool-handlers/project-handler-services.ts, src/tool-handlers/project-tool-handlers.ts, addons/godot_agent_loop/plugin.gd",
+      "why": "src/godot-executable.ts, src/scripts/mcp_runtime/system_domain.gd, src/tool-definitions.ts, src/tool-handlers/project-tool-handlers.ts, addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": true,
       "is_node": false,

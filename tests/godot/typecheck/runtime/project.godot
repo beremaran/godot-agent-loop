@@ -18,7 +18,7 @@ config_version=5
 [application]
 
 config/name="godot-agent-loop-typecheck-runtime"
-config/features=PackedStringArray("4.4")
+config/features=PackedStringArray("4.7")
 
 [debug]
 

@@ -13,13 +13,13 @@
   },
   "full": {
     "tools": 171,
-    "bytes": 97914,
-    "estimatedTokens": 24479
+    "bytes": 97966,
+    "estimatedTokens": 24492
   },
   "core": {
     "tools": 40,
     "bytes": 19861,
     "estimatedTokens": 4966
   },
-  "coreByteReductionPercent": 79.72
+  "coreByteReductionPercent": 79.73
 }

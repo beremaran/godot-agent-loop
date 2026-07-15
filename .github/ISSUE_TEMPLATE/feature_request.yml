@@ -35,6 +35,6 @@ body:
       label: Fit with project scope
       description: >-
         How does this fit the author → run → observe → verify
-        loop and the supported Godot 4.4–4.7 boundary?
+        loop and the supported Godot 4.7+ boundary?
     validations:
       required: false

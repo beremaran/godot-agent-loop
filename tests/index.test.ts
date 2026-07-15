@@ -54,7 +54,7 @@ let mockExecFileImpl: any = (file: any, args: any, options: any, callback: any) 
   const cb = typeof options === 'function' ? options : callback;
   if (cb) {
     if (args?.includes('--version')) {
-      cb(null, '4.4.stable', '');
+      cb(null, '4.7.stable', '');
     } else {
       cb(null, 'mock stdout', 'mock stderr');
     }
@@ -181,7 +181,7 @@ function getFakeArgsForSchema(schema: any, toolName: string): any {
       if (key === 'url') {
         val = 'http://127.0.0.1';
       } else if (key === 'godotVersion') {
-        val = '4.3-stable';
+        val = '4.7-stable';
       } else if (key === 'exportPreset') {
         val = 'Linux/X11';
       } else if (key === 'expectedSha256') {
@@ -538,7 +538,7 @@ describe('GodotServer class tests', () => {
     vi.spyOn(fs, 'existsSync').mockReturnValue(true);
     vi.spyOn(cp, 'execFile').mockImplementation((file, args, options, cb: any) => {
       const callback = typeof options === 'function' ? options : cb;
-      callback(null, '4.4.stable', '');
+      callback(null, '4.7.stable', '');
     });
 
     const isValSync = (server as any).isValidGodotPathSync('/some/path');

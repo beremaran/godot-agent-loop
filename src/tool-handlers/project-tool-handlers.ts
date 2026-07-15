@@ -40,7 +40,7 @@ const execFileAsync = promisify(execFile);
 
 const CI_EXPORT_PLATFORMS = new Set(['windows', 'linux', 'macos', 'web']);
 const DOCKER_BASE_IMAGES = new Set(['ubuntu:22.04', 'ubuntu:24.04']);
-const GODOT_EXPORT_VERSION = /^4\.\d+(?:\.\d+)?(?:-stable)?$/;
+const GODOT_EXPORT_VERSION = /^4\.(?:[7-9]|\d{2,})(?:\.\d+)?(?:-stable)?$/;
 const EXPORT_PRESET_NAME = /^[A-Za-z0-9][A-Za-z0-9 _./-]{0,127}$/;
 
 const INPUT_EVENT_KEY_PREFIX = 'Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":0';
@@ -104,7 +104,7 @@ export function mergeInputMapAction(
 
 function validateGodotExportVersion(version: unknown): string | null {
   if (typeof version !== 'string' || !GODOT_EXPORT_VERSION.test(version)) {
-    return 'godotVersion must be a supported Godot 4 version such as "4.3-stable".';
+    return 'godotVersion must be a supported Godot 4.7+ version such as "4.7-stable".';
   }
   return null;
 }
@@ -1593,7 +1593,7 @@ export class ProjectToolHandlers {
         const content = readFileSync(workflowPath, 'utf8');
         return { content: [{ type: 'text', text: content }] };
       } else if (args.action === 'create') {
-        const godotVersion = args.godotVersion || '4.3-stable';
+        const godotVersion = args.godotVersion || '4.7-stable';
         const versionError = validateGodotExportVersion(godotVersion);
         if (versionError) return createErrorResponse(versionError);
         const platforms = args.platforms || ['linux'];
@@ -1628,7 +1628,7 @@ export class ProjectToolHandlers {
         const content = readFileSync(dockerfilePath, 'utf8');
         return { content: [{ type: 'text', text: content }] };
       } else if (args.action === 'create') {
-        const godotVersion = args.godotVersion || '4.3-stable';
+        const godotVersion = args.godotVersion || '4.7-stable';
         const baseImage = args.baseImage || 'ubuntu:22.04';
         let exportPreset = args.exportPreset || 'Linux/X11';
         const versionError = validateGodotExportVersion(godotVersion);

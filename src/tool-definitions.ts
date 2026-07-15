@@ -2820,7 +2820,7 @@ export const toolDefinitions = [
       projectPath: { type: 'string', description: 'Absolute path to Godot project' },
       action: { type: 'string', enum: ['create', 'read'], description: 'Action: create or read' },
       platforms: { type: 'array', description: 'Target platforms: windows, linux, macos, web', items: { type: 'string', enum: ['windows', 'linux', 'macos', 'web'] } },
-      godotVersion: { type: 'string', pattern: '^4\\.\\d+(?:\\.\\d+)?(?:-stable)?$', description: 'Godot 4 version (e.g. 4.3-stable)' },
+      godotVersion: { type: 'string', pattern: '^4\\.(?:[7-9]|\\d{2,})(?:\\.\\d+)?(?:-stable)?$', description: 'Supported Godot 4.7+ version (e.g. 4.7-stable)' },
     },
     required: ['projectPath', 'action'],
   },
@@ -2833,7 +2833,7 @@ export const toolDefinitions = [
     properties: {
       projectPath: { type: 'string', description: 'Absolute path to Godot project' },
       action: { type: 'string', enum: ['create', 'read'], description: 'Action: create or read' },
-      godotVersion: { type: 'string', pattern: '^4\\.\\d+(?:\\.\\d+)?(?:-stable)?$', description: 'Godot 4 version (e.g. 4.3-stable)' },
+      godotVersion: { type: 'string', pattern: '^4\\.(?:[7-9]|\\d{2,})(?:\\.\\d+)?(?:-stable)?$', description: 'Supported Godot 4.7+ version (e.g. 4.7-stable)' },
       exportPreset: { type: 'string', pattern: '^[A-Za-z0-9][A-Za-z0-9 _./-]{0,127}$', description: 'Export preset name (letters, digits, spaces, _, ., /, and -)' },
       baseImage: { type: 'string', enum: ['ubuntu:22.04', 'ubuntu:24.04'], description: 'Supported base Docker image (default: ubuntu:22.04)' },
     },

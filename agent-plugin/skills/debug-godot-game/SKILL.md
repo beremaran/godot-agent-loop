@@ -8,6 +8,9 @@ description: Diagnose and fix a Godot 4 game that crashes, logs errors, renders 
 Preserve the failing evidence, isolate one cause, make the smallest repair, and
 rerun the original reproduction. Do not begin with speculative edits.
 
+Godot Agent Loop supports Godot 4.7 or later. Report an older project/engine as
+outside the supported boundary before diagnosing engine behavior.
+
 ## Workflow
 
 1. Reproduce.

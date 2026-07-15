@@ -53,6 +53,8 @@ describe('EditorPluginInstaller', () => {
     });
     expect(readFileSync(join(projectPath, 'project.godot'), 'utf8'))
       .toContain('enabled=PackedStringArray("godot_agent_loop_transient")');
+    expect(readFileSync(join(projectPath, TRANSIENT_EDITOR_ADDON_DIR, 'plugin.cfg'), 'utf8'))
+      .toContain('minimum_godot_version="4.7"');
     expect(readFileSync(join(projectPath, TRANSIENT_EDITOR_ADDON_DIR, 'plugin.gd'), 'utf8'))
       .toBe('@tool\nextends EditorPlugin\n');
 

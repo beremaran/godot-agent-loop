@@ -21,9 +21,12 @@ func _run() -> void:
 	_test_discovery_lifecycle(plugin)
 	_test_authentication(plugin)
 	_test_transaction_validation_and_values(plugin)
+	_test_transaction_staged_name_reservations(plugin)
+	await _test_missing_scene_transaction_atomicity(plugin)
 	_test_undo_redo_and_ownership(plugin)
 	_test_activity_deduplication(plugin)
 	await _test_synchronization_completion(plugin)
+	await _test_synchronization_target_readback(plugin)
 
 	_finish()
 
@@ -200,6 +203,109 @@ func _test_transaction_validation_and_values(plugin: EditorPlugin) -> void:
 	scene_root.free()
 
 
+func _test_transaction_staged_name_reservations(plugin: EditorPlugin) -> void:
+	var scene_root := Node2D.new()
+	scene_root.name = "Root"
+	var existing := Node2D.new()
+	existing.name = "Existing"
+	scene_root.add_child(existing)
+	existing.owner = scene_root
+	var destination := Node2D.new()
+	destination.name = "Destination"
+	scene_root.add_child(destination)
+	destination.owner = scene_root
+	var moving := Node2D.new()
+	moving.name = "Moving"
+	scene_root.add_child(moving)
+	moving.owner = scene_root
+
+	var duplicate_add_variant: Variant = plugin.call("_validate_transaction", scene_root, [
+		{"op": "add_node", "node_type": "Node2D", "node_name": "Reserved"},
+		{"op": "add_node", "node_type": "Node2D", "node_name": "Reserved"},
+	])
+	_assert_dictionary_error(duplicate_add_variant, "duplicate_node_name", "two staged adds cannot reserve the same sibling name")
+	if duplicate_add_variant is Dictionary:
+		var duplicate_add: Dictionary = duplicate_add_variant
+		_assert_equal(duplicate_add.get("operation_index"), 1, "the second staged add reports its operation index")
+
+	var rename_conflict_variant: Variant = plugin.call("_validate_transaction", scene_root, [
+		{"op": "add_node", "node_type": "Node2D", "node_name": "Reserved"},
+		{"op": "rename_node", "node_path": "Existing", "name": "Reserved"},
+	])
+	_assert_dictionary_error(rename_conflict_variant, "duplicate_node_name", "rename rejects a sibling name reserved by an earlier staged add")
+
+	var duplicate_conflict_variant: Variant = plugin.call("_validate_transaction", scene_root, [
+		{"op": "add_node", "node_type": "Node2D", "node_name": "ExistingCopy"},
+		{"op": "duplicate_node", "node_path": "Existing"},
+	])
+	_assert_dictionary_error(duplicate_conflict_variant, "duplicate_node_name", "duplicate rejects a sibling name reserved by an earlier staged add")
+
+	var reparent_conflict_variant: Variant = plugin.call("_validate_transaction", scene_root, [
+		{"op": "add_node", "parent_path": "Destination", "node_type": "Node2D", "node_name": "Moving"},
+		{"op": "reparent_node", "node_path": "Moving", "new_parent_path": "Destination"},
+	])
+	_assert_dictionary_error(reparent_conflict_variant, "duplicate_node_name", "reparent rejects a sibling name reserved by an earlier staged add")
+
+	var reparent_reservation_variant: Variant = plugin.call("_validate_transaction", scene_root, [
+		{"op": "reparent_node", "node_path": "Existing", "new_parent_path": "Destination"},
+		{"op": "add_node", "parent_path": "Destination", "node_type": "Node2D", "node_name": "Existing"},
+	])
+	_assert_dictionary_error(reparent_reservation_variant, "duplicate_node_name", "a staged reparent reserves its destination sibling name")
+
+	var ordered_variant: Variant = plugin.call("_validate_transaction", scene_root, [
+		{"op": "rename_node", "node_path": "Existing", "name": "Renamed"},
+		{"op": "add_node", "node_type": "Node2D", "node_name": "Existing"},
+		{"op": "set_properties", "node_path": "Renamed", "properties": {"position": {"type": "Vector2", "value": [8, 13]}}},
+	])
+	_assert_true(ordered_variant is Dictionary, "ordered staged paths return a validation result")
+	if ordered_variant is Dictionary:
+		var ordered: Dictionary = ordered_variant
+		_assert_true(not ordered.has("error"), "a rename frees its former path for a later add and remains addressable by its new path")
+		plugin.call("_discard_transaction_stages", ordered.get("stages", []))
+
+	scene_root.free()
+
+
+func _test_missing_scene_transaction_atomicity(plugin: EditorPlugin) -> void:
+	var invalid_scene_path := "res://editor_bridge_invalid_transaction_%d.tscn" % OS.get_process_id()
+	var invalid_absolute_path := ProjectSettings.globalize_path(invalid_scene_path)
+	if FileAccess.file_exists(invalid_absolute_path):
+		_assert_equal(DirAccess.remove_absolute(invalid_absolute_path), OK, "the invalid transaction fixture starts clean")
+	var invalid_variant: Variant = await plugin.call("_editor_transaction", {
+		"scene_path": invalid_scene_path,
+		"root_type": "Node2D",
+		"operations": [
+			{"op": "add_node", "node_type": "Node2D", "node_name": "Staged"},
+			{"op": "set_properties", "node_path": "Staged", "properties": {"not_a_property": true}},
+		],
+	})
+	_assert_dictionary_error(invalid_variant, "property_not_found", "an invalid missing-scene transaction fails validation")
+	_assert_true(not FileAccess.file_exists(invalid_absolute_path), "failed preflight leaves no empty scene artifact")
+
+	var created_scene_path := "res://editor_bridge_created_transaction_%d.tscn" % OS.get_process_id()
+	var created_absolute_path := ProjectSettings.globalize_path(created_scene_path)
+	if FileAccess.file_exists(created_absolute_path):
+		_assert_equal(DirAccess.remove_absolute(created_absolute_path), OK, "the successful transaction fixture starts clean")
+	var created_variant: Variant = await plugin.call("_editor_transaction", {
+		"scene_path": created_scene_path,
+		"root_type": "Node",
+		"operations": [
+			{"op": "add_node", "node_type": "Node", "node_name": "CreatedChild"},
+		],
+	})
+	var created: Dictionary = created_variant if created_variant is Dictionary else {}
+	_assert_equal(created.get("success"), true, "a validated missing-scene transaction creates the scene")
+	_assert_equal(created.get("scene_created"), true, "successful creation is reported")
+	var packed: Resource = ResourceLoader.load(created_scene_path, "PackedScene", ResourceLoader.CACHE_MODE_REPLACE)
+	_assert_true(packed is PackedScene, "the created transaction scene is independently loadable")
+	if packed is PackedScene:
+		var packed_scene: PackedScene = packed
+		var instance: Node = packed_scene.instantiate()
+		_assert_true(instance.has_node("CreatedChild"), "the created scene contains the validated transaction result")
+		instance.free()
+	_assert_equal(DirAccess.remove_absolute(created_absolute_path), OK, "the successful transaction fixture is removed")
+
+
 func _test_undo_redo_and_ownership(plugin: EditorPlugin) -> void:
 	var scene_root := Node2D.new()
 	scene_root.name = "UndoRoot"
@@ -272,6 +378,63 @@ func _test_synchronization_completion(plugin: EditorPlugin) -> void:
 		var observed_variant: Variant = sync.get("observed_target_state", {})
 		var observed: Dictionary = observed_variant if observed_variant is Dictionary else {}
 		_assert_equal(observed.get("scan_complete"), true, "synchronization independently observes scan completion")
+
+
+func _test_synchronization_target_readback(plugin: EditorPlugin) -> void:
+	var project_sync_variant: Variant = await plugin.call("_sync_filesystem", {
+		"command": "modify_project_settings", "resource_path": "res://project.godot",
+	})
+	var project_sync: Dictionary = project_sync_variant if project_sync_variant is Dictionary else {}
+	_assert_equal(project_sync.get("success"), true, "project.godot synchronization preserves file-backed acknowledgement")
+	var project_observed_variant: Variant = project_sync.get("observed_target_state", {})
+	var project_observed: Dictionary = project_observed_variant if project_observed_variant is Dictionary else {}
+	var project_readback_variant: Variant = project_observed.get("resource_readback", {})
+	var project_readback: Dictionary = project_readback_variant if project_readback_variant is Dictionary else {}
+	_assert_equal(project_readback.get("reader"), "file_access", "project.godot is independently read through the non-resource path")
+
+	var text_path := "res://editor_bridge_sync_readback.txt"
+	var text_file: FileAccess = FileAccess.open(text_path, FileAccess.WRITE)
+	_assert_true(text_file != null, "the non-resource synchronization fixture is writable")
+	if text_file != null:
+		@warning_ignore("return_value_discarded")
+		text_file.store_string("editor-readable\n")
+		text_file.close()
+	var text_sync_variant: Variant = await plugin.call("_sync_filesystem", {
+		"command": "write_file", "resource_path": text_path,
+	})
+	var text_sync: Dictionary = text_sync_variant if text_sync_variant is Dictionary else {}
+	_assert_equal(text_sync.get("success"), true, "plain files remain synchronizable through independent readback")
+	var text_observed_variant: Variant = text_sync.get("observed_target_state", {})
+	var text_observed: Dictionary = text_observed_variant if text_observed_variant is Dictionary else {}
+	var text_readback_variant: Variant = text_observed.get("resource_readback", {})
+	var text_readback: Dictionary = text_readback_variant if text_readback_variant is Dictionary else {}
+	_assert_equal(text_readback.get("reader"), "file_access", "plain files use non-resource readback evidence")
+	_assert_equal(DirAccess.remove_absolute(ProjectSettings.globalize_path(text_path)), OK, "the non-resource synchronization fixture is removed")
+
+	var missing_scene_path := "res://editor_bridge_missing_sync_target.tscn"
+	var missing_sync_variant: Variant = await plugin.call("_sync_filesystem", {
+		"command": "write_file", "scene_path": missing_scene_path,
+	})
+	var missing_sync: Dictionary = missing_sync_variant if missing_sync_variant is Dictionary else {}
+	_assert_equal(missing_sync.get("success"), false, "a missing scene cannot be acknowledged as synchronized")
+	_assert_equal(missing_sync.get("error"), "target_not_editor_readable", "an unreadable synchronization target has a stable error")
+	var missing_observed_variant: Variant = missing_sync.get("observed_target_state", {})
+	var missing_observed: Dictionary = missing_observed_variant if missing_observed_variant is Dictionary else {}
+	_assert_equal(missing_observed.get("scene_visible"), false, "scene visibility requires successful PackedScene readback")
+	_assert_equal(missing_observed.get("independently_reopened"), false, "failed target readback is explicit evidence")
+
+	var malformed_scene_path := "res://editor_bridge_malformed_sync_target.tscn"
+	var malformed_file: FileAccess = FileAccess.open(malformed_scene_path, FileAccess.WRITE)
+	_assert_true(malformed_file != null, "the malformed scene synchronization fixture is writable")
+	if malformed_file != null:
+		@warning_ignore("return_value_discarded")
+		malformed_file.store_string("[gd_scene format=3]\n\n[node malformed]\n")
+		malformed_file.close()
+	var malformed_readback_variant: Variant = plugin.call("_readback_sync_target", malformed_scene_path, true)
+	var malformed_readback: Dictionary = malformed_readback_variant if malformed_readback_variant is Dictionary else {}
+	_assert_equal(malformed_readback.get("exists"), true, "malformed scene readback distinguishes existence")
+	_assert_equal(malformed_readback.get("readable"), false, "file existence is not accepted as scene readback")
+	_assert_equal(DirAccess.remove_absolute(ProjectSettings.globalize_path(malformed_scene_path)), OK, "the malformed scene synchronization fixture is removed")
 
 
 func _assert_dictionary_error(value: Variant, expected: String, message: String) -> void:

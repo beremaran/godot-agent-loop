@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { readRepoFile } from './helpers/manifest-sources.js';
 
-const COMPATIBILITY_FLOOR = '4.4';
+const COMPATIBILITY_FLOOR = '4.7';
 const PRIMARY_TARGET = '4.7';
 
 describe('Godot support policy', () => {
@@ -13,7 +13,15 @@ describe('Godot support policy', () => {
     expect(versions).toEqual([`${PRIMARY_TARGET}-stable`]);
 
     const readme = readRepoFile('README.md');
-    expect(readme).toContain(`CI currently covers the primary Godot ${PRIMARY_TARGET} target`);
+    const product = JSON.parse(readRepoFile('product.json')) as {
+      addon: { minimumGodotVersion: string; primaryGodotVersion: string };
+    };
+    expect(readme).toContain(`CI covers that exact release`);
+    expect(readme).toContain(`Godot ${COMPATIBILITY_FLOOR} is both the compatibility floor`);
+    expect(product.addon).toMatchObject({
+      minimumGodotVersion: COMPATIBILITY_FLOOR,
+      primaryGodotVersion: PRIMARY_TARGET,
+    });
     expect(readme).toContain(`Linux headed (desktop or Xvfb), Godot ${PRIMARY_TARGET}`);
     expect(readme).not.toContain('| Linux headless');
 
@@ -85,7 +93,6 @@ describe('Godot support policy', () => {
     const exportJob = workflow.slice(workflow.indexOf('  godot-export:'));
     expect(exportJob).toContain(`godot-version: "${PRIMARY_TARGET}-stable"`);
     expect(exportJob).toContain(`template-version: "${PRIMARY_TARGET}.stable"`);
-    expect(exportJob).not.toContain(`godot-version: "${COMPATIBILITY_FLOOR}-stable"`);
     expect(exportJob).toContain('GODOT_MCP_EXPORT_TEMPLATE_TEST: "1"');
     expect(exportJob).toContain('GODOT_MCP_EXPORT_XDG_DATA_HOME=$HOME/.local/share');
 

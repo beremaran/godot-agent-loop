@@ -14,7 +14,7 @@ const pending = new Map();
 
 function connect() {
   return new Promise((resolve, reject) => {
-    // A cold Godot 4.4 editor can spend more than ten seconds importing the
+    // A cold Godot editor can spend more than ten seconds importing the
     // fixture on shared CI runners before its loopback server starts listening.
     // Keep retrying startup separately from the strict per-request timeout.
     const deadline = Date.now() + 30_000;

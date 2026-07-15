@@ -75,7 +75,7 @@ writeFileSync(join(root, 'project.godot'), [
   '[application]',
   '',
   `config/name=${JSON.stringify(projectName)}`,
-  'config/features=PackedStringArray("4.4")',
+  'config/features=PackedStringArray("4.7")',
   '',
   '[editor_plugins]',
   '',

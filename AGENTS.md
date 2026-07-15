@@ -40,8 +40,8 @@ Name tests `*.test.ts` and place E2E coverage in `tests/e2e/`. Add focused tests
 for every behavior change, including validation and failure paths. Changes to
 tools should preserve manifest, handler, protocol, and coverage-report
 consistency. Run `npm run check` before committing; run the relevant Godot and
-E2E suites when engine behavior changes. Godot compatibility spans 4.4 through
-the primary 4.7 target.
+E2E suites when engine behavior changes. Godot 4.7 is both the compatibility
+floor and primary target.
 
 ## Commit & Pull Request Guidelines
 

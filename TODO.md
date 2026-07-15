@@ -364,7 +364,7 @@ The target experience is:
   `npm run coverage:check`, `npm run test:godot`, full `npm run test:e2e`, and
   the focused golden/adapter/disclosure rerun all passed on 2026-07-15.
 - The changed tree passed all locally available release gates on headed macOS
-  4.7.1. Linux Godot 4.4/4.7 and the portable Windows boundary remain enforced
+  4.7.1. Linux Godot 4.7 and the portable Windows boundary remain enforced
   by the repository's existing CI acceptance runners; Windows editor UI is not
   claimed. This matches the documented support boundary without treating local
   execution of every CI platform as a release prerequisite.

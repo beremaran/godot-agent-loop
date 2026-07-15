@@ -41,7 +41,7 @@
     "traceDockConnectedAndCorrelated": true,
     "stressWindowAvailable": true,
     "gpuTimingAvailable": false,
-    "gpuTimingReason": "Godot 4.4-compatible public runtime APIs do not expose a stable GPU frame timer on this renderer/platform",
+    "gpuTimingReason": "Public runtime APIs do not expose a stable GPU frame timer on this renderer/platform",
     "persistentAddonPreserved": true,
     "discoveryRecordRemovedOnCleanExit": true,
     "unexpectedDiagnostics": []

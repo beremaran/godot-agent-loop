@@ -18,7 +18,7 @@ printf '\n[editor_plugins]\n\nenabled=PackedStringArray("editor_bridge_test")\n'
 init_godot_log editor-bridge
 
 set +e
-output="$("$GODOT" --verbose --headless --editor --path "$PROJECT" --quit-after 5 2>&1)"
+output="$("$GODOT" --verbose --headless --editor --path "$PROJECT" --quit-after 60 2>&1)"
 status=$?
 set -e
 append_godot_log "$output"

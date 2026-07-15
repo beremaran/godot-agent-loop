@@ -8,6 +8,9 @@ description: Verify a Godot 4 project change with static checks and independent 
 Turn the requested behavior into observable acceptance criteria before running
 the game. A successful mutation response is not evidence that the change works.
 
+Godot Agent Loop supports Godot 4.7 or later. Report verification on an older
+engine as outside the supported boundary.
+
 ## Workflow
 
 1. Check saved state.

@@ -44,8 +44,8 @@ describe('AssetLib addon package lifecycle', () => {
     preservedRoot = project.root;
     const projectFile = join(project.projectPath, 'project.godot');
     // Establish the engine's own normalized baseline before measuring addon
-    // state; otherwise opening a 4.4 fixture in 4.7 legitimately rewrites
-    // unrelated compatibility settings.
+    // state; otherwise opening the fixture can legitimately normalize
+    // unrelated project settings.
     const normalizer = join(project.projectPath, 'normalize_project.gd');
     copyFileSync(join(repoRoot, 'tests/godot/normalize_project.gd'), normalizer);
     const normalization = spawnSync(resolveGodotBinary(), [

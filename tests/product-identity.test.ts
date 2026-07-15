@@ -45,7 +45,7 @@ describe('Godot Agent Loop product identity', () => {
       },
       addon: {
         directory: 'addons/godot_agent_loop', name: 'Godot Agent Loop Bridge',
-        category: 'Addons/Tools', minimumGodotVersion: '4.4', primaryGodotVersion: '4.7',
+        category: 'Addons/Tools', minimumGodotVersion: '4.7', primaryGodotVersion: '4.7',
         version: '1.1.0', protocolVersion: '2', license: 'MIT',
       },
     });
@@ -57,6 +57,7 @@ describe('Godot Agent Loop product identity', () => {
     expect(config).toContain(`name="${product.addon.name}"`);
     expect(config).toContain(`version="${product.addon.version}"`);
     expect(config).toContain(`protocol_version="${product.addon.protocolVersion}"`);
+    expect(config).toContain(`minimum_godot_version="${product.addon.minimumGodotVersion}"`);
     const plugin = source(`${product.addon.directory}/plugin.gd`);
     expect(plugin).toContain(`const PROTOCOL_VERSION: String = "${product.addon.protocolVersion}"`);
     expect(plugin).toContain(`const ADDON_VERSION: String = "${product.addon.version}"`);

@@ -6,6 +6,10 @@ synchronization, compound editor transactions, trace replay, realtime versus
 deterministic timing policies, bounded waits/scenarios, and richer screenshot
 and performance evidence.
 
+Godot 4.7 is now both the compatibility floor and primary target. Generated
+projects, the editor addon, real-engine CI, .NET verification, and exports use
+that supported release.
+
 Protocol 1 persistent editor addons must be replaced and Godot restarted. The
 runtime protocol remains version 1. Persistent addon installation is optional;
 detached authoring and CI remain supported.

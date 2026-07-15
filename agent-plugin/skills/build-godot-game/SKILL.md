@@ -9,6 +9,9 @@ Use the MCP tools for project changes and engine evidence. Do not add MCP
 autoloads, addons, or bridge files; `run_project` installs and removes its runtime
 bridge automatically.
 
+Godot Agent Loop supports Godot 4.7 or later. Report an older project/engine as
+outside the supported boundary before authoring.
+
 ## Workflow
 
 1. Inspect before writing.

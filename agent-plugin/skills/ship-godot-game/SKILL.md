@@ -8,6 +8,9 @@ description: Prepare and verify a Godot 4 game for a reproducible release. Use f
 Treat shipping as an evidence gate. Preserve the project until every requested
 target has a reproducible artifact and a recorded independent check.
 
+Godot Agent Loop supports Godot 4.7 or later. Do not claim release readiness on
+an older engine through this workflow.
+
 ## Workflow
 
 1. Establish the release boundary.

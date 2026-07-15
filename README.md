@@ -58,7 +58,7 @@ Using Cline, Cursor, or another MCP client? See
 - Privileged reflection, code execution, and networking groups are denied by
   default, and the editor provides a human **Pause Agent** control.
 
-Support is deliberately bounded: Godot 4.4 is the compatibility floor and 4.7
+Support is deliberately bounded: Godot 4.7 is both the compatibility floor and
 the primary target. Editor attachment is verified on Linux CI and in a headed
 macOS 4.7.1 acceptance run; Windows retains the documented portable acceptance
 path but not an editor-UI claim. Full debugger automation, native extension
@@ -104,8 +104,7 @@ and test references are in the generated
 
 ## Requirements
 
-- [Godot Engine](https://godotengine.org/download) 4.4 or later; the latest
-  stable release, currently Godot **4.7**, is recommended
+- [Godot Engine](https://godotengine.org/download) 4.7 or later
 - (Optional) [.NET SDK](https://dotnet.microsoft.com/download) 8.0+ and the
   Godot .NET (C#) build, only if you use `create_project`'s `dotnet: true`
   flag or `create_csharp_script`
@@ -114,10 +113,10 @@ and test references are in the generated
 
 ### Godot compatibility policy
 
-Development targets the latest stable Godot release. The project also keeps a
-declared compatibility floor while the same implementation remains cleanly
-portable; CI currently covers the primary Godot 4.7 target. The floor may be
-raised when it blocks useful features or creates meaningful maintenance cost.
+Development targets the latest stable Godot release. Godot 4.7 is the current
+compatibility floor and primary target, and CI covers that exact release. The
+floor may be raised when it blocks useful features or creates meaningful
+maintenance cost.
 In that case, the last compatible release remains available, and an
 older-version maintenance branch will be created only when user demand
 justifies maintaining it. Such a branch would receive critical fixes rather

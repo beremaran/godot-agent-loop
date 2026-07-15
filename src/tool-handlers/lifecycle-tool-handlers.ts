@@ -28,7 +28,7 @@ export interface LifecycleToolHandlerContext {
   executable: GodotExecutableService;
   getActiveProcess: () => GodotProcess | null;
   isPathAllowed: (projectPath: string) => boolean;
-  isRelativePathAllowed?: (projectPath: string, relativePath: string) => boolean;
+  isRelativePathAllowed: (projectPath: string, relativePath: string) => boolean;
   logDebug: (message: string) => void;
   startProjectProcess: (executable: string, args: string[], onExit: () => void, env?: NodeJS.ProcessEnv) => void;
   stopProjectProcess: () => GodotProcess | null;
@@ -215,6 +215,9 @@ export class LifecycleToolHandlers {
     if (!validatePath(args.projectPath) || !this.context.isPathAllowed(args.projectPath)) {
       return createErrorResponse('Project path is outside the allowed roots');
     }
+    if (args.scenePath !== undefined && !this.isEditorPathAllowed(args.projectPath, args.scenePath)) {
+      return createErrorResponse('scenePath is outside the project root');
+    }
     const params: Record<string, unknown> = {};
     for (const key of ['nodePaths', 'scenePath', 'nodePath', 'property', 'value', 'name']) {
       if (args[key] !== undefined) params[key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`)] = args[key];
@@ -236,6 +239,17 @@ export class LifecycleToolHandlers {
     }
     if (!validatePath(args.projectPath) || !this.context.isPathAllowed(args.projectPath)) {
       return createErrorResponse('Project path is outside the allowed roots');
+    }
+    if (!this.isEditorPathAllowed(args.projectPath, args.scenePath)) {
+      return createErrorResponse('scenePath is outside the project root');
+    }
+    for (const [index, operation] of args.operations.entries()) {
+      if (!operation || typeof operation !== 'object') continue;
+      for (const key of ['scenePath', 'scriptPath', 'resourcePath']) {
+        if (operation[key] !== undefined && !this.isEditorPathAllowed(args.projectPath, operation[key])) {
+          return createErrorResponse(`operations[${index}].${key} is outside the project root`);
+        }
+      }
     }
     if (!this.context.sendEditorCommand) return createErrorResponse('Editor session registry is unavailable.');
     try {
@@ -312,7 +326,7 @@ export class LifecycleToolHandlers {
         ...(mode === 'deterministic' ? deterministicSessionArguments() : realtimeSessionArguments()),
         '--path', args.projectPath,
       ];
-      if (args.scene && (!this.context.isRelativePathAllowed || this.context.isRelativePathAllowed(args.projectPath, args.scene))) commandArgs.push(args.scene);
+      if (args.scene && this.context.isRelativePathAllowed(args.projectPath, args.scene)) commandArgs.push(args.scene);
 
       this.context.logDebug(`Running Godot project: ${args.projectPath}`);
       const processGeneration = ++this.processGeneration;
@@ -337,6 +351,11 @@ export class LifecycleToolHandlers {
     } catch (error: unknown) {
       return createErrorResponse(`Failed to run Godot project: ${this.errorMessage(error)}`);
     }
+  }
+
+  private isEditorPathAllowed(projectPath: string, relativePath: unknown): relativePath is string {
+    return typeof relativePath === 'string'
+      && this.context.isRelativePathAllowed(projectPath, relativePath);
   }
 
   public async handleVerifyProject(args: ToolArguments) {
