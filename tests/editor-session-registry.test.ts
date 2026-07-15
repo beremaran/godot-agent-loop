@@ -3,7 +3,7 @@ import { chmodSync, existsSync, mkdirSync, realpathSync, rmSync, writeFileSync }
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { EditorConnection } from '../src/editor-connection.js';
+import { EditorRequestTimeoutError, type EditorConnection } from '../src/editor-connection.js';
 import {
   EDITOR_SESSION_DIRECTORY,
   EDITOR_SESSION_FILE,
@@ -185,6 +185,28 @@ describe('EditorSessionRegistry', () => {
     expect(send).not.toHaveBeenCalled();
     expect(registry.disconnect(path).state).toBe('no_editor');
     expect(disconnect).toHaveBeenCalledOnce();
+  });
+
+  it('keeps an authenticated connection after a request timeout', async () => {
+    const path = project('request-timeout');
+    writeRecord(path, record(path));
+    const authenticate = vi.fn(async () => ({
+      project_path: realpathSync.native(path), editor_pid: process.pid, editor_start_identity: 'pid-start-1',
+    }));
+    const send = vi.fn()
+      .mockRejectedValueOnce(new EditorRequestTimeoutError('Editor request timed out'))
+      .mockResolvedValueOnce({ success: true });
+    const disconnect = vi.fn();
+    const registry = new EditorSessionRegistry({
+      serverVersion: 'test', processExists: () => true,
+      connectionFactory: () => ({ authenticate, send, disconnect } as unknown as EditorConnection),
+    });
+
+    await expect(registry.send(path, 'driver_state')).rejects.toEqual(expect.any(EditorRequestTimeoutError));
+    await expect(registry.send(path, 'resource_transaction')).resolves.toEqual({ success: true });
+    expect(authenticate).toHaveBeenCalledOnce();
+    expect(disconnect).not.toHaveBeenCalled();
+    registry.disconnectAll();
   });
 
   it('serializes watcher/status discovery with a slow initial authentication', async () => {

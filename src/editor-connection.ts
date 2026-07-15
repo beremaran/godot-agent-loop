@@ -10,6 +10,8 @@ export interface EditorConnectionOptions {
 
 export class EditorBridgeCompatibilityError extends Error {}
 
+export class EditorRequestTimeoutError extends Error {}
+
 /** Authenticated newline-delimited bridge to the optional EditorPlugin. */
 export class EditorConnection {
   private socket: Socket | null = null;
@@ -58,7 +60,7 @@ export class EditorConnection {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
-        reject(new Error(`Editor request '${command}' timed out after ${timeoutMs / 1000}s`));
+        reject(new EditorRequestTimeoutError(`Editor request '${command}' timed out after ${timeoutMs / 1000}s`));
       }, timeoutMs);
       this.pending.set(id, result => { clearTimeout(timer); resolve(result); });
       this.socket!.write(`${JSON.stringify({ id, command, params, secret: this.options.secret })}\n`);

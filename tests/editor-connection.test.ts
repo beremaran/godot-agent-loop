@@ -1,7 +1,11 @@
 // @test-kind: unit
 import { createServer, type Server, type Socket } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
-import { EditorBridgeCompatibilityError, EditorConnection } from '../src/editor-connection.js';
+import {
+  EditorBridgeCompatibilityError,
+  EditorConnection,
+  EditorRequestTimeoutError,
+} from '../src/editor-connection.js';
 
 const servers: Server[] = [];
 const connections: EditorConnection[] = [];
@@ -82,5 +86,18 @@ describe('EditorConnection protocol handshake', () => {
     const connection = new EditorConnection({ port: testBridge.port, secret: 'wrong' });
     connections.push(connection);
     await expect(connection.send('inspect')).rejects.toThrow(/addon missing/);
+  });
+
+  it('keeps the socket usable after one request times out', async () => {
+    const testBridge = await bridge((request, socket) => {
+      if (request.command === 'handshake') reply(socket, request, { success: true, protocol_version: '2' });
+      if (request.command === 'inspect') reply(socket, request, { success: true, command: request.command });
+    });
+    const connection = new EditorConnection({ port: testBridge.port, secret: 'secret' });
+    connections.push(connection);
+
+    await expect(connection.send('driver_state', {}, 10)).rejects.toEqual(expect.any(EditorRequestTimeoutError));
+    await expect(connection.send('inspect')).resolves.toMatchObject({ success: true, command: 'inspect' });
+    expect(testBridge.requests.map(request => request.command)).toEqual(['handshake', 'driver_state', 'inspect']);
   });
 });

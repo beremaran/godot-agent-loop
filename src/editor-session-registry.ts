@@ -1,6 +1,10 @@
 import { existsSync, realpathSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { EditorBridgeCompatibilityError, EditorConnection } from './editor-connection.js';
+import {
+  EditorBridgeCompatibilityError,
+  EditorConnection,
+  EditorRequestTimeoutError,
+} from './editor-connection.js';
 import { EDITOR_BRIDGE_PROTOCOL_VERSION } from './editor-bridge-protocol.js';
 
 export const EDITOR_SESSION_DIRECTORY = join('.godot', 'godot_agent_loop');
@@ -118,8 +122,13 @@ export class EditorSessionRegistry {
         this.emit(this.publicSession(canonical, entry, true));
         return result;
       } catch (error) {
-        entry.connection.disconnect();
-        this.entries.delete(canonical);
+        // A request can time out while Godot's main thread is briefly busy
+        // importing or saving a resource. The socket remains usable, so keep
+        // the authenticated session instead of forcing a competing reconnect.
+        if (!(error instanceof EditorRequestTimeoutError)) {
+          entry.connection.disconnect();
+          this.entries.delete(canonical);
+        }
         throw error;
       }
     });
