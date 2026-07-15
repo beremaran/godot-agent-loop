@@ -47,7 +47,7 @@ describe('Godot support policy', () => {
   it('keeps npm publication manual and verifies the registered SSH signing key', () => {
     const workflow = readRepoFile('.github/workflows/publish-npm.yml');
     expect(workflow).toContain('workflow_dispatch:');
-    expect(workflow).toContain('publish-@beremaran/godot-agent-loop@1.0.0');
+    expect(workflow).toContain('publish-@beremaran/godot-agent-loop@1.0.1');
     expect(workflow).toContain('gpg.ssh.allowedSignersFile="$ALLOWED_SIGNERS"');
     expect(workflow).toContain('berke@beremaran.com');
     expect(workflow).toContain('AAAAC3NzaC1lZDI1NTE5AAAAIIsZdWjkdesADYJ5uI4zJwW1jtlGBXLc01aZoz3TTdvt');
@@ -58,8 +58,8 @@ describe('Godot support policy', () => {
     expect(workflow).toContain('sha256sum --check --strict');
     expect(workflow).toContain('mkdir -p dist');
     expect(workflow).toContain('npm pack --pack-destination dist');
-    expect(workflow).toContain('npm publish ./dist/beremaran-godot-agent-loop-1.0.0.tgz --access public --provenance');
-    expect(workflow).not.toContain('npm publish dist/beremaran-godot-agent-loop-1.0.0.tgz');
+    expect(workflow).toContain('npm publish ./dist/beremaran-godot-agent-loop-1.0.1.tgz --access public --provenance');
+    expect(workflow).not.toContain('npm publish dist/beremaran-godot-agent-loop-1.0.1.tgz');
     expect(workflow).toContain('id-token: write');
     expect(workflow).toContain('runs-on: ubuntu-latest');
     expect(workflow).not.toContain('NODE_AUTH_TOKEN');

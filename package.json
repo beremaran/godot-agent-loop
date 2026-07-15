@@ -1,6 +1,6 @@
 {
   "name": "@beremaran/godot-agent-loop",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "MCP automation loop with 167 tested tools for Godot 4",
   "keywords": [
     "godot",

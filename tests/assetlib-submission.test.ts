@@ -29,7 +29,7 @@ describe('AssetLib submission payload', () => {
       category: 'Addons/Tools',
       godotVersion: '4.4',
       testedThroughGodotVersion: '4.7',
-      version: '1.0.0',
+      version: '1.0.1',
       repositoryUrl: 'https://github.com/beremaran/godot-agent-loop',
       issuesUrl: 'https://github.com/beremaran/godot-agent-loop/issues',
       downloadCommit: commit,

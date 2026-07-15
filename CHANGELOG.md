@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-07-15
+
+### Fixed
+
+- Canonicalize macOS project paths before listing files or validating scripts,
+  including `/var` to `/private/var` aliases, while preventing symlink retarget
+  races from escaping configured project roots.
+- Make headed-editor process evidence and WebSocket fixture teardown portable
+  across Linux, macOS, and Windows verification environments.
+- Keep patch-level Godot engine audits reproducible when the complete generated
+  API surface is identical to the checked-in baseline.
+
+### Changed
+
+- Run export inspection, classification, and path-security coverage on every
+  supported host while retaining real Linux artifact execution in its dedicated
+  export-template job.
+- Refine product documentation, tool discovery guidance, and repository
+  community-health files.
+
 ## [1.0.0] - 2026-07-14
 
 First release under the independent `@beremaran/godot-agent-loop` product
@@ -36,5 +56,6 @@ identity. Full release notes: [`docs/releases/1.0.0.md`](docs/releases/1.0.0.md)
 - Runtime connections are authenticated with a per-session secret; transports
   bind to loopback and retained logs are bounded and redacted.
 
-[Unreleased]: https://github.com/beremaran/godot-agent-loop/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/beremaran/godot-agent-loop/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/beremaran/godot-agent-loop/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/beremaran/godot-agent-loop/releases/tag/v1.0.0

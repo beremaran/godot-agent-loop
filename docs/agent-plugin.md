@@ -55,7 +55,7 @@ codex plugin list
 Install the signed public snapshot with:
 
 ```bash
-codex plugin marketplace add beremaran/godot-agent-loop --ref v1.0.0
+codex plugin marketplace add beremaran/godot-agent-loop --ref v1.0.1
 codex plugin add godot-agent-loop@godot-agent-loop
 ```
 
@@ -69,9 +69,9 @@ public version, and restart the app after changing a locally installed plugin.
 The setup command previews by default and writes only with `--write`:
 
 ```bash
-npx -y @beremaran/godot-agent-loop@1.0.0 setup opencode
-npx -y @beremaran/godot-agent-loop@1.0.0 setup opencode --write
-npx -y @beremaran/godot-agent-loop@1.0.0 setup opencode uninstall --write
+npx -y @beremaran/godot-agent-loop@1.0.1 setup opencode
+npx -y @beremaran/godot-agent-loop@1.0.1 setup opencode --write
+npx -y @beremaran/godot-agent-loop@1.0.1 setup opencode uninstall --write
 ```
 
 Use `--scope user` for `~/.config/opencode/opencode.json` and

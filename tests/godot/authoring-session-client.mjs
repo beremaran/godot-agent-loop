@@ -14,15 +14,24 @@ const pending = new Map();
 
 function connect() {
   return new Promise((resolve, reject) => {
-    const deadline = Date.now() + 10_000;
+    // A cold Godot 4.4 editor can spend more than ten seconds importing the
+    // fixture on shared CI runners before its loopback server starts listening.
+    // Keep retrying startup separately from the strict per-request timeout.
+    const deadline = Date.now() + 30_000;
     const attempt = () => {
       const socket = createConnection({ host: '127.0.0.1', port });
-      socket.once('connect', () => { resolve(socket); });
-      socket.once('error', error => {
+      const onConnect = () => {
+        socket.off('error', onStartupError);
+        resolve(socket);
+      };
+      const onStartupError = error => {
+        socket.off('connect', onConnect);
         socket.destroy();
-        if (Date.now() >= deadline) reject(error);
+        if (Date.now() >= deadline) reject(error instanceof Error ? error : new Error(String(error)));
         else setTimeout(attempt, 50);
-      });
+      };
+      socket.once('connect', onConnect);
+      socket.once('error', onStartupError);
     };
     attempt();
   });
@@ -38,9 +47,20 @@ socket.on('data', chunk => {
     buffer = buffer.slice(newline + 1);
     if (!line) continue;
     const response = JSON.parse(line);
-    pending.get(response.id)?.(response);
-    pending.delete(response.id);
+    const request = pending.get(response.id);
+    if (request) {
+      clearTimeout(request.timeout);
+      request.resolve(response);
+      pending.delete(response.id);
+    }
   }
+});
+socket.on('error', error => {
+  for (const request of pending.values()) {
+    clearTimeout(request.timeout);
+    request.reject(error);
+  }
+  pending.clear();
 });
 
 function request(method, params) {
@@ -50,10 +70,7 @@ function request(method, params) {
       pending.delete(id);
       reject(new Error(`Timed out waiting for ${method}`));
     }, 10_000);
-    pending.set(id, response => {
-      clearTimeout(timeout);
-      resolve(response);
-    });
+    pending.set(id, { resolve, reject, timeout });
     socket.write(`${JSON.stringify({ jsonrpc: '2.0', id, method, params })}\n`);
   });
 }
