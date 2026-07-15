@@ -1,0 +1,78 @@
+name: Bug report
+description: Report a problem with Godot Agent Loop
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug. Please do **not** report
+        security vulnerabilities here — see [SECURITY.md](../blob/main/SECURITY.md).
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug and what you expected instead.
+      placeholder: When I run ..., the server ... but I expected ...
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps, tool calls, or prompt that trigger the problem.
+      placeholder: |
+        1. Configure the server with ...
+        2. Ask the agent to ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or output
+      description: >-
+        Paste any error output. Setting `DEBUG=true` produces verbose logs.
+        This is automatically formatted as code, so no backticks are needed.
+      render: shell
+    validations:
+      required: false
+  - type: input
+    id: version
+    attributes:
+      label: Godot Agent Loop version
+      placeholder: 1.0.0
+    validations:
+      required: true
+  - type: input
+    id: godot-version
+    attributes:
+      label: Godot version
+      placeholder: 4.7-stable
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Linux
+        - macOS
+        - Windows
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: node-version
+    attributes:
+      label: Node.js version
+      placeholder: "24.x"
+    validations:
+      required: true
+  - type: input
+    id: client
+    attributes:
+      label: MCP client
+      description: Which agent/client are you using (Claude Code, Cline, Cursor, ...)?
+      placeholder: Claude Code
+    validations:
+      required: false

@@ -16,7 +16,7 @@ import { repoRoot } from './helpers/manifest-sources.js';
 
 const COVERAGE_LEVELS = ['E2E', 'H', 'G+', 'G-', 'T'] as const;
 
-/** The required test dimensions from TODO.md; "not applicable" must be recorded, never omitted. */
+/** The required test dimensions; "not applicable" must be recorded, never omitted. */
 const REQUIRED_DIMENSIONS = [
   'happy-path', 'parameters', 'failures', 'repeatability', 'cleanup',
   'persistence', 'frame-behavior', 'exotic-paths', 'limits',

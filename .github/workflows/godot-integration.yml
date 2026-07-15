@@ -13,13 +13,18 @@ on:
 jobs:
   typescript:
     runs-on: ubuntu-latest
-    name: Build, tests, lint, coverage report
+    strategy:
+      fail-fast: false
+      matrix:
+        # 22.x is the declared engines floor (active LTS); 24.x is the target.
+        node-version: ["22.x", "24.x"]
+    name: Build, tests, lint, coverage (Node ${{ matrix.node-version }})
     steps:
       - uses: actions/checkout@v6
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: ${{ matrix.node-version }}
           cache: npm
 
       - name: Install dependencies
@@ -41,7 +46,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: coverage-report
+          name: coverage-report-node-${{ matrix.node-version }}
           path: |
             docs/coverage/coverage-report.md
             docs/coverage/tool-coverage.json

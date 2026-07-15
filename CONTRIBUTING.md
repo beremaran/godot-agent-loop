@@ -5,14 +5,21 @@ outlines the process for contributing to the project.
 
 ## Code of Conduct
 
-By participating in this project, you agree to maintain a respectful and inclusive environment for everyone.
+This project is governed by the [Code of Conduct](CODE_OF_CONDUCT.md). By
+participating, you are expected to uphold it. Please report unacceptable
+behavior to <berke@beremaran.com>.
+
+## Security
+
+Do not report security vulnerabilities through public issues or pull requests.
+Follow the private disclosure process in [SECURITY.md](SECURITY.md) instead.
 
 ## How Can I Contribute?
 
 ### Reporting Bugs
 
 - Check if the bug has already been reported in the Issues section
-- Use the bug report template if available
+- Use the bug report template
 - Include detailed steps to reproduce the bug
 - Include any relevant logs or screenshots
 - Specify your environment (OS, Godot version, etc.)
@@ -20,7 +27,7 @@ By participating in this project, you agree to maintain a respectful and inclusi
 ### Suggesting Enhancements
 
 - Check if the enhancement has already been suggested in the Issues section
-- Use the feature request template if available
+- Use the feature request template
 - Clearly describe the enhancement and its benefits
 - Consider how the enhancement fits into the project's scope
 

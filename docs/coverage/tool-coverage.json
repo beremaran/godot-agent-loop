@@ -1,5 +1,5 @@
 {
-  "$comment": "Per-tool coverage inventory. level: E2E|H|G+|G-|T per TODO.md definitions. Every test ref is \"file::needle\" and tests/tool-coverage.test.ts verifies the needle occurs in the file. Every manifest action must appear here, either with tests or with an explicit untested reason.",
+  "$comment": "Per-tool coverage inventory. level: E2E|H|G+|G-|T. Every test ref is \"file::needle\" and tests/tool-coverage.test.ts verifies the needle occurs in the file. Every manifest action must appear here, either with tests or with an explicit untested reason.",
   "tools": {
     "godot_tools": {
       "level": "E2E",

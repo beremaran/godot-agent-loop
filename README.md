@@ -638,7 +638,7 @@ parse/load failure restores the prior version and plugin configuration.
 
 - [Godot Engine](https://godotengine.org/download) 4.4 or later; the latest stable release, currently Godot **4.7**, is recommended
 - (Optional) [.NET SDK](https://dotnet.microsoft.com/download) 8.0+ and the Godot .NET (C#) build, only if you use `create_project`'s `dotnet: true` flag or `create_csharp_script`
-- [Node.js](https://nodejs.org/) >= 18.0.0
+- [Node.js](https://nodejs.org/) >= 22.0.0 (active LTS)
 - An AI assistant that supports MCP (Claude Code, Cline, Cursor, etc.)
 
 ### Godot compatibility policy

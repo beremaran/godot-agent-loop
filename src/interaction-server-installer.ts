@@ -9,7 +9,7 @@ const RUNTIME_DIR_NAME = 'mcp_runtime';
 /**
  * The engine merges override.cfg over project.godot at startup, so the autoload
  * is declared in a file MCP creates and deletes and never in a file the user
- * tracks. Proven against Godot 4.7 in the Phase 6a spike (see TODO.md).
+ * tracks. Verified against Godot 4.7.
  */
 const OVERRIDE_FILE_NAME = 'override.cfg';
 const BLOCK_BEGIN = '; godot-agent-loop: begin interaction server (generated; removed automatically)';

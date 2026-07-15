@@ -4,10 +4,10 @@
 > verification roadmap and the work that closed it: the audited baseline, the
 > scope and methodology, the complete 166-tool inventory, the P1–P3 capability
 > families, and Phases 0–5. Every checkbox in this file is closed; nothing here
-> is planned work. The working plan — Phase 6b–6d, Phase 7, and the P4
-> engine-surface decisions — lives in [`TODO.md`](../TODO.md) at the repository
-> root, together with the live discipline sections (required test dimensions,
-> definition of done, and the implementation checklist for new tools).
+> is planned work. The working plan it fed into — Phase 6b–6d, Phase 7, and the
+> P4 engine-surface decisions — has since been completed and its tracking
+> document retired; the live contributor discipline now lives in
+> [`CONTRIBUTING.md`](../CONTRIBUTING.md) and [`CLAUDE.md`](../CLAUDE.md).
 
 Final inventory status: all 166 advertised tools are covered through the full
 MCP-to-Godot path, and all 334 public action rows resolve to E2E tests.

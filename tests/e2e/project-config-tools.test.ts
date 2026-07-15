@@ -9,7 +9,7 @@ import { importProjectResources, startServer, type E2EServer } from './helpers/h
  * Full-path E2E coverage for the 19 project settings/files/scripts/editor
  * configuration tools. These tools have a `local` backend (they edit
  * project.godot and project files directly), so the independent observation
- * TODO.md requires is to *reopen the resulting configuration through Godot*:
+ * these tools require is to *reopen the resulting configuration through Godot*:
  * the project is launched and the live engine is asked whether it actually
  * sees the autoload, input action, layer name, main scene, or translation.
  * Filesystem-only assertions would only echo the handler back at itself.
