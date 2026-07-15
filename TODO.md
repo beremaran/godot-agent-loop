@@ -152,13 +152,13 @@ tool or action.
   the workflow instructions. (The validated manifest points at `./skills/` and
   `./.mcp.json`; only the shipping skill adds generated OpenAI discovery
   metadata, while its workflow remains in the canonical `SKILL.md`.)
-- [ ] Add a native `.agents/plugins/marketplace.json` entry for Codex while
+- [x] Add a native `.agents/plugins/marketplace.json` entry for Codex while
   retaining Claude marketplace compatibility. Test a clean marketplace install
   in Codex CLI/IDE and the ChatGPT desktop plugin surface. (Codex CLI 0.144.1
   and the VS Code extension's bundled Codex 0.144.0-alpha.4 host cleanly install,
   enable, inventory, and remove version 1.0.0 from the signed public tag in
-  isolated caches. This Linux host has no ChatGPT desktop app, so the desktop UI
-  pickup remains the only unverified surface.)
+  isolated caches. The user independently verified the public plugin works in
+  Codex Desktop on a separate MacBook.)
 
 #### OpenCode distribution
 
@@ -337,8 +337,8 @@ tool or action.
 - [ ] Publish the Claude Code and Codex marketplace entries, OpenCode setup path,
   Pi package, and Godot AssetLib addon against the same tested release rather
   than launching adapters with different server versions. (Wave 3 public Claude,
-  Codex CLI/IDE, OpenCode, and Pi paths resolve version 1.0.0; ChatGPT desktop UI
-  pickup and the Wave 4 AssetLib publication remain pending.)
+  Codex CLI/IDE/Desktop, OpenCode, and Pi paths resolve version 1.0.0; only the
+  Wave 4 AssetLib publication remains pending.)
 - [ ] Announce the release with one consistent message: **other integrations give
   agents tools; this project gives them a tested feedback loop to author, run,
   observe, playtest, and independently verify Godot games.** Link the demo and

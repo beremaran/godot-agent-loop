@@ -84,7 +84,8 @@ state. OpenCode repeated its public npm user-scope install, native skill
 discovery, and clean uninstall.
 
 The official MCP Registry record is active and latest at version 1.0.0, with an
-exact stdio binding to `@beremaran/godot-agent-loop@1.0.0`. ChatGPT desktop cache
-pickup remains pending because this Linux verification host has no ChatGPT
-desktop executable or process; the CLI and IDE-host results are not substituted
-for that UI check.
+exact stdio binding to `@beremaran/godot-agent-loop@1.0.0`. This Linux
+verification host has no ChatGPT desktop executable or process, so its CLI and
+IDE-host results were not substituted for the UI check. On 2026-07-15, the user
+independently verified the public plugin worked in Codex Desktop on a separate
+MacBook, closing the final Wave 3 client-surface gate.
