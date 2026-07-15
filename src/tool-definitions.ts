@@ -40,7 +40,7 @@ export const toolDefinitions = [
 },
 {
   name: 'launch_editor',
-  description: 'Launch Godot editor for a specific project',
+  description: 'Attach to an existing matching editor or launch one when needed',
   inputSchema: {
     type: 'object',
     properties: {
@@ -50,6 +50,20 @@ export const toolDefinitions = [
       },
     },
     required: ['projectPath'],
+  },
+},
+{
+  name: 'editor_session',
+  description: 'Discover, attach, inspect, or disconnect a per-project Godot editor session',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      projectPath: { type: 'string', description: 'Godot project path' },
+      action: { type: 'string', enum: ['ensure', 'status', 'disconnect'], description: 'Session action' },
+      launchIfNeeded: { type: 'boolean', description: 'For ensure, launch an editor only after discovery finds none. Default: false' },
+      timeoutSeconds: { type: 'number', minimum: 0, maximum: 30, description: 'Bounded discovery/attach wait. Default: 2' },
+    },
+    required: ['projectPath', 'action'],
   },
 },
 {
@@ -71,6 +85,37 @@ export const toolDefinitions = [
   },
 },
 {
+  name: 'editor_transaction',
+  description: 'Apply one validated compound scene edit as one editor undo step',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      projectPath: { type: 'string', description: 'Godot project path whose editor is attached' },
+      scenePath: { type: 'string', description: 'Project-relative or res:// scene path' },
+      name: { type: 'string', minLength: 1, maxLength: 128, description: 'Human-readable undo action name' },
+      rootType: { type: 'string', maxLength: 128, description: 'Root node type when creating a missing scene' },
+      operations: {
+        type: 'array', minItems: 1, maxItems: 256, description: 'Ordered editor-native scene operations',
+        items: {
+          type: 'object',
+          properties: {
+            op: { type: 'string', enum: ['add_node', 'remove_node', 'rename_node', 'duplicate_node', 'reparent_node', 'set_properties', 'instantiate_scene', 'attach_script', 'assign_resource', 'save'] },
+            nodePath: { type: 'string' }, parentPath: { type: 'string' }, newParentPath: { type: 'string' },
+            nodeType: { type: 'string' }, nodeName: { type: 'string' }, name: { type: 'string' },
+            properties: { type: 'object' }, property: { type: 'string' }, value: {},
+            scenePath: { type: 'string' }, scriptPath: { type: 'string' }, resourcePath: { type: 'string' },
+            keepGlobalTransform: { type: 'boolean' },
+          },
+          required: ['op'],
+        },
+      },
+      focusPath: { type: 'string', description: 'Node to reveal after commit' },
+      save: { type: 'boolean', description: 'Save and independently reopen/read the scene. Default: true' },
+    },
+    required: ['projectPath', 'scenePath', 'name', 'operations'],
+  },
+},
+{
   name: 'run_project',
   description: 'Run the Godot project and capture output',
   inputSchema: {
@@ -83,6 +128,10 @@ export const toolDefinitions = [
       scene: {
         type: 'string',
         description: 'Optional: Specific scene to run',
+      },
+      timingMode: {
+        type: 'string', enum: ['realtime', 'deterministic'],
+        description: 'realtime follows display/VSync; deterministic uses fixed 60 FPS. Default: realtime',
       },
     },
     required: ['projectPath'],
@@ -166,6 +215,7 @@ export const toolDefinitions = [
       sourcePath: { type: 'string', description: 'Existing project-relative path for rename preview' },
       destinationPath: { type: 'string', description: 'Proposed project-relative rename destination' },
       maxFiles: { type: 'integer', minimum: 1, maximum: 50000, description: 'Resource scan limit. Default: 10000' },
+      allowProceduralMainScene: { type: 'boolean', description: 'Suppress the trivial-main-scene warning when procedural construction is an explicit design requirement. Default: false' },
     },
     required: ['projectPath', 'action'],
   },
@@ -449,10 +499,12 @@ export const toolDefinitions = [
 },
 {
   name: 'game_screenshot',
-  description: 'Screenshot the running game (returns base64 PNG)',
+  description: 'Capture a PNG preview with dimensions, digest, and optional temp artifact',
   inputSchema: {
     type: 'object',
-    properties: {},
+    properties: {
+      retainArtifact: { type: 'boolean', description: 'Retain a PNG in the system temp artifact directory. Default: false' },
+    },
     required: [],
   },
 },
@@ -727,7 +779,7 @@ export const toolDefinitions = [
   inputSchema: {
     type: 'object',
     properties: {
-      action: { type: 'string', enum: ['sample', 'start', 'stop', 'report', 'leaks'], description: 'Profiler action. Default: sample' },
+      action: { type: 'string', enum: ['sample', 'start', 'stop', 'report', 'stress', 'leaks'], description: 'Profiler action. Default: sample' },
       sampleCount: { type: 'integer', minimum: 1, maximum: 120, description: 'Number of samples for a bounded session. Default: 1' },
     },
     required: [],
@@ -750,6 +802,47 @@ export const toolDefinitions = [
       },
     },
     required: [],
+  },
+},
+{
+  name: 'game_wait_until',
+  description: 'Wait once for a bounded runtime condition and return the last observation',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      projectPath: { type: 'string', description: 'Godot project path for trace correlation' },
+      condition: { type: 'string', enum: ['connection', 'node', 'property', 'signal', 'log', 'scene'], description: 'Condition kind' },
+      nodePath: { type: 'string' }, property: { type: 'string' }, value: {}, signal: { type: 'string' },
+      text: { type: 'string', maxLength: 1000 }, scenePath: { type: 'string' },
+      timeoutSeconds: { type: 'number', minimum: 0.05, maximum: 60, description: 'Maximum wait. Default: 10' },
+      pollIntervalMs: { type: 'integer', minimum: 20, maximum: 1000, description: 'Internal poll interval. Default: 100' },
+    },
+    required: ['condition'],
+  },
+},
+{
+  name: 'game_scenario',
+  description: 'Run bounded input, wait, assertion, screenshot, and performance steps',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      projectPath: { type: 'string', description: 'Godot project path for trace correlation' },
+      name: { type: 'string', minLength: 1, maxLength: 128 },
+      timeoutSeconds: { type: 'number', minimum: 0.1, maximum: 120, description: 'Whole scenario timeout. Default: 60' },
+      steps: {
+        type: 'array', minItems: 1, maxItems: 100,
+        items: {
+          type: 'object',
+          properties: {
+            type: { type: 'string', enum: ['input', 'wait', 'observe', 'assert', 'screenshot', 'performance'] },
+            tool: { type: 'string' }, arguments: { type: 'object' }, condition: { type: 'object' },
+            label: { type: 'string', maxLength: 200 },
+          },
+          required: ['type'],
+        },
+      },
+    },
+    required: ['name', 'steps'],
   },
 },
 {
@@ -2727,7 +2820,7 @@ export const toolDefinitions = [
       projectPath: { type: 'string', description: 'Absolute path to Godot project' },
       action: { type: 'string', enum: ['create', 'read'], description: 'Action: create or read' },
       platforms: { type: 'array', description: 'Target platforms: windows, linux, macos, web', items: { type: 'string', enum: ['windows', 'linux', 'macos', 'web'] } },
-      godotVersion: { type: 'string', pattern: '^4\\.\\d+(?:\\.\\d+)?(?:-stable)?$', description: 'Godot 4 version (e.g. 4.3-stable)' },
+      godotVersion: { type: 'string', pattern: '^4\\.(?:[7-9]|\\d{2,})(?:\\.\\d+)?(?:-stable)?$', description: 'Supported Godot 4.7+ version (e.g. 4.7-stable)' },
     },
     required: ['projectPath', 'action'],
   },
@@ -2740,7 +2833,7 @@ export const toolDefinitions = [
     properties: {
       projectPath: { type: 'string', description: 'Absolute path to Godot project' },
       action: { type: 'string', enum: ['create', 'read'], description: 'Action: create or read' },
-      godotVersion: { type: 'string', pattern: '^4\\.\\d+(?:\\.\\d+)?(?:-stable)?$', description: 'Godot 4 version (e.g. 4.3-stable)' },
+      godotVersion: { type: 'string', pattern: '^4\\.(?:[7-9]|\\d{2,})(?:\\.\\d+)?(?:-stable)?$', description: 'Supported Godot 4.7+ version (e.g. 4.7-stable)' },
       exportPreset: { type: 'string', pattern: '^[A-Za-z0-9][A-Za-z0-9 _./-]{0,127}$', description: 'Export preset name (letters, digits, spaces, _, ., /, and -)' },
       baseImage: { type: 'string', enum: ['ubuntu:22.04', 'ubuntu:24.04'], description: 'Supported base Docker image (default: ubuntu:22.04)' },
     },

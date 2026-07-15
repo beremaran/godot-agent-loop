@@ -21,7 +21,7 @@ config_version=5
 [application]
 
 config/name="validate-script-integration"
-config/features=PackedStringArray("4.4")
+config/features=PackedStringArray("4.7")
 
 [autoload]
 

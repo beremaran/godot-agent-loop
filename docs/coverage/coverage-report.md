@@ -9,14 +9,14 @@ when this file is stale, and the inventory behind it is validated by
 
 | Denominator | Count | Source |
 | --- | ---: | --- |
-| Default advertised MCP tools | 39 | `src/tool-surface.ts` |
-| Full callable tool catalog | 167 | `src/tool-definitions.ts` |
+| Default advertised MCP tools | 40 | `src/tool-surface.ts` |
+| Full callable tool catalog | 171 | `src/tool-definitions.ts` |
 | Session commands | 124 | `src/runtime-protocol.ts` = `docs/runtime-api.schema.json` |
 | Game runtime commands | 108 | `src/runtime-protocol.ts` |
 | Authoring session commands | 16 | `src/runtime-protocol.ts` |
 | Privileged runtime commands | 8 | `src/runtime-protocol.ts` |
 | Subprocess operations | 16 | `src/scripts/godot_operations.gd` |
-| Public action rows | 358 | `src/tool-manifest.ts` |
+| Public action rows | 365 | `src/tool-manifest.ts` |
 
 ## Tool-surface budget
 
@@ -28,24 +28,24 @@ and budgets are in [`tool-surface.json`](tool-surface.json).
 
 | Surface | Tools | Bytes | Estimated tokens |
 | --- | ---: | ---: | ---: |
-| Full catalog | 167 | 93694 | 23424 |
-| Default core | 39 | 17278 | 4320 |
-| Reduction | — | 81.56% | 81.56% |
+| Full catalog | 171 | 97966 | 24492 |
+| Default core | 40 | 19861 | 4966 |
+| Reduction | — | 79.73% | 79.72% |
 
 ## Coverage by class
 
 | Class | Tools | Meaning |
 | --- | ---: | --- |
-| E2E | 167 | Complete MCP-to-Godot path with independent observation |
+| E2E | 171 | Complete MCP-to-Godot path with independent observation |
 | H | 0 | Headless GDScript operation exercised directly against Godot |
 | G+ | 0 | Runtime command reaches real Godot with at least one successful behavior |
 | G- | 0 | Runtime command reaches real Godot on a negative path only |
 | T | 0 | TypeScript, source-contract, schema, or mocked-transport coverage only |
-| **Total** | **167** | |
+| **Total** | **171** | |
 
 ## Action coverage
 
-358 of 358 action rows declare at least one resolving test
+365 of 365 action rows declare at least one resolving test
 reference; 0 are explicitly recorded as untested.
 
 ## Test suites by declared kind
@@ -56,10 +56,10 @@ engine, never a mocked transport.
 
 | Kind | Suites |
 | --- | --- |
-| unit | `tests/authoring-session-client.test.ts`, `tests/authoring-session-manager.test.ts`, `tests/dotnet.test.ts`, `tests/editor-connection.test.ts`, `tests/editor-plugin-installer.test.ts`, `tests/game-connection.test.ts`, `tests/godot-executable.test.ts`, `tests/godot-process-manager.test.ts`, `tests/handler-modules.test.ts`, `tests/handlers.test.ts`, `tests/headless-operation-runner.test.ts`, `tests/headless-operation-service.test.ts`, `tests/index.test.ts`, `tests/input-map-merge.test.ts`, `tests/interaction-server-installer.test.ts`, `tests/opencode-setup.test.ts`, `tests/prepare-package.test.ts`, `tests/project-support.test.ts`, `tests/tool-argument-validation.test.ts`, `tests/tool-registry.test.ts`, `tests/utils.test.ts`, `tests/validate-script.test.ts` |
+| unit | `tests/authoring-session-client.test.ts`, `tests/authoring-session-manager.test.ts`, `tests/dotnet.test.ts`, `tests/editor-authoring-router.test.ts`, `tests/editor-connection.test.ts`, `tests/editor-plugin-installer.test.ts`, `tests/editor-session-registry.test.ts`, `tests/editor-sync-queue.test.ts`, `tests/game-connection.test.ts`, `tests/godot-executable.test.ts`, `tests/godot-process-manager.test.ts`, `tests/handler-modules.test.ts`, `tests/handlers.test.ts`, `tests/headless-operation-runner.test.ts`, `tests/headless-operation-service.test.ts`, `tests/index.test.ts`, `tests/input-map-merge.test.ts`, `tests/interaction-server-installer.test.ts`, `tests/lifecycle-trace.test.ts`, `tests/opencode-setup.test.ts`, `tests/prepare-package.test.ts`, `tests/project-support.test.ts`, `tests/tool-argument-validation.test.ts`, `tests/tool-registry.test.ts`, `tests/utils.test.ts`, `tests/validate-script.test.ts` |
 | contract | `tests/agent-plugin.test.ts`, `tests/assetlib-archive.test.ts`, `tests/assetlib-submission.test.ts`, `tests/launch-evidence.test.ts`, `tests/loop-latency-report.test.ts`, `tests/product-identity.test.ts`, `tests/runtime-protocol-contract.test.ts`, `tests/server-instructions.test.ts`, `tests/server-metadata.test.ts`, `tests/source-guardrails.test.ts`, `tests/support-policy.test.ts`, `tests/test-metadata.test.ts`, `tests/tool-coverage.test.ts`, `tests/tool-definitions.test.ts`, `tests/tool-manifest.test.ts`, `tests/tool-mutation-policy.test.ts`, `tests/tool-surface.test.ts`, `tests/variant-codec-corpus.test.ts` |
-| integration | `tests/godot/run-headless-operations.sh`, `tests/godot/run-integration-tests.sh`, `tests/godot/run-launch-demo.sh`, `tests/godot/run-typecheck.sh`, `tests/godot/run-validate-script.sh` |
-| e2e | `tests/e2e/addon-management.test.ts`, `tests/e2e/agent-adapter-smoke.test.ts`, `tests/e2e/assetlib-addon.test.ts`, `tests/e2e/crash-recovery.test.ts`, `tests/e2e/cross-platform-smoke.test.ts`, `tests/e2e/engine-reach.test.ts`, `tests/e2e/golden-agent-game.test.ts`, `tests/e2e/headless-tools.test.ts`, `tests/e2e/import-integrity-workflows.test.ts`, `tests/e2e/lifecycle-tools.test.ts`, `tests/e2e/observers.test.ts`, `tests/e2e/progressive-disclosure.test.ts`, `tests/e2e/project-config-tools.test.ts`, `tests/e2e/project-delivery-tools.test.ts`, `tests/e2e/project-test-orchestration.test.ts`, `tests/e2e/representative-path.test.ts`, `tests/e2e/runtime-2d-tools.test.ts`, `tests/e2e/runtime-3d-scene-tools.test.ts`, `tests/e2e/runtime-3d-tools.test.ts`, `tests/e2e/runtime-audio-animation-tools.test.ts`, `tests/e2e/runtime-camera-rendering-tools.test.ts`, `tests/e2e/runtime-core-tools.test.ts`, `tests/e2e/runtime-input-tools.test.ts`, `tests/e2e/runtime-networking-tools.test.ts`, `tests/e2e/runtime-physics-tools.test.ts`, `tests/e2e/runtime-query-tools.test.ts`, `tests/e2e/runtime-remote-io-tools.test.ts`, `tests/e2e/runtime-rendering-tools.test.ts`, `tests/e2e/runtime-resource-tools.test.ts`, `tests/e2e/runtime-system-tools.test.ts`, `tests/e2e/runtime-ui-tools.test.ts`, `tests/e2e/tool-schema-failures.test.ts`, `tests/e2e/verification-workflow.test.ts` |
+| integration | `tests/godot/run-editor-bridge-tests.sh`, `tests/godot/run-headless-operations.sh`, `tests/godot/run-integration-tests.sh`, `tests/godot/run-launch-demo.sh`, `tests/godot/run-typecheck.sh`, `tests/godot/run-validate-script.sh` |
+| e2e | `tests/e2e/addon-management.test.ts`, `tests/e2e/agent-adapter-smoke.test.ts`, `tests/e2e/assetlib-addon.test.ts`, `tests/e2e/crash-recovery.test.ts`, `tests/e2e/cross-platform-smoke.test.ts`, `tests/e2e/engine-reach.test.ts`, `tests/e2e/golden-agent-game.test.ts`, `tests/e2e/headless-tools.test.ts`, `tests/e2e/import-integrity-workflows.test.ts`, `tests/e2e/interactive-editor-discovery.test.ts`, `tests/e2e/lifecycle-tools.test.ts`, `tests/e2e/observers.test.ts`, `tests/e2e/progressive-disclosure.test.ts`, `tests/e2e/project-config-tools.test.ts`, `tests/e2e/project-delivery-tools.test.ts`, `tests/e2e/project-test-orchestration.test.ts`, `tests/e2e/representative-path.test.ts`, `tests/e2e/runtime-2d-tools.test.ts`, `tests/e2e/runtime-3d-scene-tools.test.ts`, `tests/e2e/runtime-3d-tools.test.ts`, `tests/e2e/runtime-audio-animation-tools.test.ts`, `tests/e2e/runtime-camera-rendering-tools.test.ts`, `tests/e2e/runtime-core-tools.test.ts`, `tests/e2e/runtime-input-tools.test.ts`, `tests/e2e/runtime-networking-tools.test.ts`, `tests/e2e/runtime-physics-tools.test.ts`, `tests/e2e/runtime-query-tools.test.ts`, `tests/e2e/runtime-remote-io-tools.test.ts`, `tests/e2e/runtime-rendering-tools.test.ts`, `tests/e2e/runtime-resource-tools.test.ts`, `tests/e2e/runtime-system-tools.test.ts`, `tests/e2e/runtime-ui-tools.test.ts`, `tests/e2e/tool-schema-failures.test.ts`, `tests/e2e/verification-workflow.test.ts` |
 
 ## Authoring loop latency
 
@@ -93,7 +93,9 @@ budgets cap this transitional regression and protect warm-command and startup la
 | --- | --- | --- | --- | ---: |
 | `godot_tools` | local | no | E2E | 3/3 |
 | `launch_editor` | process | no | E2E | 1/1 |
+| `editor_session` | process | no | E2E | 3/3 |
 | `editor_control` | process | no | E2E | 9/9 |
+| `editor_transaction` | process | no | E2E | 1/1 |
 | `run_project` | process | no | E2E | 1/1 |
 | `verify_project` | process | no | E2E | 1/1 |
 | `run_project_tests` | godot-cli | no | E2E | 2/2 |
@@ -130,8 +132,10 @@ budgets cap this transitional regression and protect warm-command and startup la
 | `game_remove_node` | runtime `remove_node` | no | E2E | 1/1 |
 | `game_change_scene` | runtime `change_scene` | no | E2E | 1/1 |
 | `game_pause` | runtime `pause` | no | E2E | 1/1 |
-| `game_performance` | runtime `get_performance` | no | E2E | 5/5 |
+| `game_performance` | runtime `get_performance` | no | E2E | 6/6 |
 | `game_wait` | runtime `wait` | no | E2E | 1/1 |
+| `game_wait_until` | process | no | E2E | 1/1 |
+| `game_scenario` | process | no | E2E | 1/1 |
 | `read_scene` | authoring session `authoring_read_scene` (fallback: subprocess `read_scene`) | no | E2E | 1/1 |
 | `modify_scene_node` | authoring session `authoring_modify_node` (fallback: subprocess `modify_node`) | no | E2E | 1/1 |
 | `remove_scene_node` | authoring session `authoring_remove_node` (fallback: subprocess `remove_node`) | no | E2E | 1/1 |

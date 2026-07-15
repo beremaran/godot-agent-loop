@@ -12,14 +12,14 @@
     "coreReductionPercentMin": 70
   },
   "full": {
-    "tools": 167,
-    "bytes": 93694,
-    "estimatedTokens": 23424
+    "tools": 171,
+    "bytes": 97966,
+    "estimatedTokens": 24492
   },
   "core": {
-    "tools": 39,
-    "bytes": 17278,
-    "estimatedTokens": 4320
+    "tools": 40,
+    "bytes": 19861,
+    "estimatedTokens": 4966
   },
-  "coreByteReductionPercent": 81.56
+  "coreByteReductionPercent": 79.73
 }

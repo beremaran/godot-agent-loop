@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Godot Agent Loop (`@beremaran/godot-agent-loop`): a TypeScript MCP server (stdio transport) that lets agents author, run, observe, and verify Godot 4 games. Entry point `src/index.ts`, compiled to `build/index.js`. Godot 4.4 is the compatibility floor, 4.7 the primary target.
+Godot Agent Loop (`@beremaran/godot-agent-loop`): a TypeScript MCP server (stdio transport) that lets agents author, run, observe, and verify Godot 4 games. Entry point `src/index.ts`, compiled to `build/index.js`. Godot 4.7 is both the compatibility floor and primary target.
 
 ## Commands
 

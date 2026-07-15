@@ -88,7 +88,7 @@ export function createTempProject(options: TempProjectOptions = {}): { root: str
     '',
     'config/name="godot-agent-loop-e2e-fixture"',
     'run/main_scene="res://main.tscn"',
-    'config/features=PackedStringArray("4.4")',
+    'config/features=PackedStringArray("4.7")',
     '',
     ...(renderer ? [
       '[rendering]',

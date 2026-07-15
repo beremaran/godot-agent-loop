@@ -1,13 +1,14 @@
 // @test-kind: e2e
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { copyFileSync, existsSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   assertNoLeakedGodotProcesses,
   createTempProject,
   killGodotProcesses,
+  repoRoot,
   resolveGodotBinary,
   startServer,
 } from './helpers/harness.js';
@@ -79,9 +80,12 @@ describe('crash recovery across the full MCP path', () => {
   it('reclaims a SIGKILLed transient editor bridge on the next launch', async () => {
     const project = createTempProject();
     const projectFile = join(project.projectPath, 'project.godot');
+    const normalizer = join(project.projectPath, 'normalize_project.gd');
+    copyFileSync(join(repoRoot, 'tests/godot/normalize_project.gd'), normalizer);
     execFileSync(resolveGodotBinary(), [
-      '--headless', '--editor', '--path', project.projectPath, '--quit',
+      '--headless', '--path', project.projectPath, '--script', normalizer,
     ]);
+    rmSync(normalizer);
     const projectBefore = readFileSync(projectFile, 'utf8');
     const transientAddon = join(project.projectPath, 'addons/godot_agent_loop_transient');
 
@@ -89,7 +93,7 @@ describe('crash recovery across the full MCP path', () => {
     const firstLaunch = await first.call('launch_editor', { projectPath: project.projectPath });
     expect(firstLaunch.isError, firstLaunch.text).toBe(false);
     expect(JSON.parse(firstLaunch.text)).toMatchObject({
-      plugin_distribution: 'transient', plugin_owned: true,
+      editor_session: { plugin_distribution: 'transient', plugin_owned: true },
     });
     process.kill(first.pid, 'SIGKILL');
     await first.client.close().catch(() => undefined);
@@ -103,7 +107,7 @@ describe('crash recovery across the full MCP path', () => {
       const secondLaunch = await second.call('launch_editor', { projectPath: project.projectPath });
       expect(secondLaunch.isError, secondLaunch.text).toBe(false);
       expect(JSON.parse(secondLaunch.text)).toMatchObject({
-        plugin_distribution: 'transient', plugin_owned: true,
+        editor_session: { plugin_distribution: 'transient', plugin_owned: true },
       });
     } finally {
       await second.client.close().catch(() => undefined);

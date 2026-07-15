@@ -6,7 +6,7 @@ on:
     tags: ["v*"]
   pull_request:
   schedule:
-    # Re-check both the compatibility floor and primary target every Monday.
+    # Re-check the primary target every Monday.
     - cron: "17 3 * * 1"
   workflow_dispatch:
 
@@ -56,9 +56,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 4.4-stable is the tested compatibility floor; 4.7-stable is the
-        # primary development target. Both shipped scripts must work on each.
-        godot-version: ["4.4-stable", "4.7-stable"]
+        godot-version: ["4.7-stable"]
     name: Godot ${{ matrix.godot-version }}
     steps:
       - uses: actions/checkout@v6
@@ -128,7 +126,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        godot-version: ["4.4-stable", "4.7-stable"]
+        godot-version: ["4.7-stable"]
     name: Godot .NET ${{ matrix.godot-version }}
     steps:
       - uses: actions/checkout@v6
@@ -167,8 +165,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - godot-version: "4.4-stable"
-            template-version: "4.4.stable"
           - godot-version: "4.7-stable"
             template-version: "4.7.stable"
     name: Linux export ${{ matrix.godot-version }}

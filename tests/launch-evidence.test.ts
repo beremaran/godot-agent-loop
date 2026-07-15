@@ -115,6 +115,6 @@ describe('launch evidence', () => {
     const readme = readFileSync(join(repoRoot, 'README.md'), 'utf8');
     expect(readme).toContain('assets/demo/godot-agent-loop-launch-poster.png');
     expect(readme).toContain('assets/demo/godot-agent-loop-launch.mp4');
-    expect(readme).toContain('201 full-path MCP E2E tests');
+    expect(readme).toContain('171/171 tools have full-path MCP E2E coverage');
   });
 });

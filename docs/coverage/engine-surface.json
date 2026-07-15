@@ -1,5 +1,5 @@
 {
-  "engine": "4.7.stable.official.5b4e0cb0f",
+  "engine": "4.7.1.stable.official.a13da4feb",
   "generated_from": "--dump-extension-api",
   "classes": [
     {
@@ -896,7 +896,7 @@
     {
       "name": "AudioStream",
       "bucket": "tooled",
-      "why": "src/scripts/mcp_runtime/audio_animation_domain.gd",
+      "why": "src/scripts/mcp_runtime/audio_animation_domain.gd, addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": true,
       "is_node": false,
@@ -1171,7 +1171,7 @@
     {
       "name": "BaseMaterial3D",
       "bucket": "tooled",
-      "why": "src/scripts/mcp_runtime/rendering_domain.gd",
+      "why": "src/scripts/mcp_runtime/rendering_domain.gd, addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": false,
       "is_node": false,
@@ -1743,7 +1743,7 @@
     {
       "name": "ClassDB",
       "bucket": "tooled",
-      "why": "src/scripts/godot_operations.gd, src/scripts/mcp_runtime/core_domain.gd, src/scripts/mcp_runtime/rendering_domain.gd",
+      "why": "src/scripts/godot_operations.gd, src/scripts/mcp_runtime/core_domain.gd, src/scripts/mcp_runtime/rendering_domain.gd, addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": true,
       "is_node": false,
@@ -2094,8 +2094,8 @@
     },
     {
       "name": "Crypto",
-      "bucket": "reachable",
-      "why": "ClassDB-instantiable: headless add_node and runtime game_eval can construct it",
+      "bucket": "tooled",
+      "why": "addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": true,
       "is_node": false,
@@ -2138,8 +2138,8 @@
     },
     {
       "name": "Curve",
-      "bucket": "reachable",
-      "why": "ClassDB-instantiable: headless add_node and runtime game_eval can construct it",
+      "bucket": "tooled",
+      "why": "addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": true,
       "is_node": false,
@@ -2260,7 +2260,7 @@
     {
       "name": "DirAccess",
       "bucket": "tooled",
-      "why": "src/scripts/godot_operations.gd",
+      "why": "src/scripts/godot_operations.gd, addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": false,
       "is_node": false,
@@ -2953,7 +2953,7 @@
     {
       "name": "Engine",
       "bucket": "tooled",
-      "why": "src/godot-executable.ts, src/scripts/mcp_runtime/system_domain.gd, src/tool-definitions.ts, src/tool-handlers/project-handler-services.ts, src/tool-handlers/project-tool-handlers.ts, addons/godot_agent_loop/plugin.gd",
+      "why": "src/godot-executable.ts, src/scripts/mcp_runtime/system_domain.gd, src/tool-definitions.ts, src/tool-handlers/project-tool-handlers.ts, addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": true,
       "is_node": false,
@@ -2986,7 +2986,7 @@
     {
       "name": "Environment",
       "bucket": "tooled",
-      "why": "src/scripts/godot_operations.gd, src/scripts/mcp_runtime/audio_animation_domain.gd, src/scripts/mcp_runtime/rendering_domain.gd, src/tool-definitions.ts",
+      "why": "src/scripts/godot_operations.gd, src/scripts/mcp_runtime/audio_animation_domain.gd, src/scripts/mcp_runtime/rendering_domain.gd, src/tool-definitions.ts, addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": true,
       "is_node": false,
@@ -3063,7 +3063,7 @@
     {
       "name": "FileAccess",
       "bucket": "tooled",
-      "why": "src/scripts/godot_operations.gd",
+      "why": "src/scripts/godot_operations.gd, addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": false,
       "is_node": false,
@@ -3657,7 +3657,7 @@
     {
       "name": "Gradient",
       "bucket": "tooled",
-      "why": "src/scripts/mcp_runtime/scene_2d_domain.gd",
+      "why": "src/scripts/mcp_runtime/scene_2d_domain.gd, addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": true,
       "is_node": false,
@@ -4295,7 +4295,7 @@
     {
       "name": "JSON",
       "bucket": "tooled",
-      "why": "src/authoring-session-manager.ts, src/editor-connection.ts, src/editor-plugin-installer.ts, src/game-command-service.ts, src/game-connection.ts, src/headless-operation-runner.ts, src/index.ts, src/opencode-setup.ts, src/runtime-protocol.ts, src/scripts/godot_operations.gd, src/scripts/mcp_interaction_server.gd, src/scripts/mcp_runtime/command_params.gd, src/scripts/mcp_runtime/runtime_domain.gd, src/scripts/mcp_runtime/variant_codec.gd, src/tool-argument-validation.ts, src/tool-definitions.ts, src/tool-handlers/game-tool-handlers.ts, src/tool-handlers/lifecycle-tool-handlers.ts, src/tool-handlers/project-handler-services.ts, src/tool-handlers/project-tool-handlers.ts, src/tool-handlers/visual-regression-service.ts, src/tool-manifest.ts, src/tool-surface.ts, addons/godot_agent_loop/plugin.gd",
+      "why": "src/authoring-session-manager.ts, src/editor-authoring-router.ts, src/editor-connection.ts, src/editor-plugin-installer.ts, src/editor-session-registry.ts, src/game-command-service.ts, src/game-connection.ts, src/headless-operation-runner.ts, src/index.ts, src/opencode-setup.ts, src/runtime-protocol.ts, src/scripts/godot_operations.gd, src/scripts/mcp_interaction_server.gd, src/scripts/mcp_runtime/command_params.gd, src/scripts/mcp_runtime/runtime_domain.gd, src/scripts/mcp_runtime/variant_codec.gd, src/tool-argument-validation.ts, src/tool-definitions.ts, src/tool-handlers/game-tool-handlers.ts, src/tool-handlers/lifecycle-tool-handlers.ts, src/tool-handlers/project-handler-services.ts, src/tool-handlers/project-tool-handlers.ts, src/tool-handlers/visual-regression-service.ts, src/tool-manifest.ts, src/tool-surface.ts, addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": true,
       "is_node": false,
@@ -4680,7 +4680,7 @@
     {
       "name": "Marshalls",
       "bucket": "tooled",
-      "why": "src/scripts/mcp_interaction_server.gd",
+      "why": "src/scripts/mcp_interaction_server.gd, addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": true,
       "is_node": false,
@@ -4724,7 +4724,7 @@
     {
       "name": "Mesh",
       "bucket": "tooled",
-      "why": "src/scripts/mcp_runtime/rendering_domain.gd, src/scripts/mcp_runtime/scene_3d_domain.gd, src/tool-definitions.ts",
+      "why": "src/scripts/mcp_runtime/rendering_domain.gd, src/scripts/mcp_runtime/scene_3d_domain.gd, src/tool-definitions.ts, addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": true,
       "is_node": false,
@@ -5230,7 +5230,7 @@
     {
       "name": "Node",
       "bucket": "tooled",
-      "why": "src/scripts/godot_operations.gd, src/scripts/mcp_interaction_server.gd, src/scripts/mcp_runtime/audio_animation_domain.gd, src/scripts/mcp_runtime/core_domain.gd, src/scripts/mcp_runtime/networking_domain.gd, src/scripts/mcp_runtime/physics_domain.gd, src/scripts/mcp_runtime/rendering_domain.gd, src/scripts/mcp_runtime/runtime_domain.gd, src/scripts/mcp_runtime/scene_2d_domain.gd, src/scripts/mcp_runtime/scene_3d_domain.gd, src/scripts/mcp_runtime/system_domain.gd, src/scripts/mcp_runtime/ui_domain.gd, src/scripts/mcp_runtime/variant_codec.gd, src/tool-definitions.ts, src/tool-handlers/project-tool-handlers.ts, src/utils.ts, addons/godot_agent_loop/plugin.gd",
+      "why": "src/editor-authoring-router.ts, src/scripts/godot_operations.gd, src/scripts/mcp_interaction_server.gd, src/scripts/mcp_runtime/audio_animation_domain.gd, src/scripts/mcp_runtime/core_domain.gd, src/scripts/mcp_runtime/networking_domain.gd, src/scripts/mcp_runtime/physics_domain.gd, src/scripts/mcp_runtime/rendering_domain.gd, src/scripts/mcp_runtime/runtime_domain.gd, src/scripts/mcp_runtime/scene_2d_domain.gd, src/scripts/mcp_runtime/scene_3d_domain.gd, src/scripts/mcp_runtime/system_domain.gd, src/scripts/mcp_runtime/ui_domain.gd, src/scripts/mcp_runtime/variant_codec.gd, src/tool-definitions.ts, src/tool-handlers/project-tool-handlers.ts, src/utils.ts, addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": true,
       "is_node": true,
@@ -5241,7 +5241,7 @@
     {
       "name": "Node2D",
       "bucket": "tooled",
-      "why": "src/scripts/godot_operations.gd, src/scripts/mcp_runtime/scene_2d_domain.gd, src/tool-definitions.ts, src/tool-handlers/project-tool-handlers.ts",
+      "why": "src/editor-authoring-router.ts, src/scripts/godot_operations.gd, src/scripts/mcp_runtime/scene_2d_domain.gd, src/tool-definitions.ts, src/tool-handlers/project-tool-handlers.ts",
       "api_type": "core",
       "instantiable": true,
       "is_node": true,
@@ -5329,7 +5329,7 @@
     {
       "name": "Object",
       "bucket": "tooled",
-      "why": "src/domain-tool-registries.ts, src/editor-plugin-installer.ts, src/headless-operation-runner.ts, src/headless-operation-service.ts, src/runtime-protocol.ts, src/scripts/godot_operations.gd, src/scripts/mcp_runtime/system_domain.gd, src/scripts/mcp_runtime/variant_codec.gd, src/tool-argument-validation.ts, src/tool-handlers/game-tool-handlers.ts, src/tool-handlers/project-handler-services.ts, src/tool-handlers/project-tool-handlers.ts, src/tool-manifest.ts, src/tool-mutation-policy.ts, src/tool-registry.ts, src/utils.ts",
+      "why": "src/domain-tool-registries.ts, src/editor-plugin-installer.ts, src/headless-operation-runner.ts, src/headless-operation-service.ts, src/lifecycle-trace.ts, src/runtime-protocol.ts, src/scripts/godot_operations.gd, src/scripts/mcp_runtime/system_domain.gd, src/scripts/mcp_runtime/variant_codec.gd, src/tool-argument-validation.ts, src/tool-handlers/game-tool-handlers.ts, src/tool-handlers/project-handler-services.ts, src/tool-handlers/project-tool-handlers.ts, src/tool-manifest.ts, src/tool-mutation-policy.ts, src/tool-registry.ts, src/utils.ts",
       "api_type": "core",
       "instantiable": true,
       "is_node": false,
@@ -6165,7 +6165,7 @@
     {
       "name": "PackedScene",
       "bucket": "tooled",
-      "why": "src/scripts/godot_operations.gd, src/scripts/mcp_runtime/core_domain.gd, src/tool-definitions.ts",
+      "why": "src/scripts/godot_operations.gd, src/scripts/mcp_runtime/core_domain.gd, src/tool-definitions.ts, addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": true,
       "is_node": false,
@@ -6979,7 +6979,7 @@
     {
       "name": "ProjectSettings",
       "bucket": "tooled",
-      "why": "src/scripts/godot_operations.gd, src/scripts/mcp_runtime/system_domain.gd",
+      "why": "src/scripts/godot_operations.gd, src/scripts/mcp_runtime/system_domain.gd, addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": true,
       "is_node": false,
@@ -7496,7 +7496,7 @@
     {
       "name": "RenderingServer",
       "bucket": "tooled",
-      "why": "src/scripts/mcp_runtime/scene_3d_domain.gd, src/scripts/mcp_runtime/system_domain.gd",
+      "why": "src/scripts/mcp_interaction_server.gd, src/scripts/mcp_runtime/scene_3d_domain.gd, src/scripts/mcp_runtime/system_domain.gd",
       "api_type": "core",
       "instantiable": false,
       "is_node": false,
@@ -7507,7 +7507,7 @@
     {
       "name": "Resource",
       "bucket": "tooled",
-      "why": "src/scripts/godot_operations.gd, src/scripts/mcp_runtime/rendering_domain.gd, src/scripts/mcp_runtime/scene_3d_domain.gd, src/scripts/mcp_runtime/system_domain.gd, src/scripts/mcp_runtime/variant_codec.gd, src/scripts/validate_script.gd, src/tool-definitions.ts, src/tool-handlers/game-tool-handlers.ts",
+      "why": "src/scripts/godot_operations.gd, src/scripts/mcp_runtime/rendering_domain.gd, src/scripts/mcp_runtime/scene_3d_domain.gd, src/scripts/mcp_runtime/system_domain.gd, src/scripts/mcp_runtime/variant_codec.gd, src/scripts/validate_script.gd, src/tool-definitions.ts, src/tool-handlers/game-tool-handlers.ts, addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": true,
       "is_node": false,
@@ -7727,7 +7727,7 @@
     {
       "name": "ResourceLoader",
       "bucket": "tooled",
-      "why": "src/scripts/godot_operations.gd, src/scripts/mcp_runtime/rendering_domain.gd, src/scripts/mcp_runtime/scene_3d_domain.gd, src/scripts/mcp_runtime/system_domain.gd, src/scripts/validate_script.gd",
+      "why": "src/scripts/godot_operations.gd, src/scripts/mcp_runtime/rendering_domain.gd, src/scripts/mcp_runtime/scene_3d_domain.gd, src/scripts/mcp_runtime/system_domain.gd, src/scripts/validate_script.gd, addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": true,
       "is_node": false,
@@ -7749,7 +7749,7 @@
     {
       "name": "ResourceSaver",
       "bucket": "tooled",
-      "why": "src/scripts/godot_operations.gd, src/scripts/mcp_runtime/system_domain.gd",
+      "why": "src/scripts/godot_operations.gd, src/scripts/mcp_runtime/system_domain.gd, addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": true,
       "is_node": false,
@@ -7903,7 +7903,7 @@
     {
       "name": "Script",
       "bucket": "tooled",
-      "why": "src/scripts/godot_operations.gd, src/scripts/mcp_interaction_server.gd, src/scripts/mcp_runtime/audio_animation_domain.gd, src/tool-definitions.ts, src/tool-handlers/game-tool-handlers.ts, src/tool-handlers/project-handler-services.ts, src/tool-handlers/project-tool-handlers.ts",
+      "why": "src/scripts/godot_operations.gd, src/scripts/mcp_interaction_server.gd, src/scripts/mcp_runtime/audio_animation_domain.gd, src/tool-definitions.ts, src/tool-handlers/game-tool-handlers.ts, src/tool-handlers/project-handler-services.ts, src/tool-handlers/project-tool-handlers.ts, addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": false,
       "is_node": false,
@@ -8123,7 +8123,7 @@
     {
       "name": "Shape2D",
       "bucket": "tooled",
-      "why": "src/scripts/mcp_runtime/physics_domain.gd",
+      "why": "src/scripts/mcp_runtime/physics_domain.gd, addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": false,
       "is_node": false,
@@ -8134,7 +8134,7 @@
     {
       "name": "Shape3D",
       "bucket": "tooled",
-      "why": "src/scripts/godot_operations.gd, src/scripts/mcp_runtime/physics_domain.gd",
+      "why": "src/scripts/godot_operations.gd, src/scripts/mcp_runtime/physics_domain.gd, addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": false,
       "is_node": false,
@@ -9157,7 +9157,7 @@
     {
       "name": "Theme",
       "bucket": "tooled",
-      "why": "src/scripts/godot_operations.gd, src/scripts/mcp_runtime/ui_domain.gd, src/tool-definitions.ts",
+      "why": "src/scripts/godot_operations.gd, src/scripts/mcp_runtime/ui_domain.gd, src/tool-definitions.ts, addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": true,
       "is_node": false,
@@ -9278,7 +9278,7 @@
     {
       "name": "Time",
       "bucket": "tooled",
-      "why": "src/scripts/godot_operations.gd, src/scripts/mcp_interaction_server.gd, src/scripts/mcp_runtime/networking_domain.gd, src/scripts/mcp_runtime/system_domain.gd, src/tool-definitions.ts",
+      "why": "src/scripts/godot_operations.gd, src/scripts/mcp_interaction_server.gd, src/scripts/mcp_runtime/networking_domain.gd, src/scripts/mcp_runtime/system_domain.gd, src/tool-definitions.ts, addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": true,
       "is_node": false,

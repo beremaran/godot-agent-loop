@@ -7,4 +7,4 @@ config_version=5
 [application]
 
 config/name="godot-agent-loop-operations-fixture"
-config/features=PackedStringArray("4.4")
+config/features=PackedStringArray("4.7")

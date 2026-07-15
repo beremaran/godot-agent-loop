@@ -1,7 +1,7 @@
 // @test-kind: e2e
 import { afterEach, describe, expect, it } from 'vitest';
 import { PNG } from 'pngjs';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { startServer, type E2EServer } from './helpers/harness.js';
 
@@ -110,7 +110,7 @@ describe('runtime engine-state tools through MCP', () => {
 
     const initial = await game.call('game_time_scale', { action: 'get' });
     expect(initial.isError, initial.text).toBe(false);
-    expect(payload(initial.text)).toMatchObject({ time_scale: 1, fixed_fps: 60 });
+    expect(payload(initial.text)).toMatchObject({ time_scale: 1, fixed_fps: 0 });
 
     const set = await game.call('game_time_scale', { action: 'set', timeScale: 2.5 });
     expect(set.isError, set.text).toBe(false);
@@ -119,7 +119,7 @@ describe('runtime engine-state tools through MCP', () => {
     expect(await engineEval(game, 'return Engine.time_scale')).toBe(2.5);
 
     const readBack = await game.call('game_time_scale', { action: 'get' });
-    expect(payload(readBack.text)).toMatchObject({ time_scale: 2.5, fixed_fps: 60 });
+    expect(payload(readBack.text)).toMatchObject({ time_scale: 2.5, fixed_fps: 0 });
 
     // A `set` with no value is a structured failure, not a silent default.
     const noValue = await game.call('game_time_scale', { action: 'set' });
@@ -270,6 +270,12 @@ describe('runtime engine-state tools through MCP', () => {
     const leaks = await game.call('game_performance', { action: 'leaks' });
     expect(leaks.isError, leaks.text).toBe(false);
     expect(payload(leaks.text)).toHaveProperty('leak_diagnostics.object_orphan_node_count');
+    const stress = await game.call('game_performance', { action: 'stress', sampleCount: 3 });
+    expect(stress.isError, stress.text).toBe(false);
+    expect(payload(stress.text)).toMatchObject({
+      stress_window: { available: true, baseline: {}, peak: {}, recovery: {} },
+      metric_availability: { gpu_time: { available: false } },
+    });
     const stopped = await game.call('game_performance', { action: 'stop' });
     expect(stopped.isError, stopped.text).toBe(false);
     expect((payload(stopped.text) as { profiling: boolean }).profiling).toBe(false);
@@ -352,7 +358,7 @@ describe('runtime engine-state tools through MCP', () => {
     const requireRenderedPixels = process.env.GODOT_MCP_RENDER_TEST === '1';
     const game = await startedGame({ privileged: true });
 
-    const result = await game.call('game_screenshot');
+    const result = await game.call('game_screenshot', { retainArtifact: true });
     expect(result.isError, result.text).toBe(false);
     const raw = result.raw as { content: { type: string; data?: string; mimeType?: string }[] };
     const image = raw.content.find(item => item.type === 'image');
@@ -366,6 +372,17 @@ describe('runtime engine-state tools through MCP', () => {
     ].join('\n')) as number[];
     expect(png.readUInt32BE(16)).toBe(size[0]);
     expect(png.readUInt32BE(20)).toBe(size[1]);
+    const metadata = payload(result.text) as {
+      width: number; height: number; bytes: number; sha256: string; artifact_path: string;
+    };
+    expect(metadata).toMatchObject({
+      width: size[0], height: size[1], bytes: png.length,
+      sha256: expect.stringMatching(/^[0-9a-f]{64}$/),
+      artifact_path: expect.any(String),
+    });
+    expect(metadata.artifact_path.startsWith(game.projectPath)).toBe(false);
+    expect(existsSync(metadata.artifact_path)).toBe(true);
+    rmSync(metadata.artifact_path, { force: true });
     if (requireRenderedPixels) {
       const decoded = PNG.sync.read(png);
       const offset = (10 * decoded.width + 10) * 4;

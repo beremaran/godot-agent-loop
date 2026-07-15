@@ -9,7 +9,7 @@ import { ToolRegistry } from '../src/tool-registry.js';
 import type { ToolName } from '../src/tool-definitions.js';
 
 const ALL_TOOL_NAMES = [
-  'godot_tools', 'launch_editor', 'editor_control', 'run_project', 'verify_project', 'run_project_tests',
+  'godot_tools', 'launch_editor', 'editor_session', 'editor_control', 'editor_transaction', 'run_project', 'verify_project', 'game_wait_until', 'game_scenario', 'run_project_tests',
   'manage_import_pipeline', 'analyze_project_integrity', 'verify_export_readiness',
   'verify_dotnet_project', 'manage_addon', 'get_debug_output', 'stop_project',
   'get_godot_version', 'list_projects', 'get_project_info', 'create_scene',
@@ -90,6 +90,14 @@ function validRequiredArguments(tool: typeof toolDefinitions[number]): Record<st
       args[field] = 'http://127.0.0.1';
       continue;
     }
+    if (field === 'operations') {
+      args[field] = [{ op: 'save' }];
+      continue;
+    }
+    if (field === 'steps') {
+      args[field] = [{ type: 'wait', condition: { condition: 'connection' } }];
+      continue;
+    }
     if (property.type === 'number' || property.type === 'integer') {
       args[field] = property.minimum ?? 1;
       continue;
@@ -111,8 +119,8 @@ const registry = new ToolRegistry(createToolHandlers({
 }));
 
 describe('Tool definitions', () => {
-  it('defines exactly the complete 167-tool catalog', () => {
-    expect(toolDefinitions).toHaveLength(167);
+  it('defines exactly the complete 171-tool catalog', () => {
+    expect(toolDefinitions).toHaveLength(171);
     expect(ALL_TOOL_NAMES).toHaveLength(toolDefinitions.length);
   });
 

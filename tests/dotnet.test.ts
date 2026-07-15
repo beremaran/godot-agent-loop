@@ -25,11 +25,11 @@ describe('toDotnetIdentifier', () => {
 
 describe('generateGodotProjectFeatures', () => {
   it('omits the C# feature for a plain project', () => {
-    expect(generateGodotProjectFeatures(false)).toBe('PackedStringArray("4.4")');
+    expect(generateGodotProjectFeatures(false)).toBe('PackedStringArray("4.7")');
   });
   it('adds the C# feature (not DotNet) for a .NET project', () => {
     const f = generateGodotProjectFeatures(true);
-    expect(f).toBe('PackedStringArray("4.4", "C#")');
+    expect(f).toBe('PackedStringArray("4.7", "C#")');
     expect(f).not.toContain('DotNet');
   });
   it('honors an explicit version', () => {

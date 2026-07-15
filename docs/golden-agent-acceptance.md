@@ -1,8 +1,9 @@
 # Golden agent acceptance
 
-Phase 7's product claim is tested in two layers: a live, cold model run provides
-behavioral evidence, and a deterministic replay makes the successful build a
-release gate.
+Phase 7's product claim is tested in three layers: a live, cold model run
+provides behavioral evidence, a deterministic replay protects the original
+headless workflow, and an interactive replay protects the attached-editor
+workflow.
 
 ## Live cold run
 
@@ -26,7 +27,7 @@ The machine-readable evidence and the observed selection failures are in
 [`golden-agent-game.test.ts`](../tests/e2e/golden-agent-game.test.ts) distills the
 successful live trace into a reproducible MCP-client test. Starting from no Godot
 project, it creates the project, scene, script, nodes, input map, and main-scene
-setting through the 39-tool core surface. It then:
+setting through the current 40-tool core surface. It then:
 
 1. independently reads the authored files;
 2. runs the compound verifier with node, log, screenshot, and teardown evidence;
@@ -35,8 +36,18 @@ setting through the 39-tool core surface. It then:
 5. proves WIN and LOSE through live UI plus independently decoded rendered pixels;
 6. stops the game and checks that no injected files remain.
 
+The current replay installs the persistent addon after project creation, opens
+Godot normally, and reconnects a fresh MCP without calling `launch_editor`.
+Supported scene changes use the editor backend and update selection; script and
+project-setting fallbacks are acknowledged and disclosed. It also checks the
+persisted hierarchy, correlated dock activity, realtime ordinary play,
+deterministic verification, a bounded performance stress window, retained
+persistent-addon files, and clean discovery-record removal. The macOS/Godot
+4.7.1 evidence is recorded in
+[`coverage/interactive-golden-agent-run.json`](coverage/interactive-golden-agent-run.json).
+
 `npm run test:golden-agent` runs the focused gate. The test is also part of
-`npm run test:e2e`, which CI runs on both Godot 4.4 and 4.7; it cannot be skipped
+`npm run test:e2e`, which CI runs on Godot 4.7; it cannot be skipped
 or quarantined under the repository's E2E metadata policy.
 
 The release gate intentionally does not call a hosted model. Model availability,

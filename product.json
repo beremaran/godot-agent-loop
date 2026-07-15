@@ -4,7 +4,7 @@
   "name": "Godot Agent Loop",
   "tagline": "Build it. Play it. Prove it.",
   "category": "An MCP automation loop for Godot 4",
-  "description": "MCP automation loop with 167 tested tools for Godot 4",
+  "description": "MCP automation loop with 171 tested tools for Godot 4",
   "version": "1.0.1",
   "repository": {
     "owner": "beremaran",
@@ -30,9 +30,10 @@
     "directory": "addons/godot_agent_loop",
     "name": "Godot Agent Loop Bridge",
     "category": "Addons/Tools",
-    "minimumGodotVersion": "4.4",
+    "minimumGodotVersion": "4.7",
     "primaryGodotVersion": "4.7",
-    "protocolVersion": "1",
+    "version": "1.1.0",
+    "protocolVersion": "2",
     "license": "MIT",
     "description": "Godot Agent Loop Bridge is an authenticated editor companion that shows live agent activity and compatibility status, provides setup help, and gives you a human Pause/Resume control.",
     "icon": "assets/previews/assetlib-icon.png",
@@ -43,7 +44,8 @@
   },
   "observability": {
     "serverComponent": "godot-agent-loop-server",
-    "runtimeComponent": "godot-agent-loop-runtime"
+    "runtimeComponent": "godot-agent-loop-runtime",
+    "editorComponent": "godot-agent-loop-editor"
   },
   "lineage": {
     "originalRepository": "https://github.com/Coding-Solo/godot-mcp",

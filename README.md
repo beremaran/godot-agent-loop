@@ -7,7 +7,7 @@ An MCP automation loop for Godot 4.
 [![npm version](https://img.shields.io/npm/v/%40beremaran%2Fgodot-agent-loop)](https://www.npmjs.com/package/@beremaran/godot-agent-loop)
 [![Godot integration tests](https://github.com/beremaran/godot-agent-loop/actions/workflows/godot-integration.yml/badge.svg)](https://github.com/beremaran/godot-agent-loop/actions/workflows/godot-integration.yml)
 <!-- generated-coverage-badge:start -->
-[![E2E tools: 167/167](https://img.shields.io/badge/E2E_tools-167%2F167-brightgreen)](docs/coverage/coverage-report.md)
+[![E2E tools: 171/171](https://img.shields.io/badge/E2E_tools-171%2F171-brightgreen)](docs/coverage/coverage-report.md)
 <!-- generated-coverage-badge:end -->
 [![MCP Server](https://badge.mcpx.dev?type=server 'MCP Server')](https://modelcontextprotocol.io/introduction)
 [![Made with Godot](https://img.shields.io/badge/Made%20with-Godot-478CBF?style=flat&logo=godot%20engine&logoColor=white)](https://godotengine.org)
@@ -36,20 +36,21 @@ claude mcp add godot-agent-loop -- npx -y @beremaran/godot-agent-loop
 ```
 
 Then point the agent at a project directory—or an empty directory—and describe
-the playable result. The compact default surface exposes 39 tools for the loop
+the playable result. The compact default surface exposes 40 tools for the loop
 above; the `godot_tools` meta-tool searches, describes, and dispatches the full
-167-tool catalog on demand. Runtime and editor bridges are installed
-transiently and cleaned up automatically.
+171-tool catalog on demand. Runtime injection is transient; watched projects
+can use the optional persistent editor addon.
 
 Using Cline, Cursor, or another MCP client? See
 [Configuration](#configuration).
 
 ## Proof before claims
 
-- **167/167 tools** exercised through the complete MCP-to-Godot path, with
-  **358 public actions** traced to resolving tests; see the generated
+- **171/171 tools** exercised through the complete MCP-to-Godot path, with
+  **365 public actions** traced to resolving tests; see the generated
   [coverage report](docs/coverage/coverage-report.md).
-- **201 full-path MCP E2E tests** run against real Godot builds in CI.
+- **171/171 tools have full-path MCP E2E coverage**, with the complete serial
+  real-Godot matrix enforced in CI.
 - A cold agent built and independently verified a playable win/lose game with
   zero human corrections, in under seven minutes, using 103 MCP calls and no
   built-in tools; see the [launch evidence](docs/launch/launch-evidence.md) and
@@ -57,17 +58,18 @@ Using Cline, Cursor, or another MCP client? See
 - Privileged reflection, code execution, and networking groups are denied by
   default, and the editor provides a human **Pause Agent** control.
 
-Support is deliberately bounded: Godot 4.4 is the compatibility floor and 4.7
-the primary target; editor UI/rendering depth is verified on Linux, while
-Windows and macOS receive the documented portable acceptance path. Full
-debugger automation, native extension builds, and unbounded engine control are
-not claimed. Details in the
+Support is deliberately bounded: Godot 4.7 is both the compatibility floor and
+the primary target. Editor attachment is verified on Linux CI and in a headed
+macOS 4.7.1 acceptance run; Windows retains the documented portable acceptance
+path but not an editor-UI claim. Full debugger automation, native extension
+builds, and unbounded engine control are not claimed. Details in the
 [verified support boundary](#verified-support-boundary).
 
 ## Highlights
 
-- **Author without running** — create and edit scenes, nodes, scripts,
-  resources, shaders, and project settings directly in project files.
+- **Author with or without an editor** — attach securely to a normally opened
+  project for undoable scene/resource transactions, or retain detached and CI
+  authoring with explicit synchronization metadata.
 - **Run and observe** — launch the game, capture logs and errors
   incrementally, take screenshots, and run visual-regression comparisons with
   baselines, masks, and retained diffs.
@@ -81,9 +83,10 @@ not claimed. Details in the
 - **Reach into the runtime** — inspect and manipulate any node, signal,
   animation, physics body, or UI control through 100+ runtime tools;
   `game_eval` executes GDScript with `await` support (privileged, opt-in).
-- **Drive the editor** — `editor_control` applies reversible edits through
-  `EditorUndoRedoManager`, with a live Agent Activity dock and a human
-  **Pause Agent** lock.
+- **Drive the editor** — `editor_session ensure` discovers the matching
+  project, editor-routed tools and `editor_transaction` apply reversible edits
+  through `EditorUndoRedoManager`, and the Agent Activity dock replays the
+  bounded correlated trace with a human **Pause Agent** lock.
 - **.NET / C# support** — scaffold C# projects with a `Godot.NET.Sdk` matched
   to your installed Godot, generate idiomatic scripts, and restore/build/run
   via `verify_dotnet_project`.
@@ -93,7 +96,7 @@ not claimed. Details in the
 
 ## Tool catalog
 
-The full inventory of 167 tools — runtime interaction, scene authoring,
+The full inventory of 171 tools — runtime interaction, scene authoring,
 project management, verification, 2D/3D rendering, audio, UI, networking, and
 more — lives in [docs/tools.md](docs/tools.md). Per-tool verification status
 and test references are in the generated
@@ -101,8 +104,7 @@ and test references are in the generated
 
 ## Requirements
 
-- [Godot Engine](https://godotengine.org/download) 4.4 or later; the latest
-  stable release, currently Godot **4.7**, is recommended
+- [Godot Engine](https://godotengine.org/download) 4.7 or later
 - (Optional) [.NET SDK](https://dotnet.microsoft.com/download) 8.0+ and the
   Godot .NET (C#) build, only if you use `create_project`'s `dotnet: true`
   flag or `create_csharp_script`
@@ -111,27 +113,28 @@ and test references are in the generated
 
 ### Godot compatibility policy
 
-Development targets the latest stable Godot release. The project also keeps a
-tested compatibility floor while the same implementation remains cleanly
-portable; currently, CI covers Godot 4.4 and 4.7. The floor may be raised when
-it blocks useful features or creates meaningful maintenance cost. In that case,
-the last compatible release remains available, and an older-version maintenance
-branch will be created only when user demand justifies maintaining it. Such a
-branch would receive critical fixes rather than new features.
+Development targets the latest stable Godot release. Godot 4.7 is the current
+compatibility floor and primary target, and CI covers that exact release. The
+floor may be raised when it blocks useful features or creates meaningful
+maintenance cost.
+In that case, the last compatible release remains available, and an
+older-version maintenance branch will be created only when user demand
+justifies maintaining it. Such a branch would receive critical fixes rather
+than new features.
 
 ### Verified support boundary
 
 | Area | Status | Evidence or limitation |
 | --- | --- | --- |
-| Linux headed (desktop or Xvfb), Godot 4.4 and 4.7 | Verified in CI | Full MCP E2E under Xvfb, direct runtime, subprocess operations, and strict script parsing |
+| Linux headed (desktop or Xvfb), Godot 4.7 | Verified in CI | Full MCP E2E under Xvfb, direct runtime, subprocess operations, and strict script parsing |
 | GDScript project and running-game workflows | Verified for advertised tools | See the generated [coverage report](docs/coverage/coverage-report.md) |
 | Privileged runtime commands | Opt-in only | Disabled by default; intended for trusted localhost development |
-| Godot .NET/C# | Scaffold, compile, and editor-load verification | Godot .NET 4.4 and 4.7 with .NET SDK 8 |
-| Linux exports | Release/debug template export and smoke-run verification | Godot 4.4 and 4.7 installed templates; other targets are not claimed |
+| Godot .NET/C# | Scaffold, compile, and editor-load verification | Godot .NET 4.7 with .NET SDK 8 |
+| Linux exports | Release/debug template export and smoke-run verification | Godot 4.7 installed templates; other targets are not claimed |
 | Rendering and screenshots | A headed rendering context is required | Compatibility and Forward+ on Linux software rendering; display-less sessions fail fast with desktop/Xvfb remediation |
-| Windows and macOS | Portable acceptance verified | Godot 4.7 process, Unicode path, runtime input, window query, and teardown workflows |
-| Windows/macOS editor UI, rendering, and exports | Not claimed | Verified on Linux only; Windows/macOS support is bounded to the portable acceptance suite |
-| Editor state and undo/redo bridge | Verified in MCP E2E | The headed editor bridge is authenticated and uses `EditorInterface` plus `EditorUndoRedoManager` |
+| Windows | Portable acceptance verified | Godot 4.7 process, Unicode path, runtime input, window query, and teardown workflows; editor UI, rendering, and exports are not claimed |
+| macOS | Portable acceptance and attached-editor workflow verified | Godot 4.7.1 headed replay opens Godot normally, reconnects the MCP, authors and synchronizes without focus switching/manual reload, exercises undoable transactions, and cleans the discovery record; see the [interactive acceptance record](docs/coverage/interactive-golden-agent-run.json) |
+| Editor state and undo/redo bridge | Verified on Linux CI and headed macOS 4.7.1 | Protocol 2 uses private per-project discovery, `EditorInterface`, and `EditorUndoRedoManager`; Windows editor UI remains outside the claimed boundary |
 | Full debugger control | Not claimed | Breakpoints, stack inspection, and frame-local evaluation remain outside the supported boundary |
 | Profiler, leak, asset, localization, and accessibility audits | Verified in MCP E2E | `game_performance` and `analyze_project_integrity` return bounded live/static evidence; native extension builds remain unsupported |
 | GDExtension builds | Not claimed | `analyze_project_integrity` inspects declarations and libraries without invoking arbitrary native toolchains |
@@ -140,6 +143,28 @@ branch would receive critical fixes rather than new features.
 
 The [quickstart](#quickstart) `npx` command is all most setups need. The
 sections below cover other clients and a source checkout.
+
+### Interactive editor setup
+
+For a project the user watches, copy
+[`addons/godot_agent_loop`](addons/godot_agent_loop) into the project at that
+same path, enable **Godot Agent Loop** under **Project > Project Settings >
+Plugins**, and restart Godot once. Thereafter Godot may be opened normally;
+`editor_session` discovers the matching project without launching a duplicate.
+The dock remains visible and waits cleanly when no agent is connected.
+
+The addon publishes a private, untracked record at
+`.godot/godot_agent_loop/editor-session.json` with a fresh token and ephemeral
+loopback port for each editor start. The token is never returned or logged.
+Multiple editors are routed by canonical project path. To uninstall, disable
+the plugin, close Godot, remove `addons/godot_agent_loop`, and optionally remove
+a stale `.godot/godot_agent_loop` directory. MCP cleanup removes only its own
+unmodified transient bridge, never this persistent addon.
+
+An editor already started without an enabled compatible addon cannot receive a
+new `EditorPlugin` safely at runtime. Install/enable once and restart. See the
+[interaction architecture](docs/architecture/editor-interaction.md) for states,
+protocol migration, unsaved-conflict recovery, and fallback semantics.
 
 ### Portable agent bundle
 
@@ -283,7 +308,7 @@ the event name, runtime component, numeric session ID, and timestamp.
 | `GODOT_MCP_ALLOWED_DIRS` | Optional. Restrict `run_project` to projects under these roots (`;`, `,`, or `:` separated). When unset, any project path is allowed. |
 | `GODOT_MCP_RUNTIME_SECRET` | Optional explicit shared runtime secret. The MCP server generates a fresh 256-bit value when omitted and passes it only to Godot processes it launches. Set the same value manually only when connecting to a separately launched runtime. |
 | `GODOT_MCP_EDITOR_START_PAUSED` | Optional, default `false`. Start the editor addon's cooperative lock in human-editing mode so mutating MCP tools are refused until **Resume Agent** is pressed. |
-| `GODOT_MCP_TOOL_SURFACE` | Optional, default `core`. Set to `full` to advertise the complete static tool catalog instead of the compact 39-tool core, which includes `godot_tools` discovery/dispatch. |
+| `GODOT_MCP_TOOL_SURFACE` | Optional, default `core`. Set to `full` to advertise the complete static tool catalog instead of the compact 40-tool core, which includes `godot_tools` discovery/dispatch. |
 | `GODOT_MCP_PRIVILEGED_GROUPS` | Optional comma-separated least-privilege grants: `reflection`, `code-execution`, and/or `network`. All are denied by default. |
 | `GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS` | Optional, default `false`. Explicitly enable runtime `eval`, arbitrary property/method access, script control, RPC, HTTP, and WebSocket commands for a trusted localhost developer workflow. |
 

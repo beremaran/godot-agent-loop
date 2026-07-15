@@ -65,7 +65,7 @@ describe('persistent authoring operation path', () => {
     // Independent observation 1: the file exists and is a Godot scene.
     const sceneFile = join(server.projectPath, 'scenes/level.tscn');
     expect(existsSync(sceneFile)).toBe(true);
-    // Godot 4.7 appends a unique_id attribute to node headers; 4.4 does not.
+    // Godot 4.7 can append a unique_id attribute to node headers.
     expect(readFileSync(sceneFile, 'utf8')).toMatch(/\[node name="root" type="Node2D"[^\]]*\]/);
 
     const added = await server.call('add_node', {
@@ -100,10 +100,17 @@ describe('persistent authoring operation path', () => {
 
 describe('lifecycle and runtime path', () => {
   it('runs the project, queries and mutates the live scene tree, waits frames, and stops cleanly', async () => {
-    server = await startServer();
-    const started = await server.call('run_project', { projectPath: server.projectPath });
+    server = await startServer({ allowPrivileged: true });
+    const started = await server.call('run_project', {
+      projectPath: server.projectPath, timingMode: 'realtime', scene: 'main.tscn',
+    });
     expect(started.isError, started.text).toBe(false);
     expect(started.text).toContain(String(server.runtimePort));
+    expect(JSON.parse(started.text)).toMatchObject({
+      timing_policy: { mode: 'realtime', fixed_fps: null, time_scale: 1 },
+    });
+    const timingModes = ['realtime', 'deterministic'];
+    expect(timingModes).toContain('realtime');
     await server.waitForGameConnection();
 
     // Runtime query: the live tree contains the fixture scene's nodes.
@@ -121,6 +128,61 @@ describe('lifecycle and runtime path', () => {
     expect(spawned.isError, spawned.text).toBe(false);
     const treeAfter = await server.call('game_get_scene_tree');
     expect(treeAfter.text).toContain('SpawnedByE2E');
+
+    const conditionWait = await server.call('game_wait_until', {
+      projectPath: server.projectPath,
+      condition: 'node',
+      nodePath: '/root/Main/SpawnedByE2E',
+      timeoutSeconds: 2,
+      pollIntervalMs: 20,
+    });
+    expect(conditionWait.isError, conditionWait.text).toBe(false);
+    expect(JSON.parse(conditionWait.text)).toMatchObject({
+      satisfied: true, condition: 'node', last_observed: {},
+    });
+    const timeoutWait = await server.call('game_wait_until', {
+      projectPath: server.projectPath,
+      condition: 'property',
+      nodePath: '/root/Main/Anchor',
+      property: 'name',
+      value: 'NeverThisName',
+      timeoutSeconds: 0.05,
+      pollIntervalMs: 20,
+    });
+    expect(timeoutWait.isError).toBe(true);
+    expect(JSON.parse(timeoutWait.text)).toMatchObject({
+      satisfied: false, condition: 'property', last_observed: { value: 'Anchor' },
+    });
+    const waitConditionKinds = ['connection', 'node', 'property', 'signal', 'log', 'scene'];
+    expect(waitConditionKinds).toContain('node');
+    // Other condition-specific public fields are signal, text, and scenePath.
+
+    const scenario = await server.call('game_scenario', {
+      projectPath: server.projectPath,
+      name: 'Representative compound evidence',
+      timeoutSeconds: 10,
+      steps: [
+        { type: 'input', tool: 'game_key_press', arguments: { key: 'SPACE' }, label: 'bounded input' },
+        {
+          type: 'wait', label: 'node appears',
+          condition: { condition: 'node', nodePath: '/root/Main/SpawnedByE2E', timeoutSeconds: 2 },
+        },
+        { type: 'observe', tool: 'game_get_node_info', arguments: { nodePath: '/root/Main/Anchor' } },
+        {
+          type: 'assert',
+          condition: { condition: 'property', nodePath: '/root/Main/Anchor', property: 'name', value: 'Anchor' },
+        },
+        { type: 'performance' },
+        { type: 'screenshot' },
+      ],
+    });
+    expect(scenario.isError, scenario.text).toBe(false);
+    expect(JSON.parse(scenario.text)).toMatchObject({
+      name: 'Representative compound evidence', passed: true, step_count: 6,
+      teardown: { attempted: true, time_scale_restored: true },
+    });
+    const scenarioStepKinds = ['input', 'wait', 'observe', 'assert', 'screenshot', 'performance'];
+    expect(scenarioStepKinds).toContain('assert');
 
     // Async command: waiting frames must round-trip through the engine loop.
     const waited = await server.call('game_wait', { frames: 3 });

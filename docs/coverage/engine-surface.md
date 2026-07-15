@@ -9,7 +9,7 @@ Godot's own `--dump-extension-api` output. A class we never considered still
 appears below, so this report can regress when Godot grows and we stand still.
 That is the point, and it is what the tool coverage report cannot tell us.
 
-## Engine denominator (Godot 4.7.stable.official.5b4e0cb0f)
+## Engine denominator (Godot 4.7.1.stable.official.a13da4feb)
 
 | Surface | Count |
 | --- | ---: |
@@ -23,8 +23,8 @@ That is the point, and it is what the tool coverage report cannot tell us.
 
 | Bucket | Classes | Meaning |
 | --- | ---: | --- |
-| tooled | 223 | The class is named in our shipped GDScript or in a tool schema |
-| reachable | 716 | No named tool, but generically drivable via `add_node` / `game_eval` |
+| tooled | 225 | The class is named in our shipped GDScript or in a tool schema |
+| reachable | 714 | No named tool, but generically drivable via `add_node` / `game_eval` |
 | out-of-scope | 97 | Declared unsupported in the README support boundary |
 | gap | 0 | No tool, no generic reach, no scope decision |
 | **Total** | **1036** | |

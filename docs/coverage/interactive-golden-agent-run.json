@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "runDate": "2026-07-15",
+  "kind": "deterministic-interactive-golden-replay",
+  "environment": {
+    "platform": "macOS",
+    "godotVersion": "4.7.1.stable.official.a13da4feb",
+    "serverVersion": "1.0.1",
+    "addonVersion": "1.1.0",
+    "editorProtocolVersion": "2",
+    "toolSurface": "core",
+    "advertisedToolCount": 40
+  },
+  "workflow": {
+    "startingState": "empty allowed directory",
+    "godotOpenedNormally": true,
+    "editorOpenedBeforeFinalMcpSession": true,
+    "mcpRestartsWhileEditorStayedOpen": 1,
+    "launchEditorCalls": 0,
+    "focusSwitches": 0,
+    "manualReloads": 0,
+    "humanInterventions": 0,
+    "mcpToolCalls": 39,
+    "durationMs": 14090
+  },
+  "authoring": {
+    "editorNativeSceneMutations": 9,
+    "fileBackedAcknowledgedMutations": 4,
+    "unacknowledgedMutations": 0,
+    "fallbacksDisclosed": true,
+    "persistedMainSceneMeaningful": true,
+    "editorSelectionObserved": true,
+    "undoableTransactions": true
+  },
+  "evidence": {
+    "deterministicVerificationPassed": true,
+    "realtimeOrdinaryPlayPassed": true,
+    "winTransitionPassed": true,
+    "loseTransitionPassed": true,
+    "renderedWinAndLosePixelsDecoded": true,
+    "traceDockConnectedAndCorrelated": true,
+    "stressWindowAvailable": true,
+    "gpuTimingAvailable": false,
+    "gpuTimingReason": "Public runtime APIs do not expose a stable GPU frame timer on this renderer/platform",
+    "persistentAddonPreserved": true,
+    "discoveryRecordRemovedOnCleanExit": true,
+    "unexpectedDiagnostics": []
+  },
+  "result": "passed"
+}

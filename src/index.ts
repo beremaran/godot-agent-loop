@@ -20,7 +20,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import type { GameResponse } from './game-connection.js';
 
-import { PathSecurity, type OperationParams } from './utils.js';
+import { PathSecurity, type OperationParams, type ToolArguments, type ToolResponse } from './utils.js';
 import type { ToolName } from './tool-definitions.js';
 import { GodotExecutableService, GodotExecutableValidator } from './godot-executable.js';
 import { HeadlessOperationRunner } from './headless-operation-runner.js';
@@ -35,7 +35,9 @@ import { GameToolHandlers } from './tool-handlers/game-tool-handlers.js';
 import { ProjectToolHandlers } from './tool-handlers/project-tool-handlers.js';
 import { LifecycleToolHandlers } from './tool-handlers/lifecycle-tool-handlers.js';
 import { ProjectSupport } from './project-support.js';
-import { EditorConnection } from './editor-connection.js';
+import { canonicalProjectPath, EditorSessionRegistry } from './editor-session-registry.js';
+import { EditorSyncQueue } from './editor-sync-queue.js';
+import { EditorAuthoringRouter } from './editor-authoring-router.js';
 import { EditorPluginInstaller, type EditorPluginInstallation } from './editor-plugin-installer.js';
 import { PRIVILEGED_RUNTIME_GROUPS, type PrivilegedRuntimeGroup } from './runtime-protocol.js';
 import { AuthoringSessionManager } from './authoring-session-manager.js';
@@ -43,6 +45,9 @@ import { EditorMutationGuard } from './editor-mutation-guard.js';
 import { SERVER_INSTRUCTIONS } from './server-instructions.js';
 import { advertisedToolDefinitions } from './tool-surface.js';
 import { runOpenCodeSetup } from './opencode-setup.js';
+import { LifecycleTrace, type LifecycleOutcome } from './lifecycle-trace.js';
+import { toolManifest } from './tool-manifest.js';
+import { isToolCallMutating } from './tool-mutation-policy.js';
 
 // Check if debug mode is enabled
 const DEBUG_MODE: boolean = process.env.DEBUG === 'true';
@@ -80,14 +85,19 @@ function resolveRuntimePort(): number {
   return parsed;
 }
 
-function resolveEditorPort(): number {
-  const configured = process.env.GODOT_MCP_EDITOR_PORT;
-  if (!configured) return 9091;
-  const parsed = Number(configured);
-  return Number.isInteger(parsed) && parsed > 0 && parsed < 65536 ? parsed : 9091;
+const pathSecurity = new PathSecurity();
+
+function firstString(...values: unknown[]): string | undefined {
+  return values.find((value): value is string => typeof value === 'string' && value.length > 0);
 }
 
-const pathSecurity = new PathSecurity();
+function toResourcePath(path: string): string {
+  return path.startsWith('res://') ? path : `res://${path.replace(/^\/+/, '')}`;
+}
+
+function normalizeFocusPath(path: string): string {
+  return path.replace(/^\/?root\/?/, '').replace(/^\.\//, '') || '.';
+}
 
 // Derive __filename and __dirname in ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -141,16 +151,45 @@ export class GodotServer {
   private readonly authoringSession: AuthoringSessionManager;
   private readonly headlessOperations: HeadlessOperationService;
   private readonly gameCommands: GameCommandService;
-  private readonly editorConnection = new EditorConnection({
-    port: resolveEditorPort(), secret: RUNTIME_SECRET, serverVersion: SERVER_VERSION,
+  private readonly attachedEditorProjects = new Set<string>();
+  private readonly lifecycleTrace = new LifecycleTrace({
+    onEvent: (projectPath, event) => {
+      if (!this.attachedEditorProjects.has(projectPath)) return;
+      void this.editorSessions.send(projectPath, 'activity', event, 1_000).catch(error => {
+        this.logDebug(`Editor trace forwarding failed: ${error instanceof Error ? error.message : String(error)}`);
+      });
+    },
+  });
+  private readonly editorSessions = new EditorSessionRegistry({
+    serverVersion: SERVER_VERSION,
+    log: message => { this.logDebug(message); },
+    onStateChange: session => {
+      if (session.connected) {
+        const wasAttached = this.attachedEditorProjects.has(session.project_path);
+        this.attachedEditorProjects.add(session.project_path);
+        if (!wasAttached) void this.replayEditorTrace(session.project_path);
+      } else {
+        this.attachedEditorProjects.delete(session.project_path);
+      }
+    },
+  });
+  private readonly editorSync = new EditorSyncQueue({
+    send: (projectPath, params, timeoutMs) => this.editorSessions.send(projectPath, 'filesystem_changed', params, timeoutMs),
+    status: projectPath => this.editorSessions.status(projectPath),
+  });
+  private readonly editorAuthoring = new EditorAuthoringRouter({
+    status: projectPath => this.editorSessions.status(projectPath),
+    ensure: (projectPath, timeoutMs) => this.editorSessions.ensure(projectPath, timeoutMs),
+    send: (projectPath, command, params, timeoutMs) => this.editorSessions.send(
+      projectPath, command, params, timeoutMs,
+    ),
   });
   private readonly editorMutationGuard = new EditorMutationGuard(
-    (command, params, timeoutMs) => this.editorConnection.send(command, params, timeoutMs),
+    (projectPath, command, params, timeoutMs) => this.editorSessions.send(projectPath, command, params, timeoutMs),
   );
   private toolRegistry: ToolRegistry<ToolName> | null = null;
   private readonly editorPluginInstaller: EditorPluginInstaller;
-  private editorProjectPath: string | null = null;
-  private editorPluginInstallation: EditorPluginInstallation | null = null;
+  private readonly editorPluginInstallations = new Map<string, EditorPluginInstallation>();
   private strictPathValidation = false;
   private readonly tcpGameConnection = new GameConnection({
     port: resolveRuntimePort(),
@@ -227,8 +266,11 @@ export class GodotServer {
       canStart: () => this.activeProcess === null,
       onLifecycleEvent: event => { this.forwardEditorActivity(event); },
       onProjectWrite: event => {
-        void this.editorConnection.send('filesystem_changed', { ...event }, 2_000).catch(() => undefined);
+        return this.editorSync.enqueue(event);
       },
+      tryEditorOperation: (command, params, projectPath) => this.editorAuthoring.tryExecute(
+        command, params, projectPath,
+      ),
     });
     this.headlessOperations = new HeadlessOperationService(this.operationRunner, pathSecurity, this.authoringSession);
     this.gameCommands = new GameCommandService(this.processManager, this.gameConnection);
@@ -274,17 +316,34 @@ export class GodotServer {
       getInteractionPort: () => this.gameConnection.interactionPort,
       getRuntimeEnvironment: () => ({ GODOT_MCP_RUNTIME_SECRET: RUNTIME_SECRET }),
       installEditorPlugin: projectPath => {
-        if (this.editorProjectPath) {
-          this.editorPluginInstaller.remove(this.editorProjectPath, this.editorPluginInstallation);
-          this.editorPluginInstallation = null;
-        }
-        this.editorPluginInstallation = this.editorPluginInstaller.install(projectPath);
-        this.editorProjectPath = projectPath;
-        return this.editorPluginInstallation;
+        const previous = this.editorPluginInstallations.get(projectPath);
+        const installation = this.editorPluginInstaller.install(projectPath);
+        const cleanupInstallation = previous
+          && previous.pluginName === installation.pluginName
+          && previous.distribution === installation.distribution
+          && previous.enabledByServer
+          ? {
+              ...installation,
+              enabledByServer: true,
+              projectBefore: previous.projectBefore,
+            }
+          : installation;
+        this.editorPluginInstallations.set(projectPath, cleanupInstallation);
+        return installation;
       },
-      removeEditorPlugin: (projectPath, installation) => { this.editorPluginInstaller.remove(projectPath, installation); },
-      getEditorEnvironment: () => ({ GODOT_MCP_EDITOR_PORT: String(resolveEditorPort()), GODOT_MCP_EDITOR_SECRET: RUNTIME_SECRET }),
-      sendEditorCommand: (command, params, timeoutMs) => this.editorConnection.send(command, params, timeoutMs),
+      removeEditorPlugin: (projectPath, installation) => {
+        this.editorPluginInstaller.remove(projectPath, installation);
+        this.editorPluginInstallations.delete(projectPath);
+      },
+      getEditorEnvironment: () => ({
+        ...(process.env.GODOT_MCP_EDITOR_START_PAUSED
+          ? { GODOT_MCP_EDITOR_START_PAUSED: process.env.GODOT_MCP_EDITOR_START_PAUSED }
+          : {}),
+      }),
+      ensureEditorSession: (projectPath, timeoutMs) => this.editorSessions.ensure(projectPath, timeoutMs),
+      getEditorSessionStatus: projectPath => this.editorSessions.status(projectPath),
+      disconnectEditorSession: projectPath => this.editorSessions.disconnect(projectPath),
+      sendEditorCommand: (projectPath, command, params, timeoutMs) => this.editorSessions.send(projectPath, command, params, timeoutMs),
       isGameConnected: () => this.gameConnection.isConnected,
       sendGameCommand: (command, params, timeoutMs) => this.gameCommands.send(command, params, timeoutMs),
       dispatchTool: (name, args) => {
@@ -330,7 +389,90 @@ export class GodotServer {
   }
 
   private forwardEditorActivity(event: import('./game-connection.js').GameLifecycleEvent): void {
-    void this.editorConnection.send('activity', { ...event }, 1_000).catch(() => undefined);
+    const activeProjectPath = this.gameConnection.connectedProjectPath ?? this.authoringSession.activeProjectPath;
+    if (!activeProjectPath) return;
+    const projectPath = this.traceProjectPath(activeProjectPath);
+    this.lifecycleTrace.record(projectPath, {
+      correlation_id: event.correlation_id,
+      tool: event.command,
+      command: event.command,
+      target_backend: event.target,
+      phase: event.event === 'request_started' ? 'start' : 'finish',
+      outcome: event.event === 'request_started' ? 'running'
+        : event.event === 'request_timed_out' ? 'timeout'
+        : event.outcome === 'success' ? 'success' : 'failure',
+      duration_ms: event.duration_ms ?? 0,
+      source: 'automatic',
+    });
+  }
+
+  private async replayEditorTrace(projectPath: string): Promise<void> {
+    for (const event of this.lifecycleTrace.events(projectPath)) {
+      try {
+        await this.editorSessions.send(projectPath, 'activity', { ...event, replayed: true }, 1_000);
+      } catch (error) {
+        this.logDebug(`Editor trace replay stopped: ${error instanceof Error ? error.message : String(error)}`);
+        return;
+      }
+    }
+  }
+
+  private traceProjectPath(projectPath: string): string {
+    try { return canonicalProjectPath(projectPath); } catch { return projectPath; }
+  }
+
+  private async synchronizePersistentToolMutation(
+    toolName: ToolName,
+    args: ToolArguments,
+    projectPath: string,
+    response: ToolResponse,
+  ): Promise<ToolResponse> {
+    const nestedTool = toolName === 'godot_tools' && args.action === 'call' && typeof args.toolName === 'string'
+      ? args.toolName as ToolName
+      : toolName;
+    const nestedArgs = nestedTool === toolName
+      ? args
+      : args.arguments && typeof args.arguments === 'object' ? args.arguments as ToolArguments : {};
+    const manifest = toolManifest[nestedTool];
+    if (!manifest || manifest.domain !== 'project' || !isToolCallMutating(nestedTool, nestedArgs)
+      || response.isError === true) return response;
+    const existingText = response.content
+      .filter(item => item.type === 'text' && typeof item.text === 'string')
+      .map(item => String(item.text)).join('\n');
+    if (/"backend"\s*:\s*"editor"|"sync_status"\s*:/.test(existingText)) return response;
+
+    const sceneCandidate = firstString(nestedArgs.scenePath, nestedArgs.newPath, nestedArgs.filePath);
+    const scenePath = sceneCandidate && /\.tscn$/i.test(sceneCandidate) ? toResourcePath(sceneCandidate) : undefined;
+    const resourceCandidate = scenePath ? undefined : firstString(
+      nestedArgs.resourcePath, nestedArgs.scriptPath, nestedArgs.shaderPath, nestedArgs.themePath,
+      nestedArgs.texturePath, nestedArgs.translationPath, nestedArgs.newPath, nestedArgs.filePath,
+    );
+    const sync = await this.editorSync.enqueue({
+      project_path: this.traceProjectPath(projectPath),
+      command: nestedTool,
+      ...(scenePath ? { scene_path: scenePath } : {}),
+      ...(resourceCandidate ? { resource_path: toResourcePath(resourceCandidate) }
+        : { resource_path: 'res://project.godot' }),
+      ...(typeof nestedArgs.nodePath === 'string' ? { focus_path: normalizeFocusPath(nestedArgs.nodePath) } : {}),
+    });
+    const backend = manifest.backend.kind === 'authoring-session' ? 'subprocess'
+      : manifest.backend.kind === 'local' ? 'file-backed'
+      : manifest.backend.kind;
+    const metadata = { backend, ...sync };
+    const content = response.content.map(item => {
+      if (item.type !== 'text' || typeof item.text !== 'string') return item;
+      try {
+        const parsed = JSON.parse(item.text) as unknown;
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          return { ...item, text: JSON.stringify({ ...parsed as Record<string, unknown>, ...metadata }, null, 2) };
+        }
+      } catch { /* prose responses receive a separate bounded metadata block */ }
+      return item;
+    });
+    const merged = content.some(item => item.type === 'text' && typeof item.text === 'string'
+      && /"sync_status"\s*:/.test(item.text));
+    if (!merged) content.push({ type: 'text', text: `Mutation metadata: ${JSON.stringify(metadata)}` });
+    return { ...response, content };
   }
 
   /**
@@ -433,8 +575,11 @@ export class GodotServer {
     this.logDebug('Cleaning up resources');
     this.authoringSession.stop();
     this.disconnectFromGame();
-    this.editorConnection.disconnect();
-    if (this.editorProjectPath) this.editorPluginInstaller.remove(this.editorProjectPath, this.editorPluginInstallation);
+    this.editorSessions.disconnectAll();
+    for (const [projectPath, installation] of this.editorPluginInstallations) {
+      this.editorPluginInstaller.remove(projectPath, installation);
+    }
+    this.editorPluginInstallations.clear();
     if (this.gameConnection.connectedProjectPath) {
       this.removeInteractionServer(this.gameConnection.connectedProjectPath);
       this.gameConnection.clearConnectedProject();
@@ -481,7 +626,44 @@ export class GodotServer {
 
     this.server.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       this.logDebug(`Handling tool request: ${request.params.name}`);
-      return tools.dispatch(request.params.name, request.params.arguments);
+      const argumentsValue = request.params.arguments ?? {};
+      const nestedArguments = argumentsValue.arguments && typeof argumentsValue.arguments === 'object'
+        ? argumentsValue.arguments as Record<string, unknown>
+        : null;
+      const explicitProject = typeof argumentsValue.projectPath === 'string'
+        ? argumentsValue.projectPath
+        : typeof nestedArguments?.projectPath === 'string' ? nestedArguments.projectPath : null;
+      const projectPath = explicitProject
+        ?? this.gameConnection.connectedProjectPath
+        ?? this.authoringSession.activeProjectPath;
+      const toolName = request.params.name as ToolName;
+      const manifest = toolManifest[toolName];
+      const span = projectPath
+        ? this.lifecycleTrace.begin(this.traceProjectPath(projectPath), toolName, toolName, manifest.backend.kind)
+        : null;
+      try {
+        let response = await tools.dispatch(toolName, argumentsValue);
+        if (projectPath) {
+          response = await this.synchronizePersistentToolMutation(
+            toolName, argumentsValue, projectPath, response,
+          );
+        }
+        if (span) {
+          const firstText = response.content.find(item => item.type === 'text' && 'text' in item);
+          const text = firstText && 'text' in firstText && typeof firstText.text === 'string' ? firstText.text : '';
+          let outcome: LifecycleOutcome = response.isError === true ? 'failure' : 'success';
+          if (/unsaved_conflict|"sync_status"\s*:\s*"conflict"/.test(text)) outcome = 'conflict';
+          else if (/"sync_status"\s*:\s*"(?:detached|failed)"|"fallback_reason"\s*:\s*(?!null\b)/.test(text)) {
+            outcome = 'fallback';
+          }
+          else if (/paused/i.test(text) && response.isError === true) outcome = 'paused';
+          this.lifecycleTrace.finish(span, outcome, { is_error: response.isError === true });
+        }
+        return response;
+      } catch (error) {
+        if (span) this.lifecycleTrace.finish(span, 'failure', { error: error instanceof Error ? error.message : String(error) });
+        throw error;
+      }
     });
   }
 

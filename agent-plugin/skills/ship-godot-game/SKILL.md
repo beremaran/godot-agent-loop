@@ -8,6 +8,9 @@ description: Prepare and verify a Godot 4 game for a reproducible release. Use f
 Treat shipping as an evidence gate. Preserve the project until every requested
 target has a reproducible artifact and a recorded independent check.
 
+Godot Agent Loop supports Godot 4.7 or later. Do not claim release readiness on
+an older engine through this workflow.
+
 ## Workflow
 
 1. Establish the release boundary.
@@ -21,11 +24,15 @@ target has a reproducible artifact and a recorded independent check.
      imports without deleting source assets.
    - Inspect enabled addons with `manage_addon`; do not update or remove
      user-managed addons unless the user explicitly requests it.
+   - Require meaningful persisted main-scene structure or record the explicit
+     procedural design exception. Record every editor/file-backed fallback.
 3. Prove project behavior.
    - Discover and run project tests with `run_project_tests`.
    - Use `verify_project` for bounded startup, scene, log, and screenshot
      assertions. Exercise required win, lose, menu, save, or input paths.
-   - Inspect `game_get_errors` and debug output, then stop the project.
+   - Prefer bounded scenarios and waits. Inspect `game_get_errors`, debug output,
+     performance metric availability, warnings, and live/static leak evidence,
+     then stop the project.
 4. Verify build-specific requirements.
    - Run `verify_dotnet_project` for C# projects and require a successful restore
      and build with the selected Godot .NET version.
@@ -38,9 +45,12 @@ target has a reproducible artifact and a recorded independent check.
      visible behavior with the acceptance criteria.
 6. Tear down and report.
    - Stop all MCP-owned projects/editors and remove only generated probes,
-     temporary exports, screenshots, and logs that are not deliverables.
+     temporary exports, screenshots, logs, and MCP-owned transient bridge files
+     that are not deliverables. Never remove a user's persistent addon.
    - Recheck the project tree and processes. Report exact commands, versions,
-     targets, hashes or sizes, assertions, limitations, and any unverified target.
+     targets, hashes or sizes, assertions, fallbacks, warnings/leaks, cleanup
+     state, unsupported metrics, subjective/manual-review gaps, limitations, and
+     any unverified target.
 
 Never claim an unavailable platform, signing identity, export template, or .NET
 toolchain passed. Separate locally proven artifacts from CI-only or manual gates.

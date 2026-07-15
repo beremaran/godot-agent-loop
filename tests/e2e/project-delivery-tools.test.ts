@@ -63,7 +63,7 @@ describe('project creation and delivery tools through MCP', () => {
     expect(created.isError, created.text).toBe(false);
     const gdConfig = readFileSync(join(gdProject, 'project.godot'), 'utf8');
     expect(gdConfig).toContain('config/name="Agent \\"Demo\\" Ω"');
-    expect(gdConfig).toContain('config/features=PackedStringArray("4.4")');
+    expect(gdConfig).toContain('config/features=PackedStringArray("4.7")');
     await expect(execFileAsync(resolveGodotBinary(), [
       '--headless', '--editor', '--path', gdProject, '--quit-after', '2',
     ], { timeout: 60_000, maxBuffer: 16 * 1024 * 1024 })).resolves.toMatchObject({ stdout: expect.stringContaining('Godot Engine') });
@@ -77,7 +77,7 @@ describe('project creation and delivery tools through MCP', () => {
     });
     expect(dotnetCreated.isError, dotnetCreated.text).toBe(false);
     const projectConfig = readFileSync(join(dotnetProject, 'project.godot'), 'utf8');
-    expect(projectConfig).toContain('config/features=PackedStringArray("4.4", "C#")');
+    expect(projectConfig).toContain('config/features=PackedStringArray("4.7", "C#")');
     expect(projectConfig).toContain('project/assembly_name="_9_Agent_Game"');
     const csprojPath = join(dotnetProject, '_9_Agent_Game.csproj');
     const { stdout: godotVersion } = await execFileAsync(resolveGodotBinary(), ['--version']);

@@ -64,11 +64,25 @@ export const toolManifest: Record<ToolName, ToolManifestEntry> = {
     actions: null,
     privileged: false,
   },
+  editor_session: {
+    domain: 'lifecycle',
+    handler: 'handleEditorSession',
+    backend: { kind: 'process' },
+    actions: ['ensure', 'status', 'disconnect'],
+    privileged: false,
+  },
   editor_control: {
     domain: 'lifecycle',
     handler: 'handleEditorControl',
     backend: { kind: 'process' },
     actions: ['inspect', 'select', 'save', 'reload', 'open_scene', 'set_property', 'rename_node', 'undo', 'redo'],
+    privileged: false,
+  },
+  editor_transaction: {
+    domain: 'lifecycle',
+    handler: 'handleEditorTransaction',
+    backend: { kind: 'process' },
+    actions: null,
     privileged: false,
   },
   run_project: {
@@ -81,6 +95,20 @@ export const toolManifest: Record<ToolName, ToolManifestEntry> = {
   verify_project: {
     domain: 'lifecycle',
     handler: 'handleVerifyProject',
+    backend: { kind: 'process' },
+    actions: null,
+    privileged: false,
+  },
+  game_wait_until: {
+    domain: 'lifecycle',
+    handler: 'handleGameWaitUntil',
+    backend: { kind: 'process' },
+    actions: null,
+    privileged: false,
+  },
+  game_scenario: {
+    domain: 'lifecycle',
+    handler: 'handleGameScenario',
     backend: { kind: 'process' },
     actions: null,
     privileged: false,
@@ -328,7 +356,7 @@ export const toolManifest: Record<ToolName, ToolManifestEntry> = {
     domain: 'game',
     handler: 'handleGamePerformance',
     backend: { kind: 'runtime', command: 'get_performance' },
-    actions: ['sample', 'start', 'stop', 'report', 'leaks'],
+    actions: ['sample', 'start', 'stop', 'report', 'leaks', 'stress'],
     privileged: false,
   },
   game_wait: {

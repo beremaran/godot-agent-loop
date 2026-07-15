@@ -36,7 +36,19 @@ export interface AuthoringSessionManagerOptions {
   processManager?: GodotProcessManager;
   secretFactory?: () => string;
   onLifecycleEvent?: (event: GameLifecycleEvent) => void;
-  onProjectWrite?: (event: AuthoringProjectWrite) => void;
+  onProjectWrite?: (event: AuthoringProjectWrite) => Record<string, unknown>
+    | Promise<Record<string, unknown> | undefined> | undefined;
+  tryEditorOperation?: (
+    command: string,
+    params: OperationParams,
+    projectPath: string,
+  ) => Promise<EditorAuthoringAttempt>;
+}
+
+export interface EditorAuthoringAttempt {
+  handled: boolean;
+  result?: HeadlessOperationResult;
+  fallbackReason?: string;
 }
 
 export interface AuthoringProjectWrite {
@@ -86,6 +98,14 @@ export class AuthoringSessionManager {
     projectPath: string,
   ): Promise<HeadlessOperationResult> {
     return this.serialize(async () => {
+      const editorAttempt = await this.options.tryEditorOperation?.(backend.command, params, projectPath);
+      if (editorAttempt?.handled) {
+        if (!editorAttempt.result) {
+          throw new Error('Editor authoring router handled an operation without returning a result');
+        }
+        return editorAttempt.result;
+      }
+      const editorFallbackReason = editorAttempt?.fallbackReason;
       await this.ensureSession(projectPath);
       const state = this.current;
       if (!state?.connection.isConnected) {
@@ -116,13 +136,28 @@ export class AuthoringSessionManager {
         if (isMutatingAuthoringCommand(backend.command, params)) {
           const scenePath = affectedScenePath(params);
           const focusPath = authoringFocusPath(backend.command, params);
-          this.options.onProjectWrite?.({
+          const syncResult = await this.options.onProjectWrite?.({
             project_path: projectPath,
             command: backend.command,
             ...(scenePath === undefined ? {} : { scene_path: toResourcePath(scenePath) }),
             ...(typeof params.resourcePath === 'string' ? { resource_path: toResourcePath(params.resourcePath) } : {}),
             ...(focusPath === undefined ? {} : { focus_path: focusPath }),
           });
+          if (syncResult) {
+            return {
+              stdout: JSON.stringify({
+                ...payload,
+                backend: 'authoring-session',
+                sync_status: syncResult.sync_status ?? 'failed',
+                editor_session: syncResult.editor_session ?? null,
+                fallback_reason: editorFallbackReason ?? syncResult.fallback_reason ?? null,
+                observed_target_state: syncResult.observed_target_state ?? null,
+              }),
+              stderr: '',
+              exitCode: 0,
+              signal: null,
+            };
+          }
         }
         return {
           stdout: typeof payload.stdout === 'string' ? payload.stdout : JSON.stringify(payload),

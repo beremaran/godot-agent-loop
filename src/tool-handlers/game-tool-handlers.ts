@@ -1,6 +1,10 @@
 import { createErrorResponse, errorMessage, normalizeParameters, type ToolArguments } from '../utils.js';
 import type { GameCommandService } from '../game-command-service.js';
 import { VisualRegressionService } from './visual-regression-service.js';
+import { createHash } from 'node:crypto';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 export interface GameToolHandlerContext {
   commands: GameCommandService;
@@ -59,7 +63,7 @@ export class GameToolHandlers {
     this.visualRegression = new VisualRegressionService(context.commands);
   }
 
-  public async handleGameScreenshot() {
+  public async handleGameScreenshot(args: ToolArguments = {}) {
     if (!this.context.commands.hasActiveProcess()) {
       return createErrorResponse('No active Godot process. Use run_project first.');
     }
@@ -73,6 +77,15 @@ export class GameToolHandlers {
         return createErrorResponse(`Screenshot failed: ${response.error.message}`);
       }
       const result = response.result as { data?: string; width?: number; height?: number };
+      const bytes = Buffer.from(result.data ?? '', 'base64');
+      const digest = createHash('sha256').update(bytes).digest('hex');
+      let artifactPath: string | null = null;
+      if (args.retainArtifact === true && bytes.length > 0) {
+        const artifactDirectory = join(tmpdir(), 'godot-agent-loop-artifacts');
+        mkdirSync(artifactDirectory, { recursive: true });
+        artifactPath = join(artifactDirectory, `${digest}.png`);
+        writeFileSync(artifactPath, bytes);
+      }
       return {
         content: [
           {
@@ -82,7 +95,11 @@ export class GameToolHandlers {
           },
           {
             type: 'text',
-            text: `Screenshot captured: ${result.width}x${result.height}`,
+            text: JSON.stringify({
+              captured: bytes.length > 0, width: result.width, height: result.height,
+              bytes: bytes.length, sha256: digest, artifact_path: artifactPath,
+              project_artifact: false, visual_regression_metadata: null,
+            }, null, 2),
           },
         ],
       };
@@ -191,8 +208,8 @@ export class GameToolHandlers {
   public async handleGamePerformance(args: ToolArguments = {}) {
     args = normalizeParameters(args || {});
     const action = args.action ?? 'sample';
-    if (!['sample', 'start', 'stop', 'report', 'leaks'].includes(action)) {
-      return createErrorResponse('action must be sample, start, stop, report, or leaks.');
+    if (!['sample', 'start', 'stop', 'report', 'stress', 'leaks'].includes(action)) {
+      return createErrorResponse('action must be sample, start, stop, report, stress, or leaks.');
     }
     return this.context.gameCommand('get_performance', args, a => ({
       action: a.action ?? 'sample', sample_count: a.sampleCount ?? a.sample_count ?? 1, sampleCount: a.sampleCount ?? a.sample_count ?? 1,

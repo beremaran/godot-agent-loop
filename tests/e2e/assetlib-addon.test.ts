@@ -44,8 +44,8 @@ describe('AssetLib addon package lifecycle', () => {
     preservedRoot = project.root;
     const projectFile = join(project.projectPath, 'project.godot');
     // Establish the engine's own normalized baseline before measuring addon
-    // state; otherwise opening a 4.4 fixture in 4.7 legitimately rewrites
-    // unrelated compatibility settings.
+    // state; otherwise opening the fixture can legitimately normalize
+    // unrelated project settings.
     const normalizer = join(project.projectPath, 'normalize_project.gd');
     copyFileSync(join(repoRoot, 'tests/godot/normalize_project.gd'), normalizer);
     const normalization = spawnSync(resolveGodotBinary(), [
@@ -71,10 +71,12 @@ describe('AssetLib addon package lifecycle', () => {
     const firstLaunch = await server.call('launch_editor', { projectPath: project.projectPath });
     expect(firstLaunch.isError, firstLaunch.text).toBe(false);
     expect(JSON.parse(firstLaunch.text)).toMatchObject({
-      plugin_distribution: 'persistent', plugin_owned: false, editor_protocol_version: '1',
+      editor_session: {
+        plugin_distribution: 'persistent', plugin_owned: false, protocol_version: '2',
+      },
     });
     expect(await waitForEditor(server)).toMatchObject({
-      authenticated: true, driver_paused: true, addon_version: '1.0.1', protocol_version: '1',
+      authenticated: true, driver_paused: true, addon_version: '1.1.0', protocol_version: '2',
     });
     const refused = await server.call('add_node', {
       projectPath: project.projectPath, scenePath: 'main.tscn',
@@ -88,7 +90,7 @@ describe('AssetLib addon package lifecycle', () => {
     const secondLaunch = await server.call('launch_editor', { projectPath: project.projectPath });
     expect(secondLaunch.isError, secondLaunch.text).toBe(false);
     expect(JSON.parse(secondLaunch.text)).toMatchObject({
-      plugin_distribution: 'persistent', plugin_owned: false,
+      editor_session: { plugin_distribution: 'persistent', plugin_owned: false },
     });
     expect(await waitForEditor(server)).toMatchObject({ authenticated: true, driver_paused: true });
 

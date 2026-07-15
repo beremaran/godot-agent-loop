@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Compatibility
+
+- Raise the supported Godot compatibility floor to 4.7 across the editor addon,
+  generated projects, .NET defaults, export generators, CI, and agent workflows.
+
 ## [1.0.1] - 2026-07-15
 
 ### Fixed

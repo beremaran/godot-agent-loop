@@ -10,6 +10,8 @@ export interface EditorConnectionOptions {
 
 export class EditorBridgeCompatibilityError extends Error {}
 
+export class EditorRequestTimeoutError extends Error {}
+
 /** Authenticated newline-delimited bridge to the optional EditorPlugin. */
 export class EditorConnection {
   private socket: Socket | null = null;
@@ -17,14 +19,40 @@ export class EditorConnection {
   private nextId = 1;
   private readonly pending = new Map<number, (value: Record<string, unknown>) => void>();
   private connecting: Promise<void> | null = null;
-  private handshaking: Promise<void> | null = null;
+  private handshaking: Promise<Record<string, unknown>> | null = null;
 
   constructor(private readonly options: EditorConnectionOptions) {}
 
   async send(command: string, params: Record<string, unknown> = {}, timeoutMs = 10_000): Promise<Record<string, unknown>> {
     await this.ensureConnected(timeoutMs);
-    if (command !== 'handshake') await this.ensureHandshake(timeoutMs);
+    if (command === 'handshake') return this.authenticate(timeoutMs);
+    await this.authenticate(timeoutMs);
     return this.request(command, params, timeoutMs);
+  }
+
+  async authenticate(timeoutMs = 10_000): Promise<Record<string, unknown>> {
+    await this.ensureConnected(timeoutMs);
+    if (!this.handshaking) {
+      const expected = this.options.protocolVersion ?? EDITOR_BRIDGE_PROTOCOL_VERSION;
+      this.handshaking = this.request('handshake', {
+        protocol_version: expected,
+        server_version: this.options.serverVersion ?? 'unknown',
+      }, timeoutMs).then(result => {
+        if (result.error || result.protocol_version !== expected) {
+          const actual = typeof result.protocol_version === 'string' ? result.protocol_version : 'missing';
+          throw new EditorBridgeCompatibilityError(
+            `Godot Agent Loop editor protocol is incompatible: server ${expected}, addon ${actual}`,
+          );
+        }
+        return result;
+      });
+    }
+    try {
+      return await this.handshaking;
+    } catch (error) {
+      this.disconnect();
+      throw error;
+    }
   }
 
   private request(command: string, params: Record<string, unknown>, timeoutMs: number): Promise<Record<string, unknown>> {
@@ -32,7 +60,7 @@ export class EditorConnection {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
-        reject(new Error(`Editor request '${command}' timed out after ${timeoutMs / 1000}s`));
+        reject(new EditorRequestTimeoutError(`Editor request '${command}' timed out after ${timeoutMs / 1000}s`));
       }, timeoutMs);
       this.pending.set(id, result => { clearTimeout(timer); resolve(result); });
       this.socket!.write(`${JSON.stringify({ id, command, params, secret: this.options.secret })}\n`);
@@ -46,28 +74,6 @@ export class EditorConnection {
     this.handshaking = null;
     for (const resolve of this.pending.values()) { resolve({ error: 'editor_disconnected' }); }
     this.pending.clear();
-  }
-
-  private async ensureHandshake(timeoutMs: number): Promise<void> {
-    if (this.handshaking) return this.handshaking;
-    const expected = this.options.protocolVersion ?? EDITOR_BRIDGE_PROTOCOL_VERSION;
-    this.handshaking = this.request('handshake', {
-      protocol_version: expected,
-      server_version: this.options.serverVersion ?? 'unknown',
-    }, timeoutMs).then(result => {
-      if (result.error || result.protocol_version !== expected) {
-        const actual = typeof result.protocol_version === 'string' ? result.protocol_version : 'missing';
-        throw new EditorBridgeCompatibilityError(
-          `Godot Agent Loop editor protocol is incompatible: server ${expected}, addon ${actual}`,
-        );
-      }
-    });
-    try {
-      await this.handshaking;
-    } catch (error) {
-      this.disconnect();
-      throw error;
-    }
   }
 
   private async ensureConnected(timeoutMs: number): Promise<void> {

@@ -61,20 +61,21 @@ describe('EditorMutationGuard', () => {
     const guard = new EditorMutationGuard(async () => {
       throw new EditorBridgeCompatibilityError('Godot Agent Loop editor protocol is incompatible: server 1, addon 2');
     });
-    const response = await guard.check('add_node', {});
+    const response = await guard.check('add_node', { projectPath: '/project' });
     expect(response?.isError).toBe(true);
     expect(response?.content[0]?.text).toMatch(/mutation refused.*server 1, addon 2/i);
   });
 
   it('returns an actionable tool error while the human pause is active', async () => {
-    const guard = new EditorMutationGuard(async (command, params, timeoutMs) => {
+    const guard = new EditorMutationGuard(async (projectPath, command, params, timeoutMs) => {
+      expect(projectPath).toBe('/project');
       expect(command).toBe('driver_state');
       expect(params).toEqual({});
       expect(timeoutMs).toBe(500);
       return { paused: true, agent_driving: false };
     });
 
-    const response = await guard.check('add_node', {});
+    const response = await guard.check('add_node', { projectPath: '/project' });
     expect(response?.isError).toBe(true);
     expect(response?.content[0]?.text).toBe(AGENT_MUTATIONS_PAUSED_MESSAGE);
   });

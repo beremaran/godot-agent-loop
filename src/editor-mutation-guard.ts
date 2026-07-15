@@ -8,6 +8,7 @@ export const AGENT_MUTATIONS_PAUSED_MESSAGE =
   'Agent mutation refused: mutations are paused in the Godot editor. Use Resume Agent in the Agent Activity dock to continue.';
 
 export type ReadEditorDriverState = (
+  projectPath: string,
   command: typeof EDITOR_DRIVER_STATE_COMMAND,
   params: Record<string, unknown>,
   timeoutMs: number,
@@ -19,9 +20,11 @@ export class EditorMutationGuard {
 
   async check(name: string, args: ToolArguments): Promise<ToolResponse | undefined> {
     if (!isToolCallMutating(name, args)) return undefined;
+    if (typeof args.projectPath !== 'string') return undefined;
 
     try {
       const state = await this.readDriverState(
+        args.projectPath,
         EDITOR_DRIVER_STATE_COMMAND,
         {},
         EDITOR_DRIVER_STATE_TIMEOUT_MS,

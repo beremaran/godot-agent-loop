@@ -563,7 +563,9 @@ export class ProjectIntegrityService {
     if (!validProject(this.context, args.projectPath)) return createErrorResponse('Invalid project path.');
     const inventory = this.scan(args.projectPath, args.maxFiles ?? 10000);
     if ('error' in inventory) return createErrorResponse(inventory.error);
-    if (args.action === 'analyze') return { content: [{ type: 'text', text: JSON.stringify(this.analyze(args.projectPath, inventory.files), null, 2) }] };
+    if (args.action === 'analyze') return { content: [{ type: 'text', text: JSON.stringify(
+      this.analyze(args.projectPath, inventory.files, args.allowProceduralMainScene === true), null, 2,
+    ) }] };
     if (args.action === 'leaks') {
       const report = this.analyze(args.projectPath, inventory.files);
       return { content: [{ type: 'text', text: JSON.stringify({
@@ -611,7 +613,7 @@ export class ProjectIntegrityService {
     return walk(projectPath) ? { files: files.sort() } : { error: `Project exceeds maxFiles limit (${maxFiles}).` };
   }
 
-  private analyze(projectPath: string, files: string[]): Record<string, unknown> {
+  private analyze(projectPath: string, files: string[], allowProceduralMainScene = false): Record<string, unknown> {
     const fileSet = new Set(files);
     const graph: Record<string, string[]> = {};
     const uidOwners = new Map<string, string[]>();
@@ -635,7 +637,53 @@ export class ProjectIntegrityService {
       duplicate_uids: [...uidOwners.entries()].filter(([, owners]) => new Set(owners).size > 1)
         .map(([uid, owners]) => ({ uid, files: [...new Set(owners)] })),
       cycles: this.cycles(graph), orphan_resources: files.filter(file => !incoming.has(file) && !roots.has(file)),
-      orphan_nodes: orphanNodes, limits: { max_files: files.length },
+      orphan_nodes: orphanNodes,
+      main_scene_structure: this.mainSceneStructure(projectPath, projectConfig, allowProceduralMainScene),
+      limits: { max_files: files.length },
+    };
+  }
+
+  private mainSceneStructure(
+    projectPath: string,
+    projectConfig: string,
+    allowProceduralMainScene: boolean,
+  ): Record<string, unknown> {
+    const configured = /run\/main_scene\s*=\s*"res:\/\/([^"]+)"/.exec(projectConfig)?.[1];
+    if (!configured) return { configured: false, warning: 'main_scene_not_configured' };
+    const scenePath = join(projectPath, configured);
+    if (!existsSync(scenePath) || extname(configured).toLowerCase() !== '.tscn') {
+      return { configured: true, scene_path: configured, inspectable: false, warning: 'main_scene_not_text_inspectable' };
+    }
+    const scene = readFileSync(scenePath, 'utf8');
+    const nodeCount = [...scene.matchAll(/^\[node\s+/gm)].length;
+    const scriptRefs = new Map(
+      [...scene.matchAll(/^\[ext_resource\s+type="Script"\s+path="res:\/\/([^"]+)"\s+id="([^"]+)"/gm)]
+        .map(match => [match[2], match[1]] as const),
+    );
+    const rootBlock = /^\[node\s+[^\]]+\]\s*\n([\s\S]*?)(?=^\[|$)/m.exec(scene)?.[1] ?? '';
+    const rootScriptId = /script\s*=\s*ExtResource\("([^"]+)"\)/.exec(rootBlock)?.[1];
+    const rootScriptPath = rootScriptId ? scriptRefs.get(rootScriptId) : undefined;
+    const rootScript = rootScriptPath && existsSync(join(projectPath, rootScriptPath))
+      ? readFileSync(join(projectPath, rootScriptPath), 'utf8')
+      : '';
+    const constructsAtStartup = /func\s+_ready\s*\([^)]*\)[\s\S]{0,12000}\b(?:add_child|instantiate|new)\s*\(/.test(rootScript);
+    const trivial = nodeCount <= 1;
+    const warning = trivial && constructsAtStartup && !allowProceduralMainScene
+      ? 'trivial_main_scene_with_procedural_startup_hierarchy'
+      : null;
+    return {
+      configured: true,
+      scene_path: configured,
+      inspectable: true,
+      persisted_node_count: nodeCount,
+      root_script: rootScriptPath ?? null,
+      constructs_persistent_hierarchy_at_startup: constructsAtStartup,
+      explicit_procedural_requirement: allowProceduralMainScene,
+      meaningful_persisted_structure: !trivial || allowProceduralMainScene,
+      warning,
+      recommendation: warning
+        ? 'Persist meaningful game hierarchy/resources in the scene, or rerun with allowProceduralMainScene only when procedural construction is intentional.'
+        : null,
     };
   }
 
@@ -1264,10 +1312,8 @@ export class AddonManagementService {
     const matched = expected === null || result.stdout.includes(expected);
     const rawDiagnostics = `${result.stdout}\n${result.stderr}`.split(/\r?\n/)
       .filter(line => /SCRIPT ERROR|Parse Error|\bERROR:/i.test(line)).slice(0, 256);
-    const godot44 = result.stdout.includes('Godot Engine v4.4.');
-    const knownDiagnostics = godot44 ? rawDiagnostics.filter(line =>
-      /progress dialog \(task\)|tasks\.has\(p_task\)/i.test(line)) : [];
-    const diagnostics = rawDiagnostics.filter(line => !knownDiagnostics.includes(line));
+    const knownDiagnostics: string[] = [];
+    const diagnostics = rawDiagnostics;
     return { ...result, ok: result.ok && matched && diagnostics.length === 0,
       expected_output: expected, output_matched: matched, diagnostics, known_diagnostics: knownDiagnostics };
   }

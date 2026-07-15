@@ -10,14 +10,14 @@ export type ToolSurfaceMode = 'core' | 'full';
  */
 export const CORE_TOOL_NAMES: ReadonlySet<ToolName> = new Set([
   'godot_tools',
-  'launch_editor', 'editor_control', 'run_project', 'verify_project', 'run_project_tests',
-  'get_debug_output', 'stop_project', 'get_godot_version', 'list_projects', 'get_project_info',
+  'launch_editor', 'editor_session', 'editor_control', 'editor_transaction', 'run_project', 'verify_project', 'game_wait_until', 'game_scenario', 'run_project_tests',
+  'get_debug_output', 'stop_project', 'get_godot_version', 'get_project_info',
   'create_project', 'create_scene', 'add_node', 'read_scene', 'modify_scene_node',
   'remove_scene_node', 'save_scene', 'create_script', 'attach_script', 'read_file',
   'write_file', 'validate_script', 'validate_scripts', 'read_project_settings',
-  'modify_project_settings', 'list_project_files', 'manage_input_map', 'set_main_scene',
+  'modify_project_settings', 'manage_input_map', 'set_main_scene',
   'game_get_scene_tree', 'game_get_ui', 'game_screenshot', 'game_get_node_info',
-  'game_get_errors', 'game_get_logs', 'game_wait', 'game_click', 'game_key_press',
+  'game_get_errors', 'game_get_logs', 'game_click', 'game_key_press',
   'game_key_release',
 ]);
 

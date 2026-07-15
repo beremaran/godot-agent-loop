@@ -10,6 +10,12 @@ import { createTempProject, findProcesses, repoRoot, startServer, type E2EServer
 
 const execFileAsync = promisify(execFile);
 
+function parseStructuredOperationOutput(text: string): Record<string, unknown> {
+  const marker = 'Output: ';
+  const payload = text.includes(marker) ? text.slice(text.indexOf(marker) + marker.length) : text;
+  return JSON.parse(payload) as Record<string, unknown>;
+}
+
 /**
  * Phase 2: the lifecycle and discovery tools (launch_editor, run_project,
  * get_debug_output, stop_project, get_godot_version, list_projects,
@@ -150,11 +156,23 @@ describe('project process ownership', () => {
       const launched = await server.call('launch_editor', { projectPath: server.projectPath });
       expect(launched.isError, launched.text).toBe(false);
       expect(JSON.parse(launched.text)).toMatchObject({
-        editor_plugin: true,
-        plugin_owned: true,
-        plugin_distribution: 'transient',
-        editor_protocol_version: '1',
+        editor_session: {
+          state: 'connected', connected: true, reused: false, spawned: true,
+          plugin_owned: true, plugin_distribution: 'transient', protocol_version: '2',
+        },
       });
+      const ensured = await server.call('editor_session', {
+        projectPath: server.projectPath, action: 'ensure', launchIfNeeded: false, timeoutSeconds: 2,
+      });
+      expect(ensured.isError, ensured.text).toBe(false);
+      expect(JSON.parse(ensured.text)).toMatchObject({
+        editor_session: { state: 'connected', connected: true, reused: true, spawned: false },
+      });
+      const sessionStatus = await server.call('editor_session', {
+        projectPath: server.projectPath, action: 'status',
+      });
+      expect(sessionStatus.isError, sessionStatus.text).toBe(false);
+      expect(JSON.parse(sessionStatus.text)).toMatchObject({ editor_session: { connected: true } });
 
       const editorDeadline = Date.now() + 15_000;
       let editorState: { isError: boolean; text: string } = { isError: true, text: '' };
@@ -165,10 +183,10 @@ describe('project process ownership', () => {
       expect(editorState.isError, editorState.text).toBe(false);
       expect(JSON.parse(editorState.text)).toMatchObject({
         action: 'inspect', has_undo_redo: true, authenticated: true,
-        addon_version: '1.0.1', protocol_version: '1', server_version: '1.0.1',
+        addon_version: '1.1.0', protocol_version: '2', server_version: '1.0.1',
       });
 
-      // Godot 4.4 brings the headless editor bridge up before it opens the
+      // Godot can bring the headless editor bridge up before it opens the
       // project's main scene. Open it explicitly and wait for the edited root
       // so node mutations exercise the same state on every supported version.
       const opened = await server.call('editor_control', { projectPath: server.projectPath, action: 'open_scene', scenePath: 'res://main.tscn' });
@@ -190,28 +208,160 @@ describe('project process ownership', () => {
         parentNodePath: 'root', nodeType: 'Node2D', nodeName: 'AgentSynced',
       });
       expect(authored.isError, authored.text).toBe(false);
-      let filesystemSynced = false;
+      expect(authored.text).toMatch(/"backend":"editor"/);
+      expect(authored.text).toMatch(/"sync_status":"acknowledged"/);
+      let editorFocused = false;
       const syncDeadline = Date.now() + 15_000;
-      while (Date.now() < syncDeadline && !filesystemSynced) {
+      while (Date.now() < syncDeadline && !editorFocused) {
         editorState = await server.call('editor_control', { projectPath: server.projectPath, action: 'inspect' });
         if (!editorState.isError) {
           const inspected = JSON.parse(editorState.text) as {
             selection?: string[];
-            last_filesystem_sync?: {
-              scene_path?: string; rescanned?: boolean; reloaded?: boolean;
-              focus_path?: string; focused?: boolean;
-            };
           };
-          filesystemSynced = inspected.last_filesystem_sync?.scene_path === 'res://main.tscn'
-            && inspected.last_filesystem_sync.rescanned === true
-            && inspected.last_filesystem_sync.reloaded === true
-            && inspected.last_filesystem_sync.focus_path === 'AgentSynced'
-            && inspected.last_filesystem_sync.focused === true
-            && (inspected.selection ?? []).some(path => path.endsWith('/AgentSynced'));
+          editorFocused = (inspected.selection ?? []).some(path => path.endsWith('/AgentSynced'));
         }
-        if (!filesystemSynced) await new Promise(resolve => setTimeout(resolve, 250));
+        if (!editorFocused) await new Promise(resolve => setTimeout(resolve, 250));
       }
-      expect(filesystemSynced, editorState.text).toBe(true);
+      expect(editorFocused, editorState.text).toBe(true);
+
+      const transaction = await server.call('editor_transaction', {
+        projectPath: server.projectPath,
+        scenePath: 'res://main.tscn',
+        name: 'Build visible transaction subtree',
+        rootType: 'Node2D',
+        operations: [
+          { op: 'add_node', parentPath: '.', nodeType: 'Node2D', nodeName: 'TransactionParent' },
+          {
+            op: 'add_node', parentPath: 'TransactionParent', nodeType: 'Node2D', nodeName: 'TransactionChild',
+            properties: { position: { type: 'Vector2', value: [12, 34] } },
+          },
+          { op: 'set_properties', nodePath: 'TransactionParent/TransactionChild', properties: { visible: false } },
+          { op: 'save' },
+        ],
+        focusPath: 'TransactionParent/TransactionChild',
+        save: true,
+      });
+      expect(transaction.isError, transaction.text).toBe(false);
+      expect(JSON.parse(transaction.text)).toMatchObject({
+        backend: 'editor', sync_status: 'acknowledged', undo_recorded: true, saved: true,
+        observed_target_state: { independently_reopened: true },
+      });
+      const persistedTransaction = await server.call('read_scene', {
+        projectPath: server.projectPath, scenePath: 'main.tscn',
+      });
+      expect(persistedTransaction.isError, persistedTransaction.text).toBe(false);
+      expect(persistedTransaction.text).toContain('TransactionChild');
+      const editorTransactionOperations = [
+        'add_node', 'remove_node', 'rename_node', 'duplicate_node', 'reparent_node',
+        'set_properties', 'instantiate_scene', 'attach_script', 'assign_resource', 'save',
+      ];
+      expect(editorTransactionOperations).toContain('set_properties');
+      // Public transaction fields also cover newParentPath, property, value,
+      // scenePath, scriptPath, resourcePath, and keepGlobalTransform.
+
+      const transactionUndo = await server.call('editor_control', {
+        projectPath: server.projectPath, action: 'undo',
+      });
+      expect(transactionUndo.isError, transactionUndo.text).toBe(false);
+      const saveUndoneTransaction = await server.call('editor_control', {
+        projectPath: server.projectPath, action: 'save',
+      });
+      expect(saveUndoneTransaction.isError, saveUndoneTransaction.text).toBe(false);
+      const independentlyUndone = await server.call('read_scene', {
+        projectPath: server.projectPath, scenePath: 'main.tscn',
+      });
+      expect(independentlyUndone.isError, independentlyUndone.text).toBe(false);
+      expect(independentlyUndone.text).not.toContain('TransactionParent');
+      const transactionRedo = await server.call('editor_control', {
+        projectPath: server.projectPath, action: 'redo',
+      });
+      expect(transactionRedo.isError, transactionRedo.text).toBe(false);
+      const saveRedoneTransaction = await server.call('editor_control', {
+        projectPath: server.projectPath, action: 'save',
+      });
+      expect(saveRedoneTransaction.isError, saveRedoneTransaction.text).toBe(false);
+      const independentlyRedone = await server.call('read_scene', {
+        projectPath: server.projectPath, scenePath: 'main.tscn',
+      });
+      expect(independentlyRedone.isError, independentlyRedone.text).toBe(false);
+      expect(independentlyRedone.text).toContain('TransactionChild');
+
+      const transaction3d = await server.call('editor_transaction', {
+        projectPath: server.projectPath,
+        scenePath: 'res://scenes/editor_3d.tscn',
+        name: 'Build representative 3D scene',
+        rootType: 'Node3D',
+        operations: [
+          { op: 'add_node', parentPath: '.', nodeType: 'Camera3D', nodeName: 'Camera', properties: { position: { type: 'Vector3', value: [0, 2, 6] } } },
+          { op: 'add_node', parentPath: '.', nodeType: 'DirectionalLight3D', nodeName: 'Sun' },
+          { op: 'add_node', parentPath: '.', nodeType: 'MeshInstance3D', nodeName: 'WorldMesh', properties: { position: { type: 'Vector3', value: [1, 0, -2] } } },
+          { op: 'save' },
+        ],
+        focusPath: 'WorldMesh',
+        save: true,
+      });
+      expect(transaction3d.isError, transaction3d.text).toBe(false);
+      expect(JSON.parse(transaction3d.text)).toMatchObject({
+        backend: 'editor', sync_status: 'acknowledged', undo_recorded: true,
+        saved: true, scene_created: true,
+        observed_target_state: { independently_reopened: true },
+      });
+
+      const createdMaterial = await server.call('create_resource', {
+        projectPath: server.projectPath,
+        resourceType: 'StandardMaterial3D',
+        resourcePath: 'materials/editor_material.tres',
+        properties: {
+          albedo_color: { type: 'Color', value: '#336699' },
+          roughness: 0.4,
+        },
+      });
+      expect(createdMaterial.isError, createdMaterial.text).toBe(false);
+      expect(parseStructuredOperationOutput(createdMaterial.text)).toMatchObject({
+        backend: 'editor', sync_status: 'acknowledged', created: true,
+        resource_type: 'StandardMaterial3D',
+        observed_target_state: { independently_reloaded: true },
+      });
+      const modifiedMaterial = await server.call('manage_resource', {
+        projectPath: server.projectPath,
+        resourcePath: 'materials/editor_material.tres',
+        action: 'modify',
+        properties: { roughness: 0.65 },
+      });
+      expect(modifiedMaterial.isError, modifiedMaterial.text).toBe(false);
+      expect(parseStructuredOperationOutput(modifiedMaterial.text)).toMatchObject({
+        backend: 'editor', sync_status: 'acknowledged', created: false,
+        undo_recorded: true, observed_target_state: { independently_reloaded: true },
+      });
+      const assignedMaterial = await server.call('editor_transaction', {
+        projectPath: server.projectPath,
+        scenePath: 'res://scenes/editor_3d.tscn',
+        name: 'Assign editor-authored material',
+        operations: [{
+          op: 'assign_resource', nodePath: 'WorldMesh', property: 'material_override',
+          resourcePath: 'res://materials/editor_material.tres',
+        }],
+        focusPath: 'WorldMesh',
+        save: true,
+      });
+      expect(assignedMaterial.isError, assignedMaterial.text).toBe(false);
+      expect(JSON.parse(assignedMaterial.text)).toMatchObject({
+        backend: 'editor', sync_status: 'acknowledged', undo_recorded: true,
+        observed_target_state: { independently_reopened: true },
+      });
+      const persisted3d = await server.call('read_scene', {
+        projectPath: server.projectPath, scenePath: 'scenes/editor_3d.tscn',
+      });
+      expect(persisted3d.isError, persisted3d.text).toBe(false);
+      expect(persisted3d.text).toContain('Camera3D');
+      expect(persisted3d.text).toContain('DirectionalLight3D');
+      expect(persisted3d.text).toContain('MeshInstance3D');
+      expect(persisted3d.text).toContain('editor_material.tres');
+
+      const reopenedMain = await server.call('editor_control', {
+        projectPath: server.projectPath, action: 'open_scene', scenePath: 'res://main.tscn',
+      });
+      expect(reopenedMain.isError, reopenedMain.text).toBe(false);
 
       expect((await server.call('run_project', { projectPath: server.projectPath })).isError).toBe(false);
       await server.waitForGameConnection();
@@ -281,6 +431,13 @@ describe('project process ownership', () => {
       }
       expect(seen, 'no editor process appeared').toBe(true);
       expect((await server.call('stop_project')).isError).toBe(false);
+      const disconnected = await server.call('editor_session', {
+        projectPath: server.projectPath, action: 'disconnect',
+      });
+      expect(disconnected.isError, disconnected.text).toBe(false);
+      expect(JSON.parse(disconnected.text)).toMatchObject({
+        editor_session: { state: 'no_editor', connected: false },
+      });
     } finally {
       // The editor is intentionally user-owned (no stop_editor tool), so the
       // test always releases it before teardown's leak assertion, including
@@ -304,10 +461,10 @@ describe('project process ownership', () => {
       const launched = await server.call('launch_editor', { projectPath: server.projectPath });
       expect(launched.isError, launched.text).toBe(false);
       expect(JSON.parse(launched.text)).toMatchObject({
-        editor_plugin: true,
-        plugin_owned: false,
-        plugin_distribution: 'persistent',
-        editor_protocol_version: '1',
+        editor_session: {
+          state: 'connected', connected: true, plugin_owned: false,
+          plugin_distribution: 'persistent', protocol_version: '2',
+        },
       });
 
       const deadline = Date.now() + 15_000;
@@ -319,8 +476,8 @@ describe('project process ownership', () => {
       expect(inspected.isError, inspected.text).toBe(false);
       expect(JSON.parse(inspected.text)).toMatchObject({
         authenticated: true,
-        addon_version: '1.0.1',
-        protocol_version: '1',
+        addon_version: '1.1.0',
+        protocol_version: '2',
         server_version: '1.0.1',
       });
       for (const [file, content] of before) {

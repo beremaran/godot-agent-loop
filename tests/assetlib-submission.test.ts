@@ -27,14 +27,14 @@ describe('AssetLib submission payload', () => {
       status: 'prepared-not-submitted',
       assetName: 'Godot Agent Loop Bridge',
       category: 'Addons/Tools',
-      godotVersion: '4.4',
+      godotVersion: '4.7',
       testedThroughGodotVersion: '4.7',
-      version: '1.0.1',
+      version: '1.1.0',
       repositoryUrl: 'https://github.com/beremaran/godot-agent-loop',
       issuesUrl: 'https://github.com/beremaran/godot-agent-loop/issues',
       downloadCommit: commit,
       license: 'MIT',
-      protocolVersion: '1',
+      protocolVersion: '2',
     });
     expect(payload.iconUrl).toMatch(new RegExp(`^https://raw\\.githubusercontent\\.com/.+/${commit}/.+\\.png$`));
     expect(payload.previews).toHaveLength(2);

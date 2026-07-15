@@ -69,6 +69,29 @@ describe('GameToolHandlers', () => {
     expect(textFrom(response)).toContain('nodePath and property are required');
     expect(execute).not.toHaveBeenCalled();
   });
+
+  it('returns one screenshot preview with bounded digest metadata and optional temp retention', async () => {
+    const bytes = Buffer.from('png-fixture');
+    const send = vi.fn().mockResolvedValue({
+      jsonrpc: '2.0', id: 1,
+      result: { data: bytes.toString('base64'), width: 32, height: 18 },
+    });
+    const handlers = new GameToolHandlers({ commands: {
+      execute: vi.fn(), hasActiveProcess: () => true, isConnected: () => true,
+      readNewErrors: () => [], readNewLogs: () => [], send,
+    } as any });
+
+    const response = await handlers.handleGameScreenshot({ retainArtifact: true });
+    const text = JSON.parse(textFrom(response));
+
+    expect(response.content.filter((item: any) => item.type === 'image')).toHaveLength(1);
+    expect(text).toMatchObject({ captured: true, width: 32, height: 18, bytes: bytes.length, project_artifact: false });
+    expect(text.sha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(text.artifact_path).toContain(join(tmpdir(), 'godot-agent-loop-artifacts'));
+    expect(existsSync(text.artifact_path)).toBe(true);
+    expect(JSON.stringify(text)).not.toContain(bytes.toString('base64'));
+    rmSync(text.artifact_path, { force: true });
+  });
 });
 
 describe('ProjectToolHandlers', () => {
@@ -181,6 +204,7 @@ describe('LifecycleToolHandlers', () => {
       executable: { requirePath: vi.fn().mockResolvedValue('godot') } as any,
       getActiveProcess: () => null,
       isPathAllowed: () => true,
+      isRelativePathAllowed: () => true,
       logDebug: vi.fn(),
       startProjectProcess: vi.fn(),
       stopProjectProcess: vi.fn(),
@@ -207,7 +231,7 @@ describe('LifecycleToolHandlers', () => {
     expect(JSON.parse(textFrom(response))).toEqual({ output: ['ready'], errors: ['warning'] });
   });
 
-  it('launches MCP-owned runs with deterministic frame and time settings', async () => {
+  it('launches watched runs with realtime display timing by default', async () => {
     const projectPath = createProject();
     const startProjectProcess = vi.fn();
     const handlers = new LifecycleToolHandlers(context({ startProjectProcess }));
@@ -217,9 +241,188 @@ describe('LifecycleToolHandlers', () => {
     expect(response.isError).not.toBe(true);
     expect(startProjectProcess).toHaveBeenCalledOnce();
     expect(startProjectProcess.mock.calls[0][1]).toEqual([
+      '--time-scale', '1', '--path', projectPath,
+    ]);
+    expect(startProjectProcess.mock.calls[0][3]).toEqual({
+      GODOT_MCP_FIXED_FPS: '', GODOT_MCP_TIMING_MODE: 'realtime',
+    });
+    expect(JSON.parse(textFrom(response)).timing_policy).toMatchObject({ mode: 'realtime', fixed_fps: null });
+  });
+
+  it('keeps deterministic timing explicit for verification-style runs', async () => {
+    const projectPath = createProject();
+    const startProjectProcess = vi.fn();
+    const handlers = new LifecycleToolHandlers(context({ startProjectProcess }));
+    await handlers.handleRunProject({ projectPath, timingMode: 'deterministic' });
+    expect(startProjectProcess.mock.calls[0][1]).toEqual([
       '--fixed-fps', '60', '--max-fps', '60', '--time-scale', '1', '--path', projectPath,
     ]);
-    expect(startProjectProcess.mock.calls[0][3]).toEqual({ GODOT_MCP_FIXED_FPS: '60' });
+    expect(startProjectProcess.mock.calls[0][3]).toEqual({
+      GODOT_MCP_FIXED_FPS: '60', GODOT_MCP_TIMING_MODE: 'deterministic',
+    });
+  });
+
+  it('serializes concurrent idempotent editor ensure requests for one project', async () => {
+    const projectPath = createProject();
+    const ensureEditorSession = vi.fn().mockResolvedValue({
+      state: 'connected', project_path: projectPath, connected: true, reused: true, spawned: false,
+      editor_pid: 42, editor_start_identity: '42:1', port: 32000, protocol_version: '2',
+      addon_version: '1.1.0', godot_version: '4.7', created_at: '1',
+    });
+    const handlers = new LifecycleToolHandlers(context({ ensureEditorSession }));
+
+    const [first, second] = await Promise.all([
+      handlers.handleEditorSession({ projectPath, action: 'ensure' }),
+      handlers.handleEditorSession({ projectPath, action: 'ensure' }),
+    ]);
+
+    expect(ensureEditorSession).toHaveBeenCalledOnce();
+    expect(JSON.parse(textFrom(first)).editor_session).toMatchObject({ connected: true, reused: true });
+    expect(textFrom(second)).toBe(textFrom(first));
+  });
+
+  it('rejects editor_control scene traversal before dispatching to the editor', async () => {
+    const sendEditorCommand = vi.fn();
+    const isRelativePathAllowed = vi.fn((_projectPath: string, relativePath: string) => !relativePath.includes('..'));
+    const handlers = new LifecycleToolHandlers(context({ isRelativePathAllowed, sendEditorCommand }));
+
+    const response = await handlers.handleEditorControl({
+      projectPath: '/project', action: 'open_scene', scenePath: 'res://../outside.tscn',
+    });
+
+    expect(response.isError).toBe(true);
+    expect(textFrom(response)).toContain('scenePath is outside the project root');
+    expect(isRelativePathAllowed).toHaveBeenCalledWith('/project', 'res://../outside.tscn');
+    expect(sendEditorCommand).not.toHaveBeenCalled();
+  });
+
+  it('rejects editor_transaction scene traversal before inspecting operations', async () => {
+    const sendEditorCommand = vi.fn();
+    const isRelativePathAllowed = vi.fn((_projectPath: string, relativePath: string) => !relativePath.includes('..'));
+    const handlers = new LifecycleToolHandlers(context({ isRelativePathAllowed, sendEditorCommand }));
+
+    const response = await handlers.handleEditorTransaction({
+      projectPath: '/project', scenePath: '../outside.tscn', name: 'Unsafe scene',
+      operations: [{ op: 'save' }],
+    });
+
+    expect(response.isError).toBe(true);
+    expect(textFrom(response)).toContain('scenePath is outside the project root');
+    expect(isRelativePathAllowed).toHaveBeenCalledWith('/project', '../outside.tscn');
+    expect(sendEditorCommand).not.toHaveBeenCalled();
+  });
+
+  it('allows safe editor_control and editor_transaction resource paths', async () => {
+    const sendEditorCommand = vi.fn().mockResolvedValue({ success: true });
+    const isRelativePathAllowed = vi.fn().mockReturnValue(true);
+    const handlers = new LifecycleToolHandlers(context({ isRelativePathAllowed, sendEditorCommand }));
+
+    const control = await handlers.handleEditorControl({
+      projectPath: '/project', action: 'open_scene', scenePath: 'res://scenes/main.tscn',
+    });
+    const transaction = await handlers.handleEditorTransaction({
+      projectPath: '/project', scenePath: 'scenes/main.tscn', name: 'Safe paths',
+      operations: [
+        { op: 'instantiate_scene', scenePath: 'res://scenes/enemy.tscn' },
+        { op: 'attach_script', scriptPath: 'scripts/player.gd' },
+        { op: 'assign_resource', resourcePath: 'res://materials/player.tres' },
+      ],
+    });
+
+    expect(control.isError).not.toBe(true);
+    expect(transaction.isError).not.toBe(true);
+    expect(isRelativePathAllowed.mock.calls.map(call => call[1])).toEqual([
+      'res://scenes/main.tscn',
+      'scenes/main.tscn',
+      'res://scenes/enemy.tscn',
+      'scripts/player.gd',
+      'res://materials/player.tres',
+    ]);
+    expect(sendEditorCommand).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(['scenePath', 'scriptPath', 'resourcePath'])(
+    'rejects traversal in editor_transaction operation %s before dispatch',
+    async pathKey => {
+      const sendEditorCommand = vi.fn();
+      const isRelativePathAllowed = vi.fn((_projectPath: string, relativePath: string) => !relativePath.includes('..'));
+      const handlers = new LifecycleToolHandlers(context({ isRelativePathAllowed, sendEditorCommand }));
+
+      const response = await handlers.handleEditorTransaction({
+        projectPath: '/project', scenePath: 'scenes/main.tscn', name: 'Unsafe path',
+        operations: [{ op: 'save', [pathKey]: `res://../outside/${pathKey}` }],
+      });
+
+      expect(response.isError).toBe(true);
+      expect(textFrom(response)).toContain(`operations[0].${pathKey} is outside the project root`);
+      expect(sendEditorCommand).not.toHaveBeenCalled();
+    },
+  );
+
+  it('waits server-side for a property and returns timeout last-observed evidence', async () => {
+    const sendGameCommand = vi.fn().mockResolvedValue({
+      jsonrpc: '2.0', id: 1, result: { value: 42 },
+    });
+    const handlers = new LifecycleToolHandlers(context({ isGameConnected: () => true, sendGameCommand }));
+
+    const matched = await handlers.handleGameWaitUntil({
+      condition: 'property', nodePath: '/root/Player', property: 'score', value: 42,
+    });
+    const timedOut = await new LifecycleToolHandlers(context({ isGameConnected: () => false }))
+      .handleGameWaitUntil({ condition: 'connection', timeoutSeconds: 0 });
+
+    expect(JSON.parse(textFrom(matched))).toMatchObject({ satisfied: true, condition: 'property', attempts: 1 });
+    expect(sendGameCommand).toHaveBeenCalledWith('get_property', {
+      node_path: '/root/Player', property: 'score',
+    }, expect.any(Number));
+    expect(JSON.parse(textFrom(timedOut))).toMatchObject({
+      satisfied: false, condition: 'connection', attempts: 1, last_observed: { connected: false },
+    });
+    expect(timedOut.isError).toBe(true);
+  });
+
+  it('turns an edge-of-deadline poll transport timeout into structured wait evidence', async () => {
+    const sendGameCommand = vi.fn()
+      .mockResolvedValueOnce({ jsonrpc: '2.0', id: 1, result: { value: 'Anchor' } })
+      .mockRejectedValue(new Error("Game request 'godot.runtime.get_property' timed out after 0.001s"));
+    const handlers = new LifecycleToolHandlers(context({ isGameConnected: () => true, sendGameCommand }));
+
+    const response = await handlers.handleGameWaitUntil({
+      condition: 'property', nodePath: '/root/Main/Anchor', property: 'name', value: 'Never',
+      timeoutSeconds: 0.01, pollIntervalMs: 1,
+    });
+
+    expect(response.isError).toBe(true);
+    expect(JSON.parse(textFrom(response))).toMatchObject({
+      satisfied: false, condition: 'property', last_observed: { value: 'Anchor' },
+    });
+  });
+
+  it('runs a bounded compound scenario and restores time scale without textual image payloads', async () => {
+    const sendGameCommand = vi.fn(async (command: string) => {
+      if (command === 'screenshot') return { jsonrpc: '2.0', id: 1, result: {
+        data: Buffer.from('scenario-png').toString('base64'), width: 64, height: 36,
+      } };
+      if (command === 'get_performance') return { jsonrpc: '2.0', id: 2, result: { fps: 60 } };
+      return { jsonrpc: '2.0', id: 3, result: { time_scale: 1 } };
+    });
+    const dispatchTool = vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '{"pressed":true}' }] });
+    const handlers = new LifecycleToolHandlers(context({
+      isGameConnected: () => true, sendGameCommand, dispatchTool,
+    }));
+
+    const response = await handlers.handleGameScenario({ name: 'serve', steps: [
+      { type: 'input', tool: 'game_key_press', arguments: { key: 'Space' } },
+      { type: 'screenshot' },
+      { type: 'performance' },
+    ] });
+    const evidence = JSON.parse(textFrom(response));
+
+    expect(evidence).toMatchObject({ name: 'serve', passed: true, step_count: 3,
+      teardown: { attempted: true, time_scale_restored: true } });
+    expect(evidence.steps[1].result).toMatchObject({ captured: true, width: 64, height: 36, preview_omitted: true });
+    expect(textFrom(response)).not.toContain(Buffer.from('scenario-png').toString('base64'));
+    expect(sendGameCommand).toHaveBeenLastCalledWith('time_scale', { action: 'set', time_scale: 1 }, 2_000);
   });
 
   it('stops the process and removes its injected interaction server', async () => {

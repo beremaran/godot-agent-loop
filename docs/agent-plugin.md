@@ -1,5 +1,7 @@
 # Portable agent bundle
 
+The bundled workflows support Godot 4.7 or later.
+
 Godot Agent Loop ships one neutral `agent-plugin/` bundle. Its four workflows
 live once under `skills/`; Claude Code, Codex, OpenCode, and Pi consume that same
 tree. `agent-plugin/adapter-manifest.json` owns the shared package version, MCP

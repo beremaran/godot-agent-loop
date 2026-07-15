@@ -1,7 +1,7 @@
 # Tool catalog
 
-Godot Agent Loop exposes 167 tools. The default MCP surface advertises a
-compact core of 39 tools, including the `godot_tools` meta-tool, which searches,
+Godot Agent Loop exposes 171 tools. The default MCP surface advertises a
+compact core of 40 tools, including the `godot_tools` meta-tool, which searches,
 describes, and dispatches everything below on demand. Set
 `GODOT_MCP_TOOL_SURFACE=full` to advertise the complete static catalog
 instead.
@@ -9,35 +9,44 @@ instead.
 Per-tool verification status, action inventories, and test references are
 published in the generated [coverage report](coverage/coverage-report.md).
 
-## Meta & editor bridge (2 tools)
+## Meta & editor bridge (4 tools)
 
 | Tool | Description |
 | ------ | ------------- |
 | `godot_tools` | Search, describe, and dispatch any tool in this catalog |
+| `editor_session` | Idempotently discover/attach, inspect, or disconnect a project editor session |
 | `editor_control` | Inspect editor state and apply reversible edits through the editor bridge |
+| `editor_transaction` | Commit one validated compound scene edit as one editor undo step |
 
 `editor_control` inspects the edited scene and selection, opens/saves/reloads
 scenes, and applies reversible property or node-name edits through
-`EditorUndoRedoManager`. `launch_editor` installs the authenticated bridge for
-the lifetime of the MCP-owned editor session. Its **Agent Activity** dock shows
+`EditorUndoRedoManager`. `editor_session ensure` first discovers a normally
+opened matching editor; `launch_editor` uses the same flow and spawns only when
+needed. Its **Agent Activity** dock shows
 each command's target, live outcome, and duration from the same correlated
-lifecycle events used by server diagnostics. Successful session writes also
-push a FileSystem rescan and reload the affected open scene, so the editor
-reflects agent-authored files without waiting for a focus change. When an
+lifecycle events used by server diagnostics, including bounded replay after a
+late attach or reconnect. File-backed writes enter an acknowledged per-project
+scan/import queue and reload the affected scene only when it has no unsaved
+human changes. Results distinguish persisted, acknowledged, detached,
+conflicted, timed-out, and failed synchronization. When an
 operation identifies a scene node, the bridge selects and reveals it in the
 editor so the human view follows the agent's current target. The dock's
 **Pause Agent** button gives the human a cooperative editing lock: subsequent
 mutating tools are refused before dispatch while inspection remains available;
 **Resume Agent** returns control. The lock defaults to agent-driving and does
-not affect unattended use when no editor is open.
+not affect unattended use when no editor is open. Setup, uninstall, security,
+protocol migration, and all session states are documented in the
+[interaction architecture](architecture/editor-interaction.md).
 
-## Project Management (14 tools)
+## Project Management (16 tools)
 
 | Tool | Description |
 | ------ | ------------- |
 | `launch_editor` | Launch Godot editor for a project |
 | `run_project` | Run a Godot project and capture output |
 | `verify_project` | Run, assert bounded runtime evidence, optionally capture, and tear down |
+| `game_wait_until` | Await one bounded runtime condition and return its last observed state |
+| `game_scenario` | Run a bounded input/wait/assert/observe/screenshot/performance sequence |
 | `run_project_tests` | Discover or run native, GUT, and GdUnit4 tests with structured cases and logs |
 | `manage_import_pipeline` | Inspect/change importer settings, reimport, and query generated dependencies |
 | `analyze_project_integrity` | Analyze resource graphs and preview non-mutating rename impact |

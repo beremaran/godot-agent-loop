@@ -10,7 +10,7 @@
     "environment": {
       "GODOT_MCP_TOOL_SURFACE": "compact"
     },
-    "defaultToolCount": 39,
+    "defaultToolCount": 40,
     "discoveryTool": "godot_tools"
   },
   "skills": [

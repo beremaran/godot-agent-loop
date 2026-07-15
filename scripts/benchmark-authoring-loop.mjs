@@ -269,7 +269,7 @@ function assertCleanProcesses(records) {
 function writeProject(projectPath) {
   writeFileSync(join(projectPath, 'project.godot'), [
     'config_version=5', '', '[application]', 'config/name="godot-agent-loop-loop-benchmark"',
-    'run/main_scene="res://cycle.tscn"', 'config/features=PackedStringArray("4.4")', '',
+    'run/main_scene="res://cycle.tscn"', 'config/features=PackedStringArray("4.7")', '',
     '[display]', 'window/size/viewport_width=320', 'window/size/viewport_height=180', '',
     '[rendering]', 'renderer/rendering_method="gl_compatibility"',
     'renderer/rendering_method.mobile="gl_compatibility"', '',

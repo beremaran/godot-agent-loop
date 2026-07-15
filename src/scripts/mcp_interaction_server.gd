@@ -875,8 +875,8 @@ func _cmd_pause(params: Dictionary) -> void:
 # --- Get Performance ---
 func _cmd_get_performance(params: Dictionary) -> void:
 	var action: String = str(params.get("action", "sample"))
-	if not ["sample", "start", "stop", "report", "leaks"].has(action):
-		_send_response({"error": "action must be sample, start, stop, report, or leaks"})
+	if not ["sample", "start", "stop", "report", "stress", "leaks"].has(action):
+		_send_response({"error": "action must be sample, start, stop, report, stress, or leaks"})
 		return
 	if action == "start":
 		_profile_active = true
@@ -911,6 +911,16 @@ func _cmd_get_performance(params: Dictionary) -> void:
 	result["samples"] = samples
 	result["profiling"] = _profile_active
 	result["requested_sample_count"] = sample_count
+	result["timing_mode"] = OS.get_environment("GODOT_MCP_TIMING_MODE") if not OS.get_environment("GODOT_MCP_TIMING_MODE").is_empty() else "external"
+	result["distribution"] = _performance_distribution(samples)
+	result["metric_availability"] = {
+		"realtime_fps": {"available": true, "metric": "fps"},
+		"process_time": {"available": true, "metric": "process_time_ms"},
+		"rendering_time": {"available": true, "metric": "render_setup_cpu_ms", "scope": "CPU render setup only"},
+		"gpu_time": {"available": false, "reason": "Renderer/platform does not expose a stable GPU frame timer through the public runtime API"},
+	}
+	if action == "stress":
+		result["stress_window"] = _stress_comparison(samples)
 	if action == "leaks":
 		result["leak_diagnostics"] = {
 			"object_count": result.get("object_count", 0),
@@ -926,7 +936,11 @@ func _performance_snapshot() -> Dictionary:
 	return {
 		"fps": Performance.get_monitor(Performance.TIME_FPS),
 		"frame_time": Performance.get_monitor(Performance.TIME_PROCESS),
+		"process_time_ms": Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0,
 		"physics_frame_time": Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS),
+		"physics_process_time_ms": Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0,
+		"render_setup_cpu_ms": RenderingServer.get_frame_setup_time_cpu() * 1000.0,
+		"gpu_time_ms": null,
 		"memory_static": Performance.get_monitor(Performance.MEMORY_STATIC),
 		"memory_static_max": Performance.get_monitor(Performance.MEMORY_STATIC_MAX),
 		"object_count": Performance.get_monitor(Performance.OBJECT_COUNT),
@@ -954,13 +968,73 @@ func _profile_report() -> Dictionary:
 		"latest_object_count": latest.get("object_count", 0),
 		"latest_orphan_node_count": latest.get("object_orphan_node_count", 0),
 	}
+	report["distribution"] = _performance_distribution(_profile_samples)
+	report["metric_availability"] = {
+		"gpu_time": {"available": false, "reason": "Unavailable from the public runtime API on this renderer/platform"},
+		"render_setup_cpu": {"available": true},
+	}
 	return report
+
+
+func _performance_distribution(samples: Array[Dictionary]) -> Dictionary:
+	if samples.is_empty(): return {}
+	var fps_values: Array[float] = []
+	var frame_values: Array[float] = []
+	for sample: Dictionary in samples:
+		fps_values.append(_metric_float(sample.get("fps", 0.0)))
+		frame_values.append(_metric_float(sample.get("process_time_ms", 0.0)))
+	fps_values.sort()
+	frame_values.sort()
+	var percentile_index: int = mini(frame_values.size() - 1, floori(float(frame_values.size() - 1) * 0.95))
+	return {
+		"sample_count": samples.size(),
+		"fps_min": fps_values[0], "fps_max": fps_values[fps_values.size() - 1],
+		"fps_average": _array_average(fps_values),
+		"process_time_ms_min": frame_values[0], "process_time_ms_max": frame_values[frame_values.size() - 1],
+		"process_time_ms_average": _array_average(frame_values),
+		"process_time_ms_p95": frame_values[percentile_index],
+	}
+
+
+func _stress_comparison(samples: Array[Dictionary]) -> Dictionary:
+	if samples.size() < 3:
+		return {"available": false, "reason": "stress comparison requires at least 3 samples"}
+	var baseline: Dictionary = samples[0]
+	var recovery: Dictionary = samples[samples.size() - 1]
+	var peak_process_ms: float = 0.0
+	var peak_objects: int = 0
+	for sample: Dictionary in samples:
+		peak_process_ms = maxf(peak_process_ms, _metric_float(sample.get("process_time_ms", 0.0)))
+		peak_objects = maxi(peak_objects, _metric_int(sample.get("object_count", 0)))
+	return {
+		"available": true,
+		"baseline": baseline,
+		"peak": {"process_time_ms": peak_process_ms, "object_count": peak_objects},
+		"recovery": recovery,
+		"object_count_delta_recovery": _metric_int(recovery.get("object_count", 0)) - _metric_int(baseline.get("object_count", 0)),
+		"process_time_ms_delta_recovery": _metric_float(recovery.get("process_time_ms", 0.0)) - _metric_float(baseline.get("process_time_ms", 0.0)),
+	}
+
+
+func _array_average(values: Array[float]) -> float:
+	var total: float = 0.0
+	for value: float in values: total += value
+	return total / values.size()
 
 
 func _metric_float(value: Variant) -> float:
 	if value is int or value is float:
 		return value
 	return 0.0
+
+
+func _metric_int(value: Variant) -> int:
+	if value is int:
+		return value
+	if value is float:
+		var float_value: float = value
+		return roundi(float_value)
+	return 0
 
 
 # --- Wait N Frames ---

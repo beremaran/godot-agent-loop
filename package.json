@@ -1,7 +1,7 @@
 {
   "name": "@beremaran/godot-agent-loop",
   "version": "1.0.1",
-  "description": "MCP automation loop with 167 tested tools for Godot 4",
+  "description": "MCP automation loop with 171 tested tools for Godot 4",
   "keywords": [
     "godot",
     "mcp",
@@ -57,8 +57,9 @@
     "watch": "tsc --watch",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:godot": "npm run test:godot:typecheck && npm run test:godot:validate-script && npm run test:godot:operations && npm run test:godot:runtime && npm run test:godot:launch-demo",
+    "test:godot": "npm run test:godot:typecheck && npm run test:godot:editor-bridge && npm run test:godot:validate-script && npm run test:godot:operations && npm run test:godot:runtime && npm run test:godot:launch-demo",
     "test:godot:typecheck": "tests/godot/run-typecheck.sh",
+    "test:godot:editor-bridge": "tests/godot/run-editor-bridge-tests.sh",
     "test:godot:validate-script": "tests/godot/run-validate-script.sh",
     "test:godot:operations": "tests/godot/run-headless-operations.sh",
     "test:godot:runtime": "tests/godot/run-integration-tests.sh",

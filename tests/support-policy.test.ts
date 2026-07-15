@@ -2,21 +2,27 @@
 import { describe, expect, it } from 'vitest';
 import { readRepoFile } from './helpers/manifest-sources.js';
 
-const COMPATIBILITY_FLOOR = '4.4';
+const COMPATIBILITY_FLOOR = '4.7';
 const PRIMARY_TARGET = '4.7';
 
 describe('Godot support policy', () => {
-  it('keeps the workflow matrix aligned with the documented floor and target', () => {
+  it('keeps the workflow matrix aligned with the documented primary target', () => {
     const workflow = readRepoFile('.github/workflows/godot-integration.yml');
     const versions = /godot-version:\s*\[([^\]]+)\]/.exec(workflow)?.[1]
       .match(/\d+\.\d+-stable/g) ?? [];
-    expect(versions).toEqual([
-      `${COMPATIBILITY_FLOOR}-stable`, `${PRIMARY_TARGET}-stable`,
-    ]);
+    expect(versions).toEqual([`${PRIMARY_TARGET}-stable`]);
 
     const readme = readRepoFile('README.md');
-    expect(readme).toContain(`CI covers Godot ${COMPATIBILITY_FLOOR} and ${PRIMARY_TARGET}`);
-    expect(readme).toContain(`Linux headed (desktop or Xvfb), Godot ${COMPATIBILITY_FLOOR} and ${PRIMARY_TARGET}`);
+    const product = JSON.parse(readRepoFile('product.json')) as {
+      addon: { minimumGodotVersion: string; primaryGodotVersion: string };
+    };
+    expect(readme).toContain(`CI covers that exact release`);
+    expect(readme).toContain(`Godot ${COMPATIBILITY_FLOOR} is both the compatibility floor`);
+    expect(product.addon).toMatchObject({
+      minimumGodotVersion: COMPATIBILITY_FLOOR,
+      primaryGodotVersion: PRIMARY_TARGET,
+    });
+    expect(readme).toContain(`Linux headed (desktop or Xvfb), Godot ${PRIMARY_TARGET}`);
     expect(readme).not.toContain('| Linux headless');
 
     const lifecycle = readRepoFile('src/tool-handlers/lifecycle-tool-handlers.ts');
@@ -71,24 +77,22 @@ describe('Godot support policy', () => {
     expect(harness).toContain(`config/features=PackedStringArray("${COMPATIBILITY_FLOOR}")`);
   });
 
-  it('keeps the .NET build-flavor matrix aligned with the engine matrix and documentation', () => {
+  it('keeps the .NET build-flavor job aligned with the engine target and documentation', () => {
     const workflow = readRepoFile('.github/workflows/godot-integration.yml');
     const dotnetJob = workflow.slice(workflow.indexOf('  godot-dotnet:'));
-    expect(dotnetJob).toContain(`godot-version: ["${COMPATIBILITY_FLOOR}-stable", "${PRIMARY_TARGET}-stable"]`);
+    expect(dotnetJob).toContain(`godot-version: ["${PRIMARY_TARGET}-stable"]`);
     expect(dotnetJob).toContain('actions/setup-dotnet@v5');
     expect(dotnetJob).toContain('GODOT_MCP_DOTNET_TEST: "1"');
 
     const readme = readRepoFile('README.md');
-    expect(readme).toContain('Godot .NET 4.4 and 4.7 with .NET SDK 8');
+    expect(readme).toContain('Godot .NET 4.7 with .NET SDK 8');
   });
 
   it('keeps the bounded Linux export matrix aligned with support claims', () => {
     const workflow = readRepoFile('.github/workflows/godot-integration.yml');
     const exportJob = workflow.slice(workflow.indexOf('  godot-export:'));
-    for (const version of [COMPATIBILITY_FLOOR, PRIMARY_TARGET]) {
-      expect(exportJob).toContain(`godot-version: "${version}-stable"`);
-      expect(exportJob).toContain(`template-version: "${version}.stable"`);
-    }
+    expect(exportJob).toContain(`godot-version: "${PRIMARY_TARGET}-stable"`);
+    expect(exportJob).toContain(`template-version: "${PRIMARY_TARGET}.stable"`);
     expect(exportJob).toContain('GODOT_MCP_EXPORT_TEMPLATE_TEST: "1"');
     expect(exportJob).toContain('GODOT_MCP_EXPORT_XDG_DATA_HOME=$HOME/.local/share');
 
@@ -125,6 +129,8 @@ describe('Godot support policy', () => {
 
     const readme = readRepoFile('README.md');
     expect(readme).toContain('Godot 4.7 process, Unicode path, runtime input, window query, and teardown workflows');
-    expect(readme).toContain('Windows/macOS editor UI, rendering, and exports | Not claimed');
+    expect(readme).toContain('Windows editor UI remains outside the claimed boundary');
+    expect(readme).toContain('macOS | Portable acceptance and attached-editor workflow verified');
+    expect(readme).toContain('interactive-golden-agent-run.json');
   });
 });

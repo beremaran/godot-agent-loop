@@ -85,6 +85,7 @@
         "category",
         "minimumGodotVersion",
         "primaryGodotVersion",
+        "version",
         "protocolVersion",
         "license",
         "description",
@@ -95,8 +96,9 @@
         "directory": { "const": "addons/godot_agent_loop" },
         "name": { "const": "Godot Agent Loop Bridge" },
         "category": { "const": "Addons/Tools" },
-        "minimumGodotVersion": { "const": "4.4" },
+        "minimumGodotVersion": { "const": "4.7" },
         "primaryGodotVersion": { "const": "4.7" },
+        "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
         "protocolVersion": { "type": "string", "pattern": "^\\d+$" },
         "license": { "const": "MIT" },
         "description": { "type": "string", "minLength": 1, "maxLength": 500 },
@@ -113,10 +115,11 @@
     "observability": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["serverComponent", "runtimeComponent"],
+      "required": ["serverComponent", "runtimeComponent", "editorComponent"],
       "properties": {
         "serverComponent": { "const": "godot-agent-loop-server" },
-        "runtimeComponent": { "const": "godot-agent-loop-runtime" }
+        "runtimeComponent": { "const": "godot-agent-loop-runtime" },
+        "editorComponent": { "const": "godot-agent-loop-editor" }
       }
     },
     "lineage": {

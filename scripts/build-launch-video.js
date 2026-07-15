@@ -163,7 +163,7 @@ const slides = [
         { text: 'Build it. Play it. Prove it.', x: 120, y: 180, size: 72, bold: true },
         { text: '391.795 s  •  104 turns  •  103 MCP calls', x: 125, y: 350, size: 42, color: colors.paleBlue },
         { text: '25 tools used  •  0 built-in tool calls  •  0 human corrections', x: 125, y: 430, size: 34 },
-        { text: '167 / 167 E2E tools  •  201 full-path tests\nGodot 4.4 floor  •  Godot 4.7 primary', x: 125, y: 560, size: 36 },
+        { text: '167 / 167 E2E tools  •  201 full-path tests\nGodot 4.7 supported', x: 125, y: 560, size: 36 },
         { text: 'Exact prompt, project, screenshots, and replay ship with the source.', x: 125, y: 750, size: 30, color: colors.muted },
       ],
       image: { path: icon, size: '340x340', x: 1450, y: 560, border: 0 },

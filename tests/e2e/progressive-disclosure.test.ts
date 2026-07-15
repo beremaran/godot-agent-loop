@@ -82,7 +82,7 @@ describe('progressive MCP tool disclosure', () => {
   it('retains full static discovery as an explicit compatibility mode', async () => {
     server = await startServer({ toolSurface: 'full' });
     const listed = await server.client.listTools();
-    expect(listed.tools).toHaveLength(167);
+    expect(listed.tools).toHaveLength(171);
     expect(listed.tools.map(tool => tool.name)).toContain('game_light_3d');
   });
 });
