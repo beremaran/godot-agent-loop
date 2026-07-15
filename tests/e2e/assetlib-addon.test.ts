@@ -74,7 +74,7 @@ describe('AssetLib addon package lifecycle', () => {
       plugin_distribution: 'persistent', plugin_owned: false, editor_protocol_version: '1',
     });
     expect(await waitForEditor(server)).toMatchObject({
-      authenticated: true, driver_paused: true, addon_version: '1.0.0', protocol_version: '1',
+      authenticated: true, driver_paused: true, addon_version: '1.0.1', protocol_version: '1',
     });
     const refused = await server.call('add_node', {
       projectPath: project.projectPath, scenePath: 'main.tscn',

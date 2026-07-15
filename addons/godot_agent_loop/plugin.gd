@@ -24,7 +24,7 @@ var _activity_entries: Array[Dictionary] = []
 var _last_filesystem_sync: Dictionary = {}
 const MAX_ACTIVITY_ENTRIES: int = 200
 const PROTOCOL_VERSION: String = "1"
-const ADDON_VERSION: String = "1.0.0"
+const ADDON_VERSION: String = "1.0.1"
 
 func _enter_tree() -> void:
 	set_process(true)

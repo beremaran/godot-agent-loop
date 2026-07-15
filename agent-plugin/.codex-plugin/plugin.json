@@ -1,6 +1,6 @@
 {
   "name": "godot-agent-loop",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Build, playtest, and prove Godot games with an MCP automation loop.",
   "author": {
     "name": "Berke Arslan",

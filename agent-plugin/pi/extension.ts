@@ -98,7 +98,7 @@ export default function godotAgentLoopPi(pi: ExtensionAPI) {
     try {
       const launch = resolvePiServerLaunch();
       const next = new Client(
-        { name: 'godot-agent-loop-pi', version: '1.0.0' },
+        { name: 'godot-agent-loop-pi', version: '1.0.1' },
         {
           capabilities: {},
           listChanged: {
