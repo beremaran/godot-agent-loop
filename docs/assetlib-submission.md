@@ -3,7 +3,7 @@
 The optional **Godot Agent Loop Bridge** was submitted to the official
 **Addons/Tools** category on 2026-07-15. Asset `23661` is **New / Pending** in
 the moderator queue. It targets Godot 4.4 as the compatibility floor, is tested
-primarily on Godot 4.7, uses SemVer `1.0.1`, and carries the same complete MIT
+primarily on Godot 4.7, uses SemVer `1.0.0`, and carries the same complete MIT
 notices as the repository.
 
 The addon does not install Node.js or an agent. It provides authenticated
@@ -19,7 +19,7 @@ through the normal catalog until moderators approve it.
 ## Submitted listing
 
 - Status: **New / Pending**
-- Download branch: `assetlib-v1.0.1`
+- Download branch: `assetlib-v1.0.0`
 - Download commit: `dc576948024cbef039b01e9aca71464a550fd268`
 - Parent: signed release tag commit
   `75f8241d7975f3142eebd80a1d5d694e2069caec`
@@ -34,6 +34,10 @@ the public review feed all agree on the asset name, status, version, Godot floor
 license, commit, repository, and icon. No reviewer feedback has been received.
 
 ## Candidate artifacts
+
+The following artifacts describe the next `1.0.1` candidate. They do not alter
+the pending `1.0.0` submission above; an Asset Library update requires a new
+download commit and a separate moderator submission.
 
 - `npm run assetlib:pack` creates
   `dist/godot-agent-loop-1.0.1.zip`, containing only
