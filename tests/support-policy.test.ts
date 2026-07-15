@@ -50,7 +50,7 @@ describe('Godot support policy', () => {
     expect(workflow).toContain('publish-@beremaran/godot-agent-loop@1.0.1');
     expect(workflow).toContain('gpg.ssh.allowedSignersFile="$ALLOWED_SIGNERS"');
     expect(workflow).toContain('berke@beremaran.com');
-    expect(workflow).toContain('AAAAC3NzaC1lZDI1NTE5AAAAIIsZdWjkdesADYJ5uI4zJwW1jtlGBXLc01aZoz3TTdvt');
+    expect(workflow).toContain('AAAAC3NzaC1lZDI1NTE5AAAAILjYS4yppZ4WvM2fzE4jMkMd9kn+psrlErcOR19rK5DZ');
     expect(workflow).toContain('test "$(git rev-parse "$RELEASE_TAG^{}")" = "$(git rev-parse HEAD)"');
     expect(workflow).toContain('Godot_v4.7-stable_linux.x86_64.zip');
     expect(workflow).toContain('GODOT_ARCHIVE_SHA256: 0b1a6c54c2c619c12e169fe9241edda4b81080b519451cec2984bf0d2c6cb73c');

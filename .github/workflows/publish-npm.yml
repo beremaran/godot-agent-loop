@@ -36,7 +36,7 @@ jobs:
       - name: Verify the signed exact-version tag
         env:
           RELEASE_TAG: ${{ inputs.tag }}
-          RELEASE_SIGNING_KEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIsZdWjkdesADYJ5uI4zJwW1jtlGBXLc01aZoz3TTdvt
+          RELEASE_SIGNING_KEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILjYS4yppZ4WvM2fzE4jMkMd9kn+psrlErcOR19rK5DZ
         run: |
           ALLOWED_SIGNERS="$RUNNER_TEMP/godot-agent-loop-allowed-signers"
           printf '%s %s\n' 'berke@beremaran.com' "$RELEASE_SIGNING_KEY" > "$ALLOWED_SIGNERS"
