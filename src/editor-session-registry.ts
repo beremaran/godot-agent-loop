@@ -76,6 +76,18 @@ export class EditorSessionRegistry {
 
   async ensure(projectPath: string, timeoutMs = 10_000): Promise<PublicEditorSession> {
     const canonical = canonicalProjectPath(projectPath);
+    return this.serialize(canonical, () => this.ensureDiscovered(canonical, timeoutMs));
+  }
+
+  async status(projectPath: string): Promise<PublicEditorSession> {
+    const canonical = canonicalProjectPath(projectPath);
+    return this.serialize(canonical, async () => {
+      this.track(canonical);
+      return this.discover(canonical);
+    });
+  }
+
+  private async ensureDiscovered(canonical: string, timeoutMs: number): Promise<PublicEditorSession> {
     this.track(canonical);
     const deadline = Date.now() + Math.max(0, timeoutMs);
     let last = await this.discover(canonical);
@@ -88,12 +100,6 @@ export class EditorSessionRegistry {
     return last;
   }
 
-  async status(projectPath: string): Promise<PublicEditorSession> {
-    const canonical = canonicalProjectPath(projectPath);
-    this.track(canonical);
-    return this.discover(canonical);
-  }
-
   async send(
     projectPath: string,
     command: string,
@@ -102,7 +108,7 @@ export class EditorSessionRegistry {
   ): Promise<Record<string, unknown>> {
     const canonical = canonicalProjectPath(projectPath);
     return this.serialize(canonical, async () => {
-      const session = await this.ensure(canonical, Math.min(timeoutMs, 2_000));
+      const session = await this.ensureDiscovered(canonical, Math.min(timeoutMs, 2_000));
       if (!session.connected) throw new EditorSessionUnavailableError(session);
       const entry = this.entries.get(canonical);
       if (!entry) throw new EditorSessionUnavailableError(session);
@@ -179,8 +185,13 @@ export class EditorSessionRegistry {
         this.emit(session);
         return session;
       }
-      cleanStaleRecord(canonical);
-      const session = emptySession(canonical, 'no_editor', `Stale editor session removed: ${errorMessage(error)}`);
+      const pidExists = this.options.processExists ?? processExists;
+      const invalidIdentity = error instanceof EditorSessionIdentityError;
+      const processAlive = pidExists(record.editor_pid);
+      if (invalidIdentity || !processAlive) cleanStaleRecord(canonical);
+      const session = invalidIdentity || !processAlive
+        ? emptySession(canonical, 'no_editor', `Stale editor session removed: ${errorMessage(error)}`)
+        : publicRecord(record, 'no_editor', false, `Live editor session is temporarily unreachable: ${errorMessage(error)}`);
       this.emit(session);
       return session;
     }
@@ -195,7 +206,11 @@ export class EditorSessionRegistry {
     if (this.watcher) return;
     this.watcher = setInterval(() => {
       for (const projectPath of this.trackedProjects) {
-        void this.discover(projectPath).catch(error => {
+        // An editor can accept only one agent connection. Do not let the
+        // watcher start a second authentication while an ensure/send is still
+        // establishing or using the project's connection.
+        if (this.operationTails.has(projectPath)) continue;
+        void this.status(projectPath).catch(error => {
           this.options.log?.(`Editor discovery failed for ${projectPath}: ${errorMessage(error)}`);
         });
       }
@@ -324,9 +339,11 @@ function validateHandshake(record: EditorSessionDiscoveryRecord, result: Record<
   if (result.project_path !== record.project_path
     || result.editor_pid !== record.editor_pid
     || result.editor_start_identity !== record.editor_start_identity) {
-    throw new Error('Editor handshake identity did not match its discovery record');
+    throw new EditorSessionIdentityError('Editor handshake identity did not match its discovery record');
   }
 }
+
+class EditorSessionIdentityError extends Error {}
 
 function isDiscoveryRecord(value: unknown): value is EditorSessionDiscoveryRecord {
   if (!value || typeof value !== 'object') return false;

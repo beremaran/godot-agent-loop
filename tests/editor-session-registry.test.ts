@@ -1,5 +1,5 @@
 // @test-kind: unit
-import { chmodSync, mkdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -185,5 +185,63 @@ describe('EditorSessionRegistry', () => {
     expect(send).not.toHaveBeenCalled();
     expect(registry.disconnect(path).state).toBe('no_editor');
     expect(disconnect).toHaveBeenCalledOnce();
+  });
+
+  it('serializes watcher/status discovery with a slow initial authentication', async () => {
+    const path = project('slow-authentication');
+    writeRecord(path, record(path));
+    let releaseAuthentication: (() => void) | undefined;
+    const authenticationGate = new Promise<void>(resolve => { releaseAuthentication = resolve; });
+    const authenticate = vi.fn(async () => {
+      await authenticationGate;
+      return {
+        project_path: realpathSync.native(path), editor_pid: process.pid,
+        editor_start_identity: 'pid-start-1',
+      };
+    });
+    const registry = new EditorSessionRegistry({
+      serverVersion: 'test', processExists: () => true,
+      connectionFactory: () => ({
+        authenticate, send: vi.fn(async () => ({ success: true })), disconnect: vi.fn(),
+      } as unknown as EditorConnection),
+    });
+
+    const ensured = registry.ensure(path, 2_000);
+    await vi.waitFor(() => { expect(authenticate).toHaveBeenCalledOnce(); });
+    const status = registry.status(path);
+    await new Promise(resolve => setTimeout(resolve, 800));
+    expect(authenticate).toHaveBeenCalledOnce();
+    releaseAuthentication?.();
+
+    await expect(ensured).resolves.toMatchObject({ connected: true });
+    await expect(status).resolves.toMatchObject({ connected: true, reused: true });
+    expect(authenticate).toHaveBeenCalledOnce();
+    registry.disconnectAll();
+  });
+
+  it('preserves a live discovery record after a transient authentication failure', async () => {
+    const path = project('transient-authentication');
+    writeRecord(path, record(path));
+    const authenticate = vi.fn()
+      .mockRejectedValueOnce(new Error('connection reset'))
+      .mockResolvedValueOnce({
+        project_path: realpathSync.native(path), editor_pid: process.pid,
+        editor_start_identity: 'pid-start-1',
+      });
+    const registry = new EditorSessionRegistry({
+      serverVersion: 'test', processExists: () => true, retryDelaysMs: [0],
+      connectionFactory: () => ({
+        authenticate, send: vi.fn(async () => ({ success: true })), disconnect: vi.fn(),
+      } as unknown as EditorConnection),
+    });
+
+    expect(await registry.status(path)).toMatchObject({
+      state: 'no_editor', connected: false,
+      reason: expect.stringContaining('temporarily unreachable'),
+    });
+    expect(existsSync(join(path, EDITOR_SESSION_FILE))).toBe(true);
+    await expect(registry.ensure(path, 100)).resolves.toMatchObject({ connected: true });
+    expect(authenticate).toHaveBeenCalledTimes(2);
+    registry.disconnectAll();
   });
 });

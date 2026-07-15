@@ -359,6 +359,9 @@ describe('golden cold-agent game build', () => {
       await new Promise(resolve => setTimeout(resolve, 100));
     }
     await assertNoLeakedGodotProcesses(root);
+    // SIGTERM can end the editor before EditorPlugin._exit_tree removes its
+    // record. A status read must recognize the dead PID and clean it as stale.
+    await requiredCall(server, 'editor_session', { projectPath, action: 'status' });
     expect(existsSync(join(projectPath, '.godot/godot_agent_loop/editor-session.json'))).toBe(false);
     editorChild = null;
     const active = server;
