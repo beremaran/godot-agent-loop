@@ -14,7 +14,10 @@ const pending = new Map();
 
 function connect() {
   return new Promise((resolve, reject) => {
-    const deadline = Date.now() + 10_000;
+    // A cold Godot 4.4 editor can spend more than ten seconds importing the
+    // fixture on shared CI runners before its loopback server starts listening.
+    // Keep retrying startup separately from the strict per-request timeout.
+    const deadline = Date.now() + 30_000;
     const attempt = () => {
       const socket = createConnection({ host: '127.0.0.1', port });
       socket.once('connect', () => { resolve(socket); });
