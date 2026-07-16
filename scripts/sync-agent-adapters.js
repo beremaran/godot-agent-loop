@@ -32,6 +32,18 @@ function syncJson(path, expected) {
   }
 }
 
+function syncText(path, expected) {
+  const target = join(root, path);
+  if (write) {
+    writeFileSync(target, expected);
+    return;
+  }
+  const actual = readFileSync(target, 'utf8');
+  if (actual !== expected) {
+    throw new Error(`${path} is out of sync with agent-plugin/adapter-manifest.json`);
+  }
+}
+
 function skillFrontmatter(name) {
   const source = readFileSync(join(root, 'agent-plugin', 'skills', name, 'SKILL.md'), 'utf8');
   return parseSkillFrontmatter(source, name);
@@ -44,7 +56,22 @@ assertEqual(
 );
 assertEqual(manifest.mcp.command, ['npx', '-y', `${product.npm.package}@${product.version}`], 'MCP command');
 assertEqual(manifest.skills.map(({ name }) => name), [...manifest.skills.map(({ name }) => name)].sort(), 'skill inventory order');
-for (const declared of manifest.skills) assertEqual(skillFrontmatter(declared.name), declared, `skill ${declared.name}`);
+for (const declared of manifest.skills) {
+  assertEqual(
+    skillFrontmatter(declared.name),
+    { name: declared.name, description: declared.description },
+    `skill ${declared.name}`,
+  );
+  const ui = declared.interface;
+  const openaiYaml = [
+    'interface:',
+    `  display_name: ${JSON.stringify(ui.displayName)}`,
+    `  short_description: ${JSON.stringify(ui.shortDescription)}`,
+    `  default_prompt: ${JSON.stringify(ui.defaultPrompt)}`,
+    '',
+  ].join('\n');
+  syncText(`agent-plugin/skills/${declared.name}/agents/openai.yaml`, openaiYaml);
+}
 
 const mcpServers = {
   mcpServers: {

@@ -130,9 +130,9 @@ describe('runtime G+ rendering tools through MCP', () => {
     expect(resource.tonemap).toBe(2);
     expect(resource.ssao_radius).toBeCloseTo(2.5);
 
-    await expect(game.client.callTool({
-      name: 'game_environment', arguments: { action: 'explode' },
-    })).rejects.toThrow(/action.*get/i);
+    const invalidAction = await game.call('game_environment', { action: 'explode' });
+    expect(invalidAction.isError).toBe(true);
+    expect(invalidAction.text).toMatch(/action.*get/i);
   });
 
   it('game_debug_draw creates every geometry, expires durations, and clears owned nodes', async () => {
@@ -176,9 +176,9 @@ describe('runtime G+ rendering tools through MCP', () => {
     await game.call('game_wait', { frames: 1 });
     expect(await evalResult(game, 'return get_tree().root.has_node("_McpDebugDraw")')).toBe(false);
 
-    await expect(game.client.callTool({
-      name: 'game_debug_draw', arguments: { action: 'line', duration: -1 },
-    })).rejects.toThrow(/duration must be at least 0/i);
+    const invalidDuration = await game.call('game_debug_draw', { action: 'line', duration: -1 });
+    expect(invalidDuration.isError).toBe(true);
+    expect(invalidDuration.text).toMatch(/duration must be at least 0/i);
     const zeroRadius = await game.call('game_debug_draw', { action: 'sphere', radius: 0 });
     expect(zeroRadius.isError).toBe(true);
     expect(zeroRadius.text).toMatch(/greater than zero/i);
@@ -241,7 +241,7 @@ describe('runtime G+ rendering tools through MCP', () => {
       action: 'connect', shaderId, fromNode, toNode,
     });
     expect(missingPorts.isError).toBe(true);
-    expect(missingPorts.text).toMatch(/from_port is required/i);
+    expect(missingPorts.text).toMatch(/fromPort is required/i);
     const badClass = await game.call('game_visual_shader', {
       action: 'add_node', shaderId, nodeClass: 'Node',
     });

@@ -5,7 +5,8 @@ The bundled workflows support Godot 4.7 or later.
 Godot Agent Loop ships one neutral `agent-plugin/` bundle. Its four workflows
 live once under `skills/`; Claude Code, Codex, OpenCode, and Pi consume that same
 tree. `agent-plugin/adapter-manifest.json` owns the shared package version, MCP
-command, environment, skill inventory, and starter prompts.
+command, canonical `core` environment, skill inventory, UI metadata, and each
+skill's direct/hidden tool, privilege, and effect-scope contract.
 
 The formats were rechecked on 2026-07-14 against Claude Code 2.1.208, Codex CLI
 0.144.1, OpenCode 1.17.13, and Pi 0.80.2:
@@ -25,7 +26,17 @@ The formats were rechecked on 2026-07-14 against Claude Code 2.1.208, Codex CLI
 
 Run `npm run adapters:sync` after deliberately changing the adapter manifest.
 Every build rejects a generated manifest, skill trigger, command, environment,
-or package field that has drifted.
+OpenAI interface, or package field that has drifted. All four
+`skills/*/agents/openai.yaml` files are generated from the same interface data.
+Static contract tests classify every backticked reference, reject unknown tools,
+and reject hidden-tool instructions that omit the `godot_catalog` detail then
+`godot_call` sequence.
+
+Trigger boundaries and agent scenarios live under `evals/`. Executable automated
+cases declare their scope separately from external cold-model scenarios.
+Committed cold-model status is `not_run` until a deliberate current-model client
+run records schema-valid, versioned evidence; deterministic MCP replay is a
+separate regression gate.
 
 ## Claude Code
 
@@ -93,8 +104,17 @@ pi install npm:@beremaran/godot-agent-loop
 ```
 
 The extension launches this package's built stdio server, completes the MCP
-handshake, registers the 39 returned default tools, keeps specialized discovery
-behind `godot_tools`, and closes the child server on session shutdown. Pi
+handshake, registers the generated core surface, keeps read-only discovery behind
+`godot_catalog` and hidden execution behind `godot_call`, and closes the child
+server on session shutdown. It derives the surface environment from the adapter
+manifest and displays top-level MCP titles before legacy annotation titles. Pi
 extensions execute with the user's system access; Godot Agent Loop's path,
 mutation, authentication, and privileged-command gates remain in force, but a
 Pi package should still be reviewed before installation.
+
+The packed-layout contract test creates and extracts the public npm archive with
+lifecycle scripts disabled, compares every canonical skill and client adapter
+with the checkout, then runs the packed OpenCode installer and verifies its four
+installed skills and canonical `core` environment. Native client acceptance
+still requires deliberately recorded client/version evidence in the
+[adapter acceptance record](agent-adapter-acceptance.md).

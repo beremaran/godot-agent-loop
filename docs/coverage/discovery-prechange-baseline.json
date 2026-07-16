@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-07-17",
+  "algorithm": "all query terms must be substrings of tool name, description, or actions; definition-order results",
+  "status": "historical-failing-baseline",
+  "passed": false,
+  "queries": [
+    { "query": "hold input while moving", "expected": "game_key_hold", "results": [], "passed": false },
+    { "query": "tap key once", "expected": "game_key_press", "results": [], "passed": false },
+    { "query": "release held input", "expected": "game_key_release", "results": [], "passed": false },
+    { "query": "add 2d lighting", "expected": "game_light_2d", "results": [], "passed": false },
+    { "query": "change 3d lighting", "expected": "game_light_3d", "results": [], "passed": false },
+    { "query": "play audio", "expected": "game_audio_play", "results": ["game_get_audio", "game_audio_play", "game_audio_spatial"], "passed": false },
+    { "query": "inspect audio state", "expected": "game_get_audio", "results": [], "passed": false },
+    { "query": "export game readiness", "expected": "verify_export_readiness", "results": [], "passed": false },
+    { "query": "rename asset safely", "expected": "analyze_project_integrity", "results": [], "passed": false },
+    { "query": "inspect resource dependencies", "expected": "manage_import_pipeline", "results": [], "passed": false },
+    { "query": "wait until label changes", "expected": "game_wait_until", "results": [], "passed": false },
+    { "query": "compare screenshot", "expected": "game_visual_regression", "results": [], "passed": false },
+    { "query": "create terrain", "expected": "game_terrain", "results": ["game_terrain"], "passed": true },
+    { "query": "inspect imports", "expected": "manage_import_pipeline", "results": [], "passed": false },
+    { "query": "inspect addons", "expected": "manage_addon", "results": [], "passed": false },
+    { "query": "dotnet status", "expected": "verify_dotnet_project", "results": [], "passed": false },
+    { "query": "project integrity", "expected": "analyze_project_integrity", "results": ["analyze_project_integrity"], "passed": true },
+    { "query": "persistent scene create", "expected": "create_scene", "results": [], "passed": false },
+    { "query": "runtime temporary node spawn", "expected": "game_spawn_node", "results": [], "passed": false }
+  ]
+}

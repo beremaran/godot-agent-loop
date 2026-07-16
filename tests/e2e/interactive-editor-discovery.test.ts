@@ -144,8 +144,9 @@ describe('persistent editor discovery through the complete MCP path', () => {
         projectPath: project.projectPath, filePath: 'main.gd', content: script,
       });
       expect(fallback.isError, fallback.text).toBe(false);
-      expect(fallback.text).toMatch(/"backend"\s*:\s*"file-backed"/);
-      expect(fallback.text).toMatch(/"sync_status"\s*:\s*"acknowledged"/);
+      expect((fallback.raw as { structuredContent?: unknown }).structuredContent).toMatchObject({
+        meta: { backend: 'file-backed', synchronization: 'acknowledged' },
+      });
 
       const opened = await second.call('editor_control', {
         projectPath: project.projectPath, action: 'open_scene', scenePath: 'main.tscn',
@@ -160,8 +161,14 @@ describe('persistent editor discovery through the complete MCP path', () => {
         projectPath: project.projectPath, filePath: 'main.tscn', content: diskScene,
       });
       expect(conflict.isError, conflict.text).toBe(false);
-      expect(conflict.text).toMatch(/"sync_status"\s*:\s*"conflict"/);
-      expect(conflict.text).toMatch(/unsaved human changes/i);
+      expect((conflict.raw as { structuredContent?: unknown }).structuredContent).toMatchObject({
+        meta: {
+          synchronization: 'conflict',
+          synchronizationEvidence: {
+            fallback_reason: expect.stringMatching(/unsaved human changes/i),
+          },
+        },
+      });
       const inspected = await second.call('editor_control', {
         projectPath: project.projectPath, action: 'inspect',
       });

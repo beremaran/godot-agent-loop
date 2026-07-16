@@ -1,6 +1,7 @@
 # Tool disclosure compatibility decision
 
-Checked against current primary documentation on 2026-07-14.
+Updated for the split catalog/call migration. Current counts and byte/token sizes
+are generated in [`coverage/tool-surface.json`](coverage/tool-surface.json).
 
 ## What clients can be trusted to do
 
@@ -23,13 +24,27 @@ context.
 
 ## Decision
 
-The default is a static 39-tool core that includes `godot_tools`, which can
-search, describe, and call every entry in the complete catalog. This requires
-only the universally usable tools primitive and keeps discovery functional even
-when a client ignores resources and dynamic-list notifications. The full static
-catalog remains available with `GODOT_MCP_TOOL_SURFACE=full` for clients with
-native tool search or workflows that require exact legacy discovery.
+The default is a reviewed static `core` surface. It advertises two separate
+identities:
+
+- `godot_catalog` is read-only and performs ranked `search` and `describe`;
+- `godot_call` conservatively represents mutation/destruction risk and executes
+  one inspected hidden tool.
+
+This uses only the universally available tools primitive and keeps required
+discovery functional when a client ignores resources and dynamic-list
+notifications. `GODOT_MCP_TOOL_SURFACE=full` advertises the complete static
+catalog for clients with native tool search or exact legacy requirements.
+
+`core` is the canonical surface name. `compact` remains an accepted alias during
+the 1.x line, and unknown surface values are rejected. The combined
+`godot_tools search|describe|call` interface remains callable as a deprecated 1.x
+compatibility alias for older clients, but new prompts and shipped skills use the
+split identities. See [the migration guide](tool-surface-migration.md).
 
 Dynamic list changes are not needed because the visible set never changes during
 a connection. Resources may later carry long reference material, but no required
-workflow will depend on a client surfacing them.
+workflow depends on a client surfacing them. The server still supports clients
+that omit roots, progress tokens, cancellation, structured content, and modern
+title/annotation display; these capabilities improve safety or presentation but
+do not change which workflow capabilities are discoverable.

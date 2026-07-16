@@ -1133,7 +1133,73 @@ func read_scene(params: Dictionary) -> OperationResult:
     if scene_root == null:
         return _fail("Failed to instantiate scene: " + full_scene_path)
 
-    var tree_data: Dictionary = _walk_scene_tree(scene_root)
+    var option_keys: Array[String] = [
+        "detail", "node_path", "property_names", "max_depth", "authored_only",
+        "include_defaults", "include_resources", "response_limit",
+    ]
+    var legacy: bool = true
+    for option_key: String in option_keys:
+        if params.has(option_key):
+            legacy = false
+            break
+    var tree_data: Dictionary
+    if legacy:
+        tree_data = _walk_scene_tree(scene_root)
+    else:
+        var detail: String = str(params.get("detail", "compact"))
+        var selector: String = str(params.get("node_path", "."))
+        var selected: Node = _resolve_scene_node(scene_root, selector)
+        if selected == null:
+            scene_root.free()
+            return _fail("Node not found: " + selector)
+        var property_names: Dictionary = {}
+        var requested_properties: Variant = params.get("property_names", [])
+        if requested_properties is Array:
+            for property_name: Variant in requested_properties:
+                property_names[str(property_name)] = true
+        var authored: Dictionary = _scene_authored_properties(scene)
+        var counters: Dictionary = {"total": _count_node_descendants(selected), "returned": 0}
+        tree_data = _walk_scene_tree_selected(
+            selected,
+            detail,
+            property_names,
+            _variant_to_int(params.get("max_depth", 32), 32),
+            _variant_to_bool(params.get("authored_only", detail == "authored")),
+            _variant_to_bool(params.get("include_defaults", detail == "full")),
+            _variant_to_bool(params.get("include_resources", detail != "compact")),
+            authored,
+            counters,
+            0,
+            str(scene_root.get_path_to(selected)),
+        )
+        var response_limit: int = clampi(_variant_to_int(params.get("response_limit", 65536), 65536), 1024, 1048576)
+        var envelope: Dictionary = {
+            "detail": detail,
+            "selector": selector,
+            "tree": tree_data,
+            "total_nodes": counters.total,
+            "returned_nodes": counters.returned,
+            "truncated": false,
+            "response_limit": response_limit,
+        }
+        var serialized: String = JSON.stringify(envelope)
+        var payload_limit: int = maxi(256, response_limit - 128)
+        while serialized.to_utf8_buffer().size() > payload_limit and _prune_scene_payload(tree_data):
+            envelope.returned_nodes = _count_scene_nodes(tree_data)
+            envelope.truncated = true
+            envelope.refinement = "Use nodePath, maxDepth, propertyNames, or detail=compact to narrow the result."
+            serialized = JSON.stringify(envelope)
+        if serialized.to_utf8_buffer().size() > payload_limit:
+            envelope.tree = {"name": tree_data.get("name", ""), "type": tree_data.get("type", "Node"), "content_omitted": true}
+            envelope.returned_nodes = 1
+            envelope.truncated = true
+            envelope.refinement = "The selected node properties exceeded responseLimit; request explicit propertyNames or detail=compact."
+            serialized = JSON.stringify(envelope)
+        envelope.response_bytes = 0
+        for _pass: int in range(2):
+            serialized = JSON.stringify(envelope)
+            envelope.response_bytes = serialized.to_utf8_buffer().size()
+        tree_data = envelope
 
     # Output as JSON for the TypeScript side to parse
     _emit_output("SCENE_JSON_START")
@@ -1187,6 +1253,107 @@ func _walk_scene_tree(node: Node) -> Dictionary:
         info["children"] = children_arr
 
     return info
+
+func _scene_authored_properties(scene: PackedScene) -> Dictionary:
+    var authored: Dictionary = {}
+    var state: SceneState = scene.get_state()
+    for node_index: int in range(state.get_node_count()):
+        var path: String = str(state.get_node_path(node_index))
+        var names: Dictionary = {}
+        for property_index: int in range(state.get_node_property_count(node_index)):
+            names[str(state.get_node_property_name(node_index, property_index))] = true
+        authored[path] = names
+    return authored
+
+func _walk_scene_tree_selected(
+    node: Node,
+    detail: String,
+    property_names: Dictionary,
+    max_depth: int,
+    authored_only: bool,
+    include_defaults: bool,
+    include_resources: bool,
+    authored: Dictionary,
+    counters: Dictionary,
+    depth: int,
+    authored_path: String,
+) -> Dictionary:
+    counters.returned = _variant_to_int(counters.get("returned", 0)) + 1
+    var info: Dictionary = {"name": node.name, "type": node.get_class()}
+    var node_script: Script = node.get_script()
+    if node_script != null:
+        info.script = node_script.resource_path
+    var authored_names: Dictionary = authored.get(authored_path, authored.get("." if depth == 0 else authored_path, {}))
+    if detail != "compact" or not property_names.is_empty():
+        var props: Dictionary = {}
+        for prop: Dictionary in node.get_property_list():
+            var prop_name: String = str(prop.name)
+            var usage: int = _variant_to_int(prop.get("usage", 0))
+            if not (usage & PROPERTY_USAGE_STORAGE):
+                continue
+            if not property_names.is_empty() and not property_names.has(prop_name):
+                continue
+            if authored_only and not authored_names.has(prop_name):
+                continue
+            if not include_defaults and not authored_names.has(prop_name):
+                continue
+            var value: Variant = node.get(prop_name)
+            if value is Resource:
+                var resource_value: Resource = value
+                if include_resources and not resource_value.resource_path.is_empty():
+                    props[prop_name] = resource_value.resource_path
+                continue
+            if value != null:
+                props[prop_name] = _variant_to_string(value)
+        if not props.is_empty():
+            info.properties = props
+    if depth < max_depth:
+        var children: Array[Dictionary] = []
+        for child: Node in node.get_children():
+            var child_path: String = str(node.get_path_to(child)) if authored_path == "." else "%s/%s" % [authored_path.trim_suffix("/"), child.name]
+            children.append(_walk_scene_tree_selected(
+                child, detail, property_names, max_depth, authored_only, include_defaults,
+                include_resources, authored, counters, depth + 1, child_path,
+            ))
+        if not children.is_empty():
+            info.children = children
+    return info
+
+func _prune_last_scene_node(tree: Dictionary) -> bool:
+    var children: Array = tree.get("children", [])
+    if children.is_empty():
+        return false
+    var last: Dictionary = children[children.size() - 1]
+    if _prune_last_scene_node(last):
+        return true
+    children.pop_back()
+    if children.is_empty():
+        var _erased: bool = tree.erase("children")
+    return true
+
+func _prune_scene_payload(tree: Dictionary) -> bool:
+    if _prune_last_scene_node(tree):
+        return true
+    var properties: Dictionary = tree.get("properties", {})
+    if not properties.is_empty():
+        var keys: Array = properties.keys()
+        var _erased_property: bool = properties.erase(keys[keys.size() - 1])
+        if properties.is_empty():
+            var _erased_properties: bool = tree.erase("properties")
+        return true
+    return false
+
+func _count_node_descendants(node: Node) -> int:
+    var count: int = 1
+    for child: Node in node.get_children():
+        count += _count_node_descendants(child)
+    return count
+
+func _count_scene_nodes(tree: Dictionary) -> int:
+    var count: int = 1
+    for child: Dictionary in tree.get("children", []):
+        count += _count_scene_nodes(child)
+    return count
 
 # Modify a node's properties in a scene file
 func modify_node(params: Dictionary) -> OperationResult:

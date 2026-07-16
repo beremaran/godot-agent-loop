@@ -3,10 +3,13 @@ import { accessSync, constants, mkdirSync, mkdtempSync, readdirSync, rmSync, wri
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport, getDefaultEnvironment } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { ListRootsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { toolDefinitions } from '../../../src/tool-definitions.js';
+import { validateAgainstSchema } from '../../../src/tool-argument-validation.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -302,9 +305,17 @@ export interface StartServerOptions {
   project?: { root: string; projectPath: string };
   extraEnv?: Record<string, string>;
   /** Existing exhaustive suites request full discovery; product default is core. */
-  toolSurface?: 'core' | 'full';
+  toolSurface?: 'core' | 'compact' | 'full';
   /** Acceptance tests may inspect uninstall residue after MCP teardown. */
   preserveProject?: boolean;
+  /** Mutable official-client Roots provider used by workspace-boundary tests. */
+  clientRoots?: ClientRootsController;
+}
+
+export interface ClientRootsController {
+  paths: string[];
+  fail?: boolean;
+  requests?: number;
 }
 
 export async function startServer(options: StartServerOptions = {}): Promise<E2EServer> {
@@ -341,7 +352,23 @@ export async function startServer(options: StartServerOptions = {}): Promise<E2E
   transport.stderr?.on('data', (data: Buffer) => {
     serverLogs.push(...data.toString().split('\n').filter(Boolean));
   });
-  const client = new Client({ name: 'godot-agent-loop-e2e', version: '0.0.0' });
+  const client = new Client(
+    { name: 'godot-agent-loop-e2e', version: '0.0.0' },
+    options.clientRoots ? { capabilities: { roots: { listChanged: true } } } : undefined,
+  );
+  if (options.clientRoots) {
+    const roots = options.clientRoots;
+    client.setRequestHandler(ListRootsRequestSchema, async () => {
+      roots.requests = (roots.requests ?? 0) + 1;
+      if (roots.fail) throw new Error('Injected roots refresh failure');
+      return {
+        roots: roots.paths.map((path, index) => ({
+          uri: pathToFileURL(path).href,
+          name: `e2e-root-${index + 1}`,
+        })),
+      };
+    });
+  }
   try {
     await client.connect(transport);
   } catch (error) {
@@ -356,7 +383,22 @@ export async function startServer(options: StartServerOptions = {}): Promise<E2E
   const call: E2EServer['call'] = async (name, args = {}) => {
     const result = await client.callTool({ name, arguments: args });
     const content = (result.content ?? []) as { type: string; text?: string }[];
-    const text = content.filter(item => item.type === 'text').map(item => item.text ?? '').join('\n');
+    const definition = toolDefinitions.find(tool => tool.name === name);
+    if (!definition?.outputSchema) throw new Error(`No advertised output schema for E2E tool ${name}`);
+    if (result.structuredContent === undefined) {
+      throw new Error(`E2E tool ${name} returned no structuredContent`);
+    }
+    const outputIssues = validateAgainstSchema(definition.outputSchema, result.structuredContent);
+    if (outputIssues.length > 0) {
+      throw new Error(`E2E tool ${name} returned invalid structuredContent: ${JSON.stringify(outputIssues)}`);
+    }
+    const compatibilityText = content.at(-1)?.text;
+    if (compatibilityText === undefined
+      || JSON.stringify(JSON.parse(compatibilityText)) !== JSON.stringify(result.structuredContent)) {
+      throw new Error(`E2E tool ${name} did not append equivalent structured JSON text`);
+    }
+    const legacyContent = result.structuredContent === undefined ? content : content.slice(0, -1);
+    const text = legacyContent.filter(item => item.type === 'text').map(item => item.text ?? '').join('\n');
     return { text, isError: result.isError === true, raw: result };
   };
 

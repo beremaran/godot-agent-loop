@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "schemaVersion": 1,
+  "description": "Canonical JSON shapes accepted for Godot Variant-valued tool fields.",
+  "typedWrapper": {
+    "type": "object",
+    "required": ["type", "value"],
+    "additionalProperties": false,
+    "properties": {
+      "type": {
+        "enum": [
+          "Vector2", "Vector2i", "Vector3", "Vector3i", "Vector4", "Vector4i",
+          "Color", "Rect2", "Transform2D", "Transform3D", "Basis", "Quaternion",
+          "NodePath", "StringName", "Resource", "RID"
+        ]
+      },
+      "value": {}
+    }
+  },
+  "examples": {
+    "Vector2": [{ "type": "Vector2", "value": [12, 34] }, { "x": 12, "y": 34 }],
+    "Vector2i": [{ "type": "Vector2i", "value": [12, 34] }, { "x": 12, "y": 34 }],
+    "Vector3": [{ "type": "Vector3", "value": [1, 2, 3] }, { "x": 1, "y": 2, "z": 3 }],
+    "Vector3i": [{ "type": "Vector3i", "value": [1, 2, 3] }, { "x": 1, "y": 2, "z": 3 }],
+    "Vector4": [{ "type": "Vector4", "value": [1, 2, 3, 4] }, { "x": 1, "y": 2, "z": 3, "w": 4 }],
+    "Vector4i": [{ "type": "Vector4i", "value": [1, 2, 3, 4] }, { "x": 1, "y": 2, "z": 3, "w": 4 }],
+    "Color": [{ "type": "Color", "value": "#ff8040cc" }, { "r": 1, "g": 0.5, "b": 0.25, "a": 0.8 }],
+    "Rect2": [{ "position": { "x": 1, "y": 2 }, "size": { "x": 10, "y": 20 } }],
+    "Quaternion": [{ "x": 0, "y": 0, "z": 0, "w": 1 }],
+    "Basis": [{ "x": { "x": 1, "y": 0, "z": 0 }, "y": { "x": 0, "y": 1, "z": 0 }, "z": { "x": 0, "y": 0, "z": 1 } }],
+    "Transform2D": [{ "x": { "x": 1, "y": 0 }, "y": { "x": 0, "y": 1 }, "origin": { "x": 5, "y": 6 } }],
+    "Transform3D": [{ "basis": { "x": { "x": 1, "y": 0, "z": 0 }, "y": { "x": 0, "y": 1, "z": 0 }, "z": { "x": 0, "y": 0, "z": 1 } }, "origin": { "x": 5, "y": 6, "z": 7 } }],
+    "NodePath": [{ "type": "NodePath", "value": "Player/Camera" }],
+    "StringName": [{ "type": "StringName", "value": "move_left" }],
+    "Resource": [{ "type": "Resource", "value": "res://materials/player.tres" }],
+    "Array": [[1, "two", { "x": 3, "y": 4 }]],
+    "Dictionary": [{ "score": 10, "spawn": { "x": 3, "y": 4 } }]
+  },
+  "rid": {
+    "mutationSupported": false,
+    "reason": "An arbitrary live RID cannot be reconstructed safely from JSON; RID output is diagnostic only."
+  },
+  "negativeExamples": [
+    { "targetType": "Vector2", "value": [12], "code": "invalid_variant_shape" },
+    { "targetType": "Vector3", "value": { "x": 1, "y": 2 }, "code": "invalid_variant_shape" },
+    { "targetType": "Color", "value": { "r": 1, "g": "red", "b": 0 }, "code": "invalid_variant_shape" },
+    { "targetType": "Vector2i", "value": { "type": "Vector2i", "value": [1.5, 2] }, "code": "invalid_variant_shape" },
+    { "targetType": "Resource", "value": { "type": "Resource", "value": "/tmp/outside.tres" }, "code": "invalid_variant_shape" },
+    { "targetType": "RID", "value": { "id": 42 }, "code": "unsupported_variant" }
+  ]
+}

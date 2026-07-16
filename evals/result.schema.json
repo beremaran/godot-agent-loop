@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/beremaran/godot-agent-loop/blob/main/evals/result.schema.json",
+  "title": "Godot Agent Loop skill evaluation results",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "scenarioSetVersion", "evaluationMode", "runs"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "scenarioSetVersion": { "type": "integer", "minimum": 1 },
+    "evaluationMode": { "const": "external-cold-model" },
+    "runs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/run" }
+    }
+  },
+  "$defs": {
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scenarioId", "status"],
+      "properties": {
+        "scenarioId": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["not_run", "passed", "failed", "blocked"] },
+        "reason": { "type": "string", "minLength": 1 },
+        "inputs": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["runDate", "client", "clientVersion", "model", "effort", "promptSha256", "skillSha256", "serverVersion", "surface", "advertisedToolCount"],
+          "properties": {
+            "runDate": { "type": "string", "format": "date" },
+            "client": { "type": "string", "minLength": 1 },
+            "clientVersion": { "type": "string", "minLength": 1 },
+            "model": { "type": "string", "minLength": 1 },
+            "effort": { "type": "string", "minLength": 1 },
+            "promptSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+            "skillSha256": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+            "serverVersion": { "type": "string", "minLength": 1 },
+            "surface": { "enum": ["core", "compact", "full"] },
+            "advertisedToolCount": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "metrics": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["taskSuccess", "acceptanceCriteriaPassed", "acceptanceCriteriaTotal", "toolSelectionPrecision", "searchRecallAt1", "searchRecallAt3", "searchRecallAt5", "invalidCalls", "selfCorrections", "toolCalls", "elapsedMs", "responseBytes", "detachedEditorRuntimeMistakes", "humanInterventions", "pauseViolations", "traceAccuracy", "cleanupState"],
+          "properties": {
+            "taskSuccess": { "type": "boolean" },
+            "acceptanceCriteriaPassed": { "type": "integer", "minimum": 0 },
+            "acceptanceCriteriaTotal": { "type": "integer", "minimum": 1 },
+            "toolSelectionPrecision": { "type": "number", "minimum": 0, "maximum": 1 },
+            "searchRecallAt1": { "type": "number", "minimum": 0, "maximum": 1 },
+            "searchRecallAt3": { "type": "number", "minimum": 0, "maximum": 1 },
+            "searchRecallAt5": { "type": "number", "minimum": 0, "maximum": 1 },
+            "invalidCalls": { "type": "integer", "minimum": 0 },
+            "selfCorrections": { "type": "integer", "minimum": 0 },
+            "toolCalls": { "type": "integer", "minimum": 0 },
+            "elapsedMs": { "type": "integer", "minimum": 0 },
+            "responseBytes": { "type": "integer", "minimum": 0 },
+            "detachedEditorRuntimeMistakes": { "type": "integer", "minimum": 0 },
+            "humanInterventions": { "type": "integer", "minimum": 0 },
+            "pauseViolations": { "type": "integer", "minimum": 0 },
+            "traceAccuracy": { "type": "number", "minimum": 0, "maximum": 1 },
+            "cleanupState": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["clean", "ownedProcesses", "bridges", "heldInputs", "temporaryArtifacts"],
+              "properties": {
+                "clean": { "type": "boolean" },
+                "ownedProcesses": { "type": "integer", "minimum": 0 },
+                "bridges": { "type": "integer", "minimum": 0 },
+                "heldInputs": { "type": "integer", "minimum": 0 },
+                "temporaryArtifacts": { "type": "integer", "minimum": 0 }
+              }
+            }
+          }
+        },
+        "criteria": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["criterion", "status", "evidence"],
+            "properties": {
+              "criterion": { "type": "string", "minLength": 1 },
+              "status": { "enum": ["passed", "failed", "blocked", "manual", "unsupported", "unobserved"] },
+              "evidence": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "enum": ["passed", "failed", "blocked"] } }, "required": ["status"] },
+          "then": { "required": ["inputs", "metrics", "criteria"] }
+        },
+        {
+          "if": { "properties": { "status": { "const": "not_run" } }, "required": ["status"] },
+          "then": { "required": ["reason"] }
+        }
+      ]
+    }
+  }
+}

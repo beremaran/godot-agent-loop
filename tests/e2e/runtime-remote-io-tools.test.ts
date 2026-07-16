@@ -174,9 +174,9 @@ describe('runtime remote I/O tools through MCP', () => {
     });
     expect(badHeaders.isError).toBe(true);
     expect(badHeaders.text).toMatch(/header names and values must be strings/i);
-    await expect(server.client.callTool({
-      name: 'game_http_request', arguments: { url: 'file:///etc/passwd' },
-    })).rejects.toThrow(/must match/i);
+    const invalidUrl = await server.call('game_http_request', { url: 'file:///etc/passwd' });
+    expect(invalidUrl.isError).toBe(true);
+    expect(invalidUrl.text).toMatch(/must match/i);
   });
 
   it('game_rpc covers real two-process peers, varargs, targets, local sync, authority, and failures', async () => {
@@ -266,11 +266,11 @@ describe('runtime remote I/O tools through MCP', () => {
     });
     expect(unconfigured.isError).toBe(true);
     expect(unconfigured.text).toMatch(/RPC call failed/i);
-    await expect(server.client.callTool({
-      name: 'game_rpc', arguments: {
-        nodePath: '/root/Main', action: 'call', method: 'record_rpc', args: Array(65).fill(null),
-      },
-    })).rejects.toThrow(/at most 64 items/i);
+    const tooManyArgs = await server.call('game_rpc', {
+      nodePath: '/root/Main', action: 'call', method: 'record_rpc', args: Array(65).fill(null),
+    });
+    expect(tooManyArgs.isError).toBe(true);
+    expect(tooManyArgs.text).toMatch(/at most 64 items/i);
     expect((await peerServer.call('game_multiplayer', { action: 'disconnect' })).isError).toBe(false);
     expect((await server.call('game_multiplayer', { action: 'disconnect' })).isError).toBe(false);
   });

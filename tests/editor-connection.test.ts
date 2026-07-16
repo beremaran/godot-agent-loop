@@ -49,6 +49,21 @@ afterEach(async () => {
 });
 
 describe('EditorConnection protocol handshake', () => {
+  it('honours cancellation before an editor request is written', async () => {
+    const testBridge = await bridge((request, socket) => {
+      reply(socket, request, { success: true, protocol_version: '2' });
+    });
+    const connection = new EditorConnection({ port: testBridge.port, secret: 'secret' });
+    connections.push(connection);
+    const controller = new AbortController();
+    controller.abort('client cancelled');
+
+    await expect(connection.send('inspect', {}, 1_000, controller.signal)).rejects.toMatchObject({
+      name: 'AbortError', message: 'client cancelled',
+    });
+    expect(testBridge.requests).toEqual([]);
+  });
+
   it('authenticates and negotiates compatibility before the first command', async () => {
     const testBridge = await bridge((request, socket) => {
       if (request.command === 'handshake') reply(socket, request, { success: true, protocol_version: '1' });

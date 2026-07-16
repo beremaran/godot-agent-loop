@@ -148,9 +148,11 @@ describe('pinned add-on management through MCP', () => {
       category: 'incompatible_plugin', compatibility: { compatible: false, reason: 'minimum_version_not_met' },
     });
 
-    await expect(server.call('manage_addon', {
+    const traversal = await server.call('manage_addon', {
       projectPath: server.projectPath, action: 'inspect', pluginName: '../escape',
-    })).rejects.toThrow(/pluginName must match/i);
+    });
+    expect(traversal.isError).toBe(true);
+    expect(traversal.text).toMatch(/pluginName must match/i);
     expect(existsSync(join(server.projectPath, 'escape'))).toBe(false);
   });
 });

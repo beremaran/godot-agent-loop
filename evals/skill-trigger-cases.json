@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "skills": [
+    "build-godot-game",
+    "debug-godot-game",
+    "ship-godot-game",
+    "verify-godot-change"
+  ],
+  "cases": [
+    {
+      "id": "build-empty-project",
+      "prompt": "Create a watched Godot game from this empty directory with movement and visible win and lose states.",
+      "expectedSkill": "build-godot-game",
+      "forbiddenSkills": ["debug-godot-game", "ship-godot-game", "verify-godot-change"]
+    },
+    {
+      "id": "build-substantial-feature",
+      "prompt": "Add a complete inventory mechanic with controls, saved scene structure, UI feedback, and a playable acceptance path.",
+      "expectedSkill": "build-godot-game",
+      "forbiddenSkills": ["debug-godot-game", "ship-godot-game", "verify-godot-change"]
+    },
+    {
+      "id": "not-build-fix-regression",
+      "prompt": "The existing player stopped moving after yesterday's input change; reproduce it and fix only the cause.",
+      "expectedSkill": "debug-godot-game",
+      "forbiddenSkills": ["build-godot-game", "ship-godot-game", "verify-godot-change"]
+    },
+    {
+      "id": "not-build-proof-only",
+      "prompt": "Do not edit anything. Verify that the supplied jump change works and list any criterion you cannot observe.",
+      "expectedSkill": "verify-godot-change",
+      "forbiddenSkills": ["build-godot-game", "debug-godot-game", "ship-godot-game"]
+    },
+    {
+      "id": "debug-runtime-failure",
+      "prompt": "Reproduce why this Godot game freezes after opening the pause menu, form a hypothesis, and repair the causal artifact.",
+      "expectedSkill": "debug-godot-game",
+      "forbiddenSkills": ["build-godot-game", "ship-godot-game", "verify-godot-change"]
+    },
+    {
+      "id": "debug-export-failure",
+      "prompt": "The Linux export fails although the editor play button works. Diagnose the export boundary and fix the smallest cause.",
+      "expectedSkill": "debug-godot-game",
+      "forbiddenSkills": ["build-godot-game", "ship-godot-game", "verify-godot-change"]
+    },
+    {
+      "id": "not-debug-release-gate",
+      "prompt": "Prepare a release matrix for Linux and signed macOS, export what is locally available, and report blockers.",
+      "expectedSkill": "ship-godot-game",
+      "forbiddenSkills": ["build-godot-game", "debug-godot-game", "verify-godot-change"]
+    },
+    {
+      "id": "not-debug-existing-proof",
+      "prompt": "Check the already-implemented menu transition without changing the project, even if it fails.",
+      "expectedSkill": "verify-godot-change",
+      "forbiddenSkills": ["build-godot-game", "debug-godot-game", "ship-godot-game"]
+    },
+    {
+      "id": "verify-objective-and-subjective",
+      "prompt": "Verify the supplied camera change. Prove its saved offset and regression behavior, but treat whether it feels cinematic as manual review.",
+      "expectedSkill": "verify-godot-change",
+      "forbiddenSkills": ["build-godot-game", "debug-godot-game", "ship-godot-game"]
+    },
+    {
+      "id": "verify-no-repair",
+      "prompt": "Inspect and prove whether the new health UI meets the criteria. Do not fix failed criteria.",
+      "expectedSkill": "verify-godot-change",
+      "forbiddenSkills": ["build-godot-game", "debug-godot-game", "ship-godot-game"]
+    },
+    {
+      "id": "not-verify-build",
+      "prompt": "Implement a complete dash mechanic and prove the normal, cooldown, success, and failure states.",
+      "expectedSkill": "build-godot-game",
+      "forbiddenSkills": ["debug-godot-game", "ship-godot-game", "verify-godot-change"]
+    },
+    {
+      "id": "not-verify-fix",
+      "prompt": "Reproduce the incorrect score reset, diagnose it, fix it, and rerun the exact reproduction.",
+      "expectedSkill": "debug-godot-game",
+      "forbiddenSkills": ["build-godot-game", "ship-godot-game", "verify-godot-change"]
+    },
+    {
+      "id": "ship-matrix",
+      "prompt": "Gate this Godot project for release, inspect the available Linux artifact, and leave the unavailable signing target blocked.",
+      "expectedSkill": "ship-godot-game",
+      "forbiddenSkills": ["build-godot-game", "debug-godot-game", "verify-godot-change"]
+    },
+    {
+      "id": "ship-dotnet-readiness",
+      "prompt": "Check the C# build, addons, imports, export templates, artifacts, and smoke evidence needed to ship this game.",
+      "expectedSkill": "ship-godot-game",
+      "forbiddenSkills": ["build-godot-game", "debug-godot-game", "verify-godot-change"]
+    },
+    {
+      "id": "not-ship-single-bug",
+      "prompt": "Find and repair why one enemy scene throws an error when instantiated; no release work is requested.",
+      "expectedSkill": "debug-godot-game",
+      "forbiddenSkills": ["build-godot-game", "ship-godot-game", "verify-godot-change"]
+    },
+    {
+      "id": "not-ship-feature",
+      "prompt": "Create a new playable boss encounter with controls, feedback, and win and lose behavior.",
+      "expectedSkill": "build-godot-game",
+      "forbiddenSkills": ["debug-godot-game", "ship-godot-game", "verify-godot-change"]
+    }
+  ]
+}

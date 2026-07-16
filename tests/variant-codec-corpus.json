@@ -3,10 +3,14 @@
   "typeHints": [
     "",
     "String",
+    "StringName",
+    "NodePath",
     "Vector2",
     "Vector2i",
     "Vector3",
     "Vector3i",
+    "Vector4",
+    "Vector4i",
     "Color",
     "Quaternion",
     "Rect2",
@@ -25,6 +29,8 @@
     { "name": "vector2i", "typeHint": "Vector2i", "wire": { "x": 3, "y": -4 } },
     { "name": "vector3", "typeHint": "Vector3", "wire": { "x": 1.25, "y": -2.5, "z": 3.75 } },
     { "name": "vector3i", "typeHint": "Vector3i", "wire": { "x": 3, "y": -4, "z": 5 } },
+    { "name": "vector4", "typeHint": "Vector4", "wire": { "x": 1.25, "y": -2.5, "z": 3.75, "w": 4.5 } },
+    { "name": "vector4i", "typeHint": "Vector4i", "wire": { "x": 3, "y": -4, "z": 5, "w": 6 } },
     { "name": "color", "typeHint": "Color", "wire": { "r": 0.1, "g": 0.2, "b": 0.3, "a": 0.4 } },
     { "name": "quaternion", "typeHint": "Quaternion", "wire": { "x": 0.1, "y": -0.2, "z": 0.3, "w": 0.9 } },
     { "name": "rect2", "typeHint": "Rect2", "wire": { "position": { "x": 1.25, "y": -2.5 }, "size": { "x": 10, "y": 20 } } },
@@ -32,8 +38,8 @@
     { "name": "basis", "typeHint": "Basis", "wire": { "x": { "x": 1, "y": 2, "z": 3 }, "y": { "x": 4, "y": 5, "z": 6 }, "z": { "x": 7, "y": 8, "z": 9 } } },
     { "name": "transform3d", "typeHint": "Transform3D", "wire": { "basis": { "x": { "x": 1, "y": 2, "z": 3 }, "y": { "x": 4, "y": 5, "z": 6 }, "z": { "x": 7, "y": 8, "z": 9 } }, "origin": { "x": 10, "y": 11, "z": 12 } } },
     { "name": "transform2d", "typeHint": "Transform2D", "wire": { "x": { "x": 1, "y": 2 }, "y": { "x": 3, "y": 4 }, "origin": { "x": 5, "y": 6 } } },
-    { "name": "node_path", "wire": "CodecFixture/CodecNode" },
-    { "name": "string_name", "wire": "codec-name" },
+    { "name": "node_path", "typeHint": "NodePath", "wire": "CodecFixture/CodecNode" },
+    { "name": "string_name", "typeHint": "StringName", "wire": "codec-name" },
     { "name": "packed_byte_array", "wire": [1, 2, 255] },
     { "name": "packed_int32_array", "wire": [-2, 4, 8] },
     { "name": "packed_int64_array", "wire": [-2, 4, 8] },
@@ -48,6 +54,15 @@
     { "name": "node", "wire": { "_type": "Node", "class": "Node", "name": "CodecNode", "path": "/root/CodecFixture/CodecNode" } },
     { "name": "object", "wire": { "_type": "Object", "class": "Object" }, "dynamicKeys": ["id"] }
   ],
+  "typedWrappers": [
+    { "name": "wrapped_vector2i", "typeHint": "Vector2i", "wire": { "type": "Vector2i", "value": [3, -4] } },
+    { "name": "wrapped_quaternion", "typeHint": "Quaternion", "wire": { "type": "Quaternion", "value": [0, 0, 0, 1] } },
+    { "name": "wrapped_basis", "typeHint": "Basis", "wire": { "type": "Basis", "value": { "x": { "x": 1, "y": 0, "z": 0 }, "y": { "x": 0, "y": 1, "z": 0 }, "z": { "x": 0, "y": 0, "z": 1 } } } },
+    { "name": "wrapped_transform2d", "typeHint": "Transform2D", "wire": { "type": "Transform2D", "value": { "x": { "x": 1, "y": 0 }, "y": { "x": 0, "y": 1 }, "origin": { "x": 5, "y": 6 } } } },
+    { "name": "wrapped_node_path", "typeHint": "NodePath", "wire": { "type": "NodePath", "value": "CodecFixture/CodecNode" } },
+    { "name": "wrapped_string_name", "typeHint": "StringName", "wire": { "type": "StringName", "value": "codec-name" } },
+    { "name": "wrapped_resource", "typeHint": "Resource", "wire": { "type": "Resource", "value": "res://mcp_runtime/variant_codec.gd" } }
+  ],
   "negative": [
     { "name": "array_cycle", "reason": "codec_cycle" },
     { "name": "dictionary_cycle", "reason": "codec_cycle" },
@@ -55,7 +70,12 @@
     { "name": "signal", "reason": "unsupported_variant" },
     { "name": "rid", "reason": "unsupported_variant" },
     { "name": "invalid_type_hint", "reason": "invalid_type_hint" },
+    { "name": "invalid_variant_shape", "reason": "invalid_variant_shape" },
     { "name": "depth_exceeded", "reason": "codec_depth_exceeded" },
-    { "name": "collection_exceeded", "reason": "codec_collection_exceeded" }
+    { "name": "collection_exceeded", "reason": "codec_collection_exceeded" },
+    { "name": "rid_wrapper", "reason": "unsupported_variant" },
+    { "name": "integer_wrapper_fraction", "reason": "invalid_variant_shape" },
+    { "name": "resource_wrapper_outside_project", "reason": "invalid_variant_shape" },
+    { "name": "wrapper_target_mismatch", "reason": "invalid_variant_shape" }
   ]
 }

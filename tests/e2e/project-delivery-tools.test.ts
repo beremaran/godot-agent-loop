@@ -89,7 +89,6 @@ describe('project creation and delivery tools through MCP', () => {
 
     const dotnetInspection = await game.call('verify_dotnet_project', {
       projectPath: dotnetProject, action: 'inspect', csprojPath: '_9_Agent_Game.csproj',
-      configuration: 'Debug', timeoutSeconds: 120, runTimeoutSeconds: 5,
     });
     expect(dotnetInspection.isError, dotnetInspection.text).toBe(false);
     expect(JSON.parse(dotnetInspection.text)).toMatchObject({
@@ -136,7 +135,7 @@ describe('project creation and delivery tools through MCP', () => {
 
     if (process.env.GODOT_MCP_DOTNET_TEST === '1') {
       const restored = await game.call('verify_dotnet_project', {
-        projectPath: dotnetProject, action: 'restore', configuration: 'Release',
+        projectPath: dotnetProject, action: 'restore',
       });
       expect(restored.isError, restored.text).toBe(false);
       expect(JSON.parse(restored.text)).toMatchObject({ category: 'success', restore: { ok: true, diagnostics: [] } });
@@ -237,9 +236,11 @@ describe('project creation and delivery tools through MCP', () => {
     const dockerRead = await game.call('manage_docker_export', { projectPath, action: 'read' });
     expect(dockerRead.isError, dockerRead.text).toBe(false);
     expect(dockerRead.text).toBe(dockerfile);
-    await expect(game.call('manage_docker_export', {
+    const invalidPreset = await game.call('manage_docker_export', {
       projectPath, action: 'create', exportPreset: 'Linux"; RUN touch /tmp/pwned',
-    })).rejects.toThrow(/exportPreset must match/i);
+    });
+    expect(invalidPreset.isError).toBe(true);
+    expect(invalidPreset.text).toMatch(/exportPreset must match/i);
   });
 
   it('keeps export inspection, classification, and output paths portable', async () => {

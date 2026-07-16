@@ -3,7 +3,12 @@ import { describe, expect, it } from 'vitest';
 import { EditorMutationGuard, AGENT_MUTATIONS_PAUSED_MESSAGE } from '../src/editor-mutation-guard.js';
 import { EditorBridgeCompatibilityError } from '../src/editor-connection.js';
 import { toolManifest } from '../src/tool-manifest.js';
-import { isToolCallMutating, READ_ONLY_ACTIONS, READ_ONLY_TOOLS } from '../src/tool-mutation-policy.js';
+import {
+  isToolCallAllowedWhilePaused,
+  isToolCallMutating,
+  READ_ONLY_ACTIONS,
+  READ_ONLY_TOOLS,
+} from '../src/tool-mutation-policy.js';
 
 describe('tool mutation policy', () => {
   it('defaults unknown, missing, and data-valued actions to mutating', () => {
@@ -22,6 +27,12 @@ describe('tool mutation policy', () => {
     expect(isToolCallMutating('game_set_property', {})).toBe(true);
     expect(isToolCallMutating('editor_control', { action: 'save' })).toBe(true);
     expect(isToolCallMutating('game_window', { action: 'set' })).toBe(true);
+  });
+
+  it('allows the watched editor control channel to be re-established while paused', () => {
+    expect(isToolCallAllowedWhilePaused('launch_editor', {})).toBe(true);
+    expect(isToolCallAllowedWhilePaused('editor_session', { action: 'ensure' })).toBe(true);
+    expect(isToolCallAllowedWhilePaused('run_project', {})).toBe(false);
   });
 
   it('keeps every read-only exemption aligned with the exhaustive manifest', () => {

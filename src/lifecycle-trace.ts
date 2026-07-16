@@ -1,12 +1,13 @@
 import { randomUUID } from 'node:crypto';
 
 export type LifecyclePhase = 'start' | 'backend' | 'sync' | 'commit' | 'finish' | 'cleanup' | 'state';
-export type LifecycleOutcome = 'running' | 'success' | 'failure' | 'timeout' | 'fallback' | 'paused' | 'conflict';
+export type LifecycleOutcome = 'running' | 'success' | 'failure' | 'timeout' | 'fallback' | 'paused' | 'conflict' | 'cancelled';
 
 export interface LifecycleTraceEvent extends Record<string, unknown> {
   event_id: number;
   timestamp: string;
   correlation_id: string;
+  parent_correlation_id?: string;
   tool: string;
   command: string;
   target_backend: string;
@@ -20,6 +21,7 @@ export interface LifecycleTraceEvent extends Record<string, unknown> {
 export interface TraceSpan {
   projectPath: string;
   correlationId: string;
+  parentCorrelationId?: string;
   tool: string;
   command: string;
   backend: string;
@@ -45,12 +47,23 @@ export class LifecycleTrace {
     this.nextEventId = Math.floor(this.now() * 1_000);
   }
 
-  begin(projectPath: string, tool: string, command: string, backend: string): TraceSpan {
+  begin(
+    projectPath: string,
+    tool: string,
+    command: string,
+    backend: string,
+    identifiers: { correlationId?: string; parentCorrelationId?: string } = {},
+  ): TraceSpan {
     const span: TraceSpan = {
-      projectPath, correlationId: randomUUID(), tool, command, backend, startedAt: this.now(),
+      projectPath,
+      correlationId: identifiers.correlationId ?? randomUUID(),
+      ...(identifiers.parentCorrelationId ? { parentCorrelationId: identifiers.parentCorrelationId } : {}),
+      tool, command, backend, startedAt: this.now(),
     };
     this.record(projectPath, {
-      correlation_id: span.correlationId, tool, command, target_backend: backend,
+      correlation_id: span.correlationId,
+      ...(span.parentCorrelationId ? { parent_correlation_id: span.parentCorrelationId } : {}),
+      tool, command, target_backend: backend,
       phase: 'start', outcome: 'running', duration_ms: 0, source: 'agent',
     });
     return span;
@@ -59,6 +72,7 @@ export class LifecycleTrace {
   finish(span: TraceSpan, outcome: LifecycleOutcome, details?: unknown): LifecycleTraceEvent {
     return this.record(span.projectPath, {
       correlation_id: span.correlationId, tool: span.tool, command: span.command,
+      ...(span.parentCorrelationId ? { parent_correlation_id: span.parentCorrelationId } : {}),
       target_backend: span.backend, phase: 'finish', outcome,
       duration_ms: Math.max(0, this.now() - span.startedAt), source: 'agent',
       ...(details === undefined ? {} : { details }),

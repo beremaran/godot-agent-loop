@@ -1,19 +1,39 @@
 # Tool catalog
 
-Godot Agent Loop exposes 171 tools. The default MCP surface advertises a
-compact core of 40 tools, including the `godot_tools` meta-tool, which searches,
-describes, and dispatches everything below on demand. Set
-`GODOT_MCP_TOOL_SURFACE=full` to advertise the complete static catalog
-instead.
+Godot Agent Loop advertises a reviewed `core` surface within the generated
+[surface budget](coverage/tool-surface.json). Read-only `godot_catalog` searches
+and describes the complete catalog; `godot_call` executes one hidden tool after
+inspection. Set `GODOT_MCP_TOOL_SURFACE=full` to advertise the complete static
+catalog. The former `compact` surface name aliases `core` during migration.
 
 Per-tool verification status, action inventories, and test references are
 published in the generated [coverage report](coverage/coverage-report.md).
 
-## Meta & editor bridge (4 tools)
+## Calling contract
+
+Every advertised tool has a human title, closed input schema where applicable,
+output schema, conservative effect annotations, and structured success/error
+content. Equivalent serialized JSON text remains for older clients. A structured
+argument error is a tool result with a field path and remediation; protocol
+errors remain reserved for malformed MCP messages and unknown tools.
+
+Effect scopes distinguish `read-only`, `project-persistent`,
+`runtime-ephemeral`, `process`, and `external-open-world` behavior. An annotation
+is a UI hint, not authorization: project roots, Pause Agent, privilege,
+authentication, and mutation policy are enforced by the server.
+
+Clients that advertise MCP roots constrain project access further; configured
+allowed directories still apply. Long operations report progress only when the
+request includes a progress token and honor MCP cancellation where safe. Clients
+without these optional capabilities retain the bounded compatibility path.
+
+## Meta & editor bridge
 
 | Tool | Description |
 | ------ | ------------- |
-| `godot_tools` | Search, describe, and dispatch any tool in this catalog |
+| `godot_catalog` | Read-only ranked search and summary/schema/full description for any catalog tool |
+| `godot_call` | Execute one inspected hidden tool with its effective scope, privilege group, and trace identity |
+| `godot_tools` | Deprecated 1.x compatibility alias for legacy search, describe, and call clients |
 | `editor_session` | Idempotently discover/attach, inspect, or disconnect a project editor session |
 | `editor_control` | Inspect editor state and apply reversible edits through the editor bridge |
 | `editor_transaction` | Commit one validated compound scene edit as one editor undo step |
@@ -31,14 +51,15 @@ human changes. Results distinguish persisted, acknowledged, detached,
 conflicted, timed-out, and failed synchronization. When an
 operation identifies a scene node, the bridge selects and reveals it in the
 editor so the human view follows the agent's current target. The dock's
-**Pause Agent** button gives the human a cooperative editing lock: subsequent
-mutating tools are refused before dispatch while inspection remains available;
-**Resume Agent** returns control. The lock defaults to agent-driving and does
-not affect unattended use when no editor is open. Setup, uninstall, security,
-protocol migration, and all session states are documented in the
+**Pause Agent** button gives the human a project-wide lock: subsequent persistent
+and runtime mutations, including dispatched and scenario-contained calls, are
+refused before dispatch. Observation, held-input release, stop, cleanup, and a
+human-initiated **Resume Agent** remain available. The lock defaults to
+agent-driving and does not affect unattended use when no editor is open. Setup,
+uninstall, security, protocol migration, and all session states are documented in the
 [interaction architecture](architecture/editor-interaction.md).
 
-## Project Management (16 tools)
+## Project Management
 
 | Tool | Description |
 | ------ | ------------- |
@@ -58,6 +79,11 @@ protocol migration, and all session states are documented in the
 | `get_godot_version` | Get installed Godot version |
 | `list_projects` | Find Godot projects in a directory |
 | `get_project_info` | Get project metadata (including an `isDotnet` field) |
+
+`run_project` succeeds only after the authenticated runtime bridge is usable by
+the next runtime tool. A watched request attaches to the requested editor or
+deliberately launches one; it returns an actionable failure and cleans owned
+state rather than silently continuing detached.
 
 Import changes require an editor-capable Godot binary. `reimport` runs Godot's
 bounded `--import` workflow and returns diagnostics; it may rewrite `.import`
@@ -89,7 +115,7 @@ non-`@tool` scripts, incompatible minimum Godot versions, and traversal are
 rejected. Replacement is staged atomically, editor reload is mandatory, and a
 parse/load failure restores the prior version and plugin configuration.
 
-## Scene Management (7 tools)
+## Scene Management
 
 | Tool | Description |
 | ------ | ------------- |
@@ -101,19 +127,19 @@ parse/load failure restores the prior version and plugin configuration.
 | `get_uid` | Get UID for a file (Godot 4.4+) |
 | `update_project_uids` | Resave resources to update UIDs |
 
-## Scene Authoring Operations (5 tools)
+## Scene Authoring Operations
 
 These operate directly on `.tscn`/`.tres` files — no running game needed.
 
 | Tool | Description |
 | ------ | ------------- |
-| `read_scene` | Read full scene tree as JSON (falls back to raw `.tscn` text on missing dependencies) |
+| `read_scene` | Read bounded `compact`, authored-property, or explicit `full` scene detail, with node/property filters |
 | `modify_scene_node` | Modify node properties in a scene file |
 | `remove_scene_node` | Remove a node from a scene file |
 | `attach_script` | Attach a GDScript to a scene node |
 | `create_resource` | Create a .tres resource file (materials, themes, etc.) |
 
-## Project Settings (3 tools)
+## Project Settings
 
 | Tool | Description |
 | ------ | ------------- |
@@ -121,25 +147,25 @@ These operate directly on `.tscn`/`.tres` files — no running game needed.
 | `modify_project_settings` | Change a project setting |
 | `list_project_files` | Paginate/filter project files |
 
-## Runtime Input (5 tools)
+## Runtime Input
 
 | Tool | Description |
 | ------ | ------------- |
 | `game_screenshot` | Capture a screenshot (base64 PNG) |
 | `game_visual_regression` | Capture baselines or compare frames with masks, tolerances, and retained PNG diffs |
 | `game_click` | Click at a position |
-| `game_key_press` | Send key press or input action |
+| `game_key_press` | Send a one-frame key or named-action tap; use hold/release for continuous input |
 | `game_mouse_move` | Move the mouse |
 
-## Runtime Inspection (3 tools)
+## Runtime Inspection
 
 | Tool | Description |
 | ------ | ------------- |
 | `game_get_ui` | Get all visible UI elements |
-| `game_get_scene_tree` | Get full scene tree structure |
+| `game_get_scene_tree` | Get a bounded concise scene tree, with explicit full detail when needed |
 | `game_get_node_info` | Detailed node introspection: properties, signals, methods, children |
 
-## Runtime Code Execution (1 tool)
+## Runtime Code Execution
 
 | Tool | Description |
 | ------ | ------------- |
@@ -150,7 +176,7 @@ is paused (`PROCESS_MODE_ALWAYS`). It belongs to the `code-execution`
 privileged group and is denied by default; see the security notes in the
 [README](../README.md#runtime-tools-setup).
 
-## Runtime Node Manipulation (7 tools)
+## Runtime Node Manipulation
 
 | Tool | Description |
 | ------ | ------------- |
@@ -166,7 +192,7 @@ Property access uses the node's `get_property_list()` for automatic type
 conversion, supporting Vector2/3, Color, Quaternion, Basis, Transform2D/3D,
 AABB, Rect2, and all packed array types (serialized as proper JSON arrays).
 
-## Runtime Signals (5 tools)
+## Runtime Signals
 
 | Tool | Description |
 | ------ | ------------- |
@@ -176,14 +202,14 @@ AABB, Rect2, and all packed array types (serialized as proper JSON arrays).
 | `game_list_signals` | List all signals on a node with connections |
 | `game_await_signal` | Await a signal with timeout and return args |
 
-## Runtime Animation (2 tools)
+## Runtime Animation
 
 | Tool | Description |
 | ------ | ------------- |
 | `game_play_animation` | Control AnimationPlayer (play, stop, pause, list) |
 | `game_tween_property` | Tween a property with configurable easing |
 
-## Runtime Utilities (5 tools)
+## Runtime Utilities
 
 | Tool | Description |
 | ------ | ------------- |
@@ -193,7 +219,7 @@ AABB, Rect2, and all packed array types (serialized as proper JSON arrays).
 | `game_get_nodes_in_group` | Query nodes by group |
 | `game_find_nodes_by_class` | Find nodes by class type |
 
-## File I/O (4 tools)
+## File I/O
 
 | Tool | Description |
 | ------ | ------------- |
@@ -202,14 +228,14 @@ AABB, Rect2, and all packed array types (serialized as proper JSON arrays).
 | `delete_file` | Delete a file from a project |
 | `create_directory` | Create a directory inside a project |
 
-## Error & Log Capture (2 tools)
+## Error & Log Capture
 
 | Tool | Description |
 | ------ | ------------- |
 | `game_get_errors` | Get new push_error/push_warning messages since last call |
 | `game_get_logs` | Get new print output since last call |
 
-## Enhanced Input (8 tools)
+## Enhanced Input
 
 | Tool | Description |
 | ------ | ------------- |
@@ -222,7 +248,7 @@ AABB, Rect2, and all packed array types (serialized as proper JSON arrays).
 | `game_input_state` | Query pressed keys, mouse position, connected pads |
 | `game_input_action` | Manage runtime InputMap actions and strength |
 
-## Project Creation (5 tools)
+## Project Creation
 
 | Tool | Description |
 | ------ | ------------- |
@@ -232,7 +258,7 @@ AABB, Rect2, and all packed array types (serialized as proper JSON arrays).
 | `manage_input_map` | Add, remove, or list input actions and key bindings |
 | `manage_export_presets` | Create or modify export presets |
 
-## Advanced Runtime (23 tools)
+## Advanced Runtime
 
 | Tool | Description |
 | ------ | ------------- |
@@ -260,7 +286,7 @@ AABB, Rect2, and all packed array types (serialized as proper JSON arrays).
 | `game_viewport` | Create or configure a SubViewport node |
 | `game_debug_draw` | Draw debug geometry (lines, spheres, boxes) in 3D |
 
-## Build & Export (3 tools)
+## Build & Export
 
 | Tool | Description |
 | ------ | ------------- |
@@ -268,7 +294,7 @@ AABB, Rect2, and all packed array types (serialized as proper JSON arrays).
 | `manage_ci_pipeline` | Create/read GitHub Actions workflow for automated Godot exports |
 | `manage_docker_export` | Create Dockerfile for headless Godot export |
 
-## Networking (4 tools)
+## Networking
 
 | Tool | Description |
 | ------ | ------------- |
@@ -280,7 +306,7 @@ AABB, Rect2, and all packed array types (serialized as proper JSON arrays).
 Networking tools belong to the `network` privileged group and are denied by
 default.
 
-## System & Window (6 tools)
+## System & Window
 
 | Tool | Description |
 | ------ | ------------- |
@@ -291,7 +317,7 @@ default.
 | `game_process_mode` | Set node process mode (pausable/always/disabled) |
 | `game_world_settings` | Get/set gravity, physics FPS, and world settings |
 
-## 3D Rendering & Geometry (14 tools)
+## 3D Rendering & Geometry
 
 | Tool | Description |
 | ------ | ------------- |
@@ -310,7 +336,7 @@ default.
 | `game_physics_3d` | Area3D queries and point/shape intersection tests |
 | `game_terrain` | Create/modify terrain meshes from heightmap data |
 
-## 2D Systems (7 tools)
+## 2D Systems
 
 | Tool | Description |
 | ------ | ------------- |
@@ -322,7 +348,7 @@ default.
 | `game_path_2d` | Path2D/Curve2D management and AnimatedSprite2D |
 | `game_physics_2d` | Area2D queries and 2D point/shape intersections |
 
-## Advanced Animation (3 tools)
+## Advanced Animation
 
 | Tool | Description |
 | ------ | ------------- |
@@ -330,7 +356,7 @@ default.
 | `game_animation_control` | AnimationPlayer seek/queue/speed/info control |
 | `game_skeleton_ik` | SkeletonIK3D start/stop/set target position |
 
-## Advanced Audio (3 tools)
+## Advanced Audio
 
 | Tool | Description |
 | ------ | ------------- |
@@ -338,7 +364,7 @@ default.
 | `game_audio_bus_layout` | Create/remove/reorder audio buses and routing |
 | `game_audio_spatial` | Configure AudioStreamPlayer3D spatial properties |
 
-## Editor & Project Tools (14 tools)
+## Editor & Project Tools
 
 | Tool | Description |
 | ------ | ------------- |
@@ -357,7 +383,7 @@ default.
 | `manage_translations` | List/add/remove translation files in project |
 | `game_locale` | Set/get locale and translate strings at runtime |
 
-## UI Controls (8 tools)
+## UI Controls
 
 | Tool | Description |
 | ------ | ------------- |
@@ -370,7 +396,7 @@ default.
 | `game_ui_menu` | PopupMenu/MenuBar: add/remove/get menu items |
 | `game_ui_range` | ProgressBar/Slider/SpinBox/ColorPicker get/set |
 
-## Rendering & Resources (4 tools)
+## Rendering & Resources
 
 | Tool | Description |
 | ------ | ------------- |

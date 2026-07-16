@@ -26,4 +26,8 @@ export const GODOT_EXPORT_OPTIONS: ExecFileOptionsWithStringEncoding = {
 
 /** Long-running game processes retain only recent output to protect server memory. */
 export const GODOT_PROCESS_LOG_LINE_LIMIT = 1_000;
+/** One pathological print must not dominate retained memory or an observation page. */
+export const GODOT_PROCESS_LOG_LINE_LIMIT_BYTES = 64 * 1024;
+/** Cursor reads leave space for their JSON and structured MCP envelopes. */
+export const GODOT_PROCESS_OBSERVATION_PAGE_BYTES = 192 * 1024;
 export const GODOT_GRACEFUL_SHUTDOWN_TIMEOUT_MS = 5_000;

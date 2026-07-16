@@ -1,4 +1,4 @@
 interface:
   display_name: "Ship Godot Game"
-  short_description: "Verify and prepare a Godot game release"
-  default_prompt: "Use $ship-godot-game to verify export readiness and prepare this Godot game for release."
+  short_description: "Gate and prepare a reproducible Godot release"
+  default_prompt: "Use $ship-godot-game to verify release readiness, inspect produced artifacts, and report passed, failed, blocked, manual, and unsupported gates."

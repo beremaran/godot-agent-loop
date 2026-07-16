@@ -1930,7 +1930,7 @@ describe('executeOperation parameter conversion', () => {
 describe('Tool registry dispatch', () => {
   it('delegates tool calls through ToolRegistry', () => {
     expect(sourceCode).toContain('new ToolRegistry(createToolHandlers({');
-    expect(sourceCode).toContain('let response = await tools.dispatch(toolName, argumentsValue)');
+    expect(sourceCode).toContain('return tools.dispatch(toolName, argumentsValue');
   });
 
   it('does not retain the monolithic switch', () => {

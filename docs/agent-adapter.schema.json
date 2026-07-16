@@ -15,12 +15,16 @@
     "mcp": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["command", "environment", "defaultToolCount", "discoveryTool"],
+      "required": ["command", "environment", "canonicalSurface", "surfaceAliases", "catalogTool", "callTool", "deprecatedCompatibilityTool", "compatibilityThrough"],
       "properties": {
         "command": { "type": "array", "minItems": 1, "items": { "type": "string" } },
         "environment": { "type": "object", "additionalProperties": { "type": "string" } },
-        "defaultToolCount": { "type": "integer", "minimum": 1 },
-        "discoveryTool": { "type": "string", "minLength": 1 }
+        "canonicalSurface": { "const": "core" },
+        "surfaceAliases": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+        "catalogTool": { "const": "godot_catalog" },
+        "callTool": { "const": "godot_call" },
+        "deprecatedCompatibilityTool": { "const": "godot_tools" },
+        "compatibilityThrough": { "type": "string", "minLength": 1 }
       }
     },
     "skills": {
@@ -29,14 +33,51 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["name", "description"],
+        "required": ["name", "description", "interface", "toolContract"],
         "properties": {
           "name": { "type": "string", "pattern": "^[a-z0-9-]+$" },
-          "description": { "type": "string", "minLength": 1 }
+          "description": { "type": "string", "minLength": 1 },
+          "interface": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["displayName", "shortDescription", "defaultPrompt"],
+            "properties": {
+              "displayName": { "type": "string", "minLength": 1 },
+              "shortDescription": { "type": "string", "minLength": 25, "maxLength": 64 },
+              "defaultPrompt": { "type": "string", "minLength": 1 }
+            }
+          },
+          "toolContract": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["direct", "hidden", "privilegedGroups", "effectScopes"],
+            "properties": {
+              "direct": { "$ref": "#/$defs/toolNames" },
+              "hidden": { "$ref": "#/$defs/toolNames" },
+              "privilegedGroups": {
+                "type": "array",
+                "uniqueItems": true,
+                "items": { "enum": ["reflection", "code-execution", "network"] }
+              },
+              "effectScopes": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": { "enum": ["read-only", "project-persistent", "runtime-ephemeral", "process", "external-open-world"] }
+              }
+            }
+          }
         }
       }
     },
     "defaultPrompts": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
     "clients": { "type": "object", "required": ["claudeCode", "codex", "openCode", "pi"] }
+  },
+  "$defs": {
+    "toolNames": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" }
+    }
   }
 }

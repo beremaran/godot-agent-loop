@@ -120,6 +120,41 @@ describe('scene authoring', () => {
     expect(read.text).toContain('"Player"');
   });
 
+  it('read_scene supports bounded compact, authored, and full observations', async () => {
+    const compact = await call('read_scene', {
+      scenePath: 'scenes/level.tscn',
+      detail: 'compact',
+      nodePath: 'Player',
+      propertyNames: ['position', 'visible'],
+      maxDepth: 0,
+      authoredOnly: true,
+      includeDefaults: false,
+      includeResources: false,
+      responseLimit: 4096,
+    });
+    expect(compact.isError, compact.text).toBe(false);
+    expect(JSON.parse(compact.text)).toMatchObject({
+      detail: 'compact',
+      selector: 'Player',
+      truncated: false,
+      response_limit: 4096,
+      tree: { name: 'Player', type: 'Sprite2D' },
+    });
+
+    const authored = await call('read_scene', {
+      scenePath: 'scenes/level.tscn', detail: 'authored', maxDepth: 1,
+    });
+    expect(authored.isError, authored.text).toBe(false);
+    expect(JSON.parse(authored.text)).toMatchObject({ detail: 'authored' });
+
+    const full = await call('read_scene', {
+      scenePath: 'scenes/level.tscn', detail: 'full', responseLimit: 1024,
+    });
+    expect(full.isError, full.text).toBe(false);
+    expect(Buffer.byteLength(full.text, 'utf8'), full.text).toBeLessThanOrEqual(1024);
+    expect(JSON.parse(full.text)).toMatchObject({ detail: 'full', response_limit: 1024 });
+  });
+
   it('modify_scene_node fails for a missing node', async () => {
     const result = await call('modify_scene_node', {
       scenePath: 'scenes/level.tscn',
@@ -211,7 +246,7 @@ describe('manage_scene_structure actions', () => {
       scenePath: 'scenes/structure.tscn', action: 'explode', nodePath: 'Container',
     });
     expect(unknown.isError).toBe(true);
-    expect(unknown.text).toMatch(/Allowed actions: rename, duplicate, move/);
+    expect(unknown.text).toMatch(/(?:Allowed actions:|must be one of:) rename, duplicate, move/);
 
     const rootMove = await call('manage_scene_structure', {
       scenePath: 'scenes/structure.tscn', action: 'move', nodePath: 'root', newParentPath: 'Container',
@@ -294,7 +329,7 @@ describe('resource tools', () => {
 
     const badAction = await call('manage_resource', { resourcePath: 'resources/box.tres', action: 'explode' });
     expect(badAction.isError).toBe(true);
-    expect(badAction.text).toMatch(/Allowed actions: read, modify/);
+    expect(badAction.text).toMatch(/(?:Allowed actions:|must be one of:) read, modify/);
 
     const missing = await call('manage_resource', { resourcePath: 'resources/absent.tres', action: 'read' });
     expect(missing.isError).toBe(true);

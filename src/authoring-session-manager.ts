@@ -9,13 +9,14 @@ import type { AuthoringSessionToolBackend } from './tool-manifest.js';
 import { convertCamelToSnakeCase, errorMessage, type OperationParams } from './utils.js';
 import { deterministicSessionArguments, deterministicSessionEnvironment } from './session-timing.js';
 import { RENDERING_CONTEXT_CAPABILITY } from './runtime-protocol.js';
+import { currentExecutionContext, isAbortError, throwIfCancelled } from './execution-context.js';
 
 interface AuthoringConnection {
   readonly isConnected: boolean;
   supportsCapability(capability: string): boolean;
-  connect(projectPath: string, isProcessActive: () => boolean): Promise<void>;
+  connect(projectPath: string, isProcessActive: () => boolean, signal?: AbortSignal): Promise<void>;
   disconnect(): void;
-  send(command: string, params?: Record<string, unknown>, timeoutMs?: number): Promise<GameResponse>;
+  send(command: string, params?: Record<string, unknown>, timeoutMs?: number, signal?: AbortSignal): Promise<GameResponse>;
 }
 
 interface AuthoringSessionState {
@@ -98,6 +99,8 @@ export class AuthoringSessionManager {
     projectPath: string,
   ): Promise<HeadlessOperationResult> {
     return this.serialize(async () => {
+      const signal = currentExecutionContext()?.signal;
+      throwIfCancelled(signal);
       const editorAttempt = await this.options.tryEditorOperation?.(backend.command, params, projectPath);
       if (editorAttempt?.handled) {
         if (!editorAttempt.result) {
@@ -112,11 +115,10 @@ export class AuthoringSessionManager {
         throw new AuthoringSessionUnavailableError('Authoring session did not establish its JSON-RPC connection');
       }
       try {
-        const response = await state.connection.send(
-          backend.command,
-          convertCamelToSnakeCase(params),
-          30_000,
-        );
+        const commandParams = convertCamelToSnakeCase(params);
+        const response = signal
+          ? await state.connection.send(backend.command, commandParams, 30_000, signal)
+          : await state.connection.send(backend.command, commandParams, 30_000);
         if ('error' in response) {
           const details = response.error.data === undefined ? '' : `: ${JSON.stringify(response.error.data)}`;
           return {
@@ -166,6 +168,7 @@ export class AuthoringSessionManager {
           signal: null,
         };
       } catch (error: unknown) {
+        if (isAbortError(error)) throw error;
         // Once a request may have reached Godot, retrying it through the
         // subprocess can duplicate a partial mutation. Report the transport
         // failure and leave recovery to the caller instead.
@@ -233,7 +236,10 @@ export class AuthoringSessionManager {
           this.handleProcessExit(generation);
         },
       });
-      await connection.connect(projectPath, () => this.current === state && this.processManager.active);
+      const signal = currentExecutionContext()?.signal;
+      const isActive = () => this.current === state && this.processManager.active;
+      if (signal) await connection.connect(projectPath, isActive, signal);
+      else await connection.connect(projectPath, isActive);
       if (!connection.isConnected) {
         throw new RenderingContextUnavailableError(
           'Headed authoring session exited before its renderer became reachable. Set DISPLAY or WAYLAND_DISPLAY on Linux, or run under a virtual display such as Xvfb.',
@@ -246,6 +252,7 @@ export class AuthoringSessionManager {
     } catch (error: unknown) {
       if (this.current) this.stop();
       else if (ownedInstallation) this.options.installer.remove(projectPath, true);
+      if (isAbortError(error)) throw error;
       if (error instanceof RenderingContextUnavailableError) throw error;
       throw new AuthoringSessionUnavailableError(`Could not start authoring session: ${errorMessage(error)}`);
     }

@@ -1,5 +1,5 @@
 // @test-kind: unit
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -8,6 +8,7 @@ import { GameToolHandlers } from '../src/tool-handlers/game-tool-handlers.js';
 import { LifecycleToolHandlers, type LifecycleToolHandlerContext } from '../src/tool-handlers/lifecycle-tool-handlers.js';
 import { ProjectToolHandlers } from '../src/tool-handlers/project-tool-handlers.js';
 import type { GodotProcess } from '../src/godot-process-manager.js';
+import { setToolResultMetadata } from '../src/execution-context.js';
 
 const temporaryDirectories: string[] = [];
 
@@ -91,6 +92,33 @@ describe('GameToolHandlers', () => {
     expect(existsSync(text.artifact_path)).toBe(true);
     expect(JSON.stringify(text)).not.toContain(bytes.toString('base64'));
     rmSync(text.artifact_path, { force: true });
+  });
+
+  it('returns cursor continuation and byte metadata for logs and errors', async () => {
+    const handlers = new GameToolHandlers({ commands: {
+      execute: vi.fn(), hasActiveProcess: () => true, isConnected: () => true,
+      readNewLogs: () => ({ items: ['first page'], remaining: 2, byteLimited: true }),
+      readNewErrors: () => ({ items: ['one error'], remaining: 0, byteLimited: false }),
+      send: vi.fn(),
+    } as any });
+
+    const logsResponse = await handlers.handleGameGetLogs({ maxItems: 1 });
+    const errorsResponse = await handlers.handleGameGetErrors({ maxItems: 1 });
+    const logsText = textFrom(logsResponse);
+    const errorsText = textFrom(errorsResponse);
+    const logs = JSON.parse(logsText);
+    const errors = JSON.parse(errorsText);
+
+    expect(logs).toMatchObject({
+      count: 1, logs: ['first page'], remaining: 2, hasMore: true,
+      observation: { returnedCount: 1, truncated: true, continuation: expect.stringContaining('game_get_logs') },
+    });
+    expect(errors).toMatchObject({
+      count: 1, errors: ['one error'], remaining: 0, hasMore: false,
+      observation: { returnedCount: 1, truncated: false },
+    });
+    expect(logs.observation.responseBytes).toBe(Buffer.byteLength(logsText, 'utf8'));
+    expect(errors.observation.responseBytes).toBe(Buffer.byteLength(errorsText, 'utf8'));
   });
 });
 
@@ -217,7 +245,7 @@ describe('LifecycleToolHandlers', () => {
       getInteractionPort: () => 6007,
       getRuntimeEnvironment: () => ({}),
       isGameConnected: () => false,
-      sendGameCommand: vi.fn(),
+      sendGameCommand: vi.fn().mockResolvedValue({ jsonrpc: '2.0', id: 1, result: {} }),
       ...overrides,
     };
   }
@@ -228,13 +256,33 @@ describe('LifecycleToolHandlers', () => {
 
     const response = await handlers.handleGetDebugOutput();
 
-    expect(JSON.parse(textFrom(response))).toEqual({ output: ['ready'], errors: ['warning'] });
+    const responseText = textFrom(response);
+    const result = JSON.parse(responseText);
+    expect(result).toMatchObject({
+      output: ['ready'], errors: ['warning'], outputDropped: 0, errorsDropped: 0,
+      observation: { returnedCount: 2, truncated: false },
+    });
+    expect(result.observation.responseBytes).toBe(Buffer.byteLength(responseText, 'utf8'));
   });
 
   it('launches watched runs with realtime display timing by default', async () => {
     const projectPath = createProject();
-    const startProjectProcess = vi.fn();
-    const handlers = new LifecycleToolHandlers(context({ startProjectProcess }));
+    const canonicalProjectPath = realpathSync(projectPath);
+    const running = {
+      output: ['runtime-ready'], errors: ['startup-warning'],
+      process: { exitCode: null, signalCode: null },
+    } as unknown as GodotProcess;
+    const startProjectProcess = vi.fn().mockReturnValue(running);
+    const sendGameCommand = vi.fn().mockResolvedValue({
+      jsonrpc: '2.0', id: 1, result: { current_scene: 'res://main.tscn' },
+    });
+    const handlers = new LifecycleToolHandlers(context({
+      startProjectProcess,
+      sendGameCommand,
+      getRuntimeHandshake: () => ({
+        engineVersion: '4.7.stable.official', projectPath, currentScene: 'res://main.tscn',
+      }),
+    }));
 
     const response = await handlers.handleRunProject({ projectPath });
 
@@ -246,7 +294,25 @@ describe('LifecycleToolHandlers', () => {
     expect(startProjectProcess.mock.calls[0][3]).toEqual({
       GODOT_MCP_FIXED_FPS: '', GODOT_MCP_TIMING_MODE: 'realtime',
     });
-    expect(JSON.parse(textFrom(response)).timing_policy).toMatchObject({ mode: 'realtime', fixed_fps: null });
+    const evidence = JSON.parse(textFrom(response));
+    expect(evidence).toMatchObject({
+      process_started: true,
+      runtime_connected: true,
+      runtime_ready: true,
+      observed_project_path: projectPath,
+      observed_scene: 'res://main.tscn',
+      project_identity: {
+        requested: canonicalProjectPath,
+        observed: canonicalProjectPath,
+        matched: true,
+      },
+      scene_identity: { requested: null, observed: 'res://main.tscn', source: 'readiness_probe' },
+      engine_version: '4.7.stable.official',
+      startup_diagnostics: { stdout: 'runtime-ready', stderr: 'startup-warning', truncated: false },
+      timing_policy: { mode: 'realtime', fixed_fps: null },
+    });
+    expect(evidence.startup_duration_ms).toEqual(expect.any(Number));
+    expect(sendGameCommand).toHaveBeenCalledWith('get_scene_tree', { max_nodes: 1 }, 5_000, undefined);
   });
 
   it('keeps deterministic timing explicit for verification-style runs', async () => {
@@ -260,6 +326,42 @@ describe('LifecycleToolHandlers', () => {
     expect(startProjectProcess.mock.calls[0][3]).toEqual({
       GODOT_MCP_FIXED_FPS: '60', GODOT_MCP_TIMING_MODE: 'deterministic',
     });
+  });
+
+  it('cleans owned process and runtime artifacts when readiness fails', async () => {
+    const projectPath = createProject();
+    const process = { output: [], errors: [] } as GodotProcess;
+    let active: GodotProcess | null = null;
+    const disconnectFromGame = vi.fn();
+    const removeInteractionServer = vi.fn();
+    const clearConnectedProjectPath = vi.fn();
+    const stopProjectProcess = vi.fn(() => {
+      const stopped = active;
+      active = null;
+      return stopped;
+    });
+    const handlers = new LifecycleToolHandlers(context({
+      getActiveProcess: () => active,
+      startProjectProcess: () => {
+        active = process;
+        return process;
+      },
+      stopProjectProcess,
+      connectToGame: vi.fn().mockRejectedValue(new Error('runtime handshake failed')),
+      disconnectFromGame,
+      removeInteractionServer,
+      clearConnectedProjectPath,
+      getConnectedProjectPath: () => projectPath,
+    }));
+
+    const response = await handlers.handleRunProject({ projectPath });
+
+    expect(response.isError).toBe(true);
+    expect(stopProjectProcess).toHaveBeenCalledOnce();
+    expect(disconnectFromGame).toHaveBeenCalledOnce();
+    expect(removeInteractionServer).toHaveBeenCalledWith(projectPath);
+    expect(clearConnectedProjectPath).toHaveBeenCalledOnce();
+    expect(active).toBeNull();
   });
 
   it('serializes concurrent idempotent editor ensure requests for one project', async () => {
@@ -279,6 +381,34 @@ describe('LifecycleToolHandlers', () => {
     expect(ensureEditorSession).toHaveBeenCalledOnce();
     expect(JSON.parse(textFrom(first)).editor_session).toMatchObject({ connected: true, reused: true });
     expect(textFrom(second)).toBe(textFrom(first));
+  });
+
+  it('stops a watched ensure at an addon restart requirement instead of launching another editor', async () => {
+    const projectPath = createProject();
+    const requirePath = vi.fn().mockResolvedValue('godot');
+    const installEditorPlugin = vi.fn();
+    const ensureEditorSession = vi.fn().mockResolvedValue({
+      state: 'addon_upgrade_restart_required', project_path: projectPath,
+      connected: false, reused: false, spawned: false, editor_pid: null,
+      editor_start_identity: null, port: null, protocol_version: null,
+      addon_version: '1.0.0', godot_version: '4.7', created_at: null,
+      reason: 'Installed addon protocol 1 must be replaced with protocol 2, then Godot restarted',
+    });
+    const handlers = new LifecycleToolHandlers(context({
+      executable: { requirePath } as any, ensureEditorSession, installEditorPlugin,
+    }));
+
+    const response = await handlers.handleEditorSession({
+      projectPath, action: 'ensure', launchIfNeeded: true,
+    });
+
+    expect(response.isError).not.toBe(true);
+    expect(JSON.parse(textFrom(response)).editor_session).toMatchObject({
+      state: 'addon_upgrade_restart_required', connected: false,
+      reason: expect.stringMatching(/protocol 1.*protocol 2.*restarted/i),
+    });
+    expect(requirePath).not.toHaveBeenCalled();
+    expect(installEditorPlugin).not.toHaveBeenCalled();
   });
 
   it('rejects editor_control scene traversal before dispatching to the editor', async () => {
@@ -412,7 +542,7 @@ describe('LifecycleToolHandlers', () => {
     }));
 
     const response = await handlers.handleGameScenario({ name: 'serve', steps: [
-      { type: 'input', tool: 'game_key_press', arguments: { key: 'Space' } },
+      { type: 'input', tool: 'game_key_hold', arguments: { key: 'Space' } },
       { type: 'screenshot' },
       { type: 'performance' },
     ] });
@@ -422,7 +552,34 @@ describe('LifecycleToolHandlers', () => {
       teardown: { attempted: true, time_scale_restored: true } });
     expect(evidence.steps[1].result).toMatchObject({ captured: true, width: 64, height: 36, preview_omitted: true });
     expect(textFrom(response)).not.toContain(Buffer.from('scenario-png').toString('base64'));
-    expect(sendGameCommand).toHaveBeenLastCalledWith('time_scale', { action: 'set', time_scale: 1 }, 2_000);
+    expect(sendGameCommand).toHaveBeenCalledWith('key_release', { key: 'Space' }, 2_000, null);
+    expect(sendGameCommand).toHaveBeenLastCalledWith('time_scale', { action: 'set', time_scale: 1 }, 2_000, null);
+  });
+
+  it('stops a scenario paused between steps and still releases held input', async () => {
+    const sendGameCommand = vi.fn(async () => ({ jsonrpc: '2.0' as const, id: 1, result: { success: true } }));
+    const pausedResponse = setToolResultMetadata({
+      content: [{ type: 'text', text: 'Agent mutation refused: mutations are paused' }],
+      isError: true,
+    }, { outcome: 'paused' });
+    const dispatchTool = vi.fn()
+      .mockResolvedValueOnce({ content: [{ type: 'text', text: '{"pressed":true}' }] })
+      .mockResolvedValueOnce(pausedResponse);
+    const handlers = new LifecycleToolHandlers(context({
+      isGameConnected: () => true, sendGameCommand, dispatchTool,
+    }));
+
+    const response = await handlers.handleGameScenario({ name: 'pause-between', steps: [
+      { type: 'input', tool: 'game_key_hold', arguments: { key: 'W' } },
+      { type: 'input', tool: 'game_key_press', arguments: { key: 'Space' } },
+    ] });
+    const evidence = JSON.parse(textFrom(response));
+
+    expect(response.isError).toBe(true);
+    expect(evidence).toMatchObject({ passed: false, step_count: 2 });
+    expect(evidence.failure).toMatch(/paused/i);
+    expect(sendGameCommand).toHaveBeenCalledWith('key_release', { key: 'W' }, 2_000, null);
+    expect(sendGameCommand).toHaveBeenLastCalledWith('time_scale', { action: 'set', time_scale: 1 }, 2_000, null);
   });
 
   it('stops the process and removes its injected interaction server', async () => {

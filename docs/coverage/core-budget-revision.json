@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-07-17",
+  "reason": "JSON Schema 2020-12 closed structural contracts, exact compound action requirements, per-tool titles, and conservative MCP annotations make the original compact budget infeasible without omitting required validation fields. The compact projection omits examples, negative-example extensions, and deep descriptive guidance while retaining the exact validation structure and a concise closed common output envelope; full/catalog/runtime retain committed examples and the detailed documented output contract.",
+  "measurement": {
+    "bytes": "UTF-8 byte length of compact JSON.stringify(advertisedToolDefinitions('core'))",
+    "estimatedTokens": "ceil(bytes / 4); deterministic planning estimate, not a model tokenizer"
+  },
+  "previous": {
+    "status": "historical target rejected because it cannot contain the exact conditional validation schemas required by the reviewed contract",
+    "tools": 40,
+    "bytes": 19861,
+    "estimatedTokens": 4966,
+    "bytesMax": 26000,
+    "estimatedTokensMax": 6500
+  },
+  "infeasibilityEvidence": {
+    "structuralFloorBeforeAnnotationsAndDescriptions": 44856,
+    "noDescriptionFloorWithRequiredAnnotations": 49267,
+    "actualBytesWithRequiredContractsGuidanceAndAnnotations": 59447,
+    "actualEstimatedTokens": 14862
+  },
+  "projectionRationale": {
+    "fullSurfaceBytes": 1146392,
+    "compactReductionPercent": 94.81,
+    "omittedFromCompactOnly": ["examples", "x-invalidExamples", "descriptions below the first schema level", "detailed nested output documentation"],
+    "largestTools": [
+      { "name": "editor_transaction", "bytes": 5943, "reason": "ten exact operation discriminators with required and forbidden fields" },
+      { "name": "game_scenario", "bytes": 4655, "reason": "safe input/observe step allowlists and nested wait-condition discriminators" },
+      { "name": "editor_control", "bytes": 3846, "reason": "nine exact editor action shapes" },
+      { "name": "game_wait_until", "bytes": 3215, "reason": "six exact wait-condition shapes" }
+    ]
+  },
+  "membershipRevision": {
+    "previousTools": 40,
+    "currentTools": 42,
+    "added": ["game_key_hold", "godot_call", "godot_catalog"],
+    "removed": ["godot_tools"],
+    "netChange": 2,
+    "compatibility": "godot_tools remains full-catalog callable but is no longer advertised on the default core surface"
+  },
+  "discoveryEvidence": {
+    "historicalAlgorithm": "all-term substring filtering in definition order",
+    "historicalQueries": 19,
+    "historicalPassingQueries": 2,
+    "rankedCorpusCases": 25,
+    "rankedCorpusPassingCases": 25,
+    "gain": "The reviewed core adds direct hold input plus separate read-only discovery and hidden execution identities; the deterministic ranked corpus passes all required intent variants."
+  },
+  "reviewedBudget": {
+    "coreBytesMax": 60000,
+    "coreEstimatedTokensMax": 15000
+  },
+  "revisionPolicy": "Any change to measured size, core membership, or reviewed maxima must update this evidence file and its contract test in the same change."
+}

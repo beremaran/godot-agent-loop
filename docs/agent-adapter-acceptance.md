@@ -1,25 +1,40 @@
 # Agent adapter acceptance record
 
-Verified locally on 2026-07-14 with Godot 4.7, Node.js 24.13.0, Claude Code
-2.1.208, Codex CLI 0.144.1, OpenCode 1.17.13, and Pi 0.80.2.
+Current automated contracts are described first. Native-client and public-source
+records below are historical evidence from 2026-07-14 through 2026-07-15 and
+retain the tool counts and versions observed at that time.
 
 ## Automated MCP path
 
-`tests/e2e/agent-adapter-smoke.test.ts` exercises the generated Claude Code,
-Codex, OpenCode, and Pi paths against the built server. Each adapter:
+`tests/agent-plugin.test.ts` validates the generated Claude Code, Codex,
+OpenCode, and Pi metadata. `tests/e2e/agent-adapter-smoke.test.ts` then exercises
+the shared MCP configuration contract and the real Pi forwarding path against
+the built server. The current contract:
 
 1. completes the MCP initialization handshake;
-2. receives exactly 39 default tools;
+2. receives the generated `core` surface rather than a hand-maintained count;
 3. calls `get_godot_version` against the real Godot binary;
-4. finds hidden `game_light_3d` through `godot_tools`; and
+4. finds hidden `game_light_3d` through read-only `godot_catalog` detail and
+   invokes hidden tools only through `godot_call`;
 5. closes its MCP client and child process.
 
 The Pi case loads the shipped TypeScript extension through a fake Pi lifecycle,
 then uses its dynamically registered tools. This proves Pi does not statically
-register the 167-tool catalog and that `session_shutdown` closes the stdio
-client.
+register the full catalog and that `session_shutdown` closes the stdio client.
+Adapter compatibility smoke covers canonical `core` plus the `compact` alias;
+`tests/e2e/progressive-disclosure.test.ts` separately proves that an old client
+can still call unadvertised `godot_tools search`, `describe`, and `call` on the
+core server during the 1.x migration window.
 
-## Native client packaging
+`tests/agent-package-layout.test.ts` creates and extracts an npm archive with
+lifecycle scripts disabled, proves that all four canonical skills, OpenAI
+interfaces, and Claude/Codex/MCP/Pi adapter files are byte-identical, then runs
+the packed OpenCode installer and checks its installed inventory and `core`
+environment. Evaluation automation is registered separately from external
+cold-model status, which remains explicitly `not_run` until a deliberate model
+execution is recorded.
+
+## Historical native client packaging
 
 All native checks used temporary client homes; no real user configuration was
 changed.
@@ -51,7 +66,7 @@ package tree. Pi does not load a raw `.tgz` path directly; the public `npm:` pat
 performs that installation step. This check caught and fixed a missing runtime
 declaration for `pngjs` before the candidate was accepted.
 
-## Public-source acceptance
+## Historical public-source acceptance
 
 Public signed tag `v1.0.0` was cloned and signature-verified at `75f8241`. From
 isolated homes, Claude Code installed version 1.0.0 with all four skills and the

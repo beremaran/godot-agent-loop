@@ -8,9 +8,9 @@ import type { ToolArguments } from './utils.js';
  * cooperative driver lock by omission.
  */
 export const READ_ONLY_TOOLS: ReadonlySet<ToolName> = new Set([
+  'godot_catalog',
   'get_debug_output',
   'get_godot_version',
-  'editor_session',
   'list_projects',
   'get_project_info',
   'get_uid',
@@ -40,7 +40,9 @@ export const READ_ONLY_TOOLS: ReadonlySet<ToolName> = new Set([
 
 /** Read-only modes on tools whose other actions mutate project/runtime state. */
 export const READ_ONLY_ACTIONS: Readonly<Partial<Record<ToolName, readonly string[]>>> = {
+  godot_catalog: ['search', 'describe'],
   godot_tools: ['search', 'describe'],
+  editor_session: ['status', 'disconnect'],
   editor_control: ['inspect'],
   run_project_tests: ['discover'],
   manage_import_pipeline: ['inspect', 'dependencies'],
@@ -107,8 +109,8 @@ export const READ_ONLY_ACTIONS: Readonly<Partial<Record<ToolName, readonly strin
  * missing selectors, and action fields used as data all remain mutating.
  */
 export function isToolCallMutating(name: string, args: ToolArguments): boolean {
-  if (name === 'godot_tools' && args.action === 'call') {
-    if (typeof args.toolName !== 'string' || args.toolName === 'godot_tools') return true;
+  if (name === 'godot_call' || (name === 'godot_tools' && args.action === 'call')) {
+    if (typeof args.toolName !== 'string' || ['godot_tools', 'godot_call', 'godot_catalog'].includes(args.toolName)) return true;
     const nested = args.arguments && typeof args.arguments === 'object' && !Array.isArray(args.arguments)
       ? args.arguments as ToolArguments
       : {};
@@ -122,4 +124,30 @@ export function isToolCallMutating(name: string, args: ToolArguments): boolean {
   if (entry.actionParamIsData) return true;
   const readOnlyActions = READ_ONLY_ACTIONS[toolName];
   return !readOnlyActions?.includes(typeof args.action === 'string' ? args.action : '');
+}
+
+/**
+ * Pausing protects persistent and ephemeral mutation while retaining the
+ * observation and cleanup calls needed to understand and safely unwind state.
+ */
+export function isToolCallAllowedWhilePaused(name: string, args: ToolArguments): boolean {
+  if (!isToolCallMutating(name, args)) return true;
+  if (name === 'godot_call' || (name === 'godot_tools' && args.action === 'call')) {
+    if (typeof args.toolName !== 'string') return false;
+    const nested = args.arguments && typeof args.arguments === 'object' && !Array.isArray(args.arguments)
+      ? args.arguments as ToolArguments
+      : {};
+    return isToolCallAllowedWhilePaused(args.toolName, nested);
+  }
+  // Re-establishing the watched editor is part of the human-control channel,
+  // not an agent-authored project/runtime mutation. It must remain possible
+  // after a paused editor exits so the same paused state can be observed and
+  // resumed by the human UI.
+  if (name === 'launch_editor' || (name === 'editor_session' && args.action === 'ensure')) return true;
+  if (name === 'stop_project' || name === 'game_key_release') return true;
+  if (name === 'game_key_press' && args.pressed === false) return true;
+  if (name === 'game_touch' && (args.action === 'release' || args.pressed === false)) return true;
+  if (name === 'game_gamepad' && Number(args.value) === 0) return true;
+  if (name === 'game_input_action' && args.action === 'set_strength' && Number(args.strength) === 0) return true;
+  return false;
 }

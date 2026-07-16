@@ -392,6 +392,18 @@ func _test_variant_codec() -> void:
 		_codec_free_if_bare_object(value)
 		_codec_free_if_bare_object(decoded)
 
+	var wrappers: Array = (corpus as Dictionary).get("typedWrappers", [])
+	for wrapper_value: Variant in wrappers:
+		var wrapper_case: Dictionary = wrapper_value as Dictionary
+		var wrapper_name: String = str(wrapper_case.get("name", "unnamed"))
+		var wrapper_hint: String = str(wrapper_case.get("typeHint", ""))
+		codec.configure(32, 1024)
+		var wrapper_decoded: Variant = codec.decode(wrapper_case.get("wire"), "")
+		var wrapper_error: Dictionary = codec.take_error()
+		_check("variant codec: %s decodes typed wrapper" % wrapper_name,
+			wrapper_error.is_empty() and _codec_has_type(wrapper_decoded, wrapper_hint),
+			{"decoded": wrapper_decoded, "error": wrapper_error})
+
 	var negative_cases: Array = (corpus as Dictionary).get("negative", [])
 	for negative_value: Variant in negative_cases:
 		var negative_case: Dictionary = negative_value as Dictionary
@@ -404,7 +416,17 @@ func _test_variant_codec() -> void:
 			codec.configure(32, 2)
 		var result: Variant
 		if negative_name == "invalid_type_hint":
-			result = codec.decode({"x": 1, "y": 2}, "Vector4")
+			result = codec.decode({"x": 1, "y": 2}, "Vector5")
+		elif negative_name == "invalid_variant_shape":
+			result = codec.decode({"x": 1, "y": "wrong"}, "Vector2")
+		elif negative_name == "rid_wrapper":
+			result = codec.decode({"type": "RID", "value": 42})
+		elif negative_name == "integer_wrapper_fraction":
+			result = codec.decode({"type": "Vector2i", "value": [1.5, 2]})
+		elif negative_name == "resource_wrapper_outside_project":
+			result = codec.decode({"type": "Resource", "value": "/tmp/outside.tres"})
+		elif negative_name == "wrapper_target_mismatch":
+			result = codec.decode({"type": "Vector2", "value": [1, 2]}, "Vector3")
 		else:
 			result = codec.encode(_codec_negative_value(negative_name))
 		var error: Dictionary = codec.take_error()
@@ -426,6 +448,8 @@ func _codec_value_for_case(case_name: String, fixture: Node, codec_node: Node) -
 		"vector2i": return Vector2i(3, -4)
 		"vector3": return Vector3(1.25, -2.5, 3.75)
 		"vector3i": return Vector3i(3, -4, 5)
+		"vector4": return Vector4(1.25, -2.5, 3.75, 4.5)
+		"vector4i": return Vector4i(3, -4, 5, 6)
 		"color": return Color(0.1, 0.2, 0.3, 0.4)
 		"quaternion": return Quaternion(0.1, -0.2, 0.3, 0.9)
 		"rect2": return Rect2(Vector2(1.25, -2.5), Vector2(10, 20))
@@ -516,6 +540,8 @@ func _codec_has_type(value: Variant, type_hint: String) -> bool:
 		"Vector2i": return value is Vector2i
 		"Vector3": return value is Vector3
 		"Vector3i": return value is Vector3i
+		"Vector4": return value is Vector4
+		"Vector4i": return value is Vector4i
 		"Color": return value is Color
 		"Quaternion": return value is Quaternion
 		"Rect2": return value is Rect2
@@ -523,6 +549,7 @@ func _codec_has_type(value: Variant, type_hint: String) -> bool:
 		"Basis": return value is Basis
 		"Transform3D": return value is Transform3D
 		"Transform2D": return value is Transform2D
+		"Resource": return value is Resource
 		_: return true
 
 

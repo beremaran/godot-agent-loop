@@ -1,0 +1,4 @@
+interface:
+  display_name: "Debug Godot Game"
+  short_description: "Reproduce and fix a Godot game failure"
+  default_prompt: "Use $debug-godot-game to reproduce this failure, isolate one cause, apply the smallest repair, and rerun the same evidence path."

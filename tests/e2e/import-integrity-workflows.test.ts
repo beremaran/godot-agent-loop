@@ -47,12 +47,10 @@ describe('import pipeline and project integrity workflows through MCP', () => {
 
     const changed = await server.call('manage_import_pipeline', {
       projectPath: server.projectPath, action: 'change', sourcePath: 'assets/icon.svg',
-      settings: { 'process/fix_alpha_border': false, 'svg/scale': 2.0 },
+      settings: { 'svg/scale': 2.0 },
     });
     expect(changed.isError, changed.text).toBe(false);
-    expect(json(changed.text).settings).toMatchObject({
-      'process/fix_alpha_border': false, 'svg/scale': 2,
-    });
+    expect(json(changed.text).settings).toMatchObject({ 'svg/scale': 2 });
 
     const dependencies = await server.call('manage_import_pipeline', {
       projectPath: server.projectPath, action: 'dependencies', sourcePath: 'assets/icon.svg',

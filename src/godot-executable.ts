@@ -3,6 +3,7 @@ import { existsSync } from 'fs';
 import { normalize } from 'path';
 import { promisify } from 'util';
 import { GODOT_VERSION_OPTIONS } from './godot-subprocess.js';
+import { currentExecutionContext, isAbortError, throwIfCancelled } from './execution-context.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -79,6 +80,8 @@ export class GodotExecutableValidator {
   }
 
   async isValid(path: string): Promise<boolean> {
+    const signal = currentExecutionContext()?.signal;
+    throwIfCancelled(signal);
     const cached = this.validatedPaths.get(path);
     if (cached !== undefined) return cached;
 
@@ -89,11 +92,12 @@ export class GodotExecutableValidator {
         this.validatedPaths.set(path, false);
         return false;
       }
-      await execFileAsync(path, ['--version'], GODOT_VERSION_OPTIONS);
+      await execFileAsync(path, ['--version'], { ...GODOT_VERSION_OPTIONS, signal });
       this.logDebug(`Valid Godot path: ${path}`);
       this.validatedPaths.set(path, true);
       return true;
     } catch (error) {
+      if (isAbortError(error) || signal?.aborted) throw error;
       this.logDebug(`Invalid Godot path: ${path}, error: ${error}`);
       this.validatedPaths.set(path, false);
       return false;

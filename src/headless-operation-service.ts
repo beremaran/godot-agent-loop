@@ -5,6 +5,7 @@ import { createErrorResponse, errorMessage, validatePath, PathSecurity, type Ope
 import { AuthoringSessionUnavailableError, type AuthoringSessionManager } from './authoring-session-manager.js';
 import type { HeadlessOperationResult, HeadlessOperationRunner } from './headless-operation-runner.js';
 import { authoringBackendForOperation } from './tool-manifest.js';
+import { isAbortError, setToolResultMetadata } from './execution-context.js';
 
 /** Coordinates validated authoring operations and their declared backend fallback. */
 export class HeadlessOperationService {
@@ -43,7 +44,9 @@ export class HeadlessOperationService {
       }
       return { content: [{ type: 'text', text: `${operation} succeeded.\n\nOutput: ${stdout}` }] };
     } catch (error: unknown) {
-      return createErrorResponse(`${operation} failed: ${errorMessage(error)}`);
+      return setToolResultMetadata(createErrorResponse(`${operation} failed: ${errorMessage(error)}`), {
+        outcome: isAbortError(error) ? 'cancelled' : 'failure',
+      });
     }
   }
 

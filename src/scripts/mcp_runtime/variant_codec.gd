@@ -7,8 +7,14 @@ extends RefCounted
 const CommandParams = preload("res://mcp_runtime/command_params.gd")
 
 const SUPPORTED_TYPE_HINTS: Array[String] = [
-	"", "String", "Vector2", "Vector2i", "Vector3", "Vector3i", "Color",
-	"Quaternion", "Rect2", "AABB", "Basis", "Transform3D", "Transform2D",
+	"", "String", "StringName", "NodePath", "Vector2", "Vector2i", "Vector3",
+	"Vector3i", "Vector4", "Vector4i", "Color", "Quaternion", "Rect2", "AABB",
+	"Basis", "Transform3D", "Transform2D",
+]
+const TYPED_WRAPPER_TYPES: Array[String] = [
+	"Vector2", "Vector2i", "Vector3", "Vector3i", "Vector4", "Vector4i",
+	"Color", "Rect2", "Transform2D", "Transform3D", "Basis", "Quaternion",
+	"NodePath", "StringName", "Resource", "RID",
 ]
 
 var max_depth: int
@@ -63,6 +69,12 @@ func _encode(value: Variant, depth: int, ancestors: Array) -> Variant:
 	if value is Vector3i:
 		var vector3i: Vector3i = value
 		return {"x": vector3i.x, "y": vector3i.y, "z": vector3i.z}
+	if value is Vector4:
+		var vector4: Vector4 = value
+		return {"x": vector4.x, "y": vector4.y, "z": vector4.z, "w": vector4.w}
+	if value is Vector4i:
+		var vector4i: Vector4i = value
+		return {"x": vector4i.x, "y": vector4i.y, "z": vector4i.z, "w": vector4i.w}
 	if value is Color:
 		var color: Color = value
 		return {"r": color.r, "g": color.g, "b": color.b, "a": color.a}
@@ -258,14 +270,22 @@ func _decode(value: Variant, type_hint: String, depth: int) -> Variant:
 			var parsed: Variant = JSON.parse_string(trimmed)
 			if parsed != null:
 				value = parsed
+	if type_hint == "StringName": return StringName(str(value))
+	if type_hint == "NodePath": return NodePath(str(value))
 	if not value is Dictionary:
 		return value
 	var dict: Dictionary = value
+	if dict.has("type") and dict.has("value") and (dict.size() == 2 or str(dict.get("type", "")) in TYPED_WRAPPER_TYPES):
+		return _decode_typed_wrapper(dict, type_hint, depth)
+	_validate_math_shape(dict, type_hint)
+	if not _last_error.is_empty(): return null
 	match type_hint:
 		"Vector2": return _vector2(dict)
 		"Vector2i": return Vector2i(CommandParams.json_int(dict, "x"), CommandParams.json_int(dict, "y"))
 		"Vector3": return _vector3(dict)
 		"Vector3i": return Vector3i(CommandParams.json_int(dict, "x"), CommandParams.json_int(dict, "y"), CommandParams.json_int(dict, "z"))
+		"Vector4": return Vector4(CommandParams.json_float(dict, "x"), CommandParams.json_float(dict, "y"), CommandParams.json_float(dict, "z"), CommandParams.json_float(dict, "w"))
+		"Vector4i": return Vector4i(CommandParams.json_int(dict, "x"), CommandParams.json_int(dict, "y"), CommandParams.json_int(dict, "z"), CommandParams.json_int(dict, "w"))
 		"Color": return Color(CommandParams.json_float(dict, "r"), CommandParams.json_float(dict, "g"), CommandParams.json_float(dict, "b"), CommandParams.json_float(dict, "a", 1.0))
 		"Quaternion": return Quaternion(CommandParams.json_float(dict, "x"), CommandParams.json_float(dict, "y"), CommandParams.json_float(dict, "z"), CommandParams.json_float(dict, "w", 1.0))
 		"Rect2":
@@ -303,11 +323,63 @@ func _decode(value: Variant, type_hint: String, depth: int) -> Variant:
 	return value
 
 
+func _decode_typed_wrapper(wrapper: Dictionary, outer_hint: String, depth: int) -> Variant:
+	if wrapper.size() != 2 or not wrapper.has("type") or not wrapper.has("value"):
+		return _fail("invalid_variant_shape", "Typed Variant wrappers require exactly type and value", {
+			"accepted_shape": {"type": TYPED_WRAPPER_TYPES, "value": "canonical value"},
+		})
+	var wrapper_type: String = str(wrapper.get("type", ""))
+	if not wrapper_type in TYPED_WRAPPER_TYPES:
+		return _fail("invalid_type_hint", "Unknown typed Variant wrapper", {
+			"type_hint": wrapper_type, "allowed": TYPED_WRAPPER_TYPES,
+		})
+	if outer_hint != "" and outer_hint != wrapper_type:
+		return _fail("invalid_variant_shape", "Typed Variant wrapper conflicts with the target property type", {
+			"target_type": outer_hint, "wrapper_type": wrapper_type,
+		})
+	if wrapper_type == "RID":
+		return _fail("unsupported_variant", "Arbitrary live RIDs cannot be reconstructed safely from JSON", {
+			"target_type": "RID", "accepted_shape": "diagnostic output only",
+		})
+	var wrapped: Variant = wrapper.get("value")
+	if wrapper_type == "Resource":
+		if not wrapped is String or not str(wrapped).begins_with("res://") or not ResourceLoader.exists(str(wrapped)):
+			return _fail("invalid_variant_shape", "Resource wrappers require an existing res:// path", {
+				"target_type": "Resource", "accepted_shape": "res://path/to/resource.tres",
+			})
+		return load(str(wrapped))
+	if wrapper_type == "NodePath": return NodePath(str(wrapped))
+	if wrapper_type == "StringName": return StringName(str(wrapped))
+	if wrapper_type == "Color" and wrapped is String:
+		var color_text: String = wrapped
+		if not color_text.begins_with("#") or not Color.html_is_valid(color_text):
+			return _fail("invalid_variant_shape", "Color string wrappers require a valid HTML color", {
+				"target_type": "Color", "accepted_shape": "#RRGGBB or #RRGGBBAA",
+			})
+		return Color.html(color_text)
+	if wrapped is Array:
+		var members: Array[String] = []
+		match wrapper_type:
+			"Vector2", "Vector2i": members = ["x", "y"]
+			"Vector3", "Vector3i": members = ["x", "y", "z"]
+			"Vector4", "Vector4i", "Quaternion": members = ["x", "y", "z", "w"]
+		if not members.is_empty():
+			var array_value: Array = wrapped
+			if array_value.size() != members.size():
+				return _fail("invalid_variant_shape", "Typed Variant array has the wrong component count", {
+					"target_type": wrapper_type, "accepted_shape": members,
+				})
+			var components: Dictionary = {}
+			for index: int in range(members.size()): components[members[index]] = array_value[index]
+			wrapped = components
+	return _decode(wrapped, wrapper_type, depth + 1)
+
+
 func decode_for_property(object: Object, property: String, value: Variant) -> Variant:
 	for property_info: Dictionary in object.get_property_list():
 		if property_info.get("name", "") != property:
 			continue
-		var hints: Dictionary = {TYPE_VECTOR2: "Vector2", TYPE_VECTOR2I: "Vector2i", TYPE_VECTOR3: "Vector3", TYPE_VECTOR3I: "Vector3i", TYPE_COLOR: "Color", TYPE_QUATERNION: "Quaternion", TYPE_RECT2: "Rect2", TYPE_AABB: "AABB", TYPE_BASIS: "Basis", TYPE_TRANSFORM3D: "Transform3D", TYPE_TRANSFORM2D: "Transform2D"}
+		var hints: Dictionary = {TYPE_VECTOR2: "Vector2", TYPE_VECTOR2I: "Vector2i", TYPE_VECTOR3: "Vector3", TYPE_VECTOR3I: "Vector3i", TYPE_VECTOR4: "Vector4", TYPE_VECTOR4I: "Vector4i", TYPE_COLOR: "Color", TYPE_QUATERNION: "Quaternion", TYPE_RECT2: "Rect2", TYPE_AABB: "AABB", TYPE_BASIS: "Basis", TYPE_TRANSFORM3D: "Transform3D", TYPE_TRANSFORM2D: "Transform2D"}
 		var type_id: int = property_info.get("type", TYPE_NIL)
 		if hints.has(type_id):
 			var hint: String = hints[type_id]
@@ -333,3 +405,31 @@ func _vector2(value: Dictionary) -> Vector2:
 
 func _vector3(value: Dictionary) -> Vector3:
 	return Vector3(CommandParams.json_float(value, "x"), CommandParams.json_float(value, "y"), CommandParams.json_float(value, "z"))
+
+
+func _validate_math_shape(value: Dictionary, type_hint: String) -> Variant:
+	var required: Array[String] = []
+	match type_hint:
+		"Vector2", "Vector2i": required = ["x", "y"]
+		"Vector3", "Vector3i": required = ["x", "y", "z"]
+		"Vector4", "Vector4i", "Quaternion": required = ["x", "y", "z", "w"]
+		"Color": required = ["r", "g", "b"]
+		_: return null
+	for component: String in required:
+		var component_value: Variant = value.get(component)
+		if not value.has(component) or not (component_value is int or component_value is float):
+			return _fail("invalid_variant_shape", "Godot Variant shape does not match the target property type", {
+				"target_type": type_hint,
+				"accepted_shape": required,
+				"invalid_component": component,
+			})
+		if type_hint.ends_with("i"):
+			var is_integral: bool = component_value is int
+			if component_value is float:
+				var float_component: float = component_value
+				is_integral = is_equal_approx(float_component, roundf(float_component))
+			if not is_integral:
+				return _fail("invalid_variant_shape", "Integer vector components must be integers", {
+					"target_type": type_hint, "accepted_shape": required, "invalid_component": component,
+				})
+	return null

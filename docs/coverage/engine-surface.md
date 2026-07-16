@@ -23,9 +23,9 @@ That is the point, and it is what the tool coverage report cannot tell us.
 
 | Bucket | Classes | Meaning |
 | --- | ---: | --- |
-| tooled | 225 | The class is named in our shipped GDScript or in a tool schema |
-| reachable | 714 | No named tool, but generically drivable via `add_node` / `game_eval` |
-| out-of-scope | 97 | Declared unsupported in the README support boundary |
+| tooled | 230 | The class is named in our shipped GDScript or in a tool schema |
+| reachable | 712 | No named tool, but generically drivable via `add_node` / `game_eval` |
+| out-of-scope | 94 | Declared unsupported in the README support boundary |
 | gap | 0 | No tool, no generic reach, no scope decision |
 | **Total** | **1036** | |
 
@@ -53,15 +53,15 @@ decision on record; the audit fails if a rule stops matching any class.
 | --- | ---: | --- |
 | editor UI | 17 | editor UI automation is not claimed; the supported boundary is project files plus running games, with editor_control as a narrow authenticated bridge |
 | editor application state | 4 | the editor's own settings, paths, and filesystem cache are the IDE's state, not the user's project; mutating them would change the developer's machine rather than their game |
-| editor plugin authoring | 19 | these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we ship one under addons/godot_agent_loop, but do not expose the authoring surface) |
+| editor plugin authoring | 18 | these are extension points for writing an in-engine editor plugin; this project is an external MCP server, not a toolkit for authoring editor plugins (we ship one under addons/godot_agent_loop, but do not expose the authoring surface) |
 | debugger control | 3 | full debugger control is not claimed; breakpoints, stack inspection, and frame-local evaluation are outside the boundary, and the running-game tools cover pause, frame waits, evaluation, and logs instead |
 | GDScript language server | 3 | the editor's LSP implementation; script diagnostics are served by validate_script through --check-only rather than by driving the language server |
 | version control | 1 | the editor's VCS plugin interface; version control is the user's own concern and is not mediated through this server |
 | GDExtension | 2 | GDExtension builds are not claimed; analyze_project_integrity inspects declarations and libraries without invoking native toolchains |
 | XR editor tooling | 3 | XR is not a claimed workflow, and these are its editor-side binding and interaction-profile editors |
-| import and export editor internals | 28 | project-file configuration plus an actual engine import or export is the supported and authoritative seam; requiring a GUI editor merely to hold its internal importer/platform objects would contradict the deterministic external workflow without strengthening its result |
+| import and export editor internals | 27 | project-file configuration plus an actual engine import or export is the supported and authoritative seam; requiring a GUI editor merely to hold its internal importer/platform objects would contradict the deterministic external workflow without strengthening its result |
 | low-level rendering device | 1 | raw RenderingDevice and compute/RID orchestration are not a claimed workflow; the supported rendering surface is scene resources, visual shaders, and the higher-level rendering tools, and exposing 135 device methods would work against the progressive-disclosure goal |
-| packed scene implementation handles | 3 | read_scene and the authoring tools expose stable serializable scene structure; raw PackedScene state, placeholders, and packed-container references are engine implementation handles rather than an additional user workflow |
+| packed scene implementation handles | 2 | read_scene and the authoring tools expose stable serializable scene structure; raw PackedScene state, placeholders, and packed-container references are engine implementation handles rather than an additional user workflow |
 | advanced runtime audio handles | 6 | procedural sample feeding, spectrum analysis, and specialized playlist/polyphonic playback handles are not claimed; the supported audio workflow covers players, streams, buses, effects, playback control, and persisted layouts |
 | low-level transport handles | 2 | per-peer ENet tuning and custom TLS credential objects are below the claimed HTTP, WebSocket, and multiplayer workflows; those workflows retain the engine and platform TLS validation defaults rather than exposing unsafe or certificate-construction primitives |
 | XR runtime | 2 | XR is not a claimed workflow, and these handles require WebXR or OpenXR runtime/platform support that is outside the portable game-authoring matrix |

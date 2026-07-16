@@ -24,7 +24,9 @@ function createRuntimeServer(
             socket.write(`${JSON.stringify({ jsonrpc: '2.0', id: request.id, error: { code: -32008, message: 'Runtime session authentication failed' } })}\n`);
             continue;
           }
-          socket.write(`${JSON.stringify({ jsonrpc: '2.0', id: request.id, result: { protocolVersion: '1.0', capabilities } })}\n`);
+          socket.write(`${JSON.stringify({ jsonrpc: '2.0', id: request.id, result: {
+            protocolVersion: '1.0', capabilities, engineVersion: '4.7.1', projectPath: '/project', currentScene: 'res://main.tscn',
+          } })}\n`);
         } else {
           socket.write(`${JSON.stringify({ jsonrpc: '2.0', id: request.id, result: { success: true } })}\n`);
         }
@@ -121,6 +123,9 @@ describe('GameConnection lifecycle', () => {
     const connection = new GameConnection({ port, initialDelayMs: 0, retryDelayMs: 1 });
 
     await connection.connect('/project', () => true);
+    expect(connection.handshake).toMatchObject({
+      engineVersion: '4.7.1', projectPath: '/project', currentScene: 'res://main.tscn',
+    });
     expect(connection.isConnected).toBe(true);
 
     const reconnecting = connection.connect('/project', () => true);
@@ -260,19 +265,20 @@ describe('GameConnection lifecycle', () => {
     const wrong = new GameConnection({
       port: rejected.port, initialDelayMs: 0, retryDelayMs: 1, maxAttempts: 1, authSecret: 'wrong-secret',
     });
-    await wrong.connect('/project', () => true);
+    await expect(wrong.connect('/project', () => true)).rejects.toThrow('did not become ready');
     expect(wrong.isConnected).toBe(false);
 
     const unconfirmed = await startServer();
     const connection = new GameConnection({
       port: unconfirmed.port, initialDelayMs: 0, retryDelayMs: 1, maxAttempts: 1, authSecret: 'secret',
     });
-    await connection.connect('/project', () => true);
+    await expect(connection.connect('/project', () => true)).rejects.toThrow('did not become ready');
     expect(connection.isConnected).toBe(false);
   });
 
   it('requests cooperative cancellation when a runtime request times out', async () => {
     const methods: string[] = [];
+    const events: import('../src/game-connection.js').GameLifecycleEvent[] = [];
     const server = createServer(socket => {
       let buffer = '';
       socket.on('data', data => {
@@ -292,13 +298,66 @@ describe('GameConnection lifecycle', () => {
     await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
     const address = server.address();
     if (!address || typeof address === 'string') throw new Error('Server did not bind to a port');
-    const connection = new GameConnection({ port: address.port, initialDelayMs: 0 });
+    const connection = new GameConnection({
+      port: address.port, initialDelayMs: 0, onLifecycleEvent: event => { events.push(event); },
+    });
 
     await connection.connect('/project', () => true);
     await expect(connection.send('wait', {}, 10)).rejects.toThrow('timed out');
     await waitFor(() => methods.includes('godot.runtime.cancel'));
 
     expect(methods).toEqual(['godot.runtime.handshake', 'godot.runtime.wait', 'godot.runtime.cancel']);
+    expect(events).toEqual([
+      expect.objectContaining({ event: 'request_started', correlation_id: 'mcp_2', command: 'wait' }),
+      expect.objectContaining({
+        event: 'request_timed_out', correlation_id: 'mcp_2', command: 'wait',
+        outcome: 'timeout', duration_ms: expect.any(Number),
+      }),
+    ]);
+    connection.disconnect();
+  });
+
+  it('propagates MCP cancellation and cooperatively cancels the runtime request', async () => {
+    const methods: string[] = [];
+    const events: import('../src/game-connection.js').GameLifecycleEvent[] = [];
+    const server = createServer(socket => {
+      let buffer = '';
+      socket.on('data', data => {
+        buffer += data.toString();
+        while (buffer.includes('\n')) {
+          const newline = buffer.indexOf('\n');
+          const request = JSON.parse(buffer.slice(0, newline));
+          buffer = buffer.slice(newline + 1);
+          methods.push(request.method);
+          if (request.method === 'godot.runtime.handshake') {
+            socket.write(`${JSON.stringify({ jsonrpc: '2.0', id: request.id, result: { protocolVersion: '1.0', capabilities: ['runtime-commands', 'godot-json-values'] } })}\n`);
+          }
+        }
+      });
+    });
+    servers.push(server);
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('Server did not bind to a port');
+    const connection = new GameConnection({
+      port: address.port, initialDelayMs: 0, onLifecycleEvent: event => { events.push(event); },
+    });
+    const controller = new AbortController();
+
+    await connection.connect('/project', () => true);
+    const pending = connection.send('wait', {}, 10_000, controller.signal);
+    await waitFor(() => methods.includes('godot.runtime.wait'));
+    controller.abort('client cancelled');
+
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError', message: 'client cancelled' });
+    await waitFor(() => methods.includes('godot.runtime.cancel'));
+    expect(events).toEqual([
+      expect.objectContaining({ event: 'request_started', correlation_id: 'mcp_2', command: 'wait' }),
+      expect.objectContaining({
+        event: 'request_cancelled', correlation_id: 'mcp_2', command: 'wait',
+        outcome: 'cancelled', duration_ms: expect.any(Number),
+      }),
+    ]);
     connection.disconnect();
   });
 });

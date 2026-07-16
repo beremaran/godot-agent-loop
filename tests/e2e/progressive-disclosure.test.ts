@@ -1,5 +1,6 @@
 // @test-kind: e2e
 import { afterEach, describe, expect, it } from 'vitest';
+import { toolDefinitions } from '../../src/tool-definitions.js';
 import { advertisedToolDefinitions } from '../../src/tool-surface.js';
 import { startServer, type E2EServer } from './helpers/harness.js';
 
@@ -18,12 +19,14 @@ function payload(text: string): Record<string, any> {
 }
 
 describe('progressive MCP tool disclosure', () => {
-  it('discovers, describes, and calls a hidden tool through the default core', async () => {
+  it('keeps legacy godot_tools search, describe, and call usable but unadvertised on core', async () => {
     server = await startServer({ toolSurface: 'core' });
     const listed = await server.client.listTools();
     expect(listed.tools.map(tool => tool.name))
       .toEqual(advertisedToolDefinitions('core').map(tool => tool.name));
-    expect(listed.tools.map(tool => tool.name)).toContain('godot_tools');
+    expect(listed.tools.map(tool => tool.name)).toContain('godot_catalog');
+    expect(listed.tools.map(tool => tool.name)).toContain('godot_call');
+    expect(listed.tools.map(tool => tool.name)).not.toContain('godot_tools');
     expect(listed.tools.map(tool => tool.name)).not.toContain('game_light_3d');
 
     const searched = await server.call('godot_tools', {
@@ -82,7 +85,8 @@ describe('progressive MCP tool disclosure', () => {
   it('retains full static discovery as an explicit compatibility mode', async () => {
     server = await startServer({ toolSurface: 'full' });
     const listed = await server.client.listTools();
-    expect(listed.tools).toHaveLength(171);
+    expect(listed.tools).toHaveLength(toolDefinitions.length);
+    expect(listed.tools.map(tool => tool.name)).toContain('godot_tools');
     expect(listed.tools.map(tool => tool.name)).toContain('game_light_3d');
   });
 });

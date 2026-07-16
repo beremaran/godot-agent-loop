@@ -100,6 +100,25 @@ describe('editor session discovery', () => {
     expect(readDiscoveryRecord(idle)).toMatchObject({ state: 'no_editor' });
   });
 
+  it('turns a stale watched-editor record into an explicit upgrade-and-restart state with remediation', async () => {
+    const path = project('stale-addon-upgrade');
+    mkdirSync(join(path, 'addons', 'godot_agent_loop'), { recursive: true });
+    writeFileSync(join(path, 'addons', 'godot_agent_loop', 'plugin.cfg'), 'protocol_version="1"\n');
+    writeRecord(path, record(path));
+    const onStateChange = vi.fn();
+    const registry = new EditorSessionRegistry({ processExists: () => false, onStateChange });
+
+    const status = await registry.status(path);
+
+    expect(status).toMatchObject({ state: 'addon_upgrade_restart_required', connected: false });
+    expect(status.reason).toMatch(/stale.*protocol 1.*protocol 2.*restarted/i);
+    expect(existsSync(join(path, EDITOR_SESSION_FILE))).toBe(false);
+    expect(onStateChange).toHaveBeenCalledWith(expect.objectContaining({
+      state: 'addon_upgrade_restart_required', connected: false,
+    }));
+    registry.disconnectAll();
+  });
+
   it('reports protocol incompatibility without returning the token', () => {
     const path = project();
     writeRecord(path, record(path, { protocol_version: '1', token: 'secret'.repeat(8) }));
@@ -110,6 +129,23 @@ describe('editor session discovery', () => {
 });
 
 describe('EditorSessionRegistry', () => {
+  it('cancels editor discovery polling without waiting for its deadline', async () => {
+    const path = project('cancel-discovery');
+    mkdirSync(join(path, 'addons', 'godot_agent_loop'), { recursive: true });
+    writeFileSync(join(path, 'addons', 'godot_agent_loop', 'plugin.cfg'), 'protocol_version="2"\n');
+    writeFileSync(join(path, 'project.godot'), [
+      '[editor_plugins]', '',
+      'enabled=PackedStringArray("res://addons/godot_agent_loop/plugin.cfg")', '',
+    ].join('\n'));
+    const registry = new EditorSessionRegistry({ retryDelaysMs: [5_000] });
+    const controller = new AbortController();
+    const pending = registry.ensure(path, 30_000, controller.signal);
+    setTimeout(() => { controller.abort('stop discovery'); }, 10);
+
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError', message: 'stop discovery' });
+    registry.disconnectAll();
+  });
+
   it('routes projects through distinct authenticated connections and redacts credentials', async () => {
     const first = project('first');
     const second = project('second');

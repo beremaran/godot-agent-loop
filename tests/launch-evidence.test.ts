@@ -4,6 +4,7 @@ import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { PNG } from 'pngjs';
 import { describe, expect, it } from 'vitest';
+import { toolDefinitions } from '../src/tool-definitions.js';
 import { repoRoot } from './e2e/helpers/harness.js';
 
 interface Mp4Box {
@@ -115,6 +116,6 @@ describe('launch evidence', () => {
     const readme = readFileSync(join(repoRoot, 'README.md'), 'utf8');
     expect(readme).toContain('assets/demo/godot-agent-loop-launch-poster.png');
     expect(readme).toContain('assets/demo/godot-agent-loop-launch.mp4');
-    expect(readme).toContain('171/171 tools have full-path MCP E2E coverage');
+    expect(readme).toContain(`E2E tools: ${toolDefinitions.length}/${toolDefinitions.length}`);
   });
 });

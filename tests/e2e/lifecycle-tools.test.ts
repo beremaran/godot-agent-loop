@@ -85,6 +85,34 @@ describe('discovery tools', () => {
 });
 
 describe('project process ownership', () => {
+  it('returns atomic startup evidence and accepts an immediate runtime command', async () => {
+    server = await startServer();
+    const started = await server.call('run_project', { projectPath: server.projectPath });
+    expect(started.isError, started.text).toBe(false);
+    const evidence = JSON.parse(started.text) as Record<string, any>;
+    expect(evidence).toMatchObject({
+      process_started: true,
+      runtime_connected: true,
+      runtime_ready: true,
+      project_path: server.projectPath,
+      observed_project_path: server.projectPath,
+      observed_scene: 'res://main.tscn',
+      engine_version: expect.stringMatching(/^4\.\d+/),
+      startup_diagnostics: {
+        stdout: expect.any(String), stderr: expect.any(String),
+        truncated: expect.any(Boolean), limit_bytes: 16 * 1024,
+      },
+    });
+    expect(evidence.startup_duration_ms).toEqual(expect.any(Number));
+    expect(evidence.startup_duration_ms).toBeGreaterThanOrEqual(0);
+
+    // No separate waitForGameConnection call: successful run_project is the
+    // connection/readiness barrier for ordinary workflows.
+    const tree = await server.call('game_get_scene_tree', { maxNodes: 8 });
+    expect(tree.isError, tree.text).toBe(false);
+    expect(JSON.parse(tree.text)).toMatchObject({ current_scene: 'res://main.tscn' });
+  });
+
   it('preserves output ordering and survives repeated launches', async () => {
     server = await startServer();
     writeFileSync(join(server.projectPath, 'main.gd'), [
@@ -123,13 +151,14 @@ describe('project process ownership', () => {
     expect(again.text).toMatch(/No active Godot process/i);
   });
 
-  it('observes a project that exits on its own', async () => {
+  it('observes a ready project that later exits on its own', async () => {
     server = await startServer();
     writeFileSync(join(server.projectPath, 'main.gd'), [
       'extends Node2D',
       '',
       '',
       'func _ready() -> void:',
+      '\tawait get_tree().create_timer(5.0).timeout',
       '\tprint("exiting-now")',
       '\tget_tree().quit(3)',
       '',

@@ -203,7 +203,13 @@ export interface JsonRpcError { code: number; message: string; data?: unknown; }
 export interface JsonRpcSuccess<T = unknown> { jsonrpc: '2.0'; id: JsonRpcId; result: T; }
 export interface JsonRpcFailure { jsonrpc: '2.0'; id: JsonRpcId | null; error: JsonRpcError; }
 export type JsonRpcResponse<T = unknown> = JsonRpcSuccess<T> | JsonRpcFailure;
-export interface RuntimeHandshake { protocolVersion: string; capabilities: string[]; }
+export interface RuntimeHandshake {
+  protocolVersion: string;
+  capabilities: string[];
+  engineVersion?: string;
+  projectPath?: string;
+  currentScene?: string;
+}
 
 export function commandMethod(command: string): string { return `${COMMAND_METHOD_PREFIX}${command}`; }
 export function isJsonRpcResponse(value: unknown): value is JsonRpcResponse {

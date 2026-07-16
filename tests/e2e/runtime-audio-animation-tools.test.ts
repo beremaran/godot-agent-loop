@@ -400,9 +400,11 @@ describe('runtime animation and audio layout tools through MCP', () => {
     const spatial = await game.call('game_audio_spatial', { nodePath: '/root/Main/Audio3D', action: 'get_info' });
     expect(spatial.isError, spatial.text).toBe(false);
     expect(payload(spatial.text)).toMatchObject({ max_distance: 75, unit_size: 2.5, max_db: 6, attenuation_model: 'logarithmic' });
-    await expect(game.call('game_audio_spatial', {
+    const invalidModel = await game.call('game_audio_spatial', {
       nodePath: '/root/Main/Audio3D', action: 'configure', attenuationModel: 'linear',
-    })).rejects.toThrow(/attenuationModel.*inverse.*logarithmic/i);
+    });
+    expect(invalidModel.isError).toBe(true);
+    expect(invalidModel.text).toMatch(/attenuationModel.*inverse.*logarithmic/i);
     expect(await evalResult(game, [
       'var bus := AudioServer.get_bus_index("E2E Audio")',
       'AudioServer.remove_bus(bus)',

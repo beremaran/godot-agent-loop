@@ -67,9 +67,11 @@ describe('runtime G+ 3D scene tools through MCP', () => {
     });
     expect((state.color as { r: number }).r).toBeCloseTo(0.2, 2);
 
-    await expect(game.call('game_mesh_instance', {
+    const invalidMesh = await game.call('game_mesh_instance', {
       parentPath: '/root/Main', meshType: 'pyramid',
-    })).rejects.toThrow(/meshType.*box.*sphere/i);
+    });
+    expect(invalidMesh.isError).toBe(true);
+    expect(invalidMesh.text).toMatch(/meshType.*box.*sphere/i);
   });
 
   it('game_path_3d covers create/add/get/set and rejects missing mutation payloads', async () => {

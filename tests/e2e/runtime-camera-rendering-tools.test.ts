@@ -310,7 +310,7 @@ describe('shader, particle, and viewport tools through MCP', () => {
 
     const noPath = await game.call('game_viewport', { action: 'configure' });
     expect(noPath.isError).toBe(true);
-    expect(noPath.text).toMatch(/node_path is required/i);
+    expect(noPath.text).toMatch(/nodePath is required/i);
   });
 
   it('game_render_settings get/set drives the real viewport', async () => {

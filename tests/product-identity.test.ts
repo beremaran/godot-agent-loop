@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { toolDefinitions } from '../src/tool-definitions.js';
 import { repoRoot } from './helpers/manifest-sources.js';
 
 const product = JSON.parse(readFileSync(join(repoRoot, 'product.json'), 'utf8')) as {
@@ -97,9 +98,9 @@ describe('Godot Agent Loop product identity', () => {
       product.category,
       product.npm.package,
       'author → validate → run → observe → playtest → verify → refine',
-      '171/171 tools',
-      '365 public actions',
-      '40 tools',
+      `E2E tools: ${toolDefinitions.length}/${toolDefinitions.length}`,
+      'tool-surface budget',
+      'godot_catalog',
       'Support is deliberately bounded',
     ]) {
       expect(firstScreen).toContain(expected);

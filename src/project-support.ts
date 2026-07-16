@@ -11,6 +11,7 @@ import {
   type ScriptDiagnostic,
 } from './utils.js';
 import { GODOT_COMMAND_OPTIONS, GODOT_VERSION_OPTIONS } from './godot-subprocess.js';
+import { currentExecutionContext, isAbortError, throwIfCancelled } from './execution-context.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -146,14 +147,17 @@ export class ProjectSupport {
   }
 
   public async detectGodotNetSdkVersion(): Promise<string | null> {
+    const signal = currentExecutionContext()?.signal;
+    throwIfCancelled(signal);
     try {
       const godotPath = await this.requireGodotPath();
       if (!godotPath) return null;
 
-      const { stdout } = await execFileAsync(godotPath, ['--version'], GODOT_VERSION_OPTIONS);
+      const { stdout } = await execFileAsync(godotPath, ['--version'], { ...GODOT_VERSION_OPTIONS, signal });
       const match = /^(\d+)\.(\d+)(?:\.\d+)?\.stable\b/.exec(stdout.trim());
       return match ? `${match[1]}.${match[2]}.0` : null;
-    } catch {
+    } catch (error) {
+      if (isAbortError(error) || signal?.aborted) throw error;
       return null;
     }
   }
@@ -176,6 +180,8 @@ export class ProjectSupport {
   }
 
   public async runGdScriptCheck(projectPath: string, scriptFull: string): Promise<GdScriptCheck> {
+    const signal = currentExecutionContext()?.signal;
+    throwIfCancelled(signal);
     const godotPath = await this.requireGodotPath();
     if (!godotPath) {
       return { completed: false, errors: [], error: 'Could not find a valid Godot executable path' };
@@ -192,10 +198,11 @@ export class ProjectSupport {
       const { stdout, stderr } = await execFileAsync(
         godotPath,
         ['--headless', '--path', projectPath, '--script', this.validateScriptPath, scriptResourcePath],
-        GODOT_COMMAND_OPTIONS,
+        { ...GODOT_COMMAND_OPTIONS, signal },
       );
       output = `${stdout ?? ''}${stderr ?? ''}`;
     } catch (error: unknown) {
+      if (isAbortError(error) || signal?.aborted) throw error;
       failed = true;
       const execError = error as { stdout?: string; stderr?: string; killed?: boolean; signal?: string; code?: string };
       output = `${execError.stdout ?? ''}${execError.stderr ?? ''}`;
@@ -214,16 +221,19 @@ export class ProjectSupport {
   }
 
   public async listChangedGdFiles(projectPath: string): Promise<ChangedGdFiles> {
+    const signal = currentExecutionContext()?.signal;
+    throwIfCancelled(signal);
     const git = (gitArgs: string[]) =>
       execFileAsync(
         'git',
         ['-c', 'core.quotepath=false', '-C', projectPath, ...gitArgs],
-        { timeout: 15000, maxBuffer: 16 * 1024 * 1024 },
+        { timeout: 15000, maxBuffer: 16 * 1024 * 1024, signal },
       );
 
     try {
       await git(['rev-parse', '--is-inside-work-tree']);
-    } catch {
+    } catch (error) {
+      if (isAbortError(error) || signal?.aborted) throw error;
       return { error: 'Not a git repository (or git is unavailable). Use scope: "all" or pass scriptPaths.' };
     }
 
@@ -235,6 +245,7 @@ export class ProjectSupport {
       ]);
       return { files: collectGdPaths(outputs.map(output => output.stdout ?? '')) };
     } catch (error: unknown) {
+      if (isAbortError(error) || signal?.aborted) throw error;
       return { error: `Failed to list changed files: ${errorMessage(error)}` };
     }
   }

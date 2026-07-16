@@ -1,10 +1,103 @@
 {
-  "$comment": "Per-tool coverage inventory. level: E2E|H|G+|G-|T. Every test ref is \"file::needle\" and tests/tool-coverage.test.ts verifies the needle occurs in the file. Every manifest action must appear here, either with tests or with an explicit untested reason.",
+  "$comment": "Per-tool coverage inventory. level: E2E|H|G+|G-|T. Every test ref is \"file::needle\" and tests/tool-coverage.test.ts verifies the needle occurs in the file. Every manifest action must appear here, either with tests or with an explicit untested reason. Each applicable test dimension must also list concrete dimensionEvidence indexes into that tool's resolving tests array; labels alone are rejected.",
   "tools": {
+    "godot_catalog": {
+      "level": "E2E",
+      "tests": [
+        "tests/e2e/agent-adapter-smoke.test.ts::discovers a hidden tool",
+        "tests/tool-surface.test.ts::supports deterministic catalog filters and ranked debug explanations",
+        "tests/tool-surface.test.ts::describes summary, schema, and full catalog detail levels"
+      ],
+      "actions": {
+        "search": {
+          "tests": [
+            "tests/e2e/agent-adapter-smoke.test.ts::action: 'search'",
+            "tests/tool-surface.test.ts::supports deterministic catalog filters and ranked debug explanations"
+          ]
+        },
+        "describe": {
+          "tests": [
+            "tests/e2e/agent-adapter-smoke.test.ts::action: 'describe'",
+            "tests/tool-surface.test.ts::describes summary, schema, and full catalog detail levels"
+          ]
+        }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "n/a: read-only local catalog inspection owns no transient state",
+        "persistence": "n/a: read-only local catalog inspection cannot author project state",
+        "frame-behavior": "n/a: local catalog inspection does not execute inside the game loop",
+        "exotic-paths": "n/a: catalog metadata contains no filesystem path",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "n/a: deterministic local catalog inspection is platform-independent",
+        "build-flavors": "n/a: deterministic local catalog inspection is language-independent",
+        "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "security": 0
+      }
+    },
+    "godot_call": {
+      "level": "E2E",
+      "tests": [
+        "tests/e2e/agent-adapter-smoke.test.ts::const delegated = await server.call('godot_call'",
+        "tests/tool-catalog-dispatch.test.ts::forwards exactly one named hidden tool and its arguments through godot_call",
+        "tests/tool-catalog-dispatch.test.ts::rejects dispatcher recursion and unavailable expanded dispatch",
+        "tests/editor-mutation-guard.test.ts::blocks direct and dispatched pathless runtime property, input, scene, and audio mutations"
+      ],
+      "actions": {
+        "*": {
+          "tests": [
+            "tests/e2e/agent-adapter-smoke.test.ts::toolName: 'list_project_files'",
+            "tests/tool-catalog-dispatch.test.ts::forwards exactly one named hidden tool and its arguments through godot_call",
+            "tests/tool-catalog-dispatch.test.ts::rejects dispatcher recursion and unavailable expanded dispatch"
+          ]
+        }
+      },
+      "dimensions": {
+        "happy-path": "applicable",
+        "parameters": "applicable",
+        "failures": "applicable",
+        "repeatability": "applicable",
+        "cleanup": "applicable",
+        "persistence": "n/a: dispatch preserves the selected tool's own persistence contract",
+        "frame-behavior": "applicable",
+        "exotic-paths": "applicable",
+        "limits": "applicable",
+        "compatibility": "applicable",
+        "platforms": "applicable",
+        "build-flavors": "n/a: local dispatch is language-independent",
+        "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 3,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 3
+      }
+    },
     "godot_tools": {
       "level": "E2E",
       "tests": [
-        "tests/e2e/progressive-disclosure.test.ts::discovers, describes, and calls a hidden tool through the default core"
+        "tests/e2e/progressive-disclosure.test.ts::keeps legacy godot_tools search, describe, and call usable but unadvertised on core",
+        "tests/editor-mutation-guard.test.ts::blocks direct and dispatched pathless runtime property, input, scene, and audio mutations"
       ],
       "actions": {
         "search": {
@@ -37,6 +130,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: local discovery and dispatch are language-independent",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 1,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 1
       }
     },
     "launch_editor": {
@@ -67,23 +172,42 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "editor_session": {
       "level": "E2E",
       "tests": [
         "tests/e2e/lifecycle-tools.test.ts::'editor_session'",
-        "tests/editor-session-registry.test.ts::EditorSessionRegistry"
+        "tests/editor-session-registry.test.ts::EditorSessionRegistry",
+        "tests/handler-modules.test.ts::stops a watched ensure at an addon restart requirement instead of launching another editor"
       ],
       "actions": {
         "ensure": {
-          "tests": ["tests/e2e/lifecycle-tools.test.ts::action: 'ensure'"]
+          "tests": [
+            "tests/e2e/lifecycle-tools.test.ts::action: 'ensure'"
+          ]
         },
         "status": {
-          "tests": ["tests/e2e/lifecycle-tools.test.ts::action: 'status'"]
+          "tests": [
+            "tests/e2e/lifecycle-tools.test.ts::action: 'status'"
+          ]
         },
         "disconnect": {
-          "tests": ["tests/e2e/lifecycle-tools.test.ts::action: 'disconnect'"]
+          "tests": [
+            "tests/e2e/lifecycle-tools.test.ts::action: 'disconnect'"
+          ]
         }
       },
       "dimensions": {
@@ -100,6 +224,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: EditorPlugin is language-independent",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 2,
+        "repeatability": 2,
+        "cleanup": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 2,
+        "platforms": 0,
+        "security": 0
       }
     },
     "editor_control": {
@@ -169,6 +305,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: EditorPlugin is language-independent",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "editor_transaction": {
@@ -178,7 +327,9 @@
       ],
       "actions": {
         "*": {
-          "tests": ["tests/e2e/lifecycle-tools.test.ts::'editor_transaction'"]
+          "tests": [
+            "tests/e2e/lifecycle-tools.test.ts::'editor_transaction'"
+          ]
         }
       },
       "dimensions": {
@@ -195,6 +346,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: EditorPlugin is language-independent",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "run_project": {
@@ -231,6 +395,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "verify_project": {
@@ -261,6 +437,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: verification protocol is language-independent",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "run_project_tests": {
@@ -295,6 +484,20 @@
         "platforms": "applicable",
         "build-flavors": "applicable",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "build-flavors": 0,
+        "security": 0
       }
     },
     "manage_import_pipeline": {
@@ -339,6 +542,20 @@
         "platforms": "applicable",
         "build-flavors": "applicable",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "build-flavors": 0,
+        "security": 0
       }
     },
     "analyze_project_integrity": {
@@ -398,6 +615,19 @@
         "platforms": "applicable",
         "build-flavors": "applicable",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "build-flavors": 0,
+        "security": 0
       }
     },
     "verify_export_readiness": {
@@ -432,6 +662,20 @@
         "platforms": "applicable",
         "build-flavors": "applicable",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "build-flavors": 0,
+        "security": 0
       }
     },
     "verify_dotnet_project": {
@@ -476,6 +720,21 @@
         "platforms": "applicable",
         "build-flavors": "applicable",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "build-flavors": 0,
+        "security": 0
       }
     },
     "manage_addon": {
@@ -530,6 +789,20 @@
         "platforms": "applicable",
         "build-flavors": "applicable",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "build-flavors": 0,
+        "security": 0
       }
     },
     "get_debug_output": {
@@ -564,6 +837,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "stop_project": {
@@ -600,6 +884,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "get_godot_version": {
@@ -630,6 +925,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "list_projects": {
@@ -662,6 +968,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "get_project_info": {
@@ -692,6 +1011,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "create_scene": {
@@ -701,7 +1033,8 @@
         "tests/godot/run-headless-operations.sh::run_op create_scene",
         "tests/handler-modules.test.ts::handleCreateScene",
         "tests/handlers.test.ts::handleCreateScene",
-        "tests/headless-operation-runner.test.ts::create_scene"
+        "tests/headless-operation-runner.test.ts::create_scene",
+        "tests/editor-mutation-guard.test.ts::fails closed when the editor disconnects during the pause-state check"
       ],
       "actions": {
         "*": {
@@ -728,6 +1061,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 5,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 5
       }
     },
     "add_node": {
@@ -762,6 +1108,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "load_sprite": {
@@ -792,6 +1151,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "export_mesh_library": {
@@ -822,6 +1194,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "save_scene": {
@@ -854,6 +1239,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "get_uid": {
@@ -884,6 +1282,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "update_project_uids": {
@@ -916,6 +1327,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "game_screenshot": {
@@ -946,6 +1370,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "game_visual_regression": {
@@ -980,6 +1416,20 @@
         "platforms": "applicable",
         "build-flavors": "n/a: PNG comparison is language-independent",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "game_click": {
@@ -1016,6 +1466,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_key_press": {
@@ -1048,6 +1509,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_mouse_move": {
@@ -1078,6 +1550,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_get_ui": {
@@ -1108,6 +1591,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_get_scene_tree": {
@@ -1140,6 +1634,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_eval": {
@@ -1172,6 +1677,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "game_get_property": {
@@ -1206,6 +1723,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "game_set_property": {
@@ -1215,7 +1745,8 @@
         "tests/handler-modules.test.ts::handleGameSetProperty",
         "tests/handlers.test.ts::handleGameSetProperty",
         "tests/e2e/runtime-core-tools.test.ts::game_set_property writes typed values, honours typeHint, and is denied without privilege",
-        "tests/e2e/runtime-core-tools.test.ts::game_set_property and game_call_method are refused when privileged commands are off"
+        "tests/e2e/runtime-core-tools.test.ts::game_set_property and game_call_method are refused when privileged commands are off",
+        "tests/editor-mutation-guard.test.ts::blocks direct and dispatched pathless runtime property, input, scene, and audio mutations"
       ],
       "actions": {
         "*": {
@@ -1242,6 +1773,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 5,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 5
       }
     },
     "game_call_method": {
@@ -1276,6 +1820,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "game_get_node_info": {
@@ -1308,6 +1865,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_instantiate_scene": {
@@ -1340,6 +1909,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_remove_node": {
@@ -1370,6 +1951,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_change_scene": {
@@ -1377,7 +1970,8 @@
       "tests": [
         "tests/godot/fixture/test_runner.gd::godot.runtime.change_scene",
         "tests/handlers.test.ts::handleGameChangeScene",
-        "tests/e2e/runtime-core-tools.test.ts::game_change_scene swaps the running scene"
+        "tests/e2e/runtime-core-tools.test.ts::game_change_scene swaps the running scene",
+        "tests/editor-mutation-guard.test.ts::blocks direct and dispatched pathless runtime property, input, scene, and audio mutations"
       ],
       "actions": {
         "*": {
@@ -1402,6 +1996,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 3,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_pause": {
@@ -1432,6 +2038,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_performance": {
@@ -1486,6 +2103,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_wait": {
@@ -1518,6 +2146,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_wait_until": {
@@ -1528,7 +2167,9 @@
       ],
       "actions": {
         "*": {
-          "tests": ["tests/e2e/representative-path.test.ts::'game_wait_until'"]
+          "tests": [
+            "tests/e2e/representative-path.test.ts::'game_wait_until'"
+          ]
         }
       },
       "dimensions": {
@@ -1545,6 +2186,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: runtime protocol is language-independent",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "game_scenario": {
@@ -1555,7 +2208,9 @@
       ],
       "actions": {
         "*": {
-          "tests": ["tests/e2e/representative-path.test.ts::'game_scenario'"]
+          "tests": [
+            "tests/e2e/representative-path.test.ts::'game_scenario'"
+          ]
         }
       },
       "dimensions": {
@@ -1572,6 +2227,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: runtime protocol is language-independent",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "read_scene": {
@@ -1604,6 +2271,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "modify_scene_node": {
@@ -1636,6 +2316,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "remove_scene_node": {
@@ -1668,6 +2361,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "read_project_settings": {
@@ -1701,6 +2407,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "modify_project_settings": {
@@ -1734,6 +2453,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "list_project_files": {
@@ -1765,6 +2497,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "game_connect_signal": {
@@ -1797,6 +2542,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_disconnect_signal": {
@@ -1829,6 +2586,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_emit_signal": {
@@ -1861,6 +2630,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_play_animation": {
@@ -1905,6 +2686,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_tween_property": {
@@ -1935,6 +2728,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_get_nodes_in_group": {
@@ -1967,6 +2772,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_find_nodes_by_class": {
@@ -1997,6 +2813,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_reparent_node": {
@@ -2027,6 +2855,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "attach_script": {
@@ -2061,6 +2901,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "create_resource": {
@@ -2093,6 +2946,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "read_file": {
@@ -2126,6 +2992,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "write_file": {
@@ -2134,7 +3013,8 @@
         "tests/handlers.test.ts::handleWriteFile",
         "tests/e2e/project-config-tools.test.ts::write_file/read_file/rename_file/delete_file/create_directory round-trip on the real filesystem",
         "tests/e2e/project-config-tools.test.ts::file tools reject traversal and absolute escapes without touching the filesystem",
-        "tests/e2e/project-config-tools.test.ts::exposes every configuration tool through MCP discovery"
+        "tests/e2e/project-config-tools.test.ts::exposes every configuration tool through MCP discovery",
+        "tests/editor-mutation-guard.test.ts::fails closed when the editor disconnects during the pause-state check"
       ],
       "actions": {
         "*": {
@@ -2159,6 +3039,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 4,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 4
       }
     },
     "delete_file": {
@@ -2192,6 +3085,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "create_directory": {
@@ -2223,6 +3129,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "game_get_errors": {
@@ -2253,6 +3172,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_get_logs": {
@@ -2283,6 +3213,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_key_hold": {
@@ -2290,7 +3231,9 @@
       "tests": [
         "tests/e2e/runtime-input-tools.test.ts::'game_key_hold'",
         "tests/godot/fixture/test_runner.gd::godot.runtime.key_hold",
-        "tests/handlers.test.ts::handleGameKeyHold"
+        "tests/handlers.test.ts::handleGameKeyHold",
+        "tests/editor-mutation-guard.test.ts::blocks direct and dispatched pathless runtime property, input, scene, and audio mutations",
+        "tests/editor-mutation-guard.test.ts::returns one cancelled terminal result when cancellation arrives during a paused guard check"
       ],
       "actions": {
         "*": {
@@ -2315,6 +3258,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 3,
+        "repeatability": 4,
+        "cleanup": 4,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_key_release": {
@@ -2347,6 +3301,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_scroll": {
@@ -2379,6 +3344,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_mouse_drag": {
@@ -2411,6 +3387,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_gamepad": {
@@ -2441,6 +3428,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "create_project": {
@@ -2473,6 +3471,20 @@
         "platforms": "applicable",
         "build-flavors": "applicable",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "build-flavors": 0,
+        "security": 0
       }
     },
     "create_csharp_script": {
@@ -2503,6 +3515,20 @@
         "platforms": "applicable",
         "build-flavors": "applicable",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "build-flavors": 0,
+        "security": 0
       }
     },
     "manage_autoloads": {
@@ -2545,6 +3571,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "manage_input_map": {
@@ -2588,6 +3627,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "manage_export_presets": {
@@ -2629,6 +3681,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "game_get_camera": {
@@ -2661,6 +3726,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_set_camera": {
@@ -2693,6 +3769,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_raycast": {
@@ -2725,6 +3812,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_get_audio": {
@@ -2755,6 +3853,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_spawn_node": {
@@ -2785,6 +3894,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_set_shader_param": {
@@ -2815,13 +3936,26 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_audio_play": {
       "level": "E2E",
       "tests": [
         "tests/e2e/runtime-audio-animation-tools.test.ts::controls audio playback",
-        "tests/handlers.test.ts::handleGameAudioPlay"
+        "tests/handlers.test.ts::handleGameAudioPlay",
+        "tests/editor-mutation-guard.test.ts::blocks direct and dispatched pathless runtime property, input, scene, and audio mutations"
       ],
       "actions": {
         "play": {
@@ -2859,6 +3993,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 2,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_audio_bus": {
@@ -2891,6 +4037,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_navigate_path": {
@@ -2923,6 +4080,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_tilemap": {
@@ -2970,6 +4138,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_add_collision": {
@@ -3002,6 +4182,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_environment": {
@@ -3039,6 +4231,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_manage_group": {
@@ -3078,6 +4281,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_create_timer": {
@@ -3108,6 +4323,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_set_particles": {
@@ -3138,6 +4365,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_create_animation": {
@@ -3168,6 +4407,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "export_project": {
@@ -3198,6 +4449,20 @@
         "platforms": "applicable",
         "build-flavors": "applicable",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "build-flavors": 0,
+        "security": 0
       }
     },
     "game_serialize_state": {
@@ -3232,6 +4497,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_physics_body": {
@@ -3264,6 +4541,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_create_joint": {
@@ -3296,6 +4585,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_bone_pose": {
@@ -3335,6 +4636,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_ui_theme": {
@@ -3367,6 +4680,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_viewport": {
@@ -3406,6 +4731,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_debug_draw": {
@@ -3453,6 +4790,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_http_request": {
@@ -3485,6 +4833,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "game_websocket": {
@@ -3536,6 +4896,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "game_multiplayer": {
@@ -3583,6 +4955,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_rpc": {
@@ -3617,6 +5000,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "game_touch": {
@@ -3657,6 +5053,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_input_state": {
@@ -3699,6 +5106,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_input_action": {
@@ -3747,6 +5165,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_list_signals": {
@@ -3779,6 +5208,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_await_signal": {
@@ -3809,6 +5250,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_script": {
@@ -3851,6 +5304,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "game_window": {
@@ -3885,6 +5351,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_os_info": {
@@ -3917,6 +5394,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_time_scale": {
@@ -3951,6 +5439,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_process_mode": {
@@ -3983,6 +5482,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_world_settings": {
@@ -4017,6 +5528,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_csg": {
@@ -4053,6 +5575,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_multimesh": {
@@ -4092,6 +5626,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_procedural_mesh": {
@@ -4122,6 +5668,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_light_3d": {
@@ -4157,6 +5715,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_mesh_instance": {
@@ -4189,6 +5759,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_gridmap": {
@@ -4233,6 +5815,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_3d_effects": {
@@ -4263,6 +5857,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_gi": {
@@ -4293,6 +5899,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_path_3d": {
@@ -4339,6 +5957,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_sky": {
@@ -4368,6 +5998,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_camera_attributes": {
@@ -4402,6 +6043,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_navigation_3d": {
@@ -4437,6 +6089,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_physics_3d": {
@@ -4482,6 +6146,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_canvas": {
@@ -4524,6 +6200,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_canvas_draw": {
@@ -4582,6 +6270,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_light_2d": {
@@ -4622,6 +6322,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_parallax": {
@@ -4663,6 +6375,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_shape_2d": {
@@ -4709,6 +6433,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_path_2d": {
@@ -4750,6 +6486,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_physics_2d": {
@@ -4796,6 +6544,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_animation_tree": {
@@ -4835,6 +6595,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_animation_control": {
@@ -4886,6 +6658,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_skeleton_ik": {
@@ -4925,6 +6709,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_audio_effect": {
@@ -4969,6 +6765,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_audio_bus_layout": {
@@ -5020,6 +6827,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_audio_spatial": {
@@ -5054,6 +6872,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "rename_file": {
@@ -5087,6 +6917,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "manage_resource": {
@@ -5124,6 +6967,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "validate_script": {
@@ -5163,6 +7019,20 @@
         "platforms": "applicable",
         "build-flavors": "applicable",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "build-flavors": 0,
+        "security": 0
       }
     },
     "validate_scripts": {
@@ -5196,6 +7066,20 @@
         "platforms": "applicable",
         "build-flavors": "applicable",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "build-flavors": 0,
+        "security": 0
       }
     },
     "create_script": {
@@ -5227,6 +7111,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "manage_scene_signals": {
@@ -5270,6 +7167,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "manage_layers": {
@@ -5305,6 +7215,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "manage_plugins": {
@@ -5345,6 +7268,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "manage_shader": {
@@ -5380,6 +7316,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "manage_theme_resource": {
@@ -5423,6 +7372,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "set_main_scene": {
@@ -5454,6 +7416,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "manage_scene_structure": {
@@ -5497,6 +7472,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "manage_translations": {
@@ -5537,6 +7525,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "game_locale": {
@@ -5577,6 +7578,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_ui_control": {
@@ -5624,6 +7636,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_ui_text": {
@@ -5675,6 +7699,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_ui_popup": {
@@ -5719,6 +7755,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_ui_tree": {
@@ -5773,6 +7821,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_ui_item_list": {
@@ -5824,6 +7884,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_ui_tabs": {
@@ -5863,6 +7935,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_ui_menu": {
@@ -5912,6 +7996,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_ui_range": {
@@ -5948,6 +8044,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_render_settings": {
@@ -5982,6 +8090,17 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_resource": {
@@ -6028,6 +8147,20 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "game_visual_shader": {
@@ -6088,6 +8221,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_terrain": {
@@ -6135,6 +8280,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "game_video": {
@@ -6194,6 +8351,18 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "n/a: unprivileged loopback runtime command gated by the privileged-command policy"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "frame-behavior": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0
       }
     },
     "manage_ci_pipeline": {
@@ -6230,6 +8399,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     },
     "manage_docker_export": {
@@ -6266,6 +8448,19 @@
         "platforms": "applicable",
         "build-flavors": "n/a: not language-sensitive; behavior is identical on standard and .NET builds",
         "security": "applicable"
+      },
+      "dimensionEvidence": {
+        "happy-path": 0,
+        "parameters": 0,
+        "failures": 0,
+        "repeatability": 0,
+        "cleanup": 0,
+        "persistence": 0,
+        "exotic-paths": 0,
+        "limits": 0,
+        "compatibility": 0,
+        "platforms": 0,
+        "security": 0
       }
     }
   }

@@ -8,32 +8,113 @@
   "mcp": {
     "command": ["npx", "-y", "@beremaran/godot-agent-loop@1.1.1"],
     "environment": {
-      "GODOT_MCP_TOOL_SURFACE": "compact"
+      "GODOT_MCP_TOOL_SURFACE": "core"
     },
-    "defaultToolCount": 40,
-    "discoveryTool": "godot_tools"
+    "canonicalSurface": "core",
+    "surfaceAliases": ["compact"],
+    "catalogTool": "godot_catalog",
+    "callTool": "godot_call",
+    "deprecatedCompatibilityTool": "godot_tools",
+    "compatibilityThrough": "1.x"
   },
   "skills": [
     {
       "name": "build-godot-game",
-      "description": "Build a new playable Godot 4 game or substantial gameplay slice through Godot Agent Loop. Use for requests to create a game from an empty project or project path, add a complete mechanic, or deliver a playable scene with input, visible state, and win/lose behavior."
+      "description": "Build a new playable Godot 4 game or substantial gameplay slice through Godot Agent Loop. Use to create a game, add a complete mechanic, or deliver playable controls, visible state, and success/failure behavior; do not use for diagnosis-only, verification-only, or release-only requests.",
+      "interface": {
+        "displayName": "Build Godot Game",
+        "shortDescription": "Build a complete playable Godot game",
+        "defaultPrompt": "Use $build-godot-game to build this playable Godot game and prove its ordinary, success, and failure states."
+      },
+      "toolContract": {
+        "direct": [
+          "godot_catalog", "godot_call", "get_godot_version", "editor_session", "editor_transaction",
+          "create_project", "read_project_settings", "read_scene", "create_scene",
+          "add_node", "create_script", "write_file", "attach_script", "manage_input_map",
+          "set_main_scene", "validate_scripts", "run_project", "game_get_scene_tree",
+          "game_get_ui", "game_screenshot", "game_wait_until", "game_scenario",
+          "game_key_press", "game_key_hold", "game_key_release", "verify_project",
+          "run_project_tests", "get_debug_output", "game_get_errors", "stop_project"
+        ],
+        "hidden": ["list_project_files", "analyze_project_integrity"],
+        "privilegedGroups": [],
+        "effectScopes": ["read-only", "project-persistent", "runtime-ephemeral", "process", "external-open-world"]
+      }
     },
     {
       "name": "debug-godot-game",
-      "description": "Diagnose and fix a Godot 4 game that crashes, logs errors, renders incorrectly, ignores input, has wrong scene state, or fails a gameplay expectation. Use for runtime bugs, script failures, broken scenes/resources, flaky behavior, and regressions that need reproduction before repair."
+      "description": "Diagnose and repair a reproducible Godot 4 failure. Use for crashes, errors, broken scenes/resources, wrong runtime state, input/timing, rendering, audio, export, toolchain, flaky behavior, or regressions; do not use for greenfield builds, proof-only review, or release gating.",
+      "interface": {
+        "displayName": "Debug Godot Game",
+        "shortDescription": "Reproduce and fix a Godot game failure",
+        "defaultPrompt": "Use $debug-godot-game to reproduce this failure, isolate one cause, apply the smallest repair, and rerun the same evidence path."
+      },
+      "toolContract": {
+        "direct": [
+          "godot_catalog", "godot_call", "editor_session", "read_project_settings",
+          "read_scene", "read_file", "validate_scripts", "run_project", "game_scenario",
+          "game_wait_until", "game_get_scene_tree", "game_get_ui", "game_get_node_info",
+          "game_screenshot", "game_get_errors", "game_get_logs", "get_debug_output",
+          "game_key_press", "game_key_hold", "game_key_release", "stop_project",
+          "verify_project", "run_project_tests"
+        ],
+        "hidden": ["manage_resource", "game_get_property", "game_call_method", "game_eval"],
+        "privilegedGroups": ["reflection", "code-execution"],
+        "effectScopes": ["read-only", "project-persistent", "runtime-ephemeral", "process", "external-open-world"]
+      }
     },
     {
       "name": "ship-godot-game",
-      "description": "Prepare and verify a Godot 4 game for a reproducible release. Use for export readiness, project test gates, .NET/C# verification, addon and import integrity, export artifact inspection, smoke runs, release evidence, or deterministic teardown before shipping."
+      "description": "Prepare and gate a reproducible Godot 4 release. Use for export readiness, test gates, .NET/C# checks, addon/import integrity, artifact inspection, smoke runs, signing or platform blockers, and release evidence; do not use for greenfield feature work or an isolated bug fix.",
+      "interface": {
+        "displayName": "Ship Godot Game",
+        "shortDescription": "Gate and prepare a reproducible Godot release",
+        "defaultPrompt": "Use $ship-godot-game to verify release readiness, inspect produced artifacts, and report passed, failed, blocked, manual, and unsupported gates."
+      },
+      "toolContract": {
+        "direct": [
+          "godot_catalog", "godot_call", "editor_session", "read_project_settings",
+          "read_scene", "validate_scripts", "run_project_tests", "verify_project",
+          "run_project", "game_scenario", "game_wait_until", "game_get_errors",
+          "get_debug_output", "game_key_press", "game_key_hold", "game_key_release",
+          "stop_project"
+        ],
+        "hidden": [
+          "list_project_files", "analyze_project_integrity", "manage_import_pipeline",
+          "manage_addon", "manage_export_presets", "verify_dotnet_project",
+          "verify_export_readiness", "export_project"
+        ],
+        "privilegedGroups": [],
+        "effectScopes": ["read-only", "project-persistent", "runtime-ephemeral", "process", "external-open-world"]
+      }
     },
     {
       "name": "verify-godot-change",
-      "description": "Verify a Godot 4 project change with static checks and independent evidence from the running game. Use after editing scenes, scripts, resources, input, UI, rendering, or gameplay, and when deciding whether a Godot task is genuinely complete."
+      "description": "Verify an existing Godot 4 change with static checks and independent runtime evidence. Use to prove saved scenes, scripts, resources, input, UI, rendering, timing, or gameplay without assuming permission to repair failures; do not use for implementation, diagnosis-and-fix, or release preparation.",
+      "interface": {
+        "displayName": "Verify Godot Change",
+        "shortDescription": "Prove a Godot change with independent evidence",
+        "defaultPrompt": "Use $verify-godot-change to turn this change into observable criteria and report what is passed, failed, subjective, or still unobserved."
+      },
+      "toolContract": {
+        "direct": [
+          "godot_catalog", "godot_call", "editor_session", "validate_script",
+          "validate_scripts", "read_scene", "read_project_settings", "read_file",
+          "verify_project", "run_project_tests", "run_project", "game_wait_until",
+          "game_scenario", "game_get_scene_tree", "game_get_ui", "game_get_node_info",
+          "game_screenshot", "game_key_press", "game_key_hold", "game_key_release",
+          "game_click", "game_get_errors", "get_debug_output", "stop_project"
+        ],
+        "hidden": ["analyze_project_integrity", "game_get_property", "game_eval"],
+        "privilegedGroups": ["reflection", "code-execution"],
+        "effectScopes": ["read-only", "runtime-ephemeral", "process", "external-open-world"]
+      }
     }
   ],
   "defaultPrompts": [
     "Build a small playable Godot game and prove both its win and lose states.",
     "Debug this Godot project from a reproducible failure and verify the fix independently.",
+    "Verify this existing Godot change without editing the project or claiming subjective criteria passed.",
     "Prepare this Godot game for release and report export evidence and remaining gates."
   ],
   "clients": {

@@ -177,11 +177,11 @@ describe('project settings and configuration tools through MCP', () => {
     const active = await startedServer();
     const noName = await active.call('manage_autoloads', { projectPath: active.projectPath, action: 'add' });
     expect(noName.isError).toBe(true);
-    expect(noName.text).toMatch(/name and path are required/i);
+    expect(noName.text).toMatch(/name is required.*path is required/i);
 
     const bogus = await active.call('manage_autoloads', { projectPath: active.projectPath, action: 'sideload' });
     expect(bogus.isError).toBe(true);
-    expect(bogus.text).toMatch(/invalid action/i);
+    expect(bogus.text).toMatch(/action must be one of/i);
   });
 
   it('manage_input_map add/list/remove is verified through the live InputMap', async () => {
@@ -288,7 +288,7 @@ describe('project settings and configuration tools through MCP', () => {
 
     const incomplete = await active.call('manage_layers', { projectPath: active.projectPath, action: 'set', layerType: '2d_physics' });
     expect(incomplete.isError).toBe(true);
-    expect(incomplete.text).toMatch(/layerType, layer, and name are required/i);
+    expect(incomplete.text).toMatch(/layer is required.*name is required/i);
   });
 
   it('set_main_scene changes which scene the engine actually boots', async () => {
@@ -401,7 +401,7 @@ describe('project settings and configuration tools through MCP', () => {
 
     const unknown = await active.call('manage_plugins', { projectPath: active.projectPath, action: 'purge' });
     expect(unknown.isError).toBe(true);
-    expect(unknown.text).toMatch(/unknown action/i);
+    expect(unknown.text).toMatch(/action must be one of/i);
   });
 
   it('manage_export_presets list/add/remove round-trips through export_presets.cfg', async () => {
@@ -574,9 +574,11 @@ describe('project file and script tools through MCP', () => {
     expect(secondPage.files.at(-1)).toBe('large/asset-1204.txt');
     expect(new Set([...firstPage.files, ...secondPage.files]).size).toBe(1205);
 
-    await expect(active.client.callTool({
-      name: 'list_project_files', arguments: { projectPath: active.projectPath, limit: 1001 },
-    })).rejects.toThrow(/limit must be at most 1000/i);
+    const invalidLimit = await active.call('list_project_files', {
+      projectPath: active.projectPath, limit: 1001,
+    });
+    expect(invalidLimit.isError).toBe(true);
+    expect(invalidLimit.text).toMatch(/limit must be at most 1000/i);
   });
 
   it('create_script builds source from options and Godot parses the result', async () => {
@@ -742,10 +744,11 @@ describe('project file and script tools through MCP', () => {
     expect(allResult.results.map(entry => entry.scriptPath)).toEqual(expect.arrayContaining(['main.gd', 'scripts/ok.gd']));
 
     // An out-of-enum scope is refused by argument validation before the handler runs.
-    await expect(active.client.callTool({
-      name: 'validate_scripts',
-      arguments: { projectPath: active.projectPath, scope: 'sideways' },
-    })).rejects.toThrow(/scope must be one of: changed, all/i);
+    const invalidScope = await active.call('validate_scripts', {
+      projectPath: active.projectPath, scope: 'sideways',
+    });
+    expect(invalidScope.isError).toBe(true);
+    expect(invalidScope.text).toMatch(/scope must be one of: changed, all/i);
   });
 
   it('manage_shader create/read produces a shader the engine compiles', async () => {

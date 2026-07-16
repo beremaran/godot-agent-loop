@@ -10,8 +10,24 @@ import type { HeadlessOperationService } from '../headless-operation-service.js'
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { GODOT_EXPORT_OPTIONS } from '../godot-subprocess.js';
+import {
+  abortError,
+  currentExecutionContext,
+  isAbortError,
+  reportProgress,
+  throwIfCancelled,
+} from '../execution-context.js';
 
 const execFileAsync = promisify(execFile);
+
+function executionSignal(): AbortSignal | undefined {
+  return currentExecutionContext()?.signal;
+}
+
+function rethrowCancellation(error: unknown): void {
+  const signal = executionSignal();
+  if (isAbortError(error) || signal?.aborted) throw abortError(signal?.reason);
+}
 
 /** Dependencies shared by the focused project-tool services. */
 export interface ProjectHandlerServiceContext {
@@ -174,6 +190,8 @@ export class ProjectExportService {
 
   async export(args: ToolArguments): Promise<ToolResponse> {
     args = normalizeParameters(args || {});
+    throwIfCancelled();
+    await reportProgress(0, 3, 'Validating export request and Godot executable');
     if (!args.projectPath || !args.presetName || !args.outputPath) return createErrorResponse('projectPath, presetName, and outputPath are required.');
     if (!validProject(this.context, args.projectPath)) return createErrorResponse('Invalid project path.');
     const outputPath = isAbsolute(args.outputPath)
@@ -185,9 +203,17 @@ export class ProjectExportService {
     try {
       mkdirSync(dirname(outputPath), { recursive: true });
       const flag = args.debug ? '--export-debug' : '--export-release';
-      const { stdout } = await execFileAsync(this.context.executable.path, ['--headless', '--path', args.projectPath, flag, args.presetName, outputPath], GODOT_EXPORT_OPTIONS);
+      await reportProgress(1, 3, `Exporting preset ${args.presetName}`);
+      const { stdout } = await execFileAsync(this.context.executable.path, ['--headless', '--path', args.projectPath, flag, args.presetName, outputPath], {
+        ...GODOT_EXPORT_OPTIONS,
+        signal: executionSignal(),
+      });
+      throwIfCancelled();
+      await reportProgress(2, 3, 'Godot export process completed');
+      await reportProgress(3, 3, 'Export complete');
       return { content: [{ type: 'text', text: `Export succeeded.\n\nOutput: ${stdout || outputPath}` }] };
     } catch (error: unknown) {
+      rethrowCancellation(error);
       if (error instanceof Error && 'code' in error) {
         const processError = error as Error & { code?: number | string; signal?: NodeJS.Signals | null; stdout?: string; stderr?: string };
         if (typeof processError.code !== 'number' && !processError.signal) {
@@ -226,10 +252,12 @@ export class ProjectTestService {
 
   async execute(args: ToolArguments): Promise<ToolResponse> {
     args = normalizeParameters(args || {});
+    throwIfCancelled();
     if (!args.projectPath || !args.action) return createErrorResponse('projectPath and action are required.');
     if (!validProject(this.context, args.projectPath)) return createErrorResponse('Invalid project path.');
     const discovery = this.discover(args.projectPath);
     if (args.action === 'discover') {
+      await reportProgress(1, 1, 'Project test discovery complete');
       return { content: [{ type: 'text', text: JSON.stringify(discovery, null, 2) }] };
     }
 
@@ -245,6 +273,9 @@ export class ProjectTestService {
     const artifacts = this.resolveArtifactPaths(args.projectPath, args.artifactPaths);
     if ('error' in artifacts) return createErrorResponse(artifacts.error);
     const timeoutMs = Math.round((args.timeoutSeconds ?? 60) * 1000);
+    throwIfCancelled();
+    const progressTotal = framework === 'native' ? paths.paths.length + 2 : 3;
+    await reportProgress(0, progressTotal, `Discovered tests and selected ${framework} framework`);
 
     if (framework === 'gut') {
       if (!discovery.frameworks.gut) return createErrorResponse('GUT is not installed at addons/gut/gut_cmdln.gd.');
@@ -319,7 +350,10 @@ export class ProjectTestService {
   private async runNative(godot: string, projectPath: string, paths: string[], artifactPaths: string[], timeoutMs: number, failFast: boolean): Promise<ToolResponse> {
     const cases: ProjectTestCaseResult[] = [];
     const runs: Record<string, unknown>[] = [];
-    for (const path of paths) {
+    const total = paths.length + 2;
+    await reportProgress(1, total, `Prepared ${paths.length} native project test file${paths.length === 1 ? '' : 's'}`);
+    for (const [index, path] of paths.entries()) {
+      throwIfCancelled();
       const result = await this.runProcess(godot, ['--headless', '--path', projectPath, '--script', join(projectPath, path)], projectPath, timeoutMs);
       const parsed = this.parseCaseMarkers(`${result.stdout}\n${result.stderr}`, path);
       this.applyProcessOutcome(parsed, result);
@@ -329,12 +363,16 @@ export class ProjectTestService {
         ...(result.timedOut ? { message: 'Timed out' } : result.exitCode === 0 ? {} : { message: `Exited with code ${result.exitCode}` }),
       }]));
       runs.push(this.processEvidence(path, result));
+      await reportProgress(index + 2, total, `Completed project test ${index + 1}/${paths.length}: ${path}`);
       if (failFast && cases.some(testCase => !testCase.passed)) break;
     }
-    return this.testResponse('native', projectPath, artifactPaths, cases, runs);
+    const response = this.testResponse('native', projectPath, artifactPaths, cases, runs);
+    await reportProgress(total, total, 'Collected project test results and artifacts');
+    return response;
   }
 
   private async runGut(godot: string, projectPath: string, paths: string[], artifactPaths: string[], timeoutMs: number): Promise<ToolResponse> {
+    await reportProgress(1, 3, `Prepared GUT run for ${paths.length} test path${paths.length === 1 ? '' : 's'}`);
     const resources = paths.map(path => `res://${path}`).join(',');
     const result = await this.runProcess(godot, [
       '--headless', '--path', projectPath, '--script', 'res://addons/gut/gut_cmdln.gd',
@@ -343,10 +381,14 @@ export class ProjectTestService {
     const cases = this.parseCaseMarkers(`${result.stdout}\n${result.stderr}`, 'gut');
     this.applyProcessOutcome(cases, result);
     if (cases.length === 0) cases.push({ name: 'GUT suite', path: resources, passed: result.exitCode === 0 && !result.timedOut, duration_ms: result.durationMs });
-    return this.testResponse('gut', projectPath, artifactPaths, cases, [this.processEvidence('GUT', result)]);
+    await reportProgress(2, 3, 'GUT process completed');
+    const response = this.testResponse('gut', projectPath, artifactPaths, cases, [this.processEvidence('GUT', result)]);
+    await reportProgress(3, 3, 'Collected GUT results and artifacts');
+    return response;
   }
 
   private async runGdUnit(godot: string, projectPath: string, runner: string, paths: string[], artifactPaths: string[], timeoutMs: number): Promise<ToolResponse> {
+    await reportProgress(1, 3, `Prepared GdUnit4 run for ${paths.length} test path${paths.length === 1 ? '' : 's'}`);
     const runnerPath = join(projectPath, runner);
     const runnerArgs = ['--godot_binary', godot, ...paths.flatMap(path => ['-a', join(projectPath, path)])];
     const result = await this.runProcess(runnerPath, runnerArgs, projectPath, timeoutMs);
@@ -358,15 +400,23 @@ export class ProjectTestService {
       duration_ms: result.durationMs,
       ...([100, 101, '100', '101'].includes(result.exitCode ?? '') ? { message: `GdUnit4 outcome ${result.exitCode}` } : {}),
     });
-    return this.testResponse('gdunit4', projectPath, artifactPaths, cases, [this.processEvidence('GdUnit4', result)]);
+    await reportProgress(2, 3, 'GdUnit4 process completed');
+    const response = this.testResponse('gdunit4', projectPath, artifactPaths, cases, [this.processEvidence('GdUnit4', result)]);
+    await reportProgress(3, 3, 'Collected GdUnit4 results and artifacts');
+    return response;
   }
 
   private async runProcess(executable: string, args: string[], cwd: string, timeoutMs: number): Promise<TestProcessResult> {
     const started = performance.now();
+    const signal = executionSignal();
+    throwIfCancelled(signal);
     try {
-      const { stdout, stderr } = await execFileAsync(executable, args, { cwd, timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024 });
+      const { stdout, stderr } = await execFileAsync(executable, args, {
+        cwd, timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024, signal,
+      });
       return { exitCode: 0, stdout: stdout ?? '', stderr: stderr ?? '', timedOut: false, durationMs: Math.round(performance.now() - started) };
     } catch (error: unknown) {
+      rethrowCancellation(error);
       const failure = error as { code?: number | string; stdout?: string; stderr?: string; killed?: boolean; signal?: string };
       return {
         exitCode: failure.code ?? null,
@@ -469,6 +519,7 @@ export class ImportPipelineService {
   async execute(args: ToolArguments): Promise<ToolResponse> {
     const importSettings = args?.settings;
     args = normalizeParameters(args || {});
+    throwIfCancelled();
     if (importSettings !== undefined) args.settings = importSettings;
     if (!args.projectPath || !args.action) return createErrorResponse('projectPath and action are required.');
     if (!validProject(this.context, args.projectPath)) return createErrorResponse('Invalid project path.');
@@ -479,13 +530,20 @@ export class ImportPipelineService {
     const metadataPath = `${sourcePath}.import`;
     if (!existsSync(metadataPath)) return createErrorResponse(`Import metadata does not exist: ${args.sourcePath}.import; run reimport first.`);
     const document = parseIniDocument(readFileSync(metadataPath, 'utf8'));
-    if (args.action === 'inspect') return this.response(args.sourcePath, document);
-    if (args.action === 'dependencies') return this.response(args.sourcePath, document, true);
+    if (args.action === 'inspect') {
+      await reportProgress(1, 1, 'Import metadata inspection complete');
+      return this.response(args.sourcePath, document);
+    }
+    if (args.action === 'dependencies') {
+      await reportProgress(1, 1, 'Import dependency inspection complete');
+      return this.response(args.sourcePath, document, true);
+    }
     if (args.action !== 'change') return createErrorResponse('action must be inspect, change, reimport, or dependencies.');
     if (!args.settings || typeof args.settings !== 'object' || Array.isArray(args.settings)) {
       return createErrorResponse('settings is required for change.');
     }
     try {
+      await reportProgress(0, 2, 'Validating import metadata changes');
       let content = readFileSync(metadataPath, 'utf8');
       for (const [key, value] of Object.entries(args.settings)) {
         if (!/^[A-Za-z0-9_./-]+$/.test(key)) return createErrorResponse(`Invalid import setting key: ${key}`);
@@ -504,6 +562,8 @@ export class ImportPipelineService {
         }
       }
       writeFileSync(metadataPath, content, 'utf8');
+      await reportProgress(1, 2, 'Import metadata updated');
+      await reportProgress(2, 2, 'Import metadata change complete');
       return this.response(args.sourcePath, parseIniDocument(content));
     } catch (error: unknown) { return createErrorResponse(`Failed to change import settings: ${errorMessage(error)}`); }
   }
@@ -529,20 +589,27 @@ export class ImportPipelineService {
   }
 
   private async reimport(projectPath: string, timeoutSeconds: number): Promise<ToolResponse> {
+    await reportProgress(0, 3, 'Resolving Godot executable for project import');
     if (!this.context.executable.path) await this.context.executable.detect();
     if (!this.context.executable.path) return createErrorResponse('Could not find Godot executable.');
     const started = performance.now();
+    const signal = executionSignal();
+    throwIfCancelled(signal);
     try {
+      await reportProgress(1, 3, 'Importing project resources');
       const { stdout, stderr } = await execFileAsync(this.context.executable.path, [
         '--headless', '--path', projectPath, '--import',
-      ], { cwd: projectPath, timeout: Math.round(timeoutSeconds * 1000), maxBuffer: 4 * 1024 * 1024 });
+      ], { cwd: projectPath, timeout: Math.round(timeoutSeconds * 1000), maxBuffer: 4 * 1024 * 1024, signal });
       const diagnostics = `${stdout ?? ''}\n${stderr ?? ''}`.split(/\r?\n/)
         .filter(line => /\b(?:warning|error)\b/i.test(line)).slice(0, 256);
+      await reportProgress(2, 3, 'Collected bounded import diagnostics');
+      await reportProgress(3, 3, 'Project import complete');
       return { content: [{ type: 'text', text: JSON.stringify({
         imported: true, duration_ms: Math.round(performance.now() - started), diagnostics,
         stdout: (stdout ?? '').slice(-64 * 1024), stderr: (stderr ?? '').slice(-64 * 1024),
       }, null, 2) }] };
     } catch (error: unknown) {
+      rethrowCancellation(error);
       const failure = error as { code?: number | string; signal?: string; stdout?: string; stderr?: string; killed?: boolean };
       return createErrorResponse(JSON.stringify({ imported: false, exit_code: failure.code ?? null,
         timed_out: failure.killed === true || failure.signal != null, stdout: (failure.stdout ?? '').slice(-64 * 1024),
@@ -824,6 +891,9 @@ export class ExportReadinessService {
 
   async execute(args: ToolArguments): Promise<ToolResponse> {
     args = normalizeParameters(args || {});
+    throwIfCancelled();
+    const total = args.action === 'export_smoke' ? 4 : 2;
+    await reportProgress(0, total, 'Validating export preset and project');
     if (!args.projectPath || !args.action || !args.presetName) {
       return createErrorResponse('projectPath, action, and presetName are required.');
     }
@@ -835,7 +905,11 @@ export class ExportReadinessService {
     const engine = await this.engineInfo(this.context.executable.path);
     if ('error' in engine) return createErrorResponse(engine.error);
     const readiness = this.readiness(presetResult.preset, engine.version, args.debug === true);
-    if (args.action === 'inspect') return this.response({ engine, preset: presetResult.preset, ...readiness });
+    await reportProgress(1, total, 'Inspected engine, export preset, and templates');
+    if (args.action === 'inspect') {
+      await reportProgress(2, 2, 'Export readiness inspection complete');
+      return this.response({ engine, preset: presetResult.preset, ...readiness });
+    }
     if (args.action !== 'export_smoke') return createErrorResponse('action must be inspect or export_smoke.');
     if (typeof args.outputPath !== 'string') return createErrorResponse('outputPath is required for export_smoke.');
     const outputPath = isAbsolute(args.outputPath)
@@ -853,11 +927,13 @@ export class ExportReadinessService {
     const exported = await this.run(this.context.executable.path, [
       '--headless', '--path', args.projectPath, args.debug ? '--export-debug' : '--export-release', args.presetName, outputPath,
     ], args.projectPath, Math.round((args.timeoutSeconds ?? 120) * 1000));
+    await reportProgress(2, total, 'Godot export process completed');
     if (!exported.ok) return createErrorResponse(JSON.stringify({ ready: true, category: this.classifyExportFailure(exported),
       engine, preset: presetResult.preset, process: exported }, null, 2));
     if (!existsSync(outputPath)) return createErrorResponse(JSON.stringify({ ready: true, category: 'artifact_missing',
       message: 'Godot exited successfully but did not create the requested artifact.', process: exported }, null, 2));
     const artifact = this.artifact(outputPath, args.projectPath);
+    await reportProgress(3, total, 'Inspected exported artifact');
     const smokeEnabled = args.smoke !== false;
     let smoke: Record<string, unknown> = { attempted: false, supported: false };
     if (smokeEnabled && presetResult.preset.platform === 'Linux' && process.platform === 'linux') {
@@ -870,6 +946,7 @@ export class ExportReadinessService {
       if (!result.ok || !matched) return createErrorResponse(JSON.stringify({ ready: true, category: 'smoke_failed', engine,
         preset: presetResult.preset, artifact, smoke }, null, 2));
     }
+    await reportProgress(4, total, smoke.attempted ? 'Export smoke run complete' : 'Export readiness workflow complete');
     return this.response({ ready: true, category: 'success', engine, preset: presetResult.preset,
       process: exported, artifact, smoke });
   }
@@ -955,11 +1032,16 @@ export class ExportReadinessService {
     ok: boolean; exit_code: number | string | null; timed_out: boolean; duration_ms: number; stdout: string; stderr: string;
   }> {
     const started = performance.now();
+    const signal = executionSignal();
+    throwIfCancelled(signal);
     try {
-      const { stdout, stderr } = await execFileAsync(executable, args, { cwd, timeout, maxBuffer: 16 * 1024 * 1024 });
+      const { stdout, stderr } = await execFileAsync(executable, args, {
+        cwd, timeout, maxBuffer: 16 * 1024 * 1024, signal,
+      });
       return { ok: true, exit_code: 0, timed_out: false, duration_ms: Math.round(performance.now() - started),
         stdout: (stdout ?? '').slice(-128 * 1024), stderr: (stderr ?? '').slice(-128 * 1024) };
     } catch (error: unknown) {
+      rethrowCancellation(error);
       const failure = error as { code?: number | string; signal?: string; killed?: boolean; stdout?: string; stderr?: string };
       return { ok: false, exit_code: failure.code ?? null, timed_out: failure.killed === true || failure.signal != null,
         duration_ms: Math.round(performance.now() - started), stdout: (failure.stdout ?? '').slice(-128 * 1024),
@@ -987,6 +1069,9 @@ export class DotnetWorkflowService {
 
   async execute(args: ToolArguments): Promise<ToolResponse> {
     args = normalizeParameters(args || {});
+    throwIfCancelled();
+    const total = args.action === 'run' ? 5 : args.action === 'build' ? 4 : args.action === 'restore' ? 3 : 2;
+    await reportProgress(0, total, 'Inspecting Godot .NET project');
     if (!args.projectPath || !args.action) return createErrorResponse('projectPath and action are required.');
     if (!validProject(this.context, args.projectPath)) return createErrorResponse('Invalid project path.');
     const project = this.projectInfo(args.projectPath, args.csprojPath);
@@ -1005,7 +1090,11 @@ export class DotnetWorkflowService {
       engine: { executable: this.context.executable.path, version: engineVersion, dotnet_enabled: mono },
       dotnet: { available: dotnetAvailable, version: dotnetResult.ok ? dotnetResult.stdout.trim() : null },
       project };
-    if (args.action === 'inspect') return this.response(readiness);
+    await reportProgress(1, total, 'Inspected Godot and .NET SDK compatibility');
+    if (args.action === 'inspect') {
+      await reportProgress(2, 2, '.NET readiness inspection complete');
+      return this.response(readiness);
+    }
     if (!['restore', 'build', 'run'].includes(String(args.action))) {
       return createErrorResponse('action must be inspect, restore, build, or run.');
     }
@@ -1014,26 +1103,35 @@ export class DotnetWorkflowService {
     const timeoutMs = Math.round((args.timeoutSeconds ?? 120) * 1000);
     const restore = await this.run('dotnet', ['restore', project.path, '--nologo'], args.projectPath, timeoutMs);
     const restoreEvidence = { ...restore, diagnostics: this.diagnostics(restore) };
+    await reportProgress(2, total, '.NET restore completed');
     if (!restore.ok) return createErrorResponse(JSON.stringify({ ...readiness,
       category: restore.timed_out ? 'timeout' : 'restore_failed', restore: restoreEvidence }, null, 2));
-    if (args.action === 'restore') return this.response({ ...readiness, category: 'success', restore: restoreEvidence });
+    if (args.action === 'restore') {
+      await reportProgress(3, 3, '.NET restore workflow complete');
+      return this.response({ ...readiness, category: 'success', restore: restoreEvidence });
+    }
     const configuration = args.configuration === 'Release' ? 'Release' : 'Debug';
     const build = await this.run('dotnet', ['build', project.path, '--no-restore', '--nologo',
       '--configuration', configuration], args.projectPath, timeoutMs);
     const buildEvidence = { ...build, diagnostics: this.diagnostics(build) };
+    await reportProgress(3, total, `.NET ${configuration} build completed`);
     if (!build.ok) return createErrorResponse(JSON.stringify({ ...readiness,
       category: build.timed_out ? 'timeout' : 'build_failed', restore: restoreEvidence, build: buildEvidence }, null, 2));
     const artifact = this.assemblyArtifact(args.projectPath, project, configuration);
-    if (args.action === 'build') return this.response({ ...readiness, category: 'success',
-      restore: restoreEvidence, build: buildEvidence, artifact });
+    if (args.action === 'build') {
+      await reportProgress(4, 4, '.NET build workflow complete');
+      return this.response({ ...readiness, category: 'success', restore: restoreEvidence, build: buildEvidence, artifact });
+    }
     const run = await this.run(this.context.executable.path, ['--headless', '--path', args.projectPath,
       '--quit-after', String(args.runTimeoutSeconds ?? 5)], args.projectPath,
     Math.round(((args.runTimeoutSeconds ?? 5) + 10) * 1000));
     const expected = typeof args.expectedOutput === 'string' ? args.expectedOutput : null;
     const matched = expected === null || run.stdout.includes(expected);
+    await reportProgress(4, total, '.NET project smoke run completed');
     if (!run.ok || !matched) return createErrorResponse(JSON.stringify({ ...readiness,
       category: run.timed_out ? 'timeout' : 'run_failed', restore: restoreEvidence,
       build: buildEvidence, artifact, run: { ...run, expected_output: expected, output_matched: matched } }, null, 2));
+    await reportProgress(5, 5, '.NET restore, build, and run workflow complete');
     return this.response({ ...readiness, category: 'success', restore: restoreEvidence,
       build: buildEvidence, artifact, run: { ...run, expected_output: expected, output_matched: matched } });
   }
@@ -1090,11 +1188,16 @@ export class DotnetWorkflowService {
 
   private async run(executable: string, args: string[], cwd: string, timeout: number): Promise<DotnetProcessResult> {
     const started = performance.now();
+    const signal = executionSignal();
+    throwIfCancelled(signal);
     try {
-      const { stdout, stderr } = await execFileAsync(executable, args, { cwd, timeout, maxBuffer: 16 * 1024 * 1024 });
+      const { stdout, stderr } = await execFileAsync(executable, args, {
+        cwd, timeout, maxBuffer: 16 * 1024 * 1024, signal,
+      });
       return { ok: true, exit_code: 0, timed_out: false, duration_ms: Math.round(performance.now() - started),
         stdout: (stdout ?? '').slice(-256 * 1024), stderr: (stderr ?? '').slice(-256 * 1024) };
     } catch (error: unknown) {
+      rethrowCancellation(error);
       const failure = error as { code?: number | string; signal?: string; killed?: boolean; stdout?: string; stderr?: string };
       return { ok: false, exit_code: failure.code ?? null, timed_out: failure.killed === true || failure.signal != null,
         duration_ms: Math.round(performance.now() - started), stdout: (failure.stdout ?? '').slice(-256 * 1024),
@@ -1185,6 +1288,7 @@ export class AddonManagementService {
     } catch (error: unknown) {
       rmSync(staging, { recursive: true, force: true });
       if (!existsSync(target) && existsSync(backup)) renameSync(backup, target);
+      rethrowCancellation(error);
       return createErrorResponse(`Add-on ${args.action} failed: ${errorMessage(error)}`);
     } finally { rmSync(backup, { recursive: true, force: true }); }
   }
@@ -1320,11 +1424,16 @@ export class AddonManagementService {
 
   private async run(executable: string, args: string[], cwd: string, timeout: number): Promise<DotnetProcessResult> {
     const started = performance.now();
+    const signal = executionSignal();
+    throwIfCancelled(signal);
     try {
-      const { stdout, stderr } = await execFileAsync(executable, args, { cwd, timeout, maxBuffer: 16 * 1024 * 1024 });
+      const { stdout, stderr } = await execFileAsync(executable, args, {
+        cwd, timeout, maxBuffer: 16 * 1024 * 1024, signal,
+      });
       return { ok: true, exit_code: 0, timed_out: false, duration_ms: Math.round(performance.now() - started),
         stdout: (stdout ?? '').slice(-128 * 1024), stderr: (stderr ?? '').slice(-128 * 1024) };
     } catch (error: unknown) {
+      rethrowCancellation(error);
       const failure = error as { code?: number | string; signal?: string; killed?: boolean; stdout?: string; stderr?: string };
       return { ok: false, exit_code: failure.code ?? null, timed_out: failure.killed === true || failure.signal != null,
         duration_ms: Math.round(performance.now() - started), stdout: (failure.stdout ?? '').slice(-128 * 1024),

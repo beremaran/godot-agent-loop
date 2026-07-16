@@ -98,7 +98,8 @@ export function validatePath(path: string): boolean {
 
 /** Centralized filesystem policy for project and project-relative paths. */
 export class PathSecurity {
-  private readonly allowedRoots: string[];
+  private readonly configuredRoots: string[];
+  private clientRoots: string[] | null = null;
   private readonly supportsRealpath = Object.keys(fs).includes('realpathSync');
 
   constructor(
@@ -109,20 +110,29 @@ export class PathSecurity {
       .split(process.platform === 'win32' ? /[;,]/ : /[:,]/)
       .map(value => value.trim())
       .filter(Boolean);
-    this.allowedRoots = configured.map(root => this.realpathWithFallback(root));
+    this.configuredRoots = configured.map(root => this.realpathWithFallback(root));
   }
+
+  /** Refresh the MCP client's roots. An empty advertised list intentionally denies all paths. */
+  setClientRoots(roots: readonly string[] | null): void {
+    this.clientRoots = roots === null ? null : roots.map(root => this.realpathWithFallback(root));
+  }
+
+  get hasConfiguredRoots(): boolean { return this.configuredRoots.length > 0; }
+  get hasClientRootPolicy(): boolean { return this.clientRoots !== null; }
+  get unrestrictedLegacyMode(): boolean { return !this.hasConfiguredRoots && this.clientRoots === null; }
 
   isProjectPathAllowed(projectPath: string, allowMissing = false): boolean {
     if (!validatePath(projectPath)) return false;
-    if (this.allowedRoots.length === 0) return true;
+    if (this.unrestrictedLegacyMode) return true;
     if (!allowMissing && !fs.existsSync(projectPath)) return false;
-    if (this.allowedRoots.some(root => resolve(projectPath) === root)) return true;
+    if (this.isExactAllowedRoot(resolve(projectPath))) return true;
     return this.isWithinAllowedRoots(this.realpathWithFallback(projectPath));
   }
 
   resolveProjectPath(projectPath: string, relativePath: string): string | null {
     const projectRelativePath = relativePath.startsWith('res://') ? relativePath.slice('res://'.length) : relativePath;
-    if (!this.hasRealpath() && this.allowedRoots.some(root => resolve(projectPath) === root) && validatePath(projectRelativePath)) {
+    if (!this.hasRealpath() && this.isExactAllowedRoot(resolve(projectPath)) && validatePath(projectRelativePath)) {
       return resolve(projectPath, projectRelativePath);
     }
     if (!this.supportsRealpath && validatePath(projectPath) && validateRelativePath(relativePath)) {
@@ -148,7 +158,17 @@ export class PathSecurity {
   }
 
   private isWithinAllowedRoots(target: string): boolean {
-    return this.allowedRoots.length === 0 || this.allowedRoots.some(root => this.isWithin(target, root));
+    const configuredAllowed = this.configuredRoots.length === 0
+      || this.configuredRoots.some(root => this.isWithin(target, root));
+    const clientAllowed = this.clientRoots === null
+      || this.clientRoots.some(root => this.isWithin(target, root));
+    return configuredAllowed && clientAllowed;
+  }
+
+  private isExactAllowedRoot(target: string): boolean {
+    const configuredAllowed = this.configuredRoots.length === 0 || this.configuredRoots.includes(target);
+    const clientAllowed = this.clientRoots === null || this.clientRoots.includes(target);
+    return configuredAllowed && clientAllowed;
   }
 
   private isWithin(target: string, root: string): boolean {

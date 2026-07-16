@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "scenarioSetVersion": 1,
+  "evaluationMode": "automated",
+  "cases": [
+    {
+      "id": "skill-trigger-and-contracts",
+      "status": "executable",
+      "command": "npx vitest run tests/agent-plugin.test.ts tests/agent-evaluations.test.ts",
+      "covers": ["trigger boundaries", "skill content", "tool contracts", "evaluation schemas"],
+      "doesNotCover": ["model skill selection", "model tool use", "behavioral acceptance criteria"]
+    },
+    {
+      "id": "candidate-package-layout",
+      "status": "executable",
+      "command": "npx vitest run tests/agent-package-layout.test.ts tests/opencode-setup.test.ts",
+      "covers": ["npm archive contents", "installed skill inventory", "adapter metadata", "OpenCode setup"],
+      "doesNotCover": ["native client UI discovery", "hosted model behavior"]
+    },
+    {
+      "id": "real-mcp-compatibility",
+      "status": "executable",
+      "command": "npx vitest run --config vitest.e2e.config.ts tests/e2e/agent-adapter-smoke.test.ts tests/e2e/progressive-disclosure.test.ts",
+      "requirements": ["built server", "supported Godot 4.7 binary"],
+      "covers": ["core and compact alias", "legacy godot_tools", "catalog and call", "Pi forwarding", "teardown"],
+      "doesNotCover": ["cold-model selection", "watched human-control scenarios"]
+    }
+  ]
+}

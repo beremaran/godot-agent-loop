@@ -211,6 +211,22 @@ describe('validatePath', () => {
 });
 
 describe('PathSecurity', () => {
+  it('intersects refreshed MCP client roots with configured server roots', () => {
+    const workspace = makeTemporaryDirectory();
+    const configured = join(workspace, 'configured');
+    const client = join(configured, 'client');
+    const sibling = join(configured, 'sibling');
+    mkdirSync(client, { recursive: true });
+    mkdirSync(sibling);
+    const security = new PathSecurity([configured]);
+
+    security.setClientRoots([client]);
+    expect(security.isProjectPathAllowed(client)).toBe(true);
+    expect(security.isProjectPathAllowed(sibling)).toBe(false);
+
+    security.setClientRoots([]);
+    expect(security.isProjectPathAllowed(client)).toBe(false);
+  });
   it('enforces configured allowed roots for projects and project-relative paths', () => {
     const workspace = makeTemporaryDirectory();
     const allowedRoot = join(workspace, 'allowed');

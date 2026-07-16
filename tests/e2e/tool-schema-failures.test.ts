@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { ToolPropertySchema } from '../../src/tool-definitions.js';
 import { toolDefinitions } from '../../src/tool-definitions.js';
+import { validateAgainstSchema } from '../../src/tool-argument-validation.js';
 import { toolManifest } from '../../src/tool-manifest.js';
 import { startServer, type E2EServer } from './helpers/harness.js';
 
@@ -66,12 +67,17 @@ function representativeParameter(name: string, schema: ToolPropertySchema): unkn
 }
 
 async function rejected(name: string, args: Record<string, unknown>, issue: string): Promise<void> {
-  try {
-    await server!.client.callTool({ name, arguments: args });
-    throw new Error(`${name}.${issue} unexpectedly passed argument validation`);
-  } catch (error: unknown) {
-    expect(String(error), `${name}.${issue}`).toMatch(/Invalid arguments|not allowed|required|must/i);
-  }
+  const result = await server!.client.callTool({ name, arguments: args });
+  expect(result.isError, `${name}.${issue} unexpectedly passed argument validation`).toBe(true);
+  const structured = result.structuredContent as {
+    ok?: boolean;
+    error?: { category?: string; message?: string };
+  } | undefined;
+  expect(structured, `${name}.${issue} returned no structured error`).toMatchObject({
+    ok: false,
+    error: { category: 'argument' },
+  });
+  expect(structured?.error?.message, `${name}.${issue}`).toMatch(/Invalid arguments|not allowed|required|must/i);
 }
 
 describe('all advertised tool schemas through the built MCP server', () => {
@@ -153,7 +159,7 @@ describe('all advertised tool schemas through the built MCP server', () => {
     await server.waitForGameConnection();
 
     const targetNames = new Set([
-      'nodePath', 'parentPath', 'rootPath', 'sourcePath', 'targetPath',
+      'nodePath', 'parentPath', 'rootPath', 'sourcePath', 'targetPath', 'scenePath',
       'cameraPath', 'resourcePath', 'videoPath', 'path',
     ]);
     // This command requires a server-owned shader ID before nodePath becomes
@@ -171,21 +177,36 @@ describe('all advertised tool schemas through the built MCP server', () => {
       let foundMissingTarget = false;
       const diagnostics: string[] = [];
       for (const action of actions) {
-        const args = Object.fromEntries(
-          Object.entries(properties).map(([name, schema]) => [name, representativeParameter(name, schema)]),
-        );
-        if (action !== '*') args.action = action;
-        for (const target of targets) {
-          args[target] = target === 'path' || target.endsWith('Path') && ['resourcePath', 'videoPath'].includes(target)
-            ? 'res://definitely_missing_resource.tres'
-            : '/root/DefinitelyMissingNode';
+        const examples = (definition.inputSchema.examples ?? []) as Record<string, unknown>[];
+        const example = examples.find(candidate => action === '*' || candidate.action === action);
+        if (!example) continue;
+        const semanticExample = Object.fromEntries(Object.entries(example).map(([name, value]) => [
+          name,
+          name !== 'action' && typeof value === 'string' && properties[name]
+            ? representativeParameter(name, properties[name])
+            : value,
+        ]));
+        const branch = action === '*'
+          ? undefined
+          : definition.inputSchema.oneOf?.find(candidate => candidate.properties?.action?.const === action);
+        const allowedTargets = targets.filter(target => branch?.properties?.[target] === undefined);
+        for (const target of allowedTargets) {
+          const args = {
+            ...semanticExample,
+            [target]: target === 'path' || ['scenePath', 'resourcePath', 'videoPath'].includes(target)
+              ? 'res://definitely_missing_resource.tres'
+              : '/root/DefinitelyMissingNode',
+          };
+          const schemaIssues = validateAgainstSchema(definition.inputSchema, args);
+          expect(schemaIssues, `${definition.name}.${action}.${target} fixture must satisfy its advertised schema`).toEqual([]);
+          const result = await server.call(definition.name, args);
+          diagnostics.push(`${action}.${target}: ${result.text}`);
+          if (result.isError && /not found|does not exist|missing|failed to load|no .*resource|invalid target/i.test(result.text)) {
+            foundMissingTarget = true;
+            break;
+          }
         }
-        const result = await server.call(definition.name, args);
-        diagnostics.push(`${action}: ${result.text}`);
-        if (result.isError && /not found|does not exist|missing|failed to load|no .*resource|invalid target/i.test(result.text)) {
-          foundMissingTarget = true;
-          break;
-        }
+        if (foundMissingTarget) break;
       }
       expect(foundMissingTarget, `${definition.name} lacked a missing-target action:\n${diagnostics.join('\n')}`).toBe(true);
     }

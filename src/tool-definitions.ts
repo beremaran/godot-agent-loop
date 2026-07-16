@@ -1,7 +1,34 @@
+import { toolManifest } from './tool-manifest.js';
+import { structuredResultSchemaFor } from './tool-output-schema.js';
+
+const WAIT_CONDITION_FIELDS = ['nodePath', 'property', 'value', 'signal', 'text', 'scenePath'] as const;
+const SCENARIO_INPUT_TOOLS = [
+  'game_key_press', 'game_key_hold', 'game_key_release', 'game_click', 'game_mouse_move',
+  'game_scroll', 'game_mouse_drag', 'game_gamepad', 'game_input_action',
+] as const;
+const SCENARIO_OBSERVE_TOOLS = [
+  'game_get_scene_tree', 'game_get_ui', 'game_get_node_info', 'game_get_property',
+  'game_get_errors', 'game_get_logs', 'game_get_camera', 'game_get_audio', 'game_performance',
+] as const;
+
+export interface ToolSchemaInvalidExample {
+  value: unknown;
+  path: string;
+  keyword: string;
+  action?: string;
+}
+
 export interface ToolPropertySchema {
+  $schema?: string;
+  $defs?: Record<string, ToolPropertySchema>;
+  $ref?: string;
   type?: 'array' | 'boolean' | 'integer' | 'number' | 'object' | 'string';
   description?: string;
-  enum?: readonly string[];
+  enum?: readonly unknown[];
+  const?: unknown;
+  examples?: readonly unknown[];
+  'x-invalidExamples'?: readonly ToolSchemaInvalidExample[];
+  default?: unknown;
   minimum?: number;
   maximum?: number;
   minItems?: number;
@@ -13,18 +40,76 @@ export interface ToolPropertySchema {
   items?: ToolPropertySchema;
   properties?: Record<string, ToolPropertySchema>;
   required?: readonly string[];
+  additionalProperties?: boolean | ToolPropertySchema;
+  allOf?: readonly ToolPropertySchema[];
+  anyOf?: readonly ToolPropertySchema[];
+  not?: ToolPropertySchema;
+}
+
+export interface ToolAnnotations {
+  title?: string;
+  readOnlyHint?: boolean;
+  destructiveHint?: boolean;
+  idempotentHint?: boolean;
+  openWorldHint?: boolean;
 }
 
 export interface ToolDefinition {
   name: string;
+  title?: string;
   description: string;
   inputSchema: ToolPropertySchema;
+  outputSchema?: ToolPropertySchema;
+  annotations?: ToolAnnotations;
 }
 
-export const toolDefinitions = [
+const rawToolDefinitions = [
+{
+  name: 'godot_catalog',
+  description: 'Search or inspect the complete Godot tool catalog without executing a tool',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      action: { type: 'string', enum: ['search', 'describe'], description: 'Read-only catalog action' },
+      query: { type: 'string', maxLength: 200, description: 'User intent, Godot concept, action, or tool-name search text' },
+      toolName: {
+        type: 'string',
+        pattern: '^[a-z][a-z0-9_]*$',
+        description: 'Required for describe. The field name is exactly toolName, not name, tool, or query.',
+        examples: ['verify_export_readiness'],
+      },
+      detail: { type: 'string', enum: ['summary', 'schema', 'full'], description: 'Description detail. Default: summary' },
+      domain: { type: 'string', enum: ['lifecycle', 'project', 'game'], description: 'Optional owning-domain filter' },
+      backend: { type: 'string', enum: ['process', 'subprocess', 'authoring-session', 'runtime', 'runtime-buffer', 'godot-cli', 'local'], description: 'Optional execution-backend filter' },
+      effect: { type: 'string', enum: ['read-only', 'project-persistent', 'runtime-ephemeral', 'process', 'external-open-world'], description: 'Optional effect-scope filter' },
+      state: { type: 'string', enum: ['none', 'project', 'editor', 'runtime'], description: 'Optional required-state filter' },
+      privilege: { type: 'string', enum: ['none', 'required'], description: 'Optional privilege filter' },
+      mutation: { type: 'string', enum: ['read-only', 'mutating', 'mixed'], description: 'Optional mutation-behavior filter' },
+      limit: { type: 'integer', minimum: 1, maximum: 50, description: 'Maximum ranked search results. Default: 20' },
+    },
+    required: ['action'],
+  },
+},
+{
+  name: 'godot_call',
+  description: 'Execute one named hidden Godot tool after inspecting it with godot_catalog',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      toolName: {
+        type: 'string',
+        pattern: '^[a-z][a-z0-9_]*$',
+        description: 'Required hidden tool name. The field name is exactly toolName; dispatchers cannot be nested recursively.',
+        examples: ['verify_export_readiness'],
+      },
+      arguments: { type: 'object', description: 'Arguments validated against the selected tool schema before policy and dispatch' },
+    },
+    required: ['toolName'],
+  },
+},
 {
   name: 'godot_tools',
-  description: 'Search, inspect, or call tools outside the default core surface',
+  description: 'Deprecated compatibility alias for godot_catalog and godot_call',
   inputSchema: {
     type: 'object',
     properties: {
@@ -99,12 +184,20 @@ export const toolDefinitions = [
         items: {
           type: 'object',
           properties: {
-            op: { type: 'string', enum: ['add_node', 'remove_node', 'rename_node', 'duplicate_node', 'reparent_node', 'set_properties', 'instantiate_scene', 'attach_script', 'assign_resource', 'save'] },
-            nodePath: { type: 'string' }, parentPath: { type: 'string' }, newParentPath: { type: 'string' },
-            nodeType: { type: 'string' }, nodeName: { type: 'string' }, name: { type: 'string' },
-            properties: { type: 'object' }, property: { type: 'string' }, value: {},
-            scenePath: { type: 'string' }, scriptPath: { type: 'string' }, resourcePath: { type: 'string' },
-            keepGlobalTransform: { type: 'boolean' },
+            op: { type: 'string', enum: ['add_node', 'remove_node', 'rename_node', 'duplicate_node', 'reparent_node', 'set_properties', 'instantiate_scene', 'attach_script', 'assign_resource', 'save'], description: 'Discriminator selecting one editor-native operation shape' },
+            nodePath: { type: 'string', description: 'Existing or previously staged scene-relative node path' },
+            parentPath: { type: 'string', description: 'Parent path for a new or instantiated node. Default: scene root' },
+            newParentPath: { type: 'string', description: 'Destination parent for reparent_node' },
+            nodeType: { type: 'string', description: 'Godot class name for add_node' },
+            nodeName: { type: 'string', description: 'Unique child name for add_node or instantiation' },
+            name: { type: 'string', description: 'New node name for rename_node' },
+            properties: { type: 'object', description: 'Free-form Godot property dictionary for add_node or set_properties' },
+            property: { type: 'string', description: 'Target property name for assign_resource' },
+            value: { description: 'Canonical Godot Variant value for a single property' },
+            scenePath: { type: 'string', description: 'Project resource path for instantiate_scene' },
+            scriptPath: { type: 'string', description: 'Project resource path for attach_script' },
+            resourcePath: { type: 'string', description: 'Project resource path for assign_resource' },
+            keepGlobalTransform: { type: 'boolean', description: 'Preserve the global transform during reparent_node. Default: true' },
           },
           required: ['op'],
         },
@@ -548,7 +641,7 @@ export const toolDefinitions = [
 },
 {
   name: 'game_key_press',
-  description: 'Send a key press or input action to the running game',
+  description: 'Tap a key or input action for one frame; use game_key_hold plus game_key_release for continuous input',
   inputSchema: {
     type: 'object',
     properties: {
@@ -812,8 +905,12 @@ export const toolDefinitions = [
     properties: {
       projectPath: { type: 'string', description: 'Godot project path for trace correlation' },
       condition: { type: 'string', enum: ['connection', 'node', 'property', 'signal', 'log', 'scene'], description: 'Condition kind' },
-      nodePath: { type: 'string' }, property: { type: 'string' }, value: {}, signal: { type: 'string' },
-      text: { type: 'string', maxLength: 1000 }, scenePath: { type: 'string' },
+      nodePath: { type: 'string', description: 'Runtime node path for node, property, or signal conditions' },
+      property: { type: 'string', description: 'Property name for a property condition' },
+      value: { description: 'Expected canonical Godot Variant value for a property condition' },
+      signal: { type: 'string', description: 'Signal name for a signal condition' },
+      text: { type: 'string', maxLength: 1000, description: 'Required bounded substring for a log condition' },
+      scenePath: { type: 'string', description: 'Expected current scene resource path for a scene condition' },
       timeoutSeconds: { type: 'number', minimum: 0.05, maximum: 60, description: 'Maximum wait. Default: 10' },
       pollIntervalMs: { type: 'integer', minimum: 20, maximum: 1000, description: 'Internal poll interval. Default: 100' },
     },
@@ -827,16 +924,18 @@ export const toolDefinitions = [
     type: 'object',
     properties: {
       projectPath: { type: 'string', description: 'Godot project path for trace correlation' },
-      name: { type: 'string', minLength: 1, maxLength: 128 },
+      name: { type: 'string', minLength: 1, maxLength: 128, description: 'Human-readable scenario and parent trace name' },
       timeoutSeconds: { type: 'number', minimum: 0.1, maximum: 120, description: 'Whole scenario timeout. Default: 60' },
       steps: {
-        type: 'array', minItems: 1, maxItems: 100,
+        type: 'array', minItems: 1, maxItems: 100, description: 'Bounded ordered scenario steps',
         items: {
-          type: 'object',
+          type: 'object', description: 'One discriminated scenario step',
           properties: {
-            type: { type: 'string', enum: ['input', 'wait', 'observe', 'assert', 'screenshot', 'performance'] },
-            tool: { type: 'string' }, arguments: { type: 'object' }, condition: { type: 'object' },
-            label: { type: 'string', maxLength: 200 },
+            type: { type: 'string', enum: ['input', 'wait', 'observe', 'assert', 'screenshot', 'performance'], description: 'Scenario step discriminator' },
+            tool: { type: 'string', description: 'Allowlisted runtime tool for input or observation' },
+            arguments: { type: 'object', description: 'Arguments validated against the selected scenario tool' },
+            condition: { type: 'object', description: 'game_wait_until-compatible condition for wait or assert' },
+            label: { type: 'string', maxLength: 200, description: 'Optional evidence label' },
           },
           required: ['type'],
         },
@@ -847,7 +946,7 @@ export const toolDefinitions = [
 },
 {
   name: 'read_scene',
-  description: 'Read scene file as JSON node tree (headless)',
+  description: 'Read a saved scene with legacy, compact, authored, or full detail',
   inputSchema: {
     type: 'object',
     properties: {
@@ -859,6 +958,14 @@ export const toolDefinitions = [
         type: 'string',
         description: 'Scene file path (relative to project)',
       },
+      detail: { type: 'string', enum: ['compact', 'authored', 'full'], description: 'Explicit detail mode; omitted preserves legacy full-tree behavior' },
+      nodePath: { type: 'string', description: 'Optional scene-relative subtree path, using names separated by /' },
+      propertyNames: { type: 'array', items: { type: 'string', description: 'Exact property name' }, maxItems: 128, description: 'Optional property allowlist' },
+      maxDepth: { type: 'integer', minimum: 0, maximum: 64, description: 'Maximum child depth below the selected node' },
+      authoredOnly: { type: 'boolean', description: 'Return authored storage properties only. Default: true for authored mode' },
+      includeResources: { type: 'boolean', description: 'Include resource-valued properties. Default: false for compact, true otherwise' },
+      includeDefaults: { type: 'boolean', description: 'Include properties whose values still match their defaults' },
+      responseLimit: { type: 'integer', minimum: 1024, maximum: 1048576, description: 'Explicit serialized response byte limit with truncation metadata' },
     },
     required: ['projectPath', 'scenePath'],
   },
@@ -1359,7 +1466,26 @@ export const toolDefinitions = [
     type: 'object',
     properties: {
       position: { type: 'object', description: '{x,y} or {x,y,z} for camera position' },
-      rotation: { type: 'object', description: '{x,y,z} rotation in degrees' },
+      rotation: {
+        type: 'object',
+        description: 'Camera rotation in degrees: {z} for Camera2D or {x,y,z} for Camera3D',
+        anyOf: [
+          {
+            type: 'object',
+            properties: { z: { type: 'number', description: '2D rotation in degrees' } },
+            required: ['z'],
+          },
+          {
+            type: 'object',
+            properties: {
+              x: { type: 'number', description: 'X rotation in degrees' },
+              y: { type: 'number', description: 'Y rotation in degrees' },
+              z: { type: 'number', description: 'Z rotation in degrees' },
+            },
+            required: ['x', 'y', 'z'],
+          },
+        ],
+      },
       zoom: { type: 'object', description: '{x,y} zoom for Camera2D' },
       fov: { type: 'number', description: 'Field of view for Camera3D' },
     },
@@ -2842,4 +2968,878 @@ export const toolDefinitions = [
 },
 ] as const satisfies readonly ToolDefinition[];
 
-export type ToolName = (typeof toolDefinitions)[number]['name'];
+export type ToolName = (typeof rawToolDefinitions)[number]['name'];
+
+interface ActionFieldContract {
+  readonly required?: readonly string[];
+  readonly optional?: readonly string[];
+}
+
+type ActionFieldContracts = Partial<Record<ToolName, Readonly<Record<string, ActionFieldContract>>>>;
+
+/**
+ * Reviewed handler contracts. Fields omitted from one action's allowed set are
+ * rejected for that action, so conditionally irrelevant arguments never reach
+ * a project service or the Godot runtime.
+ */
+const ACTION_FIELD_CONTRACTS: ActionFieldContracts = {
+  editor_session: {
+    ensure: { optional: ['launchIfNeeded', 'timeoutSeconds'] },
+    status: {},
+    disconnect: {},
+  },
+  run_project_tests: {
+    discover: { optional: ['framework', 'testPaths'] },
+    run: { optional: ['framework', 'testPaths', 'artifactPaths', 'timeoutSeconds', 'failFast'] },
+  },
+  manage_import_pipeline: {
+    inspect: { required: ['sourcePath'] },
+    change: { required: ['sourcePath', 'settings'], optional: ['timeoutSeconds'] },
+    reimport: { optional: ['timeoutSeconds'] },
+    dependencies: { required: ['sourcePath'] },
+  },
+  analyze_project_integrity: {
+    analyze: { optional: ['maxFiles', 'allowProceduralMainScene'] },
+    preview_rename: { required: ['sourcePath', 'destinationPath'], optional: ['maxFiles'] },
+    assets: { optional: ['maxFiles'] },
+    localization: { optional: ['maxFiles'] },
+    accessibility: { optional: ['maxFiles'] },
+    extensions: { optional: ['maxFiles'] },
+    leaks: { optional: ['maxFiles'] },
+  },
+  verify_export_readiness: {
+    inspect: { optional: ['debug', 'timeoutSeconds'] },
+    export_smoke: {
+      required: ['outputPath'],
+      optional: ['debug', 'smoke', 'expectedOutput', 'timeoutSeconds', 'smokeTimeoutSeconds'],
+    },
+  },
+  verify_dotnet_project: {
+    inspect: { optional: ['csprojPath'] },
+    restore: { optional: ['csprojPath', 'timeoutSeconds'] },
+    build: { optional: ['csprojPath', 'configuration', 'expectedOutput', 'timeoutSeconds'] },
+    run: { optional: ['csprojPath', 'configuration', 'expectedOutput', 'timeoutSeconds', 'runTimeoutSeconds'] },
+  },
+  manage_addon: {
+    inspect: {},
+    install: { required: ['sourcePath', 'expectedSha256'], optional: ['enable', 'expectedOutput'] },
+    update: { required: ['sourcePath', 'expectedSha256'], optional: ['enable', 'expectedOutput'] },
+    remove: { optional: ['expectedOutput'] },
+    enable: { optional: ['expectedOutput'] },
+    disable: { optional: ['expectedOutput'] },
+  },
+  manage_autoloads: {
+    list: {},
+    add: { required: ['name', 'path'] },
+    remove: { required: ['name'] },
+  },
+  manage_input_map: {
+    list: {},
+    add: { required: ['actionName'], optional: ['key', 'deadzone'] },
+    remove: { required: ['actionName'] },
+  },
+  manage_export_presets: {
+    list: {},
+    add: { required: ['name', 'platform'], optional: ['runnable'] },
+    remove: { required: ['name'] },
+  },
+  manage_resource: {
+    read: {},
+    modify: { required: ['properties'] },
+  },
+  manage_scene_signals: {
+    list: {},
+    add: { required: ['signalName', 'sourcePath', 'targetPath', 'method'] },
+    remove: { required: ['signalName'] },
+  },
+  manage_layers: {
+    list: {},
+    set: { required: ['layerType', 'layer', 'name'] },
+  },
+  manage_plugins: {
+    list: {},
+    enable: { required: ['pluginName'] },
+    disable: { required: ['pluginName'] },
+  },
+  manage_shader: {
+    read: {},
+    create: { optional: ['shaderType', 'source'] },
+  },
+  manage_theme_resource: {
+    create: { optional: ['properties'] },
+    read: {},
+    modify: { required: ['properties'] },
+  },
+  manage_scene_structure: {
+    rename: { required: ['newName'] },
+    duplicate: {},
+    move: { required: ['newParentPath'] },
+  },
+  manage_translations: {
+    list: {},
+    add: { required: ['translationPath'] },
+    remove: { required: ['translationPath'] },
+  },
+  manage_ci_pipeline: {
+    create: { optional: ['platforms', 'godotVersion'] },
+    read: {},
+  },
+  manage_docker_export: {
+    create: { optional: ['godotVersion', 'exportPreset', 'baseImage'] },
+    read: {},
+  },
+  game_visual_regression: {
+    capture_baseline: {},
+    compare: { optional: ['maskPath', 'diffArtifactPath', 'channelTolerance', 'maxDifferentPixelRatio'] },
+  },
+  game_performance: {
+    sample: { optional: ['sampleCount'] }, start: {}, stop: {}, report: {}, leaks: {},
+    stress: { optional: ['sampleCount'] },
+  },
+  game_play_animation: {
+    play: { required: ['animation'] }, stop: {}, pause: {}, get_list: {},
+  },
+  game_audio_play: {
+    play: { optional: ['stream', 'volume', 'pitch', 'bus', 'fromPosition'] },
+    stop: {}, pause: {}, resume: {},
+  },
+  game_tilemap: {
+    set_cells: { required: ['cells'] },
+    get_cell: { required: ['x', 'y'] },
+    erase_cells: { required: ['cells'] },
+    get_used_cells: { optional: ['sourceId'] },
+  },
+  game_environment: {
+    get: {},
+    set: { optional: [
+      'backgroundMode', 'backgroundColor', 'ambientLightColor', 'ambientLightEnergy',
+      'fogEnabled', 'fogDensity', 'fogLightColor', 'glowEnabled', 'glowIntensity',
+      'glowBloom', 'tonemapMode', 'ssaoEnabled', 'ssaoRadius', 'ssaoIntensity',
+      'ssrEnabled', 'brightness', 'contrast', 'saturation',
+    ] },
+  },
+  game_manage_group: {
+    add: { required: ['nodePath', 'group'] },
+    remove: { required: ['nodePath', 'group'] },
+    get_groups: { required: ['nodePath'] },
+  },
+  game_serialize_state: {
+    save: { optional: ['nodePath', 'maxDepth'] },
+    load: { required: ['data'], optional: ['nodePath', 'maxDepth'] },
+  },
+  game_bone_pose: {
+    list: {},
+    get: { optional: ['boneIndex', 'boneName'] },
+    set: { optional: ['boneIndex', 'boneName', 'position', 'rotation', 'scale'] },
+  },
+  game_viewport: {
+    create: { optional: ['parentPath', 'width', 'height', 'msaa', 'transparentBg', 'name'] },
+    configure: { required: ['nodePath'], optional: ['width', 'height', 'msaa', 'transparentBg'] },
+    get: { required: ['nodePath'] },
+  },
+  game_debug_draw: {
+    line: { required: ['from', 'to'], optional: ['color', 'duration'] },
+    sphere: { optional: ['center', 'radius', 'color', 'duration'] },
+    box: { required: ['center', 'size'], optional: ['color', 'duration'] },
+    clear: {},
+  },
+  game_websocket: {
+    connect: { required: ['url'], optional: ['timeout'] }, disconnect: {},
+    send: { required: ['message'] }, receive: { optional: ['timeout'] }, status: {},
+  },
+  game_multiplayer: {
+    create_server: { optional: ['port', 'maxClients'] },
+    create_client: { required: ['address'], optional: ['port'] },
+    disconnect: {}, status: {},
+  },
+  game_rpc: {
+    call: { optional: ['args', 'peerId'] },
+    configure: { optional: ['mode', 'sync', 'transferMode', 'channel'] },
+  },
+  game_touch: {
+    press: { optional: ['index'] }, release: { optional: ['index'] },
+    drag: { required: ['toX', 'toY'], optional: ['index', 'steps'] },
+  },
+  game_input_state: {
+    query: { optional: ['keys', 'actions', 'mouseButtons'] },
+    warp_mouse: { required: ['x', 'y'] },
+    set_mouse_mode: { required: ['mouseMode'] },
+  },
+  game_input_action: {
+    set_strength: { required: ['actionName', 'strength'] },
+    add_action: { required: ['actionName'], optional: ['key'] },
+    remove_action: { required: ['actionName'] }, list: {},
+  },
+  game_script: {
+    get_source: {}, attach: { required: ['source'], optional: ['className'] }, detach: {},
+  },
+  game_window: {
+    get: {},
+    set: { optional: ['width', 'height', 'fullscreen', 'borderless', 'title', 'position', 'vsync'] },
+  },
+  game_time_scale: { get: {}, set: { required: ['timeScale'] } },
+  game_world_settings: {
+    get: {}, set: { optional: ['gravity', 'gravityDirection', 'physicsFps'] },
+  },
+  game_csg: {
+    create: { required: ['parentPath', 'csgType'], optional: ['operation', 'size', 'radius', 'height', 'material', 'name'] },
+    configure: { required: ['nodePath'], optional: ['operation', 'size', 'radius', 'height', 'material'] },
+  },
+  game_multimesh: {
+    create: { required: ['parentPath', 'meshType', 'count'], optional: ['name'] },
+    set_instance: { required: ['nodePath', 'index', 'transform'] },
+    get_info: { required: ['nodePath'] },
+  },
+  game_light_3d: {
+    create: { required: ['parentPath', 'lightType'], optional: ['color', 'energy', 'range', 'shadows', 'spotAngle', 'name'] },
+    configure: { required: ['nodePath'], optional: ['color', 'energy', 'range', 'shadows', 'spotAngle'] },
+  },
+  game_gridmap: {
+    set_cell: { required: ['x', 'y', 'z', 'item'], optional: ['orientation'] },
+    get_cell: { required: ['x', 'y', 'z'] }, clear: {}, get_used: {},
+  },
+  game_path_3d: {
+    create: { required: ['parentPath'], optional: ['points', 'name'] },
+    add_point: { required: ['nodePath', 'point'] },
+    get_points: { required: ['nodePath'] },
+    set_points: { required: ['nodePath', 'points'] },
+  },
+  game_sky: {
+    create: { optional: ['skyType', 'topColor', 'bottomColor', 'sunEnergy', 'groundColor'] },
+  },
+  game_camera_attributes: {
+    get: {},
+    set: { optional: ['dofBlurFar', 'dofBlurNear', 'dofBlurAmount', 'exposureMultiplier', 'autoExposure', 'autoExposureScale'] },
+  },
+  game_navigation_3d: {
+    create: { required: ['parentPath'], optional: ['cellSize', 'agentRadius', 'agentHeight', 'name'] },
+    bake: { required: ['nodePath'] },
+  },
+  game_physics_3d: {
+    ray: { required: ['from', 'to'], optional: ['collisionMask'] },
+    overlap: { required: ['nodePath'], optional: ['collisionMask'] },
+    contacts: { required: ['nodePath'] }, inspect_shape: { required: ['nodePath'] },
+  },
+  game_canvas: {
+    create_layer: { optional: ['parentPath', 'layer', 'name'] },
+    create_modulate: { optional: ['parentPath', 'color', 'name'] },
+    configure: { required: ['nodePath'], optional: ['layer', 'offset', 'visible', 'color'] },
+  },
+  game_canvas_draw: {
+    line: { required: ['from', 'to'], optional: ['parentPath', 'color', 'width'] },
+    rect: { required: ['rect'], optional: ['parentPath', 'color', 'width', 'filled'] },
+    circle: { required: ['center', 'radius'], optional: ['parentPath', 'color', 'width', 'filled'] },
+    polygon: { required: ['points'], optional: ['parentPath', 'color'] },
+    text: { required: ['position', 'text'], optional: ['parentPath', 'fontSize', 'color'] },
+    clear: { optional: ['parentPath'] },
+  },
+  game_light_2d: {
+    create_point: { optional: ['parentPath', 'color', 'energy', 'range', 'name'] },
+    create_directional: { optional: ['parentPath', 'color', 'energy', 'name'] },
+    create_occluder: { required: ['points'], optional: ['parentPath', 'name'] },
+  },
+  game_parallax: {
+    create_background: { optional: ['parentPath', 'scrollOffset', 'scrollBaseOffset', 'name'] },
+    add_layer: { required: ['parentPath'], optional: ['motionScale', 'motionOffset', 'mirroring', 'name'] },
+    configure: { required: ['nodePath'], optional: ['motionScale', 'motionOffset', 'mirroring', 'scrollOffset', 'scrollBaseOffset'] },
+  },
+  game_shape_2d: {
+    add_point: { required: ['point'], optional: ['width', 'color'] },
+    set_points: { required: ['points'], optional: ['width', 'color'] },
+    clear: {}, get_points: {},
+  },
+  game_path_2d: {
+    create: { required: ['parentPath'], optional: ['points', 'name'] },
+    add_point: { required: ['nodePath', 'point'] },
+    get_points: { required: ['nodePath'] },
+  },
+  game_physics_2d: {
+    ray: { required: ['from', 'to'], optional: ['collisionMask'] },
+    overlap: { required: ['nodePath'] },
+    point_query: { required: ['position'], optional: ['collisionMask', 'maxResults'] },
+    shape_query: { required: ['position', 'shapeType'], optional: ['radius', 'size', 'collisionMask', 'maxResults'] },
+  },
+  game_animation_tree: {
+    travel: { required: ['stateName'] },
+    set_param: { required: ['paramName', 'paramValue'] }, get_state: {},
+  },
+  game_animation_control: {
+    seek: { required: ['position'] }, queue: { required: ['animationName'] },
+    set_speed: { required: ['speed'] }, stop: {}, get_info: {},
+  },
+  game_skeleton_ik: {
+    start: { optional: ['target'] }, stop: {}, set_target: { required: ['target'] },
+  },
+  game_audio_effect: {
+    list: { optional: ['busName'] }, add: { required: ['effectType'], optional: ['busName', 'properties', 'enabled'] },
+    remove: { required: ['index'], optional: ['busName'] },
+    configure: { required: ['index'], optional: ['busName', 'properties', 'enabled'] },
+  },
+  game_audio_bus_layout: {
+    list: {}, add: { required: ['busName'], optional: ['index'] },
+    remove: { required: ['busName'] }, move: { required: ['busName', 'index'] },
+    set_send: { required: ['busName', 'sendTo'] },
+  },
+  game_audio_spatial: {
+    get_info: {},
+    configure: { optional: ['maxDistance', 'unitSize', 'maxDb', 'attenuationModel'] },
+  },
+  game_locale: {
+    get: {}, set: { required: ['locale'] }, translate: { required: ['key'], optional: ['locale'] },
+  },
+  game_ui_control: {
+    grab_focus: {}, release_focus: {},
+    configure: { optional: ['anchorPreset', 'tooltip', 'mouseFilter', 'minSize'] }, get_info: {},
+  },
+  game_ui_text: {
+    get: {}, set: { required: ['text'], optional: ['caretPosition', 'selectionFrom', 'selectionTo'] },
+    append: { required: ['text'], optional: ['caretPosition', 'selectionFrom', 'selectionTo'] },
+    clear: {}, bbcode: { required: ['text'] },
+  },
+  game_ui_popup: {
+    popup_centered: { optional: ['size', 'title', 'text'] },
+    popup: { optional: ['size', 'title', 'text'] }, hide: {}, get_info: {},
+  },
+  game_ui_tree: {
+    get_items: {}, add: { required: ['text'], optional: ['itemPath', 'column'] },
+    select: { required: ['itemPath'], optional: ['column'] },
+    collapse: { required: ['itemPath'] }, expand: { required: ['itemPath'] }, remove: { required: ['itemPath'] },
+  },
+  game_ui_item_list: {
+    get_items: {}, select: { required: ['index'] }, add: { required: ['text'] },
+    remove: { required: ['index'] }, clear: {},
+  },
+  game_ui_tabs: {
+    get_tabs: {}, set_current: { required: ['index'] }, set_title: { required: ['index', 'title'] },
+  },
+  game_ui_menu: {
+    get_items: {}, add: { required: ['text'], optional: ['id', 'shortcutKey'] },
+    remove: { required: ['index'] }, set_checked: { required: ['index', 'checked'] }, clear: {},
+  },
+  game_ui_range: {
+    get: {}, set: { optional: ['value', 'minValue', 'maxValue', 'step', 'color'] },
+  },
+  game_render_settings: {
+    get: {}, set: { optional: ['msaa2d', 'msaa3d', 'fxaa', 'taa', 'scalingMode', 'scalingScale'] },
+  },
+  game_resource: {
+    load: {}, preload: {}, exists: {}, save: { required: ['nodePath', 'property'] },
+  },
+  game_visual_shader: {
+    create: { optional: ['shaderType'] },
+    add_node: { required: ['nodeClass'], optional: ['shaderId', 'position'] },
+    connect: { required: ['fromNode', 'fromPort', 'toNode', 'toPort'], optional: ['shaderId'] },
+    disconnect: { required: ['fromNode', 'fromPort', 'toNode', 'toPort'], optional: ['shaderId'] },
+    get_nodes: { optional: ['shaderId'] }, apply: { required: ['nodePath'], optional: ['shaderId'] },
+  },
+  game_terrain: {
+    create: { required: ['parentPath'], optional: ['heightData', 'width', 'depth', 'maxHeight', 'name'] },
+    get_height: { required: ['nodePath', 'x', 'z'] },
+    modify: { required: ['nodePath', 'x', 'z', 'radius', 'heightDelta'] },
+    paint: { required: ['nodePath', 'x', 'z', 'radius', 'color'] },
+  },
+  game_video: {
+    create: { required: ['parentPath', 'videoPath'], optional: ['volume', 'loop', 'autoplay', 'name'] },
+    play: { required: ['nodePath'], optional: ['volume', 'loop'] },
+    pause: { required: ['nodePath'] }, resume: { required: ['nodePath'] }, stop: { required: ['nodePath'] },
+    seek: { required: ['nodePath', 'position'] }, get_status: { required: ['nodePath'] },
+  },
+};
+
+const DEFAULT_ACTIONS: Partial<Record<ToolName, string>> = {
+  game_performance: 'sample', game_audio_play: 'play', game_environment: 'set',
+  game_serialize_state: 'save', game_bone_pose: 'list', game_viewport: 'create',
+  game_input_state: 'query', game_window: 'get', game_time_scale: 'get',
+  game_world_settings: 'get', game_camera_attributes: 'get', game_render_settings: 'get',
+};
+
+export const JSON_SCHEMA_DIALECT = 'https://json-schema.org/draft/2020-12/schema';
+
+/**
+ * The authored schemas are normalized once and the resulting objects are used
+ * for both MCP advertisement and runtime validation. Declared objects are
+ * closed recursively; intentionally free-form Dictionary/Variant objects have
+ * no `properties` and therefore remain open.
+ */
+export const toolDefinitions: readonly (ToolDefinition & { readonly name: ToolName })[] = rawToolDefinitions.map(definition => {
+  const inputSchema = closeDeclaredObjects({
+    ...addManifestActionContracts(definition.name, addConditionalContracts(
+      definition.name, addManifestActionEnum(definition.name, definition.inputSchema),
+    )),
+    $schema: JSON_SCHEMA_DIALECT,
+  });
+  return {
+    ...definition,
+    title: humanizeToolName(definition.name),
+    inputSchema: addToolExamples(definition.name, inputSchema),
+    outputSchema: structuredResultSchemaFor(definition.name),
+  };
+});
+
+function humanizeToolName(name: string): string {
+  const initialisms = new Map([
+    ['2d', '2D'], ['3d', '3D'], ['ai', 'AI'], ['ci', 'CI'], ['csharp', 'C#'],
+    ['dotnet', '.NET'], ['gi', 'GI'], ['http', 'HTTP'], ['mcp', 'MCP'], ['os', 'OS'],
+    ['rpc', 'RPC'], ['ui', 'UI'], ['uid', 'UID'], ['url', 'URL'], ['websocket', 'WebSocket'],
+  ]);
+  return name.split('_').map((part, index) => {
+    const known = initialisms.get(part);
+    if (known) return known;
+    return index === 0 || part.length > 0 ? `${part.charAt(0).toUpperCase()}${part.slice(1)}` : part;
+  }).join(' ');
+}
+
+/**
+ * The traceability manifest is the complete, audited action inventory. Reuse
+ * it for action discriminators that older authored schemas left as an
+ * unconstrained string, while preserving data-valued `action` fields such as
+ * InputMap action names.
+ */
+function addManifestActionEnum(name: ToolName, schema: ToolPropertySchema): ToolPropertySchema {
+  const actions = toolManifest[name].actions;
+  const action = schema.properties?.action;
+  if (!actions || !action || action.enum !== undefined) return schema;
+  return {
+    ...schema,
+    properties: {
+      ...schema.properties,
+      action: { ...action, enum: actions },
+    },
+  };
+}
+
+function closeDeclaredObjects(input: ToolPropertySchema, fallbackDescription?: string): ToolPropertySchema {
+  const schema = normalizeUndeclaredObject(input);
+  const properties = schema.properties === undefined
+    ? undefined
+    : Object.fromEntries(Object.entries(schema.properties).map(
+      ([name, property]) => [name, closeDeclaredObjects(property, `${humanizeToolName(name)} value`)],
+    ));
+  const closed: ToolPropertySchema = {
+    ...schema,
+    ...(schema.description === undefined && fallbackDescription
+      ? { description: fallbackDescription }
+      : {}),
+    ...(properties === undefined ? {} : { properties }),
+    ...(schema.items === undefined ? {} : { items: closeDeclaredObjects(schema.items, 'Array item') }),
+    ...(schema.oneOf === undefined ? {} : {
+      oneOf: schema.oneOf.map((branch, index) => closeDeclaredObjects(branch, `Allowed option ${index + 1}`)),
+    }),
+    ...(schema.anyOf === undefined ? {} : {
+      anyOf: schema.anyOf.map((branch, index) => closeDeclaredObjects(branch, `Allowed alternative ${index + 1}`)),
+    }),
+    ...(schema.allOf === undefined ? {} : {
+      allOf: schema.allOf.map((branch, index) => closeDeclaredObjects(branch, `Required rule ${index + 1}`)),
+    }),
+    ...(schema.not === undefined ? {} : { not: closeDeclaredObjects(schema.not, 'Forbidden shape') }),
+    ...(schema.type === 'object' && properties !== undefined && schema.additionalProperties === undefined
+      ? { additionalProperties: false }
+      : {}),
+  };
+  return closed.examples === undefined && (closed.type === 'object' || closed.type === 'array')
+    ? { ...closed, examples: [schemaExample(closed)] }
+    : closed;
+}
+
+function addToolExamples(name: ToolName, schema: ToolPropertySchema): ToolPropertySchema {
+  const actions = toolManifest[name].actions;
+  const examples = actions
+    ? actions.map(action => schemaExample(schema, action))
+    : [schemaExample(schema)];
+  const invalidExamples: ToolSchemaInvalidExample[] = actions
+    ? [
+        {
+          value: { ...(examples[0] as Record<string, unknown>), action: '__invalid__' },
+          path: 'arguments.action', keyword: 'enum',
+        },
+        ...actions.map((action, index) => actionInvalidExample(schema, action, examples[index])),
+      ]
+    : [{
+        value: { ...(examples[0] as Record<string, unknown>), unexpected: true },
+        path: 'arguments.unexpected', keyword: 'additionalProperties',
+      }];
+  return {
+    ...schema,
+    examples,
+    'x-invalidExamples': invalidExamples,
+  };
+}
+
+function actionInvalidExample(
+  schema: ToolPropertySchema,
+  action: string,
+  example: unknown,
+): ToolSchemaInvalidExample {
+  const value = { ...(example as Record<string, unknown>) };
+  const branch = schema.oneOf?.find(candidate => candidate.properties?.action?.const === action);
+  const missing = branch?.required?.find(field => field !== 'action' && !(schema.required ?? []).includes(field));
+  if (missing) {
+    const withoutMissing = Object.fromEntries(Object.entries(value).filter(([field]) => field !== missing));
+    return { action, value: withoutMissing, path: `arguments.${missing}`, keyword: 'required' };
+  }
+  const forbidden = Object.entries(branch?.properties ?? {}).find(([field, property]) =>
+    field !== 'action' && property.not !== undefined && Object.keys(property.not).length === 0);
+  if (forbidden) {
+    const [field] = forbidden;
+    value[field] = schemaExample(schema.properties?.[field] ?? {});
+    return { action, value, path: `arguments.${field}`, keyword: 'not' };
+  }
+  value.unexpected = true;
+  return { action, value, path: 'arguments.unexpected', keyword: 'additionalProperties' };
+}
+
+function schemaExample(schema: ToolPropertySchema, requestedAction?: string): unknown {
+  if (schema.const !== undefined) return schema.const;
+  if (schema.anyOf && schema.anyOf.length > 0) return schemaExample(schema.anyOf[0], requestedAction);
+  if (schema.type === 'object') return objectExample(schema, requestedAction);
+  if (schema.enum && schema.enum.length > 0) {
+    return requestedAction !== undefined && schema.enum.includes(requestedAction)
+      ? requestedAction
+      : schema.enum[0];
+  }
+  if (schema.oneOf && schema.oneOf.length > 0) return schemaExample(schema.oneOf[0], requestedAction);
+  if (schema.type === 'array') {
+    const length = Math.max(1, schema.minItems ?? 0);
+    return Array.from({ length }, () => schemaExample(schema.items ?? {}));
+  }
+  if (schema.type === 'boolean') return true;
+  if (schema.type === 'number' || schema.type === 'integer') return schema.minimum ?? 1;
+  if (schema.type === 'string') {
+    if (schema.pattern?.includes('https?://')) return 'http://127.0.0.1';
+    if (schema.pattern?.startsWith('^4\\.')) return '4.7-stable';
+    if (schema.pattern?.includes('a-fA-F0-9') && schema.pattern.includes('{64}')) return '0'.repeat(64);
+    return 'value';
+  }
+  return null;
+}
+
+function objectExample(schema: ToolPropertySchema, requestedAction?: string): Record<string, unknown> {
+  const branch = selectExampleBranch(schema, requestedAction);
+  const properties = { ...(schema.properties ?? {}), ...(branch?.properties ?? {}) };
+  const required = new Set([...(schema.required ?? []), ...(branch?.required ?? [])]);
+  if (requestedAction !== undefined && schema.properties?.action) required.add('action');
+  return Object.fromEntries([...required].map(name => [
+    name,
+    name === 'action' && requestedAction !== undefined
+      ? requestedAction
+      : schemaExample(properties[name] ?? {}),
+  ]));
+}
+
+function selectExampleBranch(
+  schema: ToolPropertySchema,
+  requestedAction?: string,
+): ToolPropertySchema | undefined {
+  if (!schema.oneOf || schema.oneOf.length === 0) return undefined;
+  if (requestedAction !== undefined) {
+    return schema.oneOf.find(branch => branch.properties?.action?.const === requestedAction)
+      ?? schema.oneOf[0];
+  }
+  return schema.oneOf[0];
+}
+
+function normalizeUndeclaredObject(schema: ToolPropertySchema): ToolPropertySchema {
+  if (schema.type !== 'object' || schema.properties !== undefined
+    || schema.additionalProperties !== undefined || schema.anyOf !== undefined) return schema;
+  const compact = (schema.description ?? '').replace(/\s+/g, '').toLowerCase();
+  if (compact.includes('particleprocessmaterial')) return explicitlyOpen(schema);
+  if (compact.includes('{origin:{x,y,z},rotation:{x,y,z}}')) {
+    return componentObject(schema, {
+      origin: vectorObject('Transform origin', ['x', 'y', 'z']),
+      rotation: vectorObject('Euler rotation in degrees', ['x', 'y', 'z']),
+    }, ['origin']);
+  }
+  if (compact.includes('{x,y}or{x,y,z}')) {
+    return {
+      ...schema,
+      anyOf: [
+        vectorObject('2D component shape', ['x', 'y']),
+        vectorObject('3D component shape', ['x', 'y', 'z']),
+      ],
+      examples: [{ x: 1, y: 2 }, { x: 1, y: 2, z: 3 }],
+    };
+  }
+  if (compact.includes('{x,y,w,h}')) {
+    return componentObject(schema, numericProperties(['x', 'y', 'w', 'h']), ['x', 'y', 'w', 'h']);
+  }
+  if (compact.includes('{x,y,z,w}')) {
+    return componentObject(schema, numericProperties(['x', 'y', 'z', 'w']), ['x', 'y', 'z', 'w']);
+  }
+  if (compact.includes('{r,g,b,a}') || compact.includes('{r,g,b}')) {
+    return componentObject(schema, numericProperties(['r', 'g', 'b', 'a']), ['r', 'g', 'b']);
+  }
+  if (compact.includes('{x,y,z}')) {
+    return componentObject(schema, numericProperties(['x', 'y', 'z']), ['x', 'y', 'z']);
+  }
+  if (compact.includes('{x,y}')) {
+    return componentObject(schema, numericProperties(['x', 'y']), ['x', 'y']);
+  }
+  if ((schema.description ?? '').includes('game_wait_until-compatible')) return schema;
+  return explicitlyOpen(schema);
+}
+
+function explicitlyOpen(schema: ToolPropertySchema): ToolPropertySchema {
+  return {
+    ...schema,
+    description: `${schema.description ?? 'Godot value dictionary'}. Intentionally open: keys depend on the selected Godot property or action and values may be nested Variants.`,
+    additionalProperties: true,
+    examples: [{}],
+  };
+}
+
+function numericProperties(names: readonly string[]): Record<string, ToolPropertySchema> {
+  return Object.fromEntries(names.map(name => [name, {
+    type: 'number', description: `${name.toUpperCase()} numeric component`,
+  }]));
+}
+
+function vectorObject(description: string, names: readonly string[]): ToolPropertySchema {
+  return componentObject({ type: 'object', description }, numericProperties(names), names);
+}
+
+function componentObject(
+  schema: ToolPropertySchema,
+  properties: Record<string, ToolPropertySchema>,
+  required: readonly string[],
+): ToolPropertySchema {
+  return {
+    ...schema,
+    properties,
+    required,
+    additionalProperties: false,
+    examples: [Object.fromEntries(required.map(name => [name, schemaExample(properties[name] ?? {})]))],
+  };
+}
+
+function selectorBranch(
+  property: string,
+  value: string,
+  required: readonly string[] = [],
+  forbidden: readonly string[] = [],
+): ToolPropertySchema {
+  return {
+    type: 'object',
+    properties: {
+      [property]: { const: value },
+      ...Object.fromEntries(forbidden.map(name => [name, {
+        description: `${humanizeToolName(name)} is forbidden for ${property}=${value}.`,
+        not: {},
+      }])),
+    },
+    required: [property, ...required],
+    additionalProperties: true,
+  };
+}
+
+function addManifestActionContracts(name: ToolName, schema: ToolPropertySchema): ToolPropertySchema {
+  if (schema.oneOf !== undefined) return schema;
+  const contracts = ACTION_FIELD_CONTRACTS[name];
+  const actions = toolManifest[name].actions;
+  if (!contracts || !actions) return schema;
+  const fields = Object.keys(schema.properties ?? {}).filter(field => field !== 'action');
+  const common = new Set((schema.required ?? []).filter(field => field !== 'action'));
+  return {
+    ...schema,
+    oneOf: actions.map(action => {
+      const contract = contracts[action] ?? {};
+      const required = contract.required ?? [];
+      const allowed = new Set([...common, ...required, ...(contract.optional ?? [])]);
+      const branch = selectorBranch('action', action, required, fields.filter(field => !allowed.has(field)));
+      return DEFAULT_ACTIONS[name] === action && !schema.required?.includes('action')
+        ? { ...branch, required: required.filter(field => field !== 'action') }
+        : branch;
+    }),
+  };
+}
+
+function exactlyOneBranch(required: string, forbidden: readonly string[]): ToolPropertySchema {
+  return {
+    type: 'object',
+    required: [required],
+    additionalProperties: true,
+    not: { anyOf: forbidden.map(name => ({ required: [name] })) },
+  };
+}
+
+function waitConditionBranches(): ToolPropertySchema[] {
+  return [
+    selectorBranch('condition', 'connection', [], WAIT_CONDITION_FIELDS),
+    selectorBranch('condition', 'node', ['nodePath'], ['property', 'value', 'signal', 'text', 'scenePath']),
+    selectorBranch('condition', 'property', ['nodePath', 'property', 'value'], ['signal', 'text', 'scenePath']),
+    selectorBranch('condition', 'signal', ['nodePath', 'signal'], ['property', 'value', 'text', 'scenePath']),
+    selectorBranch('condition', 'log', ['text'], ['nodePath', 'property', 'value', 'signal', 'scenePath']),
+    selectorBranch('condition', 'scene', ['scenePath'], ['nodePath', 'property', 'value', 'signal', 'text']),
+  ];
+}
+
+function scenarioConditionSchema(description: string): ToolPropertySchema {
+  return {
+    type: 'object',
+    description,
+    properties: {
+      condition: { type: 'string', enum: ['connection', 'node', 'property', 'signal', 'log', 'scene'], description: 'Condition discriminator.' },
+      nodePath: { type: 'string', description: 'Runtime node path for node, property, or signal conditions.' },
+      property: { type: 'string', description: 'Property name for a property condition.' },
+      value: { description: 'Expected canonical Godot Variant value for a property condition.' },
+      signal: { type: 'string', description: 'Signal name for a signal condition.' },
+      text: { type: 'string', maxLength: 1000, description: 'Required bounded substring for a log condition.' },
+      scenePath: { type: 'string', description: 'Expected current scene resource path for a scene condition.' },
+      timeoutSeconds: { type: 'number', minimum: 0.05, maximum: 60, description: 'Maximum wait for this condition.' },
+      pollIntervalMs: { type: 'integer', minimum: 20, maximum: 1000, description: 'Bounded polling interval.' },
+    },
+    required: ['condition'],
+    oneOf: waitConditionBranches(),
+  };
+}
+
+function scenarioStepBranch(
+  type: string,
+  required: readonly string[] = [],
+  forbidden: readonly string[] = [],
+  allowedTools?: readonly string[],
+): ToolPropertySchema {
+  const branch = selectorBranch('type', type, required, forbidden);
+  return allowedTools
+    ? {
+        ...branch,
+        properties: {
+          ...branch.properties,
+          tool: { type: 'string', enum: allowedTools, description: `Safe ${type} tool allowlist.` },
+        },
+      }
+    : branch;
+}
+
+function addConditionalContracts(name: string, inputSchema: ToolPropertySchema): ToolPropertySchema {
+  if (name === 'godot_catalog') {
+    return {
+      ...inputSchema,
+      oneOf: [
+        selectorBranch('action', 'search'),
+        selectorBranch('action', 'describe', ['toolName']),
+      ],
+    };
+  }
+  if (name === 'godot_tools') {
+    return {
+      ...inputSchema,
+      oneOf: [
+        selectorBranch('action', 'search'),
+        selectorBranch('action', 'describe', ['toolName']),
+        selectorBranch('action', 'call', ['toolName']),
+      ],
+    };
+  }
+  if (name === 'game_key_press') {
+    return {
+      ...inputSchema,
+      oneOf: [
+        exactlyOneBranch('key', ['action', 'text']),
+        exactlyOneBranch('action', ['key', 'text']),
+        exactlyOneBranch('text', ['key', 'action', 'pressed', 'physical']),
+      ],
+    };
+  }
+  if (name === 'game_key_hold' || name === 'game_key_release') {
+    return {
+      ...inputSchema,
+      oneOf: [
+        exactlyOneBranch('key', ['action']),
+        exactlyOneBranch('action', ['key']),
+      ],
+    };
+  }
+  if (name === 'editor_control') {
+    const fields = ['nodePaths', 'scenePath', 'nodePath', 'property', 'value', 'name'] as const;
+    const branch = (action: string, required: readonly string[] = []) => selectorBranch(
+      'action', action, required, fields.filter(field => !required.includes(field)),
+    );
+    return {
+      ...inputSchema,
+      oneOf: [
+        branch('inspect'),
+        branch('select', ['nodePaths']),
+        branch('save'),
+        branch('reload', ['scenePath']),
+        branch('open_scene', ['scenePath']),
+        branch('set_property', ['nodePath', 'property', 'value']),
+        branch('rename_node', ['nodePath', 'name']),
+        branch('undo'),
+        branch('redo'),
+      ],
+    };
+  }
+  if (name === 'game_wait_until') {
+    return {
+      ...inputSchema,
+      oneOf: waitConditionBranches(),
+    };
+  }
+  if (name === 'editor_transaction') {
+    const operation = inputSchema.properties?.operations;
+    const items = operation?.items;
+    if (operation && items) {
+      const operationFields = [
+        'nodePath', 'parentPath', 'newParentPath', 'nodeType', 'nodeName', 'name',
+        'properties', 'property', 'value', 'scenePath', 'scriptPath', 'resourcePath',
+        'keepGlobalTransform',
+      ] as const;
+      const requirements: readonly (readonly [string, readonly string[], readonly string[]])[] = [
+        ['add_node', ['nodeType', 'nodeName'], ['parentPath', 'nodeType', 'nodeName', 'properties']],
+        ['remove_node', ['nodePath'], ['nodePath']],
+        ['rename_node', ['nodePath', 'name'], ['nodePath', 'name']],
+        ['duplicate_node', ['nodePath'], ['nodePath', 'nodeName']],
+        ['reparent_node', ['nodePath', 'newParentPath'], ['nodePath', 'newParentPath', 'keepGlobalTransform']],
+        ['set_properties', ['nodePath', 'properties'], ['nodePath', 'properties']],
+        ['instantiate_scene', ['scenePath'], ['parentPath', 'scenePath', 'nodeName']],
+        ['attach_script', ['nodePath', 'scriptPath'], ['nodePath', 'scriptPath']],
+        ['assign_resource', ['nodePath', 'property', 'resourcePath'], ['nodePath', 'property', 'resourcePath']],
+        ['save', [], []],
+      ];
+      return {
+        ...inputSchema,
+        properties: {
+          ...inputSchema.properties,
+          operations: {
+            ...operation,
+            items: {
+              ...items,
+              oneOf: requirements.map(([op, required, allowed]) => selectorBranch(
+                'op', op, required, operationFields.filter(field => !allowed.includes(field)),
+              )),
+            },
+          },
+        },
+      };
+    }
+  }
+  if (name === 'game_scenario') {
+    const steps = inputSchema.properties?.steps;
+    const items = steps?.items;
+    if (steps && items) {
+      const condition = scenarioConditionSchema('Bounded game_wait_until-compatible condition for wait or assert.');
+      return {
+        ...inputSchema,
+        properties: {
+          ...inputSchema.properties,
+          steps: {
+            ...steps,
+            items: {
+              ...items,
+              properties: { ...items.properties, condition },
+              oneOf: [
+                scenarioStepBranch('input', ['tool', 'arguments'], ['condition'], SCENARIO_INPUT_TOOLS),
+                scenarioStepBranch('wait', ['condition'], ['tool', 'arguments']),
+                scenarioStepBranch('observe', ['tool'], ['condition'], SCENARIO_OBSERVE_TOOLS),
+                scenarioStepBranch('assert', ['condition'], ['tool', 'arguments']),
+                scenarioStepBranch('screenshot', [], ['tool', 'arguments', 'condition']),
+                scenarioStepBranch('performance', [], ['tool', 'arguments', 'condition']),
+              ],
+            },
+          },
+        },
+      };
+    }
+  }
+  return inputSchema;
+}

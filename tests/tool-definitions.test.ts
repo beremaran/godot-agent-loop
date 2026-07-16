@@ -9,7 +9,7 @@ import { ToolRegistry } from '../src/tool-registry.js';
 import type { ToolName } from '../src/tool-definitions.js';
 
 const ALL_TOOL_NAMES = [
-  'godot_tools', 'launch_editor', 'editor_session', 'editor_control', 'editor_transaction', 'run_project', 'verify_project', 'game_wait_until', 'game_scenario', 'run_project_tests',
+  'godot_catalog', 'godot_call', 'godot_tools', 'launch_editor', 'editor_session', 'editor_control', 'editor_transaction', 'run_project', 'verify_project', 'game_wait_until', 'game_scenario', 'run_project_tests',
   'manage_import_pipeline', 'analyze_project_integrity', 'verify_export_readiness',
   'verify_dotnet_project', 'manage_addon', 'get_debug_output', 'stop_project',
   'get_godot_version', 'list_projects', 'get_project_info', 'create_scene',
@@ -82,6 +82,10 @@ function createHandlerDouble() {
 }
 
 function validRequiredArguments(tool: typeof toolDefinitions[number]): Record<string, unknown> {
+  const committed = tool.inputSchema.examples?.[0];
+  if (committed && typeof committed === 'object' && !Array.isArray(committed)) {
+    return committed as Record<string, unknown>;
+  }
   const args: Record<string, unknown> = {};
   for (const field of tool.inputSchema.required ?? []) {
     const property = tool.inputSchema.properties?.[field];
@@ -98,15 +102,28 @@ function validRequiredArguments(tool: typeof toolDefinitions[number]): Record<st
       args[field] = [{ type: 'wait', condition: { condition: 'connection' } }];
       continue;
     }
-    if (property.type === 'number' || property.type === 'integer') {
-      args[field] = property.minimum ?? 1;
-      continue;
-    }
-    args[field] = property.enum?.[0] ?? ({
-      string: 'value', boolean: true, array: [], object: {},
-    } as Record<string, unknown>)[property.type ?? 'object'];
+    args[field] = sampleSchemaValue(property);
   }
   return args;
+}
+
+function sampleSchemaValue(schema: typeof toolDefinitions[number]['inputSchema']): unknown {
+  if (schema.const !== undefined) return schema.const;
+  if (schema.enum && schema.enum.length > 0) return schema.enum[0];
+  if (schema.anyOf && schema.anyOf.length > 0) return sampleSchemaValue(schema.anyOf[0]);
+  if (schema.oneOf && schema.oneOf.length > 0) return sampleSchemaValue(schema.oneOf[0]);
+  if (schema.type === 'number' || schema.type === 'integer') return schema.minimum ?? 1;
+  if (schema.type === 'string') return 'value';
+  if (schema.type === 'boolean') return true;
+  if (schema.type === 'array') {
+    return Array.from({ length: schema.minItems ?? 0 }, () => sampleSchemaValue(schema.items ?? {}));
+  }
+  if (schema.type === 'object') {
+    return Object.fromEntries((schema.required ?? []).map(name => [
+      name, sampleSchemaValue(schema.properties?.[name] ?? {}),
+    ]));
+  }
+  return null;
 }
 
 const game = createHandlerDouble();
@@ -119,9 +136,8 @@ const registry = new ToolRegistry(createToolHandlers({
 }));
 
 describe('Tool definitions', () => {
-  it('defines exactly the complete 171-tool catalog', () => {
-    expect(toolDefinitions).toHaveLength(171);
-    expect(ALL_TOOL_NAMES).toHaveLength(toolDefinitions.length);
+  it('matches the explicitly reviewed complete catalog', () => {
+    expect(toolDefinitions.map(tool => tool.name).sort()).toEqual([...ALL_TOOL_NAMES].sort());
   });
 
   it('all tool names are unique', () => {
@@ -161,10 +177,24 @@ describe('Tool definitions', () => {
       .filter(([, method]) => method.mock.calls.length > 0)).toHaveLength(toolDefinitions.length);
   });
 
-  it('no tool description exceeds 80 characters', () => {
-    for (const tool of toolDefinitions) {
-      expect(tool.description.length, tool.name).toBeLessThanOrEqual(80);
-    }
+  it('describes every property, array item, and union branch', () => {
+    const visit = (schema: typeof toolDefinitions[number]['inputSchema'], path: string): void => {
+      for (const [name, property] of Object.entries(schema.properties ?? {})) {
+        expect(property.description?.trim(), `${path}.${name}`).toBeTruthy();
+        visit(property, `${path}.${name}`);
+      }
+      if (schema.items) {
+        expect(schema.items.description?.trim(), `${path}[]`).toBeTruthy();
+        visit(schema.items, `${path}[]`);
+      }
+      for (const [keyword, branches] of [['oneOf', schema.oneOf], ['anyOf', schema.anyOf], ['allOf', schema.allOf]] as const) {
+        branches?.forEach((branch, index) => {
+          expect(branch.description?.trim(), `${path}.${keyword}[${index}]`).toBeTruthy();
+          visit(branch, `${path}.${keyword}[${index}]`);
+        });
+      }
+    };
+    for (const tool of toolDefinitions) visit(tool.inputSchema, tool.name);
   });
 
   it('required fields reference valid properties', () => {

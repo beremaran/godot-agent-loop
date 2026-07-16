@@ -1,50 +1,61 @@
 ---
 name: debug-godot-game
-description: Diagnose and fix a Godot 4 game that crashes, logs errors, renders incorrectly, ignores input, has wrong scene state, or fails a gameplay expectation. Use for runtime bugs, script failures, broken scenes/resources, flaky behavior, and regressions that need reproduction before repair.
+description: Diagnose and repair a reproducible Godot 4 failure. Use for crashes, errors, broken scenes/resources, wrong runtime state, input/timing, rendering, audio, export, toolchain, flaky behavior, or regressions; do not use for greenfield builds, proof-only review, or release gating.
 ---
 
 # Debug a Godot game
 
-Preserve the failing evidence, isolate one cause, make the smallest repair, and
-rerun the original reproduction. Do not begin with speculative edits.
+Preserve the failure, isolate one cause, apply the smallest repair, and rerun the
+same reproduction. Godot Agent Loop supports Godot 4.7 or later; report older
+engine behavior as outside the supported boundary.
 
-Godot Agent Loop supports Godot 4.7 or later. Report an older project/engine as
-outside the supported boundary before diagnosing engine behavior.
+## Control contract
+
+- Validate `projectPath` against effective MCP roots and allowed directories
+  before mutation. Preserve a reproducible baseline and changed-file snapshot.
+- Record whether the user requested watched or unattended work. For watched work,
+  call `editor_session` with `ensure` and launch enabled; stop if a usable editor
+  cannot be established instead of silently continuing detached.
+- Distinguish persistent scene/resource/script/settings repair from
+  runtime-ephemeral observation or mutation. Stop the runtime before persistent repair
+  unless an editor-native operation is explicitly safe during play and record why.
+- Use canonical core tools directly (`compact` is only the compatibility alias).
+  Resolve hidden `manage_resource`, `game_get_property`, `game_call_method`, and
+  `game_eval` through `godot_catalog` detail, then invoke them with `godot_call`;
+  never call a hidden tool directly.
+- If **Pause Agent** blocks a mutation, do not retry or bypass it. Continue only
+  observation or safe teardown and report the effective blocked tool.
+- Use privileged reflection or evaluation only when its group is already enabled,
+  the hypothesis requires it, and safer observations cannot distinguish the cause.
 
 ## Workflow
 
-1. Reproduce.
-   - Call realtime `run_project` for visual/timing complaints. Capture a
-     baseline, then repeat the user's exact input or bounded `game_scenario`.
-   - Capture `get_debug_output`, `game_get_errors`, `game_get_logs`, scene/UI
-     state, and a screenshot when rendering is involved.
-2. Classify the boundary.
-   - Parse/startup: run `validate_scripts` and inspect project/main-scene settings.
-   - Saved scene/resource: use `read_scene`, `read_file`, and `manage_resource`
-     (discover it through `godot_tools` when hidden).
-   - Runtime state: use `game_get_scene_tree`, `game_get_ui`, and
-     `game_get_node_info`.
-   - Timing/input: use `game_wait_until`; use deterministic waits only for
-     repeatable simulation checks, not as evidence of displayed frame pacing.
-3. Form one falsifiable hypothesis. Gather a second observation that distinguishes
-   it from the nearest alternative. Use privileged property/method inspection only
-   when the user enabled the `reflection` group; avoid `game_eval` by default.
-   - Change one independent variable per trial and rerun the same stress path.
-     Never infer one cause after disabling particles, shockwaves, audio, camera
-     shake, and other systems together.
-   - Test camera shake and any persistent per-frame effect independently.
-   - For a visual freeze or stutter, collect realtime FPS/frame-time and
-     process/render/GPU availability. Simulation counters alone are insufficient;
-     report GPU time as unavailable when the platform does not expose it.
-4. Stop the project before editing persistent files. Apply the minimal fix with
-   the matching scene, script, resource, or settings tool.
-5. Validate and rerun.
-   - Run static validation first.
-   - Repeat the exact baseline/stress/recovery input and observation.
-   - Use `verify_project` or `run_project_tests` for stable regression evidence.
-   - Confirm errors are gone and adjacent behavior still works.
-6. Stop the project and remove temporary probes and MCP-owned transient bridge
-   artifacts. Report the root cause, isolated variable, changed artifact,
-   reproduction, independent passing evidence, every warning/error/ObjectDB or
-   orphan diagnostic, cleanup result, fallback, and unsupported metric. Never
-   remove a user's persistent addon.
+1. Reproduce before editing. Use realtime `run_project` for visual or timing
+   complaints and repeat the user's exact input or a bounded `game_scenario`.
+2. Capture the minimum distinguishing evidence: cursor-bounded
+   `get_debug_output`, `game_get_errors`, `game_get_logs`, concise scene/UI/node
+   state, and `game_screenshot` only when rendering matters.
+3. Classify the failing boundary: parse/startup, persistent scene/resource,
+   import, runtime state, input/timing, rendering, audio, export, or
+   platform/toolchain.
+4. State one falsifiable hypothesis and one observation that distinguishes it
+   from the nearest alternative. Change one independent variable per trial; do
+   not disable multiple systems and infer a single cause.
+5. For input, use `game_key_press` only for a one-frame tap. Use
+   `game_key_hold` for continuous movement and always call `game_key_release` in
+   normal and failure cleanup. Use bounded `game_wait_until`, never manual sleeps.
+6. Stop the project before persistent repair. Apply the smallest matching scene,
+   script, resource, or setting change as one coherent undoable change.
+7. Run static validation before runtime proof. Repeat the exact baseline,
+   stress/recovery input, and observation; then run adjacent regression checks
+   with `verify_project` or `run_project_tests`.
+8. Separate measured FPS/frame time/process/render data from unavailable GPU
+   metrics and subjective reports of feel. Do not substitute simulation counters
+   for displayed frame pacing.
+9. Release held input, call `stop_project`, remove only identified probes and
+   MCP-owned transient artifacts, and independently check cleanup.
+
+Report root cause, hypothesis, isolated variable, changed artifact, exact
+reproduction, passing and negative evidence, warnings/errors/leaks, fallbacks,
+blocked or unsupported metrics, subjective gaps, and teardown. Never remove a
+user's addon or broaden a repair beyond the causal artifact.

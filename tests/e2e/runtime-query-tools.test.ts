@@ -126,8 +126,9 @@ describe('runtime query G+ tools through MCP', () => {
     const zero = await game.call('game_wait', { frames: 0 });
     expect(zero.isError).toBe(true);
     expect(zero.text).toMatch(/positive integer/i);
-    await expect(game.client.callTool({ name: 'game_wait', arguments: { frames: 1.5 } }))
-      .rejects.toThrow(/frames.*integer/i);
+    const fractional = await game.call('game_wait', { frames: 1.5 });
+    expect(fractional.isError).toBe(true);
+    expect(fractional.text).toMatch(/frames.*integer/i);
   });
 
   it('game_os_info agrees with an independent engine query', async () => {

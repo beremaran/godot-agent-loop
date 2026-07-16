@@ -1,0 +1,230 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "hold-input-user-language",
+      "intent": "hold input while moving",
+      "query": "hold input while moving",
+      "expectedTop": "game_key_hold",
+      "acceptableAlternatives": ["game_input_action"],
+      "forbiddenAboveExpected": ["game_key_press"],
+      "maxRank": 1
+    },
+    {
+      "id": "hold-input-snake-case",
+      "intent": "hold input while moving",
+      "query": "game_key_hold",
+      "expectedTop": "game_key_hold",
+      "acceptableAlternatives": [],
+      "forbiddenAboveExpected": ["game_key_press"],
+      "maxRank": 1
+    },
+    {
+      "id": "tap-key-once",
+      "intent": "tap a key once",
+      "query": "tap key once",
+      "expectedTop": "game_key_press",
+      "acceptableAlternatives": [],
+      "forbiddenAboveExpected": ["game_key_hold"],
+      "maxRank": 1
+    },
+    {
+      "id": "release-held-input",
+      "intent": "release held input",
+      "query": "release held input",
+      "expectedTop": "game_key_release",
+      "acceptableAlternatives": [],
+      "forbiddenAboveExpected": ["game_key_press"],
+      "maxRank": 1
+    },
+    {
+      "id": "add-2d-lighting",
+      "intent": "add or change 2D lighting",
+      "query": "add 2d lighting",
+      "expectedTop": "game_light_2d",
+      "acceptableAlternatives": ["game_canvas"],
+      "forbiddenAboveExpected": ["game_light_3d"],
+      "maxRank": 1
+    },
+    {
+      "id": "point-light-2d-class",
+      "intent": "add or change 2D lighting",
+      "query": "PointLight2D",
+      "expectedTop": "game_light_2d",
+      "acceptableAlternatives": [],
+      "forbiddenAboveExpected": ["game_light_3d"],
+      "maxRank": 1
+    },
+    {
+      "id": "change-3d-lighting-typo",
+      "intent": "add or change 3D lighting",
+      "query": "change 3d ligthing",
+      "expectedTop": "game_light_3d",
+      "acceptableAlternatives": ["game_environment"],
+      "forbiddenAboveExpected": ["game_light_2d"],
+      "maxRank": 1
+    },
+    {
+      "id": "play-audio",
+      "intent": "play audio",
+      "query": "play audio",
+      "expectedTop": "game_audio_play",
+      "acceptableAlternatives": ["game_get_audio"],
+      "forbiddenAboveExpected": [],
+      "maxRank": 1
+    },
+    {
+      "id": "inspect-audio-state",
+      "intent": "inspect audio state",
+      "query": "inspect audio state",
+      "expectedTop": "game_get_audio",
+      "acceptableAlternatives": ["game_audio_play"],
+      "forbiddenAboveExpected": [],
+      "maxRank": 1
+    },
+    {
+      "id": "audio-stream-player-class",
+      "intent": "inspect audio state",
+      "query": "AudioStreamPlayer status",
+      "expectedTop": "game_get_audio",
+      "acceptableAlternatives": ["game_audio_play"],
+      "forbiddenAboveExpected": [],
+      "maxRank": 3
+    },
+    {
+      "id": "export-readiness",
+      "intent": "export a game and inspect readiness",
+      "query": "export game readiness",
+      "expectedTop": "verify_export_readiness",
+      "acceptableAlternatives": ["export_project"],
+      "forbiddenAboveExpected": [],
+      "maxRank": 1
+    },
+    {
+      "id": "export-readiness-snake-case",
+      "intent": "export a game and inspect readiness",
+      "query": "verify_export_readiness",
+      "expectedTop": "verify_export_readiness",
+      "acceptableAlternatives": [],
+      "forbiddenAboveExpected": [],
+      "maxRank": 1
+    },
+    {
+      "id": "safe-asset-rename",
+      "intent": "rename an asset safely",
+      "query": "rename an asset safely",
+      "expectedTop": "analyze_project_integrity",
+      "acceptableAlternatives": ["rename_file"],
+      "forbiddenAboveExpected": ["game_resource"],
+      "maxRank": 1
+    },
+    {
+      "id": "resource-dependencies",
+      "intent": "inspect resource dependencies",
+      "query": "inspect resource dependencies",
+      "expectedTop": "manage_import_pipeline",
+      "acceptableAlternatives": ["analyze_project_integrity"],
+      "forbiddenAboveExpected": ["game_resource"],
+      "maxRank": 1
+    },
+    {
+      "id": "dependency-typo",
+      "intent": "inspect resource dependencies",
+      "query": "asset dependancies",
+      "expectedTop": "manage_import_pipeline",
+      "acceptableAlternatives": ["analyze_project_integrity"],
+      "forbiddenAboveExpected": [],
+      "maxRank": 3
+    },
+    {
+      "id": "wait-label-change",
+      "intent": "wait until a label changes",
+      "query": "wait until a label changes",
+      "expectedTop": "game_wait_until",
+      "acceptableAlternatives": ["game_scenario"],
+      "forbiddenAboveExpected": ["game_wait"],
+      "maxRank": 1
+    },
+    {
+      "id": "wait-property-change",
+      "intent": "wait until a property changes",
+      "query": "wait property changes",
+      "expectedTop": "game_wait_until",
+      "acceptableAlternatives": ["game_scenario"],
+      "forbiddenAboveExpected": ["game_wait"],
+      "maxRank": 1
+    },
+    {
+      "id": "compare-screenshot-typo",
+      "intent": "compare a screenshot",
+      "query": "compare screnshot",
+      "expectedTop": "game_visual_regression",
+      "acceptableAlternatives": ["game_screenshot"],
+      "forbiddenAboveExpected": [],
+      "maxRank": 1
+    },
+    {
+      "id": "create-terrain",
+      "intent": "create terrain",
+      "query": "create terrain",
+      "expectedTop": "game_terrain",
+      "acceptableAlternatives": ["game_procedural_mesh"],
+      "forbiddenAboveExpected": [],
+      "maxRank": 1
+    },
+    {
+      "id": "inspect-imports",
+      "intent": "inspect imports",
+      "query": "inspect imports",
+      "expectedTop": "manage_import_pipeline",
+      "acceptableAlternatives": ["analyze_project_integrity"],
+      "forbiddenAboveExpected": [],
+      "maxRank": 1
+    },
+    {
+      "id": "inspect-addons",
+      "intent": "inspect addons",
+      "query": "inspect addons",
+      "expectedTop": "manage_addon",
+      "acceptableAlternatives": ["manage_plugins"],
+      "forbiddenAboveExpected": [],
+      "maxRank": 1
+    },
+    {
+      "id": "dotnet-status",
+      "intent": "inspect .NET status",
+      "query": ".NET project status",
+      "expectedTop": "verify_dotnet_project",
+      "acceptableAlternatives": ["create_csharp_script"],
+      "forbiddenAboveExpected": [],
+      "maxRank": 3
+    },
+    {
+      "id": "project-integrity",
+      "intent": "inspect project integrity",
+      "query": "inspect project integrity",
+      "expectedTop": "analyze_project_integrity",
+      "acceptableAlternatives": ["verify_project"],
+      "forbiddenAboveExpected": [],
+      "maxRank": 1
+    },
+    {
+      "id": "persistent-scene-creation",
+      "intent": "persistent scene creation",
+      "query": "create a persistent saved scene",
+      "expectedTop": "create_scene",
+      "acceptableAlternatives": ["add_node"],
+      "forbiddenAboveExpected": ["game_spawn_node"],
+      "maxRank": 1
+    },
+    {
+      "id": "runtime-node-spawn",
+      "intent": "runtime-only node spawning",
+      "query": "spawn a runtime-only temporary node",
+      "expectedTop": "game_spawn_node",
+      "acceptableAlternatives": [],
+      "forbiddenAboveExpected": ["add_node", "create_scene"],
+      "maxRank": 1
+    }
+  ]
+}

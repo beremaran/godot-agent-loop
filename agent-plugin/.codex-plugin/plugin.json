@@ -30,6 +30,7 @@
     "defaultPrompt": [
       "Build a small playable Godot game and prove both its win and lose states.",
       "Debug this Godot project from a reproducible failure and verify the fix independently.",
+      "Verify this existing Godot change without editing the project or claiming subjective criteria passed.",
       "Prepare this Godot game for release and report export evidence and remaining gates."
     ],
     "brandColor": "#478CBF"

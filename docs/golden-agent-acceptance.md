@@ -1,5 +1,9 @@
 # Golden agent acceptance
 
+The live model evidence in this document is historical 1.0.0 evidence. Its
+observed counts and prompts are preserved as recorded; current cold-model status
+is tracked separately in [`../evals/current-model-status.json`](../evals/current-model-status.json).
+
 Phase 7's product claim is tested in three layers: a live, cold model run
 provides behavioral evidence, a deterministic replay protects the original
 headless workflow, and an interactive replay protects the attached-editor
@@ -27,11 +31,12 @@ The machine-readable evidence and the observed selection failures are in
 [`golden-agent-game.test.ts`](../tests/e2e/golden-agent-game.test.ts) distills the
 successful live trace into a reproducible MCP-client test. Starting from no Godot
 project, it creates the project, scene, script, nodes, input map, and main-scene
-setting through the current 40-tool core surface. It then:
+setting through the generated current core surface. It then:
 
 1. independently reads the authored files;
 2. runs the compound verifier with node, log, screenshot, and teardown evidence;
-3. discovers hidden `game_key_hold` through `godot_tools`;
+3. exercises legacy `godot_tools` compatibility while discovering hidden
+   `game_key_hold`;
 4. proves movement from live UI coordinates;
 5. proves WIN and LOSE through live UI plus independently decoded rendered pixels;
 6. stops the game and checks that no injected files remain.

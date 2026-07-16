@@ -1,4 +1,4 @@
-import { spawn } from 'child_process';
+import { spawn, type ChildProcess } from 'child_process';
 import { createHash } from 'crypto';
 import { existsSync } from 'fs';
 import { join } from 'path';
@@ -18,9 +18,19 @@ import {
   timingPolicy,
   type TimingMode,
 } from '../session-timing.js';
-import { describeCatalogTool, searchToolCatalog } from '../tool-surface.js';
+import { describeCatalogTool, searchToolCatalog, type ToolCatalogDetail, type ToolCatalogSearchOptions } from '../tool-surface.js';
+import {
+  cancellableDelay,
+  currentExecutionContext,
+  getToolResultMetadata,
+  isAbortError,
+  reportProgress,
+  setToolResultMetadata,
+  throwIfCancelled,
+} from '../execution-context.js';
 import type { EditorPluginInstallation } from '../editor-plugin-installer.js';
-import type { PublicEditorSession } from '../editor-session-registry.js';
+import { canonicalProjectPath, type PublicEditorSession } from '../editor-session-registry.js';
+import { createBoundedObservationResponse } from '../observation-result.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -30,26 +40,38 @@ export interface LifecycleToolHandlerContext {
   isPathAllowed: (projectPath: string) => boolean;
   isRelativePathAllowed: (projectPath: string, relativePath: string) => boolean;
   logDebug: (message: string) => void;
-  startProjectProcess: (executable: string, args: string[], onExit: () => void, env?: NodeJS.ProcessEnv) => void;
+  startProjectProcess: (executable: string, args: string[], onExit: () => void, env?: NodeJS.ProcessEnv) => GodotProcess;
   stopProjectProcess: () => GodotProcess | null;
   stopAuthoringSession?: () => void;
-  connectToGame: (projectPath: string) => Promise<void>;
+  connectToGame: (projectPath: string, signal?: AbortSignal) => Promise<void>;
   disconnectFromGame: () => void;
   injectInteractionServer: (projectPath: string) => void;
   removeInteractionServer: (projectPath: string) => void;
   getConnectedProjectPath: () => string | null;
   clearConnectedProjectPath: () => void;
   getInteractionPort: () => number;
+  getRuntimeHandshake?: () => Record<string, unknown> | null;
   getRuntimeEnvironment: () => NodeJS.ProcessEnv;
   installEditorPlugin?: (projectPath: string) => EditorPluginInstallation;
   removeEditorPlugin?: (projectPath: string, installation: EditorPluginInstallation | null) => void;
   getEditorEnvironment?: () => NodeJS.ProcessEnv;
-  ensureEditorSession?: (projectPath: string, timeoutMs?: number) => Promise<PublicEditorSession>;
+  ensureEditorSession?: (projectPath: string, timeoutMs?: number, signal?: AbortSignal) => Promise<PublicEditorSession>;
   getEditorSessionStatus?: (projectPath: string) => Promise<PublicEditorSession>;
   disconnectEditorSession?: (projectPath: string) => PublicEditorSession;
-  sendEditorCommand?: (projectPath: string, command: string, params?: Record<string, unknown>, timeoutMs?: number) => Promise<Record<string, unknown>>;
+  sendEditorCommand?: (
+    projectPath: string,
+    command: string,
+    params?: Record<string, unknown>,
+    timeoutMs?: number,
+    signal?: AbortSignal,
+  ) => Promise<Record<string, unknown>>;
   isGameConnected: () => boolean;
-  sendGameCommand: (command: string, params?: Record<string, unknown>, timeoutMs?: number) => Promise<GameResponse>;
+  sendGameCommand: (
+    command: string,
+    params?: Record<string, unknown>,
+    timeoutMs?: number,
+    signal?: AbortSignal | null,
+  ) => Promise<GameResponse>;
   dispatchTool?: (name: string, args: ToolArguments) => Promise<ToolResponse>;
 }
 
@@ -78,31 +100,66 @@ export class LifecycleToolHandlers {
 
   constructor(private readonly context: LifecycleToolHandlerContext) {}
 
-  public async handleGodotTools(args: ToolArguments): Promise<ToolResponse> {
+  public async handleGodotCatalog(args: ToolArguments): Promise<ToolResponse> {
     args = normalizeParameters(args || {});
     if (args.action === 'search') {
-      const results = searchToolCatalog(
-        typeof args.query === 'string' ? args.query : '',
-        typeof args.domain === 'string' ? args.domain : undefined,
-        typeof args.limit === 'number' ? args.limit : 20,
-      );
+      const filters: ToolCatalogSearchOptions = {
+        ...(typeof args.domain === 'string' ? { domain: args.domain as ToolCatalogSearchOptions['domain'] } : {}),
+        ...(typeof args.backend === 'string' ? { backend: args.backend as ToolCatalogSearchOptions['backend'] } : {}),
+        ...(typeof args.effect === 'string' ? { effect: args.effect as ToolCatalogSearchOptions['effect'] } : {}),
+        ...(typeof args.state === 'string' ? { state: args.state as ToolCatalogSearchOptions['state'] } : {}),
+        ...(typeof args.privilege === 'string' ? { privilege: args.privilege as ToolCatalogSearchOptions['privilege'] } : {}),
+        ...(typeof args.mutation === 'string' ? { mutation: args.mutation as ToolCatalogSearchOptions['mutation'] } : {}),
+        limit: typeof args.limit === 'number' ? args.limit : 20,
+      };
+      const results = searchToolCatalog(typeof args.query === 'string' ? args.query : '', filters);
       return { content: [{ type: 'text', text: JSON.stringify({ results, count: results.length }, null, 2) }] };
     }
     if (args.action === 'describe') {
-      if (typeof args.toolName !== 'string') return createErrorResponse('toolName is required for godot_tools describe.');
-      const tool = describeCatalogTool(args.toolName);
+      if (typeof args.toolName !== 'string') return createErrorResponse('toolName is required for godot_catalog describe.');
+      const detail = (typeof args.detail === 'string' ? args.detail : 'summary') as ToolCatalogDetail;
+      const tool = describeCatalogTool(args.toolName, detail);
       if (!tool) return createErrorResponse(`Unknown Godot tool: ${args.toolName}`);
       return { content: [{ type: 'text', text: JSON.stringify(tool, null, 2) }] };
     }
+    return createErrorResponse('action must be search or describe.');
+  }
+
+  public async handleGodotCall(args: ToolArguments): Promise<ToolResponse> {
+    args = normalizeParameters(args || {});
+    if (typeof args.toolName !== 'string') return createErrorResponse('toolName is required for godot_call.');
+    if (['godot_catalog', 'godot_call', 'godot_tools'].includes(args.toolName)) {
+      return createErrorResponse('godot_call cannot recursively call a dispatcher.');
+    }
+    if (!this.context.dispatchTool) return createErrorResponse('Expanded tool dispatch is unavailable.');
+    try {
+      return await this.context.dispatchTool(args.toolName, args.arguments ?? {});
+    } catch (error: unknown) {
+      return setToolResultMetadata(createErrorResponse(`godot_call failed: ${errorMessage(error)}`), {
+        outcome: isAbortError(error) ? 'cancelled' : 'failure',
+      });
+    }
+  }
+
+  public async handleGodotTools(args: ToolArguments): Promise<ToolResponse> {
+    args = normalizeParameters(args || {});
+    if (args.action === 'search') {
+      return this.handleGodotCatalog(args);
+    }
+    if (args.action === 'describe') {
+      if (typeof args.toolName !== 'string') return createErrorResponse('toolName is required for godot_tools describe.');
+      const tool = describeCatalogTool(args.toolName, 'full');
+      if (!tool) return createErrorResponse(`Unknown Godot tool: ${args.toolName}`);
+      return { content: [{ type: 'text', text: JSON.stringify({
+        definition: tool.definition,
+        domain: tool.domain,
+        backend: tool.backendDetails,
+        privileged: tool.privilege === 'required',
+      }, null, 2) }] };
+    }
     if (args.action === 'call') {
       if (typeof args.toolName !== 'string') return createErrorResponse('toolName is required for godot_tools call.');
-      if (args.toolName === 'godot_tools') return createErrorResponse('godot_tools cannot call itself.');
-      if (!this.context.dispatchTool) return createErrorResponse('Expanded tool dispatch is unavailable.');
-      try {
-        return await this.context.dispatchTool(args.toolName, args.arguments ?? {});
-      } catch (error: unknown) {
-        return createErrorResponse(`godot_tools call failed: ${errorMessage(error)}`);
-      }
+      return this.handleGodotCall(args);
     }
     return createErrorResponse('action must be search, describe, or call.');
   }
@@ -156,10 +213,19 @@ export class LifecycleToolHandlers {
       return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
     }
 
+    let spawnedEditor: ChildProcess | null = null;
+    let installedPlugin: EditorPluginInstallation | null = null;
     try {
       const timeoutMs = Math.round((typeof args.timeoutSeconds === 'number' ? args.timeoutSeconds : 2) * 1_000);
-      const discovered = await this.context.ensureEditorSession?.(args.projectPath, timeoutMs);
+      const discovered = await this.context.ensureEditorSession?.(args.projectPath, timeoutMs, currentExecutionContext()?.signal);
       if (discovered?.connected) return this.editorSessionResponse({ ...discovered, reused: true, spawned: false });
+      if (discovered && ['addon_upgrade_restart_required', 'protocol_incompatible']
+        .includes(discovered.state)) {
+        // These states require an explicit install/upgrade and editor restart.
+        // Launching another process cannot make a running stale addon safe and
+        // would turn a watched request into an ambiguous second editor.
+        return this.editorSessionResponse(discovered);
+      }
       if (!launchIfNeeded) {
         return this.editorSessionResponse(discovered ?? {
           state: 'no_editor', project_path: args.projectPath, connected: false, reused: false, spawned: false,
@@ -173,14 +239,16 @@ export class LifecycleToolHandlers {
 
       this.context.logDebug(`No reusable editor found; launching Godot editor for project: ${args.projectPath}`);
       const editorPlugin = this.context.installEditorPlugin?.(args.projectPath);
+      installedPlugin = editorPlugin ?? null;
       const editorArgs = ['-e', '--path', args.projectPath];
       const editorProcess = spawn(godotPath, editorArgs, {
         stdio: 'pipe', env: { ...process.env, ...this.context.getRuntimeEnvironment(), ...(this.context.getEditorEnvironment?.() ?? {}) },
       });
+      spawnedEditor = editorProcess;
       editorProcess.on('error', (err: Error) => { console.error('Failed to start Godot editor:', err); });
-      const attached = await this.context.ensureEditorSession?.(args.projectPath, 20_000);
+      const attached = await this.context.ensureEditorSession?.(args.projectPath, 20_000, currentExecutionContext()?.signal);
       if (!attached?.connected) {
-        return createErrorResponse(`Editor launched but bridge did not become ready: ${attached?.state ?? 'registry_unavailable'}${attached?.reason ? ` (${attached.reason})` : ''}`);
+        throw new Error(`Editor launched but bridge did not become ready: ${attached?.state ?? 'registry_unavailable'}${attached?.reason ? ` (${attached.reason})` : ''}`);
       }
       return this.editorSessionResponse({
         ...attached,
@@ -190,6 +258,11 @@ export class LifecycleToolHandlers {
         plugin_distribution: editorPlugin?.distribution ?? 'unavailable',
       });
     } catch (error: unknown) {
+      if (spawnedEditor && spawnedEditor.exitCode === null && spawnedEditor.signalCode === null) {
+        spawnedEditor.kill('SIGTERM');
+      }
+      if (installedPlugin) this.context.removeEditorPlugin?.(args.projectPath, installedPlugin);
+      if (isAbortError(error)) throw error;
       const message = this.errorMessage(error);
       if (message.includes('protocol is incompatible')) {
         return this.editorSessionResponse({
@@ -224,10 +297,13 @@ export class LifecycleToolHandlers {
     }
     try {
       if (!this.context.sendEditorCommand) return createErrorResponse('Editor bridge is not configured. Launch the editor through launch_editor first.');
-      const result = await this.context.sendEditorCommand(args.projectPath, args.action, params, 15_000);
+      const result = await this.context.sendEditorCommand(
+        args.projectPath, args.action, params, 15_000, currentExecutionContext()?.signal,
+      );
       if (result.error) return createErrorResponse(`editor_control failed: ${typeof result.error === 'string' ? result.error : JSON.stringify(result.error)}`);
       return { content: [{ type: 'text', text: JSON.stringify({ project_path: args.projectPath, action: args.action, ...result }, null, 2) }] };
     } catch (error: unknown) {
+      if (isAbortError(error)) throw error;
       return createErrorResponse(`editor_control failed: ${this.errorMessage(error)}`);
     }
   }
@@ -261,7 +337,9 @@ export class LifecycleToolHandlers {
         focusPath: args.focusPath,
         save: args.save !== false,
       });
-      const result = await this.context.sendEditorCommand(args.projectPath, 'transaction', params, 30_000);
+      const result = await this.context.sendEditorCommand(
+        args.projectPath, 'transaction', params, 30_000, currentExecutionContext()?.signal,
+      );
       if (result.error) {
         return createErrorResponse(`editor_transaction failed: ${typeof result.error === 'string' ? result.error : JSON.stringify(result.error)}`);
       }
@@ -276,12 +354,14 @@ export class LifecycleToolHandlers {
         ...result,
       }, null, 2) }] };
     } catch (error: unknown) {
+      if (isAbortError(error)) throw error;
       return createErrorResponse(`editor_transaction failed: ${this.errorMessage(error)}`);
     }
   }
 
   public async handleRunProject(args: ToolArguments) {
     args = normalizeParameters(args);
+    const startupStartedAt = performance.now();
     if (!args.projectPath) return createErrorResponse('Project path is required');
     if (!validatePath(args.projectPath)) return createErrorResponse('Invalid project path');
     if (!this.context.isPathAllowed(args.projectPath)) {
@@ -290,7 +370,10 @@ export class LifecycleToolHandlers {
       );
     }
 
+    let installationOwned = false;
     try {
+      throwIfCancelled();
+      await reportProgress(0, 4, 'Validating project and Godot executable');
       const godotPath = await this.requireGodotPath();
       if (!godotPath) return createErrorResponse('Could not find a valid Godot executable path');
       if (!existsSync(join(args.projectPath, 'project.godot')))
@@ -315,6 +398,8 @@ export class LifecycleToolHandlers {
       }
 
       this.context.injectInteractionServer(args.projectPath);
+      installationOwned = true;
+      await reportProgress(1, 4, 'Installed authenticated runtime bridge');
       // No `-d`: that starts Godot's *local stdout debugger*, which breaks into an
       // interactive `debug>` prompt on any script error and blocks the main loop
       // forever. The game then stops answering every runtime command, so a single
@@ -330,26 +415,85 @@ export class LifecycleToolHandlers {
 
       this.context.logDebug(`Running Godot project: ${args.projectPath}`);
       const processGeneration = ++this.processGeneration;
-      this.context.startProjectProcess(
+      const runningProcess = this.context.startProjectProcess(
         godotPath, commandArgs, () => { this.handleProjectExit(processGeneration); }, {
           ...this.context.getRuntimeEnvironment(),
           ...(mode === 'deterministic' ? deterministicSessionEnvironment() : realtimeSessionEnvironment()),
         },
       );
-      this.context.connectToGame(args.projectPath).catch(error => {
-        this.context.logDebug(`Failed to connect to game interaction server: ${error}`);
-      });
+      await reportProgress(2, 4, 'Godot process started; waiting for runtime authentication');
+      await this.context.connectToGame(args.projectPath, currentExecutionContext()?.signal);
+      throwIfCancelled();
+      await reportProgress(3, 4, 'Runtime authenticated; probing scene tree readiness');
+      const probe = await this.context.sendGameCommand(
+        'get_scene_tree', { max_nodes: 1 }, 5_000, currentExecutionContext()?.signal,
+      );
+      if ('error' in probe) throw new Error(`Runtime readiness probe failed: ${probe.error.message}`);
+      await reportProgress(4, 4, 'Runtime authenticated and ready');
+
+      const handshake = this.context.getRuntimeHandshake?.() ?? null;
+      const probeResult = probe.result && typeof probe.result === 'object'
+        ? probe.result as Record<string, unknown>
+        : {};
+      const observedProjectPath = typeof handshake?.projectPath === 'string' ? handshake.projectPath : null;
+      const canonicalRequestedProject = canonicalProjectPath(args.projectPath);
+      const canonicalObservedProject = observedProjectPath === null ? null : canonicalProjectPath(observedProjectPath);
+      const reportedObservedProject = canonicalObservedProject === canonicalRequestedProject
+        ? args.projectPath
+        : observedProjectPath;
+      const observedScene = typeof probeResult.current_scene === 'string' ? probeResult.current_scene
+        : typeof handshake?.currentScene === 'string' ? handshake.currentScene
+          : null;
 
       return { content: [{ type: 'text', text: JSON.stringify({
         started: true,
+        process_started: true,
+        runtime_connected: true,
+        runtime_ready: true,
+        authenticated: true,
         project_path: args.projectPath,
         scene: args.scene ?? null,
+        observed_project_path: reportedObservedProject,
+        observed_scene: observedScene,
+        project_identity: {
+          requested: canonicalRequestedProject,
+          observed: canonicalObservedProject,
+          matched: canonicalObservedProject === null ? null : canonicalObservedProject === canonicalRequestedProject,
+        },
+        scene_identity: {
+          requested: args.scene ?? null,
+          observed: observedScene,
+          source: typeof probeResult.current_scene === 'string' ? 'readiness_probe' : 'authenticated_handshake',
+        },
+        engine_version: typeof handshake?.engineVersion === 'string' ? handshake.engineVersion : null,
+        startup_duration_ms: Math.round(performance.now() - startupStartedAt),
+        startup_diagnostics: this.startupDiagnostics(runningProcess),
         interaction_port: this.context.getInteractionPort(),
         timing_policy: timingPolicy(mode),
+        handshake,
         message: 'Godot project started in debug mode; use get_debug_output for process output.',
       }, null, 2) }] };
     } catch (error: unknown) {
-      return createErrorResponse(`Failed to run Godot project: ${this.errorMessage(error)}`);
+      const cleanup: Record<string, unknown> = { attempted: installationOwned };
+      if (installationOwned) {
+        this.processGeneration += 1;
+        this.context.disconnectFromGame();
+        const stopped = this.context.stopProjectProcess();
+        if (stopped) await this.waitForProcessExit(stopped, 10_000);
+        try {
+          this.context.removeInteractionServer(args.projectPath);
+          cleanup.runtime_artifacts_removed = true;
+        } catch (cleanupError) {
+          cleanup.runtime_artifacts_removed = false;
+          cleanup.error = this.errorMessage(cleanupError);
+        }
+        this.context.clearConnectedProjectPath();
+        cleanup.process_stopped = this.context.getActiveProcess() === null;
+      }
+      const cancelled = isAbortError(error);
+      return setToolResultMetadata(createErrorResponse(
+        `${cancelled ? 'Cancelled' : 'Failed to run'} Godot project: ${this.errorMessage(error)}`,
+      ), { outcome: cancelled ? 'cancelled' : 'failure', details: { cleanup } });
     }
   }
 
@@ -453,7 +597,13 @@ export class LifecycleToolHandlers {
     const evidence: Record<string, unknown>[] = [];
     let passed = true;
     let failure: string | null = null;
+    let cancelled = false;
+    const heldKeys = new Set<string>();
+    await reportProgress(0, args.steps.length + 1, `Starting scenario ${args.name}`);
     for (let index = 0; index < args.steps.length; index++) {
+      try { throwIfCancelled(); } catch (error) {
+        cancelled = true; passed = false; failure = this.errorMessage(error); break;
+      }
       if (Date.now() >= deadline) { passed = false; failure = 'Scenario timeout expired'; break; }
       const step = args.steps[index] as ToolArguments;
       const stepStartedAt = Date.now();
@@ -487,38 +637,54 @@ export class LifecycleToolHandlers {
           if (!allowed.has(tool)) throw new Error(`Scenario ${step.type} tool is not allowed: ${tool}`);
           if (!this.context.dispatchTool) throw new Error('Scenario tool dispatch is unavailable');
           const response = await this.context.dispatchTool(tool, (step.arguments ?? {}) as ToolArguments);
-          if (response.isError === true) throw new Error(response.content.map(content => 'text' in content ? content.text : content.type).join('; '));
-          item.result = response.content.map(content => content.type === 'image'
+          const childMetadata = getToolResultMetadata(response);
+          item.outcome = childMetadata.outcome ?? (response.isError === true ? 'failure' : 'success');
+          if (response.isError === true) {
+            throw new Error(childMetadata.error?.message
+              ?? `Scenario child tool failed: ${tool} (${childMetadata.outcome ?? 'failure'})`);
+          }
+          item.result = response.structuredContent ?? response.content.map(content => content.type === 'image'
             ? { type: 'image', mime_type: 'mimeType' in content ? content.mimeType : 'image/png', preview_omitted: true }
             : { type: content.type, text: 'text' in content ? String(content.text).slice(0, 2_000) : '' });
+          if (tool === 'game_key_hold' && typeof step.arguments?.key === 'string') heldKeys.add(step.arguments.key);
+          if (tool === 'game_key_release' && typeof step.arguments?.key === 'string') heldKeys.delete(step.arguments.key);
         } else {
           throw new Error(`Unsupported scenario step type: ${String(step.type)}`);
         }
       } catch (error) {
         passed = false;
+        cancelled = isAbortError(error);
         failure = `Step ${index} failed: ${this.errorMessage(error)}`;
         item.error = this.errorMessage(error);
       }
       item.duration_ms = Date.now() - stepStartedAt;
       evidence.push(item);
+      await reportProgress(index + 1, args.steps.length + 1, `Completed scenario step ${index + 1}/${args.steps.length}`);
       if (!passed) break;
     }
     const teardown: Record<string, unknown> = { attempted: true };
     try {
-      const restored = await this.context.sendGameCommand('time_scale', { action: 'set', time_scale: 1 }, 2_000);
+      const released: string[] = [];
+      for (const key of heldKeys) {
+        const response = await this.context.sendGameCommand('key_release', { key }, 2_000, null);
+        if (!('error' in response)) released.push(key);
+      }
+      teardown.released_keys = released;
+      const restored = await this.context.sendGameCommand('time_scale', { action: 'set', time_scale: 1 }, 2_000, null);
       teardown.time_scale_restored = !('error' in restored);
     } catch (error) {
       teardown.time_scale_restored = false;
       teardown.error = this.errorMessage(error);
       passed = false;
     }
-    return {
+    await reportProgress(args.steps.length + 1, args.steps.length + 1, 'Scenario cleanup complete');
+    return setToolResultMetadata({
       content: [{ type: 'text', text: JSON.stringify({
         name: args.name, passed, failure, step_count: evidence.length,
         duration_ms: Date.now() - startedAt, steps: evidence, teardown,
       }, null, 2) }],
       ...(passed ? {} : { isError: true }),
-    };
+    }, { outcome: cancelled ? 'cancelled' : passed ? 'success' : 'failure', details: { teardown } });
   }
 
   private async waitUntilEvidence(args: ToolArguments): Promise<Record<string, unknown>> {
@@ -583,7 +749,7 @@ export class LifecycleToolHandlers {
         }
       }
       if (Date.now() >= deadline) break;
-      await new Promise(resolve => setTimeout(resolve, Math.min(pollMs, deadline - Date.now())));
+      await cancellableDelay(Math.min(pollMs, deadline - Date.now()));
     }
     return {
       satisfied: false, condition, elapsed_ms: Date.now() - startedAt, attempts,
@@ -620,7 +786,21 @@ export class LifecycleToolHandlers {
   public async handleGetDebugOutput() {
     const activeProcess = this.context.getActiveProcess();
     if (!activeProcess) return createErrorResponse('No active Godot process.');
-    return { content: [{ type: 'text', text: JSON.stringify({ output: activeProcess.output, errors: activeProcess.errors }, null, 2) }] };
+    const outputDropped = activeProcess.outputDropped ?? 0;
+    const errorsDropped = activeProcess.errorsDropped ?? 0;
+    return createBoundedObservationResponse(
+      { output: activeProcess.output, errors: activeProcess.errors, outputDropped, errorsDropped },
+      {
+        preferredArrayKeys: ['output', 'errors'],
+        returnedCount: payload => ['output', 'errors'].reduce(
+          (count, key) => count + (Array.isArray(payload[key]) ? payload[key].length : 0),
+          0,
+        ),
+        sourceTruncated: () => outputDropped > 0 || errorsDropped > 0,
+        refinement: 'Use cursor-based game_get_logs and game_get_errors for smaller incremental pages.',
+        continuation: 'Call game_get_logs and game_get_errors to read retained output through their independent cursors.',
+      },
+    );
   }
 
   public async handleStopProject() {
@@ -637,6 +817,7 @@ export class LifecycleToolHandlers {
       this.context.removeInteractionServer(projectPath);
       this.context.clearConnectedProjectPath();
     }
+    await this.waitForProcessExit(stoppedProcess, 10_000);
     return {
       content: [{
         type: 'text',
@@ -650,9 +831,13 @@ export class LifecycleToolHandlers {
       const godotPath = await this.requireGodotPath();
       if (!godotPath) return createErrorResponse('Could not find a valid Godot executable path');
       this.context.logDebug('Getting Godot version');
-      const { stdout } = await execFileAsync(godotPath, ['--version'], GODOT_VERSION_OPTIONS);
+      const { stdout } = await execFileAsync(godotPath, ['--version'], {
+        ...GODOT_VERSION_OPTIONS,
+        signal: currentExecutionContext()?.signal,
+      });
       return { content: [{ type: 'text', text: stdout.trim() }] };
     } catch (error: unknown) {
+      if (isAbortError(error)) throw error;
       return createErrorResponse(`Failed to get Godot version: ${this.errorMessage(error)}`);
     }
   }
@@ -660,7 +845,7 @@ export class LifecycleToolHandlers {
   private waitForProcessExit(record: GodotProcess, timeoutMs: number): Promise<void> {
     return new Promise(resolve => {
       const child = record.process;
-      if (typeof child.once !== 'function' || child.exitCode !== null || child.signalCode !== null) {
+      if (!child || typeof child.once !== 'function' || child.exitCode !== null || child.signalCode !== null) {
         resolve();
         return;
       }
@@ -670,6 +855,18 @@ export class LifecycleToolHandlers {
         resolve();
       });
     });
+  }
+
+  private startupDiagnostics(record: GodotProcess | null | undefined): Record<string, unknown> {
+    const stdout = (record?.output ?? []).join('\n');
+    const stderr = (record?.errors ?? []).join('\n');
+    const maxStreamCharacters = 8 * 1024;
+    return {
+      stdout: stdout.slice(-maxStreamCharacters),
+      stderr: stderr.slice(-maxStreamCharacters),
+      truncated: stdout.length > maxStreamCharacters || stderr.length > maxStreamCharacters,
+      limit_bytes: maxStreamCharacters * 2,
+    };
   }
 
   private async requireGodotPath(): Promise<string | null> {

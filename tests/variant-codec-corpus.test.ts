@@ -23,6 +23,7 @@ interface VariantCodecCorpus {
   version: number;
   typeHints: string[];
   cases: CorpusCase[];
+  typedWrappers: CorpusCase[];
   negative: NegativeCase[];
 }
 
@@ -31,6 +32,29 @@ function readCorpus(): VariantCodecCorpus {
 }
 
 describe('Variant codec corpus', () => {
+  it('publishes canonical authoring shapes including explicit unsupported RID behavior', () => {
+    const shapes = JSON.parse(readFileSync(join(root, 'docs/godot-variant-shapes.json'), 'utf8')) as {
+      typedWrapper: { properties: { type: { enum: string[] } } };
+      examples: Record<string, unknown[]>;
+      rid: { mutationSupported: boolean };
+      negativeExamples: { targetType: string; code: string }[];
+    };
+    for (const type of [
+      'Vector2', 'Vector2i', 'Vector3', 'Vector3i', 'Vector4', 'Vector4i',
+      'Color', 'Rect2', 'Transform2D', 'Transform3D', 'Basis', 'Quaternion',
+      'NodePath', 'StringName', 'Resource',
+    ]) {
+      expect(shapes.typedWrapper.properties.type.enum).toContain(type);
+      expect(shapes.examples[type]).not.toHaveLength(0);
+    }
+    expect(shapes.typedWrapper.properties.type.enum).toContain('RID');
+    expect(shapes.examples).toMatchObject({ Array: expect.any(Array), Dictionary: expect.any(Array) });
+    expect(shapes.rid.mutationSupported).toBe(false);
+    expect(shapes.negativeExamples).toContainEqual({
+      targetType: 'RID', value: { id: 42 }, code: 'unsupported_variant',
+    });
+  });
+
   it('covers the published type hints and every supported wire category', () => {
     const corpus = readCorpus();
     const schema = JSON.parse(readFileSync(join(root, 'docs/runtime-api.schema.json'), 'utf8')) as {
@@ -38,7 +62,7 @@ describe('Variant codec corpus', () => {
     };
     const expectedCases = [
       'null', 'bool', 'int', 'float', 'string',
-      'vector2', 'vector2i', 'vector3', 'vector3i', 'color', 'quaternion',
+      'vector2', 'vector2i', 'vector3', 'vector3i', 'vector4', 'vector4i', 'color', 'quaternion',
       'rect2', 'aabb', 'basis', 'transform3d', 'transform2d',
       'node_path', 'string_name',
       'packed_byte_array', 'packed_int32_array', 'packed_int64_array',
@@ -60,6 +84,13 @@ describe('Variant codec corpus', () => {
         expect(dynamicKey).toEqual(expect.any(String));
       }
     }
+    expect(corpus.typedWrappers.map(testCase => testCase.name)).toEqual([
+      'wrapped_vector2i', 'wrapped_quaternion', 'wrapped_basis', 'wrapped_transform2d',
+      'wrapped_node_path', 'wrapped_string_name', 'wrapped_resource',
+    ]);
+    for (const wrapper of corpus.typedWrappers) {
+      expect(wrapper.wire).toMatchObject({ type: wrapper.typeHint, value: expect.anything() });
+    }
   });
 
   it('publishes all codec failure fixtures and keeps the Godot runner on the same corpus', () => {
@@ -71,8 +102,13 @@ describe('Variant codec corpus', () => {
       ['signal', 'unsupported_variant'],
       ['rid', 'unsupported_variant'],
       ['invalid_type_hint', 'invalid_type_hint'],
+      ['invalid_variant_shape', 'invalid_variant_shape'],
       ['depth_exceeded', 'codec_depth_exceeded'],
       ['collection_exceeded', 'codec_collection_exceeded'],
+      ['rid_wrapper', 'unsupported_variant'],
+      ['integer_wrapper_fraction', 'invalid_variant_shape'],
+      ['resource_wrapper_outside_project', 'invalid_variant_shape'],
+      ['wrapper_target_mismatch', 'invalid_variant_shape'],
     ];
 
     expect(corpus.negative.map(testCase => [testCase.name, testCase.reason])).toEqual(expectedFailures);

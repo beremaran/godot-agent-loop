@@ -22,6 +22,7 @@ import type { GodotExecutableService } from '../godot-executable.js';
 import type { HeadlessOperationService } from '../headless-operation-service.js';
 import type { HeadlessOperationResult } from '../headless-operation-runner.js';
 import { GODOT_VERSION_OPTIONS } from '../godot-subprocess.js';
+import { currentExecutionContext, isAbortError } from '../execution-context.js';
 import {
   ProjectConfigurationService,
   ProjectExportService,
@@ -282,7 +283,10 @@ export class ProjectToolHandlers {
       this.context.logDebug(`Getting project info for: ${args.projectPath}`);
   
       // Get Godot version
-      const { stdout } = await execFileAsync(this.context.getGodotPath()!, ['--version'], GODOT_VERSION_OPTIONS);
+      const { stdout } = await execFileAsync(this.context.getGodotPath()!, ['--version'], {
+        ...GODOT_VERSION_OPTIONS,
+        signal: currentExecutionContext()?.signal,
+      });
   
       // Get project structure using the recursive method
       const projectStructure = await this.context.projectSupport.getProjectStructureAsync(args.projectPath);
@@ -320,6 +324,7 @@ export class ProjectToolHandlers {
         ],
       };
     } catch (error: unknown) {
+      if (isAbortError(error) || currentExecutionContext()?.signal.aborted) throw error;
       return createErrorResponse(
         `Failed to get project info: ${errorMessage(error)}`
       );
@@ -731,7 +736,10 @@ export class ProjectToolHandlers {
       }
 
       // Get Godot version to check if UIDs are supported
-      const { stdout: versionOutput } = await execFileAsync(this.context.getGodotPath()!, ['--version'], GODOT_VERSION_OPTIONS);
+      const { stdout: versionOutput } = await execFileAsync(this.context.getGodotPath()!, ['--version'], {
+        ...GODOT_VERSION_OPTIONS,
+        signal: currentExecutionContext()?.signal,
+      });
       const version = versionOutput.trim();
 
       if (!isGodot44OrLater(version)) {
@@ -760,6 +768,7 @@ export class ProjectToolHandlers {
         ],
       };
     } catch (error: unknown) {
+      if (isAbortError(error) || currentExecutionContext()?.signal.aborted) throw error;
       return createErrorResponse(
         `Failed to get UID: ${errorMessage(error)}`
       );
@@ -794,6 +803,14 @@ export class ProjectToolHandlers {
     try {
       const result = await this.context.executeOperation('read_scene', {
         scenePath: args.scenePath,
+        ...(args.detail !== undefined ? { detail: args.detail } : {}),
+        ...(args.nodePath !== undefined ? { nodePath: args.nodePath } : {}),
+        ...(args.propertyNames !== undefined ? { propertyNames: args.propertyNames } : {}),
+        ...(args.maxDepth !== undefined ? { maxDepth: args.maxDepth } : {}),
+        ...(args.authoredOnly !== undefined ? { authoredOnly: args.authoredOnly } : {}),
+        ...(args.includeDefaults !== undefined ? { includeDefaults: args.includeDefaults } : {}),
+        ...(args.includeResources !== undefined ? { includeResources: args.includeResources } : {}),
+        ...(args.responseLimit !== undefined ? { responseLimit: args.responseLimit } : {}),
       }, args.projectPath);
       const failure = this.headlessFailure('Failed to read scene', result);
       if (failure) return failure;
@@ -809,8 +826,10 @@ export class ProjectToolHandlers {
         const jsonStr = stdout.substring(startIdx + startMarker.length, endIdx).trim();
         try {
           const parsed = JSON.parse(jsonStr);
+          const bounded = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+            && Object.prototype.hasOwnProperty.call(parsed, 'response_limit');
           return {
-            content: [{ type: 'text', text: JSON.stringify(parsed, null, 2) }],
+            content: [{ type: 'text', text: JSON.stringify(parsed, null, bounded ? 0 : 2) }],
           };
         } catch {
           return {
@@ -1691,7 +1710,10 @@ export class ProjectToolHandlers {
       }
 
       // Get Godot version to check if UIDs are supported
-      const { stdout: versionOutput } = await execFileAsync(this.context.getGodotPath()!, ['--version'], GODOT_VERSION_OPTIONS);
+      const { stdout: versionOutput } = await execFileAsync(this.context.getGodotPath()!, ['--version'], {
+        ...GODOT_VERSION_OPTIONS,
+        signal: currentExecutionContext()?.signal,
+      });
       const version = versionOutput.trim();
 
       if (!isGodot44OrLater(version)) {
@@ -1718,6 +1740,7 @@ export class ProjectToolHandlers {
         ],
       };
     } catch (error: unknown) {
+      if (isAbortError(error) || currentExecutionContext()?.signal.aborted) throw error;
       return createErrorResponse(
         `Failed to update project UIDs: ${errorMessage(error)}`
       );

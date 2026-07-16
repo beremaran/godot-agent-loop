@@ -3,6 +3,7 @@ import { promisify } from 'util';
 import { convertCamelToSnakeCase, type OperationParams } from './utils.js';
 import type { DebugLogger } from './godot-executable.js';
 import { GODOT_COMMAND_OPTIONS } from './godot-subprocess.js';
+import { currentExecutionContext, throwIfCancelled } from './execution-context.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -48,6 +49,8 @@ export class HeadlessOperationRunner {
   constructor(private readonly options: HeadlessOperationRunnerOptions) {}
 
   async execute(operation: string, params: OperationParams, projectPath: string): Promise<HeadlessOperationResult> {
+    const signal = currentExecutionContext()?.signal;
+    throwIfCancelled(signal);
     const logDebug = this.options.logDebug ?? (() => undefined);
     logDebug(`Executing operation: ${operation} in project: ${projectPath}`);
     logDebug(`Original operation params: ${redactParams(params)}`);
@@ -63,6 +66,7 @@ export class HeadlessOperationRunner {
     try {
       const { stdout, stderr } = await execFileAsync(godotPath, args, {
         ...GODOT_COMMAND_OPTIONS,
+        signal,
         env: { ...process.env, GODOT_MCP_RUNTIME_DISABLED: 'true' },
       });
       return { stdout: stdout ?? '', stderr: stderr ?? '', exitCode: 0, signal: null };

@@ -7,6 +7,12 @@ extends "res://mcp_runtime/runtime_domain.gd"
 var _await_signal_received: bool = false
 var _await_signal_args: Array = []
 
+const MAX_NODE_INFO_PROPERTIES: int = 256
+const MAX_NODE_INFO_SIGNALS: int = 256
+const MAX_NODE_INFO_METHODS: int = 512
+const MAX_NODE_INFO_CHILDREN: int = 512
+const MAX_NODE_INFO_VALUE_BYTES: int = 8 * 1024
+
 func register_commands() -> void:
 	register_command("get_scene_tree", _cmd_get_scene_tree)
 	register_command("get_property", _cmd_get_property)
@@ -132,15 +138,28 @@ func _cmd_get_node_info(params: Dictionary) -> void:
 	for prop in node.get_property_list():
 		var prop_dict: Dictionary = prop
 		if prop_dict.get("usage", 0) & PROPERTY_USAGE_EDITOR:
+			if properties.size() >= MAX_NODE_INFO_PROPERTIES:
+				break
 			var property_name: String = CommandParams.json_string(prop_dict, "name")
+			var encoded_value: Variant = variant_to_json(node.get(property_name))
+			var encoded_bytes: int = JSON.stringify(encoded_value).to_utf8_buffer().size()
+			if encoded_bytes > MAX_NODE_INFO_VALUE_BYTES:
+				encoded_value = {
+					"truncated": true,
+					"response_bytes": encoded_bytes,
+					"limit_bytes": MAX_NODE_INFO_VALUE_BYTES,
+					"refinement": "Use game_get_property with this property name.",
+				}
 			properties.append({
 				"name": property_name,
 				"type": prop_dict.get("type", 0),
-				"value": variant_to_json(node.get(property_name))
+				"value": encoded_value
 			})
 
 	var signals: Array = []
 	for sig in node.get_signal_list():
+		if signals.size() >= MAX_NODE_INFO_SIGNALS:
+			break
 		var sig_dict: Dictionary = sig
 		signals.append(sig_dict.get("name", ""))
 
@@ -148,10 +167,14 @@ func _cmd_get_node_info(params: Dictionary) -> void:
 	for m in node.get_method_list():
 		var m_dict: Dictionary = m
 		if not str(m_dict.get("name", "")).begins_with("_"):
+			if methods.size() >= MAX_NODE_INFO_METHODS:
+				break
 			methods.append(m_dict.get("name", ""))
 
 	var children: Array = []
 	for child in node.get_children():
+		if children.size() >= MAX_NODE_INFO_CHILDREN:
+			break
 		children.append({
 			"name": child.name,
 			"type": child.get_class(),
@@ -166,7 +189,21 @@ func _cmd_get_node_info(params: Dictionary) -> void:
 		"properties": properties,
 		"signals": signals,
 		"methods": methods,
-		"children": children
+		"children": children,
+		"returned_count": properties.size() + signals.size() + methods.size() + children.size(),
+		"truncated": (
+			properties.size() >= MAX_NODE_INFO_PROPERTIES
+			or signals.size() >= MAX_NODE_INFO_SIGNALS
+			or methods.size() >= MAX_NODE_INFO_METHODS
+			or children.size() >= MAX_NODE_INFO_CHILDREN
+		),
+		"limits": {
+			"properties": MAX_NODE_INFO_PROPERTIES,
+			"signals": MAX_NODE_INFO_SIGNALS,
+			"methods": MAX_NODE_INFO_METHODS,
+			"children": MAX_NODE_INFO_CHILDREN,
+			"property_value_bytes": MAX_NODE_INFO_VALUE_BYTES,
+		},
 	})
 
 

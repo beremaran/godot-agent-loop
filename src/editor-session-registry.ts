@@ -6,6 +6,7 @@ import {
   EditorRequestTimeoutError,
 } from './editor-connection.js';
 import { EDITOR_BRIDGE_PROTOCOL_VERSION } from './editor-bridge-protocol.js';
+import { cancellableDelay, throwIfCancelled } from './execution-context.js';
 
 export const EDITOR_SESSION_DIRECTORY = join('.godot', 'godot_agent_loop');
 export const EDITOR_SESSION_FILE = join(EDITOR_SESSION_DIRECTORY, 'editor-session.json');
@@ -78,9 +79,10 @@ export class EditorSessionRegistry {
     this.retryDelaysMs = options.retryDelaysMs ?? [0, 50, 100, 250, 500, 1_000, 2_000];
   }
 
-  async ensure(projectPath: string, timeoutMs = 10_000): Promise<PublicEditorSession> {
+  async ensure(projectPath: string, timeoutMs = 10_000, signal?: AbortSignal): Promise<PublicEditorSession> {
     const canonical = canonicalProjectPath(projectPath);
-    return this.serialize(canonical, () => this.ensureDiscovered(canonical, timeoutMs));
+    throwIfCancelled(signal);
+    return this.serialize(canonical, () => this.ensureDiscovered(canonical, timeoutMs, signal));
   }
 
   async status(projectPath: string): Promise<PublicEditorSession> {
@@ -91,14 +93,15 @@ export class EditorSessionRegistry {
     });
   }
 
-  private async ensureDiscovered(canonical: string, timeoutMs: number): Promise<PublicEditorSession> {
+  private async ensureDiscovered(canonical: string, timeoutMs: number, signal?: AbortSignal): Promise<PublicEditorSession> {
+    throwIfCancelled(signal);
     this.track(canonical);
     const deadline = Date.now() + Math.max(0, timeoutMs);
     let last = await this.discover(canonical);
     let attempt = 0;
     while (!last.connected && last.state === 'no_editor' && Date.now() < deadline) {
       const delay = this.retryDelaysMs[Math.min(attempt++, this.retryDelaysMs.length - 1)] ?? 250;
-      if (delay > 0) await new Promise(resolveDelay => setTimeout(resolveDelay, Math.min(delay, Math.max(1, deadline - Date.now()))));
+      if (delay > 0) await cancellableDelay(Math.min(delay, Math.max(1, deadline - Date.now())), signal);
       last = await this.discover(canonical);
     }
     return last;
@@ -109,15 +112,18 @@ export class EditorSessionRegistry {
     command: string,
     params: Record<string, unknown> = {},
     timeoutMs = 10_000,
+    signal?: AbortSignal,
   ): Promise<Record<string, unknown>> {
     const canonical = canonicalProjectPath(projectPath);
+    throwIfCancelled(signal);
     return this.serialize(canonical, async () => {
-      const session = await this.ensureDiscovered(canonical, Math.min(timeoutMs, 2_000));
+      throwIfCancelled(signal);
+      const session = await this.ensureDiscovered(canonical, Math.min(timeoutMs, 2_000), signal);
       if (!session.connected) throw new EditorSessionUnavailableError(session);
       const entry = this.entries.get(canonical);
       if (!entry) throw new EditorSessionUnavailableError(session);
       try {
-        const result = await entry.connection.send(command, params, timeoutMs);
+        const result = await entry.connection.send(command, params, timeoutMs, signal);
         entry.state = editorStateFromResult(result, entry.state);
         this.emit(this.publicSession(canonical, entry, true));
         return result;
@@ -288,9 +294,10 @@ export function readDiscoveryRecord(
   }
   if (recordProject !== canonical || !isLoopbackPort(raw.port) || !pidExists(raw.editor_pid)) {
     cleanStaleRecord(canonical);
+    const discovered = sessionWithoutDiscoveryRecord(canonical);
     return {
-      ...sessionWithoutDiscoveryRecord(canonical),
-      reason: 'Stale or cross-project discovery record removed',
+      ...discovered,
+      reason: `Stale or cross-project discovery record removed${discovered.reason ? `. ${discovered.reason}` : ''}`,
     };
   }
   if (raw.protocol_version !== EDITOR_BRIDGE_PROTOCOL_VERSION) {

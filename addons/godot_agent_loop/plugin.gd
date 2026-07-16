@@ -33,6 +33,10 @@ const PROTOCOL_VERSION: String = "2"
 const ADDON_VERSION: String = "1.1.1"
 const SESSION_DIRECTORY: String = ".godot/godot_agent_loop"
 const SESSION_FILE: String = "editor-session.json"
+const PAUSE_BLOCKED_COMMANDS: Array[String] = [
+	"filesystem_changed", "transaction", "resource_transaction", "select", "save", "reload",
+	"open_scene", "set_property", "rename_node", "undo", "redo",
+]
 
 func _enter_tree() -> void:
 	set_process(true)
@@ -152,6 +156,8 @@ func _handle_request(line: String) -> void:
 
 func _dispatch(command: String, raw_params: Variant) -> Dictionary:
 	var params: Dictionary = raw_params if raw_params is Dictionary else {}
+	if _driver_paused and command in PAUSE_BLOCKED_COMMANDS:
+		return {"error": "paused", "state": "paused", "blocked_command": command}
 	match command:
 		"inspect":
 			return _inspect()

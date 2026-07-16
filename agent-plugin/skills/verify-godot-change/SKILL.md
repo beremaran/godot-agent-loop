@@ -1,50 +1,61 @@
 ---
 name: verify-godot-change
-description: Verify a Godot 4 project change with static checks and independent evidence from the running game. Use after editing scenes, scripts, resources, input, UI, rendering, or gameplay, and when deciding whether a Godot task is genuinely complete.
+description: Verify an existing Godot 4 change with static checks and independent runtime evidence. Use to prove saved scenes, scripts, resources, input, UI, rendering, timing, or gameplay without assuming permission to repair failures; do not use for implementation, diagnosis-and-fix, or release preparation.
 ---
 
 # Verify a Godot change
 
-Turn the requested behavior into observable acceptance criteria before running
-the game. A successful mutation response is not evidence that the change works.
+Translate the requested change into observable criteria, then report what the
+evidence proves. Verification alone authorizes observation and bounded test
+interaction, not corrective persistent mutation. Fail a criterion unless the
+user separately requested a fix. Support begins at Godot 4.7.
 
-Godot Agent Loop supports Godot 4.7 or later. Report verification on an older
-engine as outside the supported boundary.
+## Control contract
+
+- Validate `projectPath` against effective MCP roots and allowed directories
+  before any runtime or project access. Snapshot persistent files so verification
+  can prove it did not edit them.
+- Record watched or unattended mode. For watched work, call `editor_session` with
+  `ensure` and launch enabled; stop if no usable editor can be established.
+  For unattended verification, do not launch an editor: direct saved-state,
+  compound verification, and runtime tools are sufficient and must not rewrite
+  project metadata merely to establish a bridge.
+- Treat reads as observation, injected input as bounded runtime-ephemeral test
+  state, and any scene/resource/script/settings change as unauthorized unless the
+  user also requested repair.
+- Use canonical core tools directly (`compact` is only the compatibility alias).
+  Resolve hidden `analyze_project_integrity`, `game_get_property`, and
+  `game_eval` through `godot_catalog` detail, then invoke them with `godot_call`;
+  never call a hidden tool directly.
+- Respect **Pause Agent** without retry or bypass. While paused, use only safe
+  observation, input release, stop, and cleanup; report the blocked effective tool.
+- Use privileged reflection or evaluation only when already enabled, necessary
+  for a criterion, and independently corroborated. Never enable it for convenience.
 
 ## Workflow
 
-1. Check saved state.
-   - Use `validate_script` or `validate_scripts` for code.
-   - Use `read_scene`, `read_project_settings`, or `read_file` to confirm the
-     intended artifact persisted.
-   - Run `analyze_project_integrity` when scene structure changed. Flag a trivial
-     scripted main scene unless procedural construction is an explicit design.
-2. Prefer compound verification.
-   - Use `verify_project` for bounded startup, node/group/log assertions,
-     optional screenshot evidence, and deterministic teardown.
-   - Use `run_project_tests` with `discover` before `run` when tests exist.
-   - Prefer `game_wait_until` and `game_scenario` for bounded interaction evidence
-     rather than assembling short polling loops.
-3. Exercise interactive behavior when a compound assertion is insufficient.
-   - Call realtime `run_project` for behavior a person watches, then observe the baseline with `game_get_scene_tree`,
-     `game_get_ui`, `game_get_node_info`, and/or `game_screenshot`.
-   - Inject input with `game_key_press`, `game_click`, or a specialized input tool
-     discovered through `godot_tools`.
-   - Wait only as long as the behavior requires with `game_wait_until`, then make the
-     same observation again and compare the changed state.
-4. Check negative evidence.
-   - Inspect `game_get_errors`, `get_debug_output`, and relevant logs.
-   - Verify unrelated state still works when the change has regression risk.
-   - Treat warnings, ObjectDB leaks, orphan/resource diagnostics, bridge cleanup
-     failures, fallbacks, and unavailable metrics as evidence to resolve or
-     disclose, even when the positive assertion passes.
-5. Stop the project and report the exact assertions and evidence. If any
-   acceptance criterion remains unobserved, say verification is incomplete.
+1. Define applicable saved-state, runtime, rendered, timing, log/error,
+   regression, and subjective/manual-review criteria. Mark non-applicable and
+   unobservable criteria explicitly.
+2. Check saved state first with `validate_script`, `validate_scripts`,
+   `read_scene`, `read_project_settings`, or `read_file`. Use concise reads and
+   hidden integrity analysis only through the declared discovery flow.
+3. Prefer `verify_project` and `run_project_tests`; use realtime `run_project`
+   only for behavior the compound tools cannot prove.
+4. Observe a baseline with concise `game_get_scene_tree`, `game_get_ui`,
+   `game_get_node_info`, logs, and `game_screenshot` where rendering is material.
+5. Prefer bounded `game_wait_until` and `game_scenario`. Use `game_key_press` for
+   a one-frame tap, `game_key_hold` for continuous input, and always pair holds
+   with `game_key_release`, including failure cleanup. Use `game_click` only when
+   coordinate interaction is part of the criterion.
+6. Repeat the same observation and compare the intended state. A successful tool
+   response or screenshot alone does not prove behavior, audio quality, feel, or
+   aesthetics.
+7. Check negative evidence: `game_get_errors`, `get_debug_output`, warnings,
+   fallbacks, ObjectDB/orphan/resource diagnostics, leaks, cleanup, and adjacent
+   regressions. Re-hash persistent files to prove verification made no edit.
+8. Release held input, call `stop_project`, and independently confirm teardown.
 
-Separate objective evidence (persisted values, node state, logs, timing,
-rendered pixels) from subjective review (feel, audio quality, composition, and
-polish). A structural check or screenshot proves neither aesthetics nor sound;
-label those as manual review when no human judgment was obtained.
-
-Use privileged reflection only when the required group is already enabled; do
-not replace observable gameplay evidence with `game_eval`.
+Report each criterion as passed, failed, incomplete/unobserved, subjective/manual,
+blocked, or unsupported, with exact evidence. Disclose warnings and fallbacks;
+never infer success from an unavailable observation or silently repair a failure.

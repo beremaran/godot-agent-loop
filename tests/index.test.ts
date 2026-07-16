@@ -16,6 +16,9 @@ vi.mock('@modelcontextprotocol/sdk/server/index.js', () => {
       setRequestHandler(schema: any, callback: any) {
         handlers.set(schema, callback);
       }
+      setNotificationHandler = vi.fn();
+      getClientCapabilities = vi.fn(() => undefined);
+      listRoots = vi.fn().mockResolvedValue({ roots: [] });
       connect = vi.fn().mockResolvedValue(undefined);
       close = vi.fn().mockResolvedValue(undefined);
       onerror = vi.fn();
@@ -28,6 +31,9 @@ vi.mock('@modelcontextprotocol/sdk/server/mcp.js', () => {
     setRequestHandler(schema: any, callback: any) {
       handlers.set(schema, callback);
     }
+    setNotificationHandler = vi.fn();
+    getClientCapabilities = vi.fn(() => undefined);
+    listRoots = vi.fn().mockResolvedValue({ roots: [] });
   };
   return {
     McpServer: class {
@@ -171,9 +177,18 @@ import { toDotnetNamespace } from '../src/utils.js';
 function getFakeArgsForSchema(schema: any, toolName: string): any {
   if (!schema?.properties) return {};
   const args: any = {};
-  for (const [key, prop] of Object.entries(schema.properties) as any[]) {
+  const branch = schema.oneOf?.find((candidate: any) => candidate.properties?.action?.const !== undefined
+    || candidate.properties?.condition?.const !== undefined);
+  const properties = { ...schema.properties, ...(branch?.properties ?? {}) };
+  const required = branch
+    ? new Set([...(schema.required ?? []), ...(branch.required ?? [])])
+    : undefined;
+  for (const [key, prop] of Object.entries(properties) as any[]) {
+    if (required && !required.has(key)) continue;
     let val: any;
-    if (prop.oneOf?.length) {
+    if (prop.const !== undefined) {
+      val = prop.const;
+    } else if (prop.oneOf?.length) {
       val = getFakeArgsForSchema({ properties: { [key]: prop.oneOf[0] } }, toolName)[key];
     } else if (prop.enum && prop.enum.length > 0) {
       val = prop.enum[0];
@@ -235,7 +250,8 @@ function getFakeArgsForSchema(schema: any, toolName: string): any {
 }
 
 const genericSweepExclusions = new Set([
-  'launch_editor', 'editor_session', 'editor_control', 'editor_transaction', 'game_scenario',
+  'godot_call', 'launch_editor', 'editor_session', 'editor_control', 'editor_transaction', 'game_scenario',
+  'game_key_press', 'game_key_hold', 'game_key_release',
 ]);
 
 describe('GodotServer class tests', () => {
@@ -275,6 +291,41 @@ describe('GodotServer class tests', () => {
     expect(result.tools.length).toBeGreaterThan(0);
   });
 
+  it('accepts clients with or without cancellation and progress capabilities', async () => {
+    const callTool = handlers.get(CallToolRequestSchema);
+    const dispatch = vi.spyOn((server as any).toolRegistry, 'dispatch').mockResolvedValue({
+      content: [{ type: 'text', text: '{}' }],
+    });
+    const controller = new AbortController();
+    const sendNotification = vi.fn().mockResolvedValue(undefined);
+    try {
+      await callTool({
+        params: {
+          name: 'get_godot_version',
+          arguments: {},
+          _meta: { progressToken: 'client-progress-1' },
+        },
+      }, {
+        requestId: 42,
+        signal: controller.signal,
+        sendNotification,
+      });
+      const requestSeed = dispatch.mock.calls[0][2];
+      expect(requestSeed).toMatchObject({ requestId: 42, signal: controller.signal });
+      await requestSeed.progress.report(1, 2, 'halfway');
+      expect(sendNotification).toHaveBeenCalledWith({
+        method: 'notifications/progress',
+        params: { progressToken: 'client-progress-1', progress: 1, total: 2, message: 'halfway' },
+      });
+
+      dispatch.mockClear();
+      await callTool({ params: { name: 'get_godot_version', arguments: {} } });
+      expect(dispatch.mock.calls[0][2]).toEqual({});
+    } finally {
+      dispatch.mockRestore();
+    }
+  });
+
   it('handles all registered tools - happy paths', { timeout: 20_000 }, async () => {
     const mockSocket = {
       write: vi.fn((data: string) => {
@@ -309,6 +360,8 @@ describe('GodotServer class tests', () => {
     // Its real lifecycle is covered by verification-workflow.test.ts.
     const verifySpy = vi.spyOn((server as any).lifecycleToolHandlers, 'handleVerifyProject')
       .mockResolvedValue({ content: [{ type: 'text', text: '{"passed":true}' }] });
+    const runSpy = vi.spyOn((server as any).lifecycleToolHandlers, 'handleRunProject')
+      .mockResolvedValue({ content: [{ type: 'text', text: '{"runtime_ready":true}' }] });
     const integritySpy = vi.spyOn((server as any).projectToolHandlers, 'handleAnalyzeProjectIntegrity')
       .mockResolvedValue({ content: [{ type: 'text', text: '{"scanned_files":0}' }] });
     const visualRegressionSpy = vi.spyOn((server as any).gameToolHandlers, 'handleGameVisualRegression')
@@ -376,6 +429,7 @@ describe('GodotServer class tests', () => {
     mockExistsSyncImpl = (_path: string) => true;
     (server as any).gameConnection.allowPrivilegedCommands = false;
     verifySpy.mockRestore();
+    runSpy.mockRestore();
     integritySpy.mockRestore();
     visualRegressionSpy.mockRestore();
     exportReadinessSpy.mockRestore();
@@ -437,6 +491,11 @@ describe('GodotServer class tests', () => {
     expect(response).toBeDefined();
     expect(response.isError).toBe(true);
     expect(response.content[0].text).toContain('Not connected to game interaction server');
+    expect(response.structuredContent).toMatchObject({
+      ok: false,
+      meta: { advertisedTool: 'game_click', effectiveTool: 'game_click', effectScope: 'runtime-ephemeral' },
+    });
+    expect(JSON.parse(response.content.at(-1).text)).toEqual(response.structuredContent);
   });
 
   it('handles tool calls when active process is null', async () => {
@@ -844,7 +903,13 @@ describe('GodotServer class tests', () => {
         name: 'validate_scripts',
         arguments: { projectPath: '/fake/project', scope: 'invalid_scope' }
       }
-    })).rejects.toMatchObject({ code: -32602 });
+    })).resolves.toMatchObject({
+      isError: true,
+      structuredContent: {
+        ok: false,
+        error: { code: 'invalid_arguments', category: 'argument' },
+      },
+    });
 
     // create_script variations
     await callTool({

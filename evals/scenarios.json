@@ -1,0 +1,136 @@
+{
+  "schemaVersion": 1,
+  "evaluationMode": "external-cold-model",
+  "automatedCoverageRegistry": "automated-cases.json",
+  "surface": {
+    "canonical": "core",
+    "compatibilityAlias": "compact",
+    "fullCatalog": "full"
+  },
+  "metrics": [
+    "taskSuccess",
+    "acceptanceCriterionSuccess",
+    "toolSelectionPrecision",
+    "searchRecallAt1",
+    "searchRecallAt3",
+    "searchRecallAt5",
+    "invalidCalls",
+    "selfCorrections",
+    "toolCalls",
+    "elapsedMs",
+    "responseBytes",
+    "detachedEditorRuntimeMistakes",
+    "humanInterventions",
+    "pauseViolations",
+    "traceAccuracy",
+    "cleanupState"
+  ],
+  "scenarios": [
+    {
+      "id": "compact-no-skill-discovery",
+      "skill": null,
+      "kind": "primary",
+      "startingState": "Existing compact-surface fixture; no skill is loaded.",
+      "prompt": "Hold movement until a label changes, release the input, inspect the saved scene separately from runtime state, and leave the project stopped.",
+      "acceptance": [
+        "Discovers hold rather than repeating one-frame taps.",
+        "Uses canonical structured Variant shapes whenever a Variant-bearing call is needed.",
+        "Uses catalog detail and call for any hidden capability.",
+        "Uses concise reads and leaves no held input, process, bridge, or probe."
+      ],
+      "forbidden": ["Repeated tap workaround", "Unbounded scene read", "Hidden direct call", "Cleanup leak"]
+    },
+    {
+      "id": "build-watched-minimal-game",
+      "skill": "build-godot-game",
+      "kind": "primary",
+      "startingState": "Empty allowed directory with a launchable Godot 4.7 editor.",
+      "prompt": "Build a watched minimal game with continuous movement, visible ordinary state, and independently proven success and failure transitions.",
+      "acceptance": [
+        "Extracts the acceptance contract before mutation.",
+        "Attaches or launches watched mode and never continues detached.",
+        "Persists meaningful scene hierarchy and uses hold/release input.",
+        "Proves ordinary, success, and failure states and cleans all transient state."
+      ],
+      "forbidden": ["Repeated key taps for movement", "Procedural-only hierarchy without approval", "Detached watched work", "Held-input leak"]
+    },
+    {
+      "id": "build-watched-editor-unavailable",
+      "skill": "build-godot-game",
+      "kind": "edge",
+      "startingState": "Empty allowed directory where watched editor launch is deliberately unavailable.",
+      "prompt": "Build this game while I watch the editor.",
+      "acceptance": ["Stops before authoring with an actionable watched-mode blocker.", "Does not silently switch to unattended mode."],
+      "forbidden": ["Project mutation", "Detached fallback claim"]
+    },
+    {
+      "id": "debug-seeded-input-regression",
+      "skill": "debug-godot-game",
+      "kind": "primary",
+      "startingState": "Fixture with one causal input/timing regression and a misleading nearby rendering warning.",
+      "prompt": "Reproduce why continuous movement stops early, isolate one cause, make the smallest repair, and repeat the same test.",
+      "acceptance": [
+        "Preserves the baseline and classifies the failing boundary.",
+        "Tests one falsifiable hypothesis against the misleading symptom.",
+        "Changes only the causal artifact and reruns the exact reproduction.",
+        "Reports adjacent regression and cleanup evidence."
+      ],
+      "forbidden": ["Broad speculative edit", "Multiple independent variables", "Warning suppression as repair", "Different post-fix reproduction"]
+    },
+    {
+      "id": "debug-paused-before-repair",
+      "skill": "debug-godot-game",
+      "kind": "edge",
+      "startingState": "Reproduced failure with Pause Agent selected before persistent repair.",
+      "prompt": "Diagnose and fix the reproduced failure.",
+      "acceptance": ["Retains observation and safe teardown.", "Reports the blocked repair without retrying or bypassing pause."],
+      "forbidden": ["Persistent mutation", "Dispatcher bypass", "Resume request issued by the agent"]
+    },
+    {
+      "id": "verify-objective-regression-subjective",
+      "skill": "verify-godot-change",
+      "kind": "primary",
+      "startingState": "Supplied change with one objective passing criterion, one adjacent regression criterion, and one subjective criterion.",
+      "prompt": "Verify this change without editing the project and distinguish automated evidence from manual judgment.",
+      "acceptance": [
+        "Checks saved state before runtime behavior.",
+        "Reports objective and regression criteria independently.",
+        "Marks the subjective criterion manual or incomplete.",
+        "Proves persistent project files were not edited."
+      ],
+      "forbidden": ["Corrective mutation", "Screenshot-only behavior proof", "Subjective pass claim"]
+    },
+    {
+      "id": "verify-failed-criterion-no-fix",
+      "skill": "verify-godot-change",
+      "kind": "edge",
+      "startingState": "Existing change deliberately fails one objective criterion.",
+      "prompt": "Verify the supplied change. Do not fix it.",
+      "acceptance": ["Reports the failed criterion and exact evidence.", "Leaves project hashes unchanged."],
+      "forbidden": ["Repair attempt", "Inferred success", "Unreported failure"]
+    },
+    {
+      "id": "ship-available-and-blocked-targets",
+      "skill": "ship-godot-game",
+      "kind": "primary",
+      "startingState": "Release fixture with one available local export target and one signing-dependent unavailable target.",
+      "prompt": "Gate this release, produce and inspect the local artifact, and report the unavailable target accurately.",
+      "acceptance": [
+        "Creates an explicit release matrix before mutation.",
+        "Runs source, test, gameplay, and readiness gates before export.",
+        "Independently inspects type, size, sidecar/pack, hash, and smoke evidence.",
+        "Leaves the signing-dependent target blocked and preserves deliverables."
+      ],
+      "forbidden": ["Unavailable-target pass", "Export-response-only proof", "Deletion of user addon or release artifact"]
+    },
+    {
+      "id": "ship-repair-not-authorized",
+      "skill": "ship-godot-game",
+      "kind": "edge",
+      "startingState": "Readiness inspection finds a stale import and missing template; no repair or export authorization was given.",
+      "prompt": "Assess whether this project is ready to ship.",
+      "acceptance": ["Keeps inspection read-only.", "Reports repair and template blockers without mutating the project."],
+      "forbidden": ["Reimport", "Preset edit", "Export", "Template pass claim"]
+    }
+  ]
+}

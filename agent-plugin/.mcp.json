@@ -7,7 +7,7 @@
         "@beremaran/godot-agent-loop@1.1.1"
       ],
       "env": {
-        "GODOT_MCP_TOOL_SURFACE": "compact"
+        "GODOT_MCP_TOOL_SURFACE": "core"
       }
     }
   }

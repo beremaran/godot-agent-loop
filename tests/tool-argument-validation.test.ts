@@ -7,13 +7,86 @@ import { convertCamelToSnakeCase, normalizeParameters } from '../src/utils.js';
 const tool = (name: string) => toolDefinitions.find(definition => definition.name === name)!;
 
 describe('parseToolArguments', () => {
+  it('uses JSON Schema 2020-12 and closes every declared object', () => {
+    for (const definition of toolDefinitions) {
+      expect(definition.inputSchema.$schema).toBe('https://json-schema.org/draft/2020-12/schema');
+      expect(definition.inputSchema.additionalProperties, definition.name).toBe(false);
+    }
+    const transaction = tool('editor_transaction');
+    expect(transaction.inputSchema.properties?.operations?.items?.additionalProperties).toBe(false);
+    expect(tool('add_node').inputSchema.properties?.properties?.additionalProperties).toBe(true);
+    expect(tool('add_node').inputSchema.properties?.properties?.description).toContain('Intentionally open');
+  });
+
+  it('encodes conditional input, wait, scenario, and editor requirements', () => {
+    expect(() => parseToolArguments(tool('game_key_press'), {})).toThrow('must match exactly one');
+    expect(() => parseToolArguments(tool('game_key_press'), { key: 'A', action: 'jump' }))
+      .toThrow('must match exactly one');
+    expect(parseToolArguments(tool('game_key_press'), { text: 'Ω', shift: true })).toBeDefined();
+    expect(() => parseToolArguments(tool('game_wait_until'), { condition: 'property', nodePath: '/root' }))
+      .toThrow('arguments.value is required');
+    expect(() => parseToolArguments(tool('editor_control'), {
+      projectPath: '/project', action: 'set_property', nodePath: 'Player', property: 'visible',
+    })).toThrow('arguments.value is required');
+    expect(() => parseToolArguments(tool('game_scenario'), {
+      name: 'invalid', steps: [{ type: 'input', tool: 'game_key_hold' }],
+    })).toThrow('arguments.steps[0].arguments is required');
+    expect(() => parseToolArguments(tool('editor_transaction'), {
+      projectPath: '/project', scenePath: 'main.tscn', name: 'invalid',
+      operations: [{ op: 'add_node', nodeName: 'MissingType' }],
+    })).toThrow('arguments.operations[0].nodeType is required');
+    expect(() => parseToolArguments(tool('game_scenario'), {
+      name: 'unsafe', steps: [{ type: 'observe', tool: 'game_set_property' }],
+    })).toThrow('arguments.steps[0].tool must be one of:');
+    expect(() => parseToolArguments(tool('game_scenario'), {
+      name: 'missing-condition-field',
+      steps: [{ type: 'wait', condition: { condition: 'property', nodePath: '/root/Main' } }],
+    })).toThrow('arguments.steps[0].condition.property is required');
+    expect(() => parseToolArguments(tool('game_scenario'), {
+      name: 'forbidden-step-field',
+      steps: [{ type: 'screenshot', arguments: {} }],
+    })).toThrow('arguments.steps[0].arguments is forbidden by this action shape');
+    expect(() => parseToolArguments(tool('editor_transaction'), {
+      projectPath: '/project', scenePath: 'main.tscn', name: 'irrelevant-field',
+      operations: [{ op: 'save', nodePath: 'Player' }],
+    })).toThrow('arguments.operations[0].nodePath is forbidden by this action shape');
+    expect(() => parseToolArguments(tool('editor_control'), {
+      projectPath: '/project', action: 'inspect', scenePath: 'main.tscn',
+    })).toThrow('arguments.scenePath is forbidden by this action shape');
+  });
+
   it('accepts arguments that match the advertised schema', () => {
     expect(parseToolArguments(tool('game_click'), { x: 10, y: 20 })).toEqual({ x: 10, y: 20 });
+    expect(parseToolArguments(tool('read_scene'), {
+      project_path: '/project', scene_path: 'main.tscn', response_limit: 4096,
+    })).toEqual({ projectPath: '/project', scenePath: 'main.tscn', responseLimit: 4096 });
   });
 
   it('rejects missing required fields before dispatch', () => {
     expect(() => parseToolArguments(tool('game_click'), { x: 10 })).toThrow(ToolArgumentValidationError);
     expect(() => parseToolArguments(tool('game_click'), { x: 10 })).toThrow('arguments.y is required');
+  });
+
+  it('reports the selected action branch instead of unrelated oneOf errors', () => {
+    try {
+      parseToolArguments(tool('manage_autoloads'), { projectPath: '/project', action: 'add' });
+      throw new Error('Expected add validation to fail');
+    } catch (error) {
+      expect(error).toBeInstanceOf(ToolArgumentValidationError);
+      const validation = error as ToolArgumentValidationError;
+      expect(validation.details[0]).toMatchObject({ path: 'arguments.name', keyword: 'required' });
+      expect(validation.details.map(issue => issue.path)).not.toContain('arguments.action');
+    }
+
+    try {
+      parseToolArguments(tool('manage_autoloads'), { projectPath: '/project', action: 'explode' });
+      throw new Error('Expected action validation to fail');
+    } catch (error) {
+      expect(error).toBeInstanceOf(ToolArgumentValidationError);
+      expect((error as ToolArgumentValidationError).details[0]).toMatchObject({
+        path: 'arguments.action', keyword: 'enum',
+      });
+    }
   });
 
   it('rejects malformed top-level argument values before dispatch', () => {
@@ -97,6 +170,18 @@ describe('parseToolArguments', () => {
     expect(parseToolArguments(tool('add_node'), {
       projectPath: '/project', scenePath: 'main.tscn', nodeType: 'Node', nodeName: 'Child',
       properties: { customGodotProperty: { nested: true } },
+    })).toBeDefined();
+  });
+
+  it('rejects historical array and incomplete component shapes before runtime dispatch', () => {
+    expect(() => parseToolArguments(tool('game_environment'), {
+      action: 'set', backgroundColor: [1, 0.5, 0.25, 1],
+    })).toThrow('arguments.backgroundColor must be object');
+    expect(() => parseToolArguments(tool('game_environment'), {
+      action: 'set', backgroundColor: { r: 1, g: 0.5 },
+    })).toThrow('arguments.backgroundColor.b is required');
+    expect(parseToolArguments(tool('game_environment'), {
+      action: 'set', backgroundColor: { r: 1, g: 0.5, b: 0.25, a: 1 },
     })).toBeDefined();
   });
 

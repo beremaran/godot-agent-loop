@@ -88,6 +88,11 @@ describe('generic engine reach for untooled classes', () => {
         'return instance.get_class()',
       ].join('\n'));
       if (reported === '<unavailable>') continue;
+      // JavaObject is registered as instantiable by ClassDB but is a platform
+      // wrapper whose constructor deliberately returns null without a host
+      // object. Keep that known engine exception explicit so other null
+      // constructors still fail the reachability audit.
+      if ((reported === '<null>' || reported === null) && row.name === 'JavaObject') continue;
       applicable++;
       if (reported !== row.name) unreached.push(`${row.name} -> ${String(reported)}`);
     }

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Verify Godot Change"
+  short_description: "Prove a Godot change with independent evidence"
+  default_prompt: "Use $verify-godot-change to turn this change into observable criteria and report what is passed, failed, subjective, or still unobserved."

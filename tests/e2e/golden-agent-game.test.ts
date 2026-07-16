@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { PNG } from 'pngjs';
 import { afterEach, describe, expect, it } from 'vitest';
+import { CORE_TOOL_NAMES } from '../../src/tool-surface.js';
 import {
   assertNoLeakedGodotProcesses, findProcesses, killGodotProcesses, repoRoot,
   resolveGodotBinary, startServer, type E2EServer,
@@ -162,8 +163,10 @@ describe('golden cold-agent game build', () => {
     server = await startServer({ project: { root, projectPath }, toolSurface: 'core', preserveProject: true });
 
     const listed = await server.client.listTools();
-    expect(listed.tools).toHaveLength(40);
-    expect(listed.tools.map(tool => tool.name)).not.toContain('game_key_hold');
+    expect(listed.tools).toHaveLength(CORE_TOOL_NAMES.size);
+    expect(listed.tools.map(tool => tool.name)).toEqual(expect.arrayContaining([
+      'godot_catalog', 'godot_call', 'game_key_hold',
+    ]));
 
     await requiredCall(server, 'create_project', { projectPath, projectName: 'Golden Agent Game' });
     await server.client.close();
@@ -193,8 +196,9 @@ describe('golden cold-agent game build', () => {
     const createdScript = await requiredCall(server, 'create_script', {
       projectPath, scriptPath: 'scripts/main.gd', source: GAME_SCRIPT,
     });
-    expect(createdScript.text).toMatch(/"backend"\s*:\s*"file-backed"/);
-    expect(createdScript.text).toMatch(/"sync_status"\s*:\s*"acknowledged"/);
+    expect((createdScript.raw as { structuredContent?: unknown }).structuredContent).toMatchObject({
+      meta: { backend: 'file-backed', synchronization: 'acknowledged' },
+    });
 
     const nodes = [
       { nodeType: 'ColorRect', nodeName: 'Background', properties: {

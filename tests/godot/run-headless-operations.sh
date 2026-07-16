@@ -189,6 +189,9 @@ expect_in_file "attach_script persisted the script" "scenes/main.tscn" "scripts/
 run_op read_scene '{"scene_path":"scenes/main.tscn"}'
 expect_ok "read_scene reports the tree" "SCENE_JSON_START" '"name":"Player"' '"type":"Sprite2D"' "SCENE_JSON_END"
 
+run_op read_scene '{"scene_path":"scenes/main.tscn","detail":"compact","node_path":"Player","max_depth":0,"response_limit":1024}'
+expect_ok "read_scene supports bounded compact subtree reads" '"detail":"compact"' '"selector":"Player"' '"returned_nodes":1' '"truncated":false'
+
 run_op save_scene '{"scene_path":"scenes/main.tscn","new_path":"scenes/main_copy.tscn"}'
 expect_ok "save_scene saves a copy to a new path" "Scene saved successfully"
 expect_file "save_scene wrote the copy" "scenes/main_copy.tscn"

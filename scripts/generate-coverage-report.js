@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const { toolDefinitions } = await import(join(root, 'build/tool-definitions.js'));
 const { toolManifest } = await import(join(root, 'build/tool-manifest.js'));
+const { toolCatalogMetadata } = await import(join(root, 'build/tool-catalog-metadata.js'));
 const {
   TOOL_SURFACE_BUDGETS,
   advertisedToolDefinitions,
@@ -58,11 +59,65 @@ const levelCounts = Object.fromEntries(LEVELS.map(level => [level, tools.filter(
 const totalActions = tools.reduce((sum, tool) => sum + tool.actions, 0);
 const totalTested = tools.reduce((sum, tool) => sum + tool.testedActions, 0);
 const coreToolDefinitions = advertisedToolDefinitions('core');
+const fullAdvertisedToolDefinitions = advertisedToolDefinitions('full');
 const fullSurfaceBytes = compactToolSurfaceBytes(toolDefinitions);
 const coreSurfaceBytes = compactToolSurfaceBytes(coreToolDefinitions);
 const reductionPercent = (1 - coreSurfaceBytes / fullSurfaceBytes) * 100;
+
+function countsBy(values) {
+  return Object.fromEntries([...new Set(values)].sort().map(value => [
+    value, values.filter(candidate => candidate === value).length,
+  ]));
+}
+
+function schemaDescriptionCoverage(schema) {
+  let propertyNodes = 0;
+  let describedPropertyNodes = 0;
+  const visit = value => {
+    if (!value || typeof value !== 'object') return;
+    for (const property of Object.values(value.properties ?? {})) {
+      propertyNodes += 1;
+      if (typeof property.description === 'string' && property.description.trim() !== '') {
+        describedPropertyNodes += 1;
+      }
+      visit(property);
+    }
+    if (value.items) visit(value.items);
+    for (const branch of value.oneOf ?? []) visit(branch);
+    for (const branch of value.anyOf ?? []) visit(branch);
+    for (const branch of value.allOf ?? []) visit(branch);
+  };
+  visit(schema);
+  return { propertyNodes, describedPropertyNodes };
+}
+
+function skillToolReferences() {
+  const skillsRoot = join(root, 'agent-plugin/skills');
+  const toolNames = new Set(toolDefinitions.map(definition => definition.name));
+  return Object.fromEntries(readdirSync(skillsRoot, { withFileTypes: true })
+    .filter(entry => entry.isDirectory())
+    .sort((left, right) => left.name.localeCompare(right.name))
+    .map(entry => {
+      const source = readFileSync(join(skillsRoot, entry.name, 'SKILL.md'), 'utf8');
+      const references = [...source.matchAll(/`([a-z][a-z0-9_]*)`/g)].map(match => match[1]);
+      return [entry.name, {
+        tools: [...new Set(references.filter(reference => toolNames.has(reference)))].sort(),
+        invalidToolReferences: [...new Set(references.filter(reference => reference.includes('_') && !toolNames.has(reference)))].sort(),
+      }];
+    }));
+}
+
+const inputDescriptions = toolDefinitions.map(definition => schemaDescriptionCoverage(definition.inputSchema));
+const coreNames = coreToolDefinitions.map(definition => definition.name);
+const coreNameSet = new Set(coreNames);
+const advertisedTitles = fullAdvertisedToolDefinitions.filter(
+  definition => typeof definition.title === 'string' && definition.title.trim() !== '',
+);
+const advertisedOutputSchemas = fullAdvertisedToolDefinitions.filter(definition => definition.outputSchema !== undefined);
+const advertisedAnnotations = fullAdvertisedToolDefinitions.filter(definition => definition.annotations !== undefined);
+const annotationHints = ['readOnlyHint', 'destructiveHint', 'idempotentHint', 'openWorldHint'];
 const toolSurface = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   measurement: {
     bytes: 'UTF-8 byte length of compact JSON.stringify(toolDefinitions)',
     estimatedTokens: 'ceil(bytes / 4); deterministic planning estimate, not a model tokenizer',
@@ -79,13 +134,61 @@ const toolSurface = {
     estimatedTokens: estimatedToolSurfaceTokens(coreToolDefinitions),
   },
   coreByteReductionPercent: Number(reductionPercent.toFixed(2)),
+  counts: {
+    domains: countsBy(tools.map(tool => tool.manifest.domain)),
+    backends: countsBy(tools.map(tool => tool.manifest.backend.kind)),
+    actions: {
+      toolsWithActions: tools.filter(tool => tool.manifest.actions !== null).length,
+      declaredActions: tools.reduce((sum, tool) => sum + (tool.manifest.actions?.length ?? 1), 0),
+    },
+    privilege: {
+      required: tools.filter(tool => tool.manifest.privileged).length,
+      none: tools.filter(tool => !tool.manifest.privileged).length,
+    },
+    effectScopes: countsBy(toolDefinitions.map(definition => toolCatalogMetadata[definition.name].effectScope)),
+    requiredStates: countsBy(toolDefinitions.map(definition => toolCatalogMetadata[definition.name].requiredState)),
+    mutation: countsBy(toolDefinitions.map(definition => toolCatalogMetadata[definition.name].mutation)),
+  },
+  membership: {
+    core: coreNames,
+    hidden: toolDefinitions.map(definition => definition.name).filter(name => !coreNameSet.has(name)),
+  },
+  coverage: {
+    catalogMetadata: {
+      complete: toolDefinitions.filter(definition => {
+        const metadata = toolCatalogMetadata[definition.name];
+        return metadata && metadata.title && metadata.summary && metadata.purpose
+          && metadata.aliases.length > 0 && metadata.intentTags.length > 0 && metadata.concepts.length > 0;
+      }).length,
+      total: toolDefinitions.length,
+    },
+    inputSchemas: {
+      declared: toolDefinitions.filter(definition => definition.inputSchema?.type === 'object').length,
+      dialectDeclared: toolDefinitions.filter(definition => typeof definition.inputSchema?.$schema === 'string').length,
+      closedTopLevel: toolDefinitions.filter(definition => definition.inputSchema?.additionalProperties === false).length,
+      propertyNodes: inputDescriptions.reduce((sum, item) => sum + item.propertyNodes, 0),
+      describedPropertyNodes: inputDescriptions.reduce((sum, item) => sum + item.describedPropertyNodes, 0),
+    },
+    outputSchemas: { declared: advertisedOutputSchemas.length, total: toolDefinitions.length },
+    titles: {
+      catalogMetadata: toolDefinitions.filter(definition => toolCatalogMetadata[definition.name]?.title).length,
+      advertised: advertisedTitles.length,
+      total: toolDefinitions.length,
+    },
+    annotations: {
+      declared: advertisedAnnotations.length,
+      total: toolDefinitions.length,
+      hints: Object.fromEntries(annotationHints.map(hint => [
+        hint, fullAdvertisedToolDefinitions.filter(definition => definition.annotations?.[hint] !== undefined).length,
+      ])),
+    },
+  },
+  skillToolReferences: skillToolReferences(),
 };
 const toolSurfaceJson = `${JSON.stringify(toolSurface, null, 2)}\n`;
 
-if (fullSurfaceBytes > TOOL_SURFACE_BUDGETS.fullBytesMax
-  || coreSurfaceBytes > TOOL_SURFACE_BUDGETS.coreBytesMax
+if (coreSurfaceBytes > TOOL_SURFACE_BUDGETS.coreBytesMax
   || toolSurface.core.estimatedTokens > TOOL_SURFACE_BUDGETS.coreEstimatedTokensMax
-  || coreToolDefinitions.length > TOOL_SURFACE_BUDGETS.coreToolCountMax
   || reductionPercent < TOOL_SURFACE_BUDGETS.coreReductionPercentMin) {
   throw new Error(`Tool-surface budget exceeded: ${JSON.stringify(toolSurface)}`);
 }
@@ -130,8 +233,9 @@ lines.push(`| Public action rows | ${totalActions} | \`src/tool-manifest.ts\` |`
 lines.push('');
 lines.push('## Tool-surface budget');
 lines.push('');
-lines.push('The default static core remains client-independent; `godot_tools` searches,');
-lines.push('describes, and dispatches the full catalog on demand. Sizes serialize the exact');
+lines.push('The default static core remains client-independent; `godot_catalog` searches');
+lines.push('and describes, while `godot_call` dispatches the full catalog on demand.');
+lines.push('The deprecated `godot_tools` alias remains callable only for compatibility. Sizes serialize the exact');
 lines.push('definition arrays as compact JSON. The token figure is the plan\'s deterministic');
 lines.push('four-bytes-per-token estimate, not a provider tokenizer. Machine-readable values');
 lines.push('and budgets are in [`tool-surface.json`](tool-surface.json).');

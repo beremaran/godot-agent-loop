@@ -64,16 +64,43 @@ describe('GodotProcessManager', () => {
     manager.start({ executable: 'godot', args: [] });
 
     child.emitOutput('stdout', 'one\ntwo\nthree');
-    expect(manager.readNewLogs(2)).toEqual({ items: ['one', 'two'], remaining: 1 });
+    expect(manager.readNewLogs(2)).toEqual({ items: ['one', 'two'], remaining: 1, byteLimited: false });
     child.emitOutput('stdout', 'four\nfive');
-    expect(manager.readNewLogs(2)).toEqual({ items: ['three', 'four'], remaining: 1 });
-    expect(manager.readNewLogs(2)).toEqual({ items: ['five'], remaining: 0 });
+    expect(manager.readNewLogs(2)).toEqual({ items: ['three', 'four'], remaining: 1, byteLimited: false });
+    expect(manager.readNewLogs(2)).toEqual({ items: ['five'], remaining: 0, byteLimited: false });
 
     child.emitOutput('stderr', 'a\nb\nc');
-    expect(manager.readNewErrors(1)).toEqual({ items: ['a'], remaining: 2 });
+    expect(manager.readNewErrors(1)).toEqual({ items: ['a'], remaining: 2, byteLimited: false });
     child.emitOutput('stderr', 'd\ne');
-    expect(manager.readNewErrors(3)).toEqual({ items: ['b', 'c', 'd'], remaining: 1 });
-    expect(manager.readNewErrors(3)).toEqual({ items: ['e'], remaining: 0 });
+    expect(manager.readNewErrors(3)).toEqual({ items: ['b', 'c', 'd'], remaining: 1, byteLimited: false });
+    expect(manager.readNewErrors(3)).toEqual({ items: ['e'], remaining: 0, byteLimited: false });
+  });
+
+  it('bounds cursor pages by bytes without skipping unread lines', () => {
+    const child = createChild();
+    const manager = new GodotProcessManager(undefined, 10, undefined, () => child as any);
+    manager.start({ executable: 'godot', args: [] });
+
+    child.emitOutput('stdout', `${'a'.repeat(40)}\n${'b'.repeat(40)}\n${'c'.repeat(40)}`);
+    expect(manager.readNewLogs(10, 90)).toEqual({
+      items: ['a'.repeat(40), 'b'.repeat(40)], remaining: 1, byteLimited: true,
+    });
+    expect(manager.readNewLogs(10, 90)).toEqual({
+      items: ['c'.repeat(40)], remaining: 0, byteLimited: false,
+    });
+  });
+
+  it('clips pathological individual lines and reports retention loss', () => {
+    const child = createChild();
+    const manager = new GodotProcessManager(undefined, 3, undefined, () => child as any);
+    const record = manager.start({ executable: 'godot', args: [] });
+
+    child.emitOutput('stderr', 'x'.repeat(70 * 1024));
+    expect(Buffer.byteLength(record.errors[0], 'utf8')).toBeLessThanOrEqual(64 * 1024);
+    expect(record.errors[0]).toContain('[truncated at 65536 bytes]');
+    child.emitOutput('stderr', 'second\nthird\nfour');
+    expect(record.errors).toEqual(['second', 'third', 'four']);
+    expect(record.errorsDropped).toBe(1);
   });
 
   it('passes runtime authentication only through the child environment', () => {

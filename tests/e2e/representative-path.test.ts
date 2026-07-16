@@ -45,10 +45,14 @@ describe('MCP tool discovery', () => {
       .rejects.toThrow(/Unknown tool/);
   });
 
-  it('rejects invalid arguments before any handler runs', async () => {
+  it('returns recoverable structured argument errors before any handler runs', async () => {
     server = await startServer();
-    await expect(server.client.callTool({ name: 'create_scene', arguments: { projectPath: 42 } }))
-      .rejects.toThrow(/projectPath|Invalid/i);
+    const result = await server.client.callTool({ name: 'create_scene', arguments: { projectPath: 42 } });
+    expect(result.isError).toBe(true);
+    expect(result.structuredContent).toMatchObject({
+      ok: false,
+      error: { code: 'invalid_arguments', category: 'argument', retryable: true },
+    });
   });
 });
 

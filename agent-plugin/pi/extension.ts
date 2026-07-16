@@ -16,19 +16,30 @@ interface PiServerLaunchOptions {
   exists?: (path: string) => boolean;
 }
 
-export function resolvePiServerLaunch(options: PiServerLaunchOptions = {}): { command: string; args: string[] } {
+export function resolvePiServerLaunch(options: PiServerLaunchOptions = {}): {
+  command: string;
+  args: string[];
+  environment: Record<string, string>;
+} {
   const localServerEntry = options.localServerEntry ?? SERVER_ENTRY;
+  const manifestPath = options.adapterManifestPath ?? ADAPTER_MANIFEST;
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+    mcp?: { command?: unknown; environment?: unknown };
+  };
+  const environment = manifest.mcp?.environment;
+  if (!environment || typeof environment !== 'object' || Array.isArray(environment)
+    || !Object.values(environment).every(value => typeof value === 'string')) {
+    throw new Error(`Invalid MCP environment in ${manifestPath}`);
+  }
   if ((options.exists ?? existsSync)(localServerEntry)) {
-    return { command: process.execPath, args: [localServerEntry] };
+    return { command: process.execPath, args: [localServerEntry], environment: environment as Record<string, string> };
   }
 
-  const manifestPath = options.adapterManifestPath ?? ADAPTER_MANIFEST;
-  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as { mcp?: { command?: unknown } };
   const pinned = manifest.mcp?.command;
   if (!Array.isArray(pinned) || pinned.length === 0 || !pinned.every(value => typeof value === 'string')) {
     throw new Error(`Invalid MCP command in ${manifestPath}`);
   }
-  return { command: pinned[0], args: pinned.slice(1) };
+  return { command: pinned[0], args: pinned.slice(1), environment: environment as Record<string, string> };
 }
 
 function inheritedEnvironment(): Record<string, string> {
@@ -70,7 +81,7 @@ export default function godotAgentLoopPi(pi: ExtensionAPI) {
     for (const tool of tools) {
       pi.registerTool({
         name: tool.name,
-        label: tool.annotations?.title ?? tool.name,
+        label: tool.title ?? tool.annotations?.title ?? tool.name,
         description: tool.description ?? `Call the ${tool.name} Godot Agent Loop tool.`,
         parameters: tool.inputSchema as never,
         async execute(_toolCallId, params, signal) {
@@ -117,7 +128,7 @@ export default function godotAgentLoopPi(pi: ExtensionAPI) {
       const transport = new StdioClientTransport({
         command: launch.command,
         args: launch.args,
-        env: { ...inheritedEnvironment(), GODOT_MCP_TOOL_SURFACE: 'compact' },
+        env: { ...inheritedEnvironment(), ...launch.environment },
         stderr: 'pipe',
       });
       await next.connect(transport);

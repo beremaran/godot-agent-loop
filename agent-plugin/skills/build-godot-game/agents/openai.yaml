@@ -1,0 +1,4 @@
+interface:
+  display_name: "Build Godot Game"
+  short_description: "Build a complete playable Godot game"
+  default_prompt: "Use $build-godot-game to build this playable Godot game and prove its ordinary, success, and failure states."

@@ -1,5 +1,6 @@
 import { createConnection, type Socket } from 'node:net';
 import { EDITOR_BRIDGE_PROTOCOL_VERSION } from './editor-bridge-protocol.js';
+import { abortError, throwIfCancelled } from './execution-context.js';
 
 export interface EditorConnectionOptions {
   port: number;
@@ -23,15 +24,28 @@ export class EditorConnection {
 
   constructor(private readonly options: EditorConnectionOptions) {}
 
-  async send(command: string, params: Record<string, unknown> = {}, timeoutMs = 10_000): Promise<Record<string, unknown>> {
-    await this.ensureConnected(timeoutMs);
-    if (command === 'handshake') return this.authenticate(timeoutMs);
-    await this.authenticate(timeoutMs);
+  async send(
+    command: string,
+    params: Record<string, unknown> = {},
+    timeoutMs = 10_000,
+    signal?: AbortSignal,
+  ): Promise<Record<string, unknown>> {
+    throwIfCancelled(signal);
+    await this.ensureConnected(timeoutMs, signal);
+    throwIfCancelled(signal);
+    if (command === 'handshake') return this.authenticate(timeoutMs, signal);
+    await this.authenticate(timeoutMs, signal);
+    // Editor mutations are atomic after the request is written. Honour a
+    // cancellation received while connecting/authenticating, but once sent let
+    // Godot finish and report its single authoritative outcome.
+    throwIfCancelled(signal);
     return this.request(command, params, timeoutMs);
   }
 
-  async authenticate(timeoutMs = 10_000): Promise<Record<string, unknown>> {
-    await this.ensureConnected(timeoutMs);
+  async authenticate(timeoutMs = 10_000, signal?: AbortSignal): Promise<Record<string, unknown>> {
+    throwIfCancelled(signal);
+    await this.ensureConnected(timeoutMs, signal);
+    throwIfCancelled(signal);
     if (!this.handshaking) {
       const expected = this.options.protocolVersion ?? EDITOR_BRIDGE_PROTOCOL_VERSION;
       this.handshaking = this.request('handshake', {
@@ -76,21 +90,39 @@ export class EditorConnection {
     this.pending.clear();
   }
 
-  private async ensureConnected(timeoutMs: number): Promise<void> {
+  private async ensureConnected(timeoutMs: number, signal?: AbortSignal): Promise<void> {
+    throwIfCancelled(signal);
     if (this.socket) return;
-    if (this.connecting) return this.connecting;
+    if (this.connecting) {
+      await this.connecting;
+      throwIfCancelled(signal);
+      return;
+    }
     this.connecting = new Promise<void>((resolve, reject) => {
       const socket = createConnection({ host: '127.0.0.1', port: this.options.port });
-      const timer = setTimeout(() => { socket.destroy(); reject(new Error('Editor bridge connection timed out')); }, timeoutMs);
+      const cleanup = () => signal?.removeEventListener('abort', onAbort);
+      const timer = setTimeout(() => {
+        cleanup();
+        socket.destroy();
+        reject(new Error('Editor bridge connection timed out'));
+      }, timeoutMs);
+      const onAbort = () => {
+        clearTimeout(timer);
+        cleanup();
+        socket.destroy();
+        reject(abortError(signal?.reason));
+      };
+      signal?.addEventListener('abort', onAbort, { once: true });
       socket.once('connect', () => {
         clearTimeout(timer);
+        cleanup();
         this.socket = socket;
         socket.on('data', data => { this.receive(data.toString('utf8')); });
         socket.on('close', () => { if (this.socket === socket) this.disconnect(); });
         socket.on('error', () => undefined);
         resolve();
       });
-      socket.once('error', error => { clearTimeout(timer); reject(error); });
+      socket.once('error', error => { clearTimeout(timer); cleanup(); reject(error); });
     });
     try {
       await this.connecting;

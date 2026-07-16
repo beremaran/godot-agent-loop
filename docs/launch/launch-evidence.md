@@ -1,5 +1,22 @@
 # Godot Agent Loop 1.0 launch evidence
 
+This is a historical 1.0.0 evidence record. Tool counts and observed selection
+failures remain unchanged because they describe that exact run, not the current
+generated core surface.
+
+## Current Activity and human-control evidence
+
+On 2026-07-17, Godot 4.7.1 loaded the packaged 1.1.1 add-on in a disposable
+watched project. The Activity dock began in **Agent paused — human editing**
+with **Resume Agent**, changed to **Agent is driving** with **Pause Agent** after
+the human control was activated, and returned to paused on the next activation.
+The editor process and disposable project were then removed through the owned
+evaluation cleanup path.
+
+![Activity dock paused with Resume Agent](activity-paused.png)
+
+![Activity dock resumed with Pause Agent](activity-resumed.png)
+
 The launch proof is a measured cold-agent run plus a deterministic replay. The
 65-second edit is available as the
 [launch video](../../assets/demo/godot-agent-loop-launch.mp4), and its source

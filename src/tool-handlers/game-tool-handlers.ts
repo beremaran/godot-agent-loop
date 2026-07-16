@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createBoundedObservationResponse } from '../observation-result.js';
 
 export interface GameToolHandlerContext {
   commands: GameCommandService;
@@ -12,8 +13,8 @@ export interface GameToolHandlerContext {
 
 interface GameCommandApi {
   getActiveProcess: () => boolean;
-  readNewErrors: (limit?: number) => { items: string[]; remaining: number };
-  readNewLogs: (limit?: number) => { items: string[]; remaining: number };
+  readNewErrors: (limit?: number) => { items: string[]; remaining: number; byteLimited: boolean };
+  readNewLogs: (limit?: number) => { items: string[]; remaining: number; byteLimited: boolean };
   gameCommand: GameCommandService['execute'];
 }
 
@@ -303,15 +304,33 @@ export class GameToolHandlers {
   public async handleGameGetErrors(args: ToolArguments) {
     if (!this.context.getActiveProcess())
       return createErrorResponse('No active Godot process. Use run_project first.');
-    const { items: errors, remaining } = this.context.readNewErrors(args?.maxItems ?? 1000);
-    return { content: [{ type: 'text', text: JSON.stringify({ count: errors.length, errors, remaining, hasMore: remaining > 0 }, null, 2) }] };
+    const { items: errors, remaining, byteLimited } = this.context.readNewErrors(args?.maxItems ?? 1000);
+    return createBoundedObservationResponse(
+      { count: errors.length, errors, remaining, hasMore: remaining > 0 },
+      {
+        preferredArrayKeys: ['errors'],
+        returnedCount: payload => Array.isArray(payload.errors) ? payload.errors.length : 0,
+        sourceTruncated: () => remaining > 0 || byteLimited,
+        refinement: 'Call game_get_errors again to continue from the unread-error cursor; lower maxItems for smaller pages.',
+        continuation: 'Call game_get_errors again with the same or a smaller maxItems value.',
+      },
+    );
   }
 
   public async handleGameGetLogs(args: ToolArguments) {
     if (!this.context.getActiveProcess())
       return createErrorResponse('No active Godot process. Use run_project first.');
-    const { items: logs, remaining } = this.context.readNewLogs(args?.maxItems ?? 1000);
-    return { content: [{ type: 'text', text: JSON.stringify({ count: logs.length, logs, remaining, hasMore: remaining > 0 }, null, 2) }] };
+    const { items: logs, remaining, byteLimited } = this.context.readNewLogs(args?.maxItems ?? 1000);
+    return createBoundedObservationResponse(
+      { count: logs.length, logs, remaining, hasMore: remaining > 0 },
+      {
+        preferredArrayKeys: ['logs'],
+        returnedCount: payload => Array.isArray(payload.logs) ? payload.logs.length : 0,
+        sourceTruncated: () => remaining > 0 || byteLimited,
+        refinement: 'Call game_get_logs again to continue from the unread-log cursor; lower maxItems for smaller pages.',
+        continuation: 'Call game_get_logs again with the same or a smaller maxItems value.',
+      },
+    );
   }
 
   // --- Enhanced input handlers ---

@@ -58,6 +58,8 @@ export function createLifecycleToolRegistry(
   handlers: LifecycleToolHandlers,
 ): ToolHandlerRegistry {
   return {
+      'godot_catalog': args => handlers.handleGodotCatalog(args),
+      'godot_call': args => handlers.handleGodotCall(args),
       'godot_tools': args => handlers.handleGodotTools(args),
       'launch_editor': args => handlers.handleLaunchEditor(args),
       'editor_session': args => handlers.handleEditorSession(args),

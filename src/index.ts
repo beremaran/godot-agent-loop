@@ -17,10 +17,11 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
+  RootsListChangedNotificationSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import type { GameResponse } from './game-connection.js';
 
-import { PathSecurity, type OperationParams, type ToolArguments, type ToolResponse } from './utils.js';
+import { PathSecurity, type OperationParams, type ToolResponse } from './utils.js';
 import type { ToolName } from './tool-definitions.js';
 import { GodotExecutableService, GodotExecutableValidator } from './godot-executable.js';
 import { HeadlessOperationRunner } from './headless-operation-runner.js';
@@ -48,6 +49,14 @@ import { runOpenCodeSetup } from './opencode-setup.js';
 import { LifecycleTrace, type LifecycleOutcome } from './lifecycle-trace.js';
 import { toolManifest } from './tool-manifest.js';
 import { isToolCallMutating } from './tool-mutation-policy.js';
+import {
+  copyToolResultMetadata,
+  getToolResultMetadata,
+  isAbortError,
+  setToolResultMetadata,
+  type ToolExecutionContext,
+} from './execution-context.js';
+import { withStructuredToolResult } from './tool-results.js';
 
 // Check if debug mode is enabled
 const DEBUG_MODE: boolean = process.env.DEBUG === 'true';
@@ -152,6 +161,7 @@ export class GodotServer {
   private readonly headlessOperations: HeadlessOperationService;
   private readonly gameCommands: GameCommandService;
   private readonly attachedEditorProjects = new Set<string>();
+  private readonly pauseGuardEditorProjects = new Set<string>();
   private readonly lifecycleTrace = new LifecycleTrace({
     onEvent: (projectPath, event) => {
       if (!this.attachedEditorProjects.has(projectPath)) return;
@@ -167,6 +177,7 @@ export class GodotServer {
       if (session.connected) {
         const wasAttached = this.attachedEditorProjects.has(session.project_path);
         this.attachedEditorProjects.add(session.project_path);
+        this.pauseGuardEditorProjects.add(session.project_path);
         if (!wasAttached) void this.replayEditorTrace(session.project_path);
       } else {
         this.attachedEditorProjects.delete(session.project_path);
@@ -185,9 +196,16 @@ export class GodotServer {
     ),
   });
   private readonly editorMutationGuard = new EditorMutationGuard(
-    (projectPath, command, params, timeoutMs) => this.editorSessions.send(projectPath, command, params, timeoutMs),
+    (projectPath, command, params, timeoutMs, signal) => this.editorSessions.send(
+      projectPath, command, params, timeoutMs, signal,
+    ),
+    projectPath => this.pauseGuardEditorProjects.has(this.traceProjectPath(projectPath)),
   );
   private toolRegistry: ToolRegistry<ToolName> | null = null;
+  private readonly traceSpans = new Map<string, import('./lifecycle-trace.js').TraceSpan>();
+  private rootsInitialized = false;
+  private rootsRefresh: Promise<void> | null = null;
+  private legacyRootsWarningEmitted = false;
   private readonly editorPluginInstaller: EditorPluginInstaller;
   private readonly editorPluginInstallations = new Map<string, EditorPluginInstallation>();
   private strictPathValidation = false;
@@ -297,7 +315,7 @@ export class GodotServer {
       isRelativePathAllowed: (projectPath, relativePath) => pathSecurity.isRelativePathAllowed(projectPath, relativePath),
       logDebug: message => { this.logDebug(message); },
       startProjectProcess: (executable, args, onExit, env) => {
-        this.processManager.start({
+        return this.processManager.start({
           executable,
           args,
           env,
@@ -307,13 +325,14 @@ export class GodotServer {
       },
       stopProjectProcess: () => this.processManager.stop(),
       stopAuthoringSession: () => { this.authoringSession.stop(); },
-      connectToGame: projectPath => this.connectToGame(projectPath),
+      connectToGame: (projectPath, signal) => this.connectToGame(projectPath, signal),
       disconnectFromGame: () => { this.disconnectFromGame(); },
       injectInteractionServer: projectPath => { this.injectInteractionServer(projectPath); },
       removeInteractionServer: projectPath => { this.removeInteractionServer(projectPath); },
       getConnectedProjectPath: () => this.gameConnection.connectedProjectPath,
       clearConnectedProjectPath: () => { this.gameConnection.clearConnectedProject(); },
       getInteractionPort: () => this.gameConnection.interactionPort,
+      getRuntimeHandshake: () => this.gameConnection.handshake,
       getRuntimeEnvironment: () => ({ GODOT_MCP_RUNTIME_SECRET: RUNTIME_SECRET }),
       installEditorPlugin: projectPath => {
         const previous = this.editorPluginInstallations.get(projectPath);
@@ -340,12 +359,17 @@ export class GodotServer {
           ? { GODOT_MCP_EDITOR_START_PAUSED: process.env.GODOT_MCP_EDITOR_START_PAUSED }
           : {}),
       }),
-      ensureEditorSession: (projectPath, timeoutMs) => this.editorSessions.ensure(projectPath, timeoutMs),
+      ensureEditorSession: (projectPath, timeoutMs, signal) => this.editorSessions.ensure(projectPath, timeoutMs, signal),
       getEditorSessionStatus: projectPath => this.editorSessions.status(projectPath),
-      disconnectEditorSession: projectPath => this.editorSessions.disconnect(projectPath),
-      sendEditorCommand: (projectPath, command, params, timeoutMs) => this.editorSessions.send(projectPath, command, params, timeoutMs),
+      disconnectEditorSession: projectPath => {
+        this.pauseGuardEditorProjects.delete(this.traceProjectPath(projectPath));
+        return this.editorSessions.disconnect(projectPath);
+      },
+      sendEditorCommand: (projectPath, command, params, timeoutMs, signal) => this.editorSessions.send(
+        projectPath, command, params, timeoutMs, signal,
+      ),
       isGameConnected: () => this.gameConnection.isConnected,
-      sendGameCommand: (command, params, timeoutMs) => this.gameCommands.send(command, params, timeoutMs),
+      sendGameCommand: (command, params, timeoutMs, signal) => this.gameCommands.send(command, params, timeoutMs, signal),
       dispatchTool: (name, args) => {
         if (!this.toolRegistry) throw new Error('Tool registry is not initialized');
         return this.toolRegistry.dispatch(name, args);
@@ -400,6 +424,7 @@ export class GodotServer {
       phase: event.event === 'request_started' ? 'start' : 'finish',
       outcome: event.event === 'request_started' ? 'running'
         : event.event === 'request_timed_out' ? 'timeout'
+        : event.event === 'request_cancelled' ? 'cancelled'
         : event.outcome === 'success' ? 'success' : 'failure',
       duration_ms: event.duration_ms ?? 0,
       source: 'automatic',
@@ -417,29 +442,63 @@ export class GodotServer {
     }
   }
 
+  private refreshClientRoots(force = false): Promise<void> {
+    if (this.rootsInitialized && !force) return Promise.resolve();
+    if (this.rootsRefresh) return this.rootsRefresh;
+    this.rootsRefresh = this.refreshClientRootsUnserialized().finally(() => {
+      this.rootsRefresh = null;
+    });
+    return this.rootsRefresh;
+  }
+
+  private async refreshClientRootsUnserialized(): Promise<void> {
+    const capabilities = this.server.server.getClientCapabilities();
+    if (!capabilities?.roots) {
+      pathSecurity.setClientRoots(null);
+      this.rootsInitialized = true;
+      if (pathSecurity.unrestrictedLegacyMode && !this.legacyRootsWarningEmitted) {
+        this.legacyRootsWarningEmitted = true;
+        console.error('[SERVER] Warning: no MCP client roots or GODOT_MCP_ALLOWED_DIRS are configured; legacy unrestricted path mode is active.');
+      }
+      return;
+    }
+    try {
+      const result = await this.server.server.listRoots();
+      const roots: string[] = [];
+      for (const root of result.roots) {
+        try {
+          const url = new URL(root.uri);
+          if (url.protocol === 'file:') roots.push(fileURLToPath(url));
+        } catch (error) {
+          this.logDebug(`Ignoring invalid MCP root URI ${root.uri}: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+      pathSecurity.setClientRoots(roots);
+      this.rootsInitialized = true;
+    } catch (error) {
+      // A client that advertises roots participates in the security boundary.
+      // Failure to refresh must not silently widen it.
+      pathSecurity.setClientRoots([]);
+      this.rootsInitialized = true;
+      console.error(`[SERVER] Failed to refresh MCP roots; filesystem access is denied until refresh succeeds: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
   private traceProjectPath(projectPath: string): string {
     try { return canonicalProjectPath(projectPath); } catch { return projectPath; }
   }
 
   private async synchronizePersistentToolMutation(
-    toolName: ToolName,
-    args: ToolArguments,
-    projectPath: string,
+    execution: ToolExecutionContext,
     response: ToolResponse,
   ): Promise<ToolResponse> {
-    const nestedTool = toolName === 'godot_tools' && args.action === 'call' && typeof args.toolName === 'string'
-      ? args.toolName as ToolName
-      : toolName;
-    const nestedArgs = nestedTool === toolName
-      ? args
-      : args.arguments && typeof args.arguments === 'object' ? args.arguments as ToolArguments : {};
+    const nestedTool = execution.effectiveToolName as ToolName;
+    const nestedArgs = execution.effectiveArguments;
+    const projectPath = execution.projectPath;
     const manifest = toolManifest[nestedTool];
-    if (!manifest || manifest.domain !== 'project' || !isToolCallMutating(nestedTool, nestedArgs)
+    if (!projectPath || !manifest || manifest.domain !== 'project' || !isToolCallMutating(nestedTool, nestedArgs)
       || response.isError === true) return response;
-    const existingText = response.content
-      .filter(item => item.type === 'text' && typeof item.text === 'string')
-      .map(item => String(item.text)).join('\n');
-    if (/"backend"\s*:\s*"editor"|"sync_status"\s*:/.test(existingText)) return response;
+    if (getToolResultMetadata(response).synchronized === true) return response;
 
     const sceneCandidate = firstString(nestedArgs.scenePath, nestedArgs.newPath, nestedArgs.filePath);
     const scenePath = sceneCandidate && /\.tscn$/i.test(sceneCandidate) ? toResourcePath(sceneCandidate) : undefined;
@@ -459,20 +518,13 @@ export class GodotServer {
       : manifest.backend.kind === 'local' ? 'file-backed'
       : manifest.backend.kind;
     const metadata = { backend, ...sync };
-    const content = response.content.map(item => {
-      if (item.type !== 'text' || typeof item.text !== 'string') return item;
-      try {
-        const parsed = JSON.parse(item.text) as unknown;
-        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-          return { ...item, text: JSON.stringify({ ...parsed as Record<string, unknown>, ...metadata }, null, 2) };
-        }
-      } catch { /* prose responses receive a separate bounded metadata block */ }
-      return item;
+    return setToolResultMetadata(response, {
+      synchronized: true,
+      outcome: sync.sync_status === 'conflict' ? 'conflict'
+        : sync.sync_status === 'acknowledged' ? getToolResultMetadata(response).outcome ?? 'success'
+          : 'fallback',
+      details: { synchronization: sync.sync_status, synchronizationEvidence: metadata },
     });
-    const merged = content.some(item => item.type === 'text' && typeof item.text === 'string'
-      && /"sync_status"\s*:/.test(item.text));
-    if (!merged) content.push({ type: 'text', text: `Mutation metadata: ${JSON.stringify(metadata)}` });
-    return { ...response, content };
   }
 
   /**
@@ -549,8 +601,8 @@ export class GodotServer {
   /**
    * Connect to the game's TCP interaction server with retries
    */
-  private async connectToGame(projectPath: string): Promise<void> {
-    await this.gameConnection.connect(projectPath, () => this.activeProcess !== null);
+  private async connectToGame(projectPath: string, signal?: AbortSignal): Promise<void> {
+    await this.gameConnection.connect(projectPath, () => this.activeProcess !== null, signal);
   }
 
   /**
@@ -576,6 +628,7 @@ export class GodotServer {
     this.authoringSession.stop();
     this.disconnectFromGame();
     this.editorSessions.disconnectAll();
+    this.pauseGuardEditorProjects.clear();
     for (const [projectPath, installation] of this.editorPluginInstallations) {
       this.editorPluginInstaller.remove(projectPath, installation);
     }
@@ -617,53 +670,116 @@ export class GodotServer {
       game: this.gameToolHandlers,
       lifecycle: this.lifecycleToolHandlers,
       project: this.projectToolHandlers,
-    }), (name, args) => this.editorMutationGuard.check(name, args));
+    }), (name, args, context) => this.editorMutationGuard.check(name, args, context), {
+      context: {
+        resolveProject: (_invocation, _effective, args, effectiveArgs, parent) => {
+          const projectPath = firstString(
+            effectiveArgs.projectPath,
+            args.projectPath,
+            parent?.projectPath,
+            this.gameConnection.connectedProjectPath,
+            this.authoringSession.activeProjectPath,
+          );
+          return {
+            ...(projectPath ? { projectPath: this.traceProjectPath(projectPath) } : {}),
+            ...(this.gameConnection.isConnected
+              ? { connectionIdentity: `runtime:${this.gameConnection.interactionPort}` }
+              : {}),
+          };
+        },
+      },
+      onStart: context => {
+        if (!context.projectPath) return;
+        const span = this.lifecycleTrace.begin(
+          context.projectPath,
+          context.invocationToolName,
+          context.effectiveToolName,
+          context.backend,
+          { correlationId: context.traceId, parentCorrelationId: context.parentTraceId },
+        );
+        this.traceSpans.set(context.traceId, span);
+      },
+      onFinish: async (context, originalResponse) => {
+        let response = await this.synchronizePersistentToolMutation(context, originalResponse);
+        let metadata = getToolResultMetadata(response);
+        if (metadata.structured !== true && !context.parentTraceId) {
+          const synchronizationEvidence = metadata.details?.synchronizationEvidence;
+          const resultBackend = synchronizationEvidence && typeof synchronizationEvidence === 'object'
+            && typeof (synchronizationEvidence as Record<string, unknown>).backend === 'string'
+            ? (synchronizationEvidence as Record<string, unknown>).backend as string
+            : context.backend;
+          const structured = withStructuredToolResult(response, {
+            advertisedTool: context.advertisedToolName,
+            effectiveTool: context.effectiveToolName,
+            effectScope: context.effectScope,
+            backend: resultBackend,
+            ...(context.privilegeGroup ? { privilegeGroup: context.privilegeGroup } : {}),
+            startedAt: context.startedAt,
+            ...(context.projectPath ? { projectPath: context.projectPath } : {}),
+            traceId: context.traceId,
+            ...(context.parentTraceId ? { parentTraceId: context.parentTraceId } : {}),
+            ...(metadata.outcome === 'fallback' ? { fallback: true } : {}),
+            ...(typeof metadata.details?.synchronization === 'string'
+              ? { synchronization: metadata.details.synchronization }
+              : {}),
+            ...(synchronizationEvidence === undefined ? {} : { synchronizationEvidence }),
+            ...(metadata.details?.cleanup !== undefined ? { cleanup: metadata.details.cleanup } : {}),
+            ...(metadata.error ? { error: metadata.error } : {}),
+          });
+          response = setToolResultMetadata(copyToolResultMetadata(response, structured), { structured: true });
+          metadata = getToolResultMetadata(response);
+        }
+        const span = this.traceSpans.get(context.traceId);
+        if (span) {
+          const outcome: LifecycleOutcome = metadata.outcome
+            ?? (response.isError === true ? 'failure' : 'success');
+          this.lifecycleTrace.finish(span, outcome, {
+            is_error: response.isError === true,
+            effect_scope: context.effectScope,
+            ...(metadata.details ? { result: metadata.details } : {}),
+          });
+          this.traceSpans.delete(context.traceId);
+        }
+        return response;
+      },
+      onError: (context, error) => {
+        const span = this.traceSpans.get(context.traceId);
+        if (!span) return;
+        this.lifecycleTrace.finish(span, isAbortError(error) ? 'cancelled' : 'failure', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        this.traceSpans.delete(context.traceId);
+      },
+    });
     this.toolRegistry = tools;
+
+    this.server.server.setNotificationHandler(RootsListChangedNotificationSchema, async () => {
+      this.rootsInitialized = false;
+      await this.refreshClientRoots(true);
+    });
 
     this.server.server.setRequestHandler(ListToolsRequestSchema, async () => ({
       tools: advertisedToolDefinitions(),
     }));
 
-    this.server.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    this.server.server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
       this.logDebug(`Handling tool request: ${request.params.name}`);
+      await this.refreshClientRoots();
       const argumentsValue = request.params.arguments ?? {};
-      const nestedArguments = argumentsValue.arguments && typeof argumentsValue.arguments === 'object'
-        ? argumentsValue.arguments as Record<string, unknown>
-        : null;
-      const explicitProject = typeof argumentsValue.projectPath === 'string'
-        ? argumentsValue.projectPath
-        : typeof nestedArguments?.projectPath === 'string' ? nestedArguments.projectPath : null;
-      const projectPath = explicitProject
-        ?? this.gameConnection.connectedProjectPath
-        ?? this.authoringSession.activeProjectPath;
       const toolName = request.params.name as ToolName;
-      const manifest = toolManifest[toolName];
-      const span = projectPath
-        ? this.lifecycleTrace.begin(this.traceProjectPath(projectPath), toolName, toolName, manifest.backend.kind)
-        : null;
-      try {
-        let response = await tools.dispatch(toolName, argumentsValue);
-        if (projectPath) {
-          response = await this.synchronizePersistentToolMutation(
-            toolName, argumentsValue, projectPath, response,
-          );
-        }
-        if (span) {
-          const firstText = response.content.find(item => item.type === 'text' && 'text' in item);
-          const text = firstText && 'text' in firstText && typeof firstText.text === 'string' ? firstText.text : '';
-          let outcome: LifecycleOutcome = response.isError === true ? 'failure' : 'success';
-          if (/unsaved_conflict|"sync_status"\s*:\s*"conflict"/.test(text)) outcome = 'conflict';
-          else if (/"sync_status"\s*:\s*"(?:detached|failed)"|"fallback_reason"\s*:\s*(?!null\b)/.test(text)) {
-            outcome = 'fallback';
-          }
-          else if (/paused/i.test(text) && response.isError === true) outcome = 'paused';
-          this.lifecycleTrace.finish(span, outcome, { is_error: response.isError === true });
-        }
-        return response;
-      } catch (error) {
-        if (span) this.lifecycleTrace.finish(span, 'failure', { error: error instanceof Error ? error.message : String(error) });
-        throw error;
-      }
+      const progressToken = request.params._meta?.progressToken;
+      return tools.dispatch(toolName, argumentsValue, {
+        ...(extra?.requestId === undefined ? {} : { requestId: extra.requestId }),
+        ...(extra?.signal === undefined ? {} : { signal: extra.signal }),
+        ...(progressToken === undefined || !extra ? {} : {
+          progress: {
+            report: (progress: number, total: number, message?: string) => extra.sendNotification({
+              method: 'notifications/progress',
+              params: { progressToken, progress, total, ...(message ? { message } : {}) },
+            }),
+          },
+        }),
+      });
     });
   }
 

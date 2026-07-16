@@ -105,6 +105,8 @@ const ERROR_AUTHENTICATION_REQUIRED: int = -32008
 @export var max_response_bytes: int = 8 * 1024 * 1024
 @export var max_screenshot_pixels: int = 16 * 1024 * 1024
 @export var max_screenshot_png_bytes: int = 6 * 1024 * 1024
+const MAX_UI_OBSERVATION_ELEMENTS: int = 1000
+const MAX_UI_OBSERVATION_TEXT_CHARS: int = 4096
 # Command registry: maps a runtime command name to its CommandDescriptor.
 # The transport layer dispatches only through this registry and never names
 # individual subsystem commands.
@@ -538,6 +540,9 @@ func _handle_handshake(session: RuntimeSession, req_id: Variant, params: Diction
 	_send_response_raw(session, {"jsonrpc": "2.0", "id": req_id, "result": {
 		"protocolVersion": PROTOCOL_VERSION,
 		"capabilities": capabilities,
+		"engineVersion": Engine.get_version_info().get("string", "unknown"),
+		"projectPath": ProjectSettings.globalize_path("res://"),
+		"currentScene": get_tree().current_scene.scene_file_path if get_tree().current_scene != null else "",
 	}})
 
 
@@ -783,11 +788,21 @@ func _cmd_screenshot(_params: Dictionary) -> void:
 # --- Get UI Elements ---
 func _cmd_get_ui_elements(_params: Dictionary) -> void:
 	var elements: Array = []
-	_collect_ui_elements(get_tree().root, elements)
-	_send_response({"success": true, "elements": elements})
+	var traversal: Dictionary = {"truncated": false}
+	_collect_ui_elements(get_tree().root, elements, traversal)
+	_send_response({
+		"success": true,
+		"elements": elements,
+		"returned_count": elements.size(),
+		"limit": MAX_UI_OBSERVATION_ELEMENTS,
+		"truncated": traversal["truncated"],
+	})
 
 
-func _collect_ui_elements(node: Node, elements: Array) -> void:
+func _collect_ui_elements(node: Node, elements: Array, traversal: Dictionary) -> void:
+	if elements.size() >= MAX_UI_OBSERVATION_ELEMENTS:
+		traversal["truncated"] = true
+		return
 	if node is Control:
 		var ctrl: Control = node as Control
 		if ctrl.visible and ctrl.get_global_rect().size.x > 0:
@@ -800,18 +815,28 @@ func _collect_ui_elements(node: Node, elements: Array) -> void:
 			}
 			# Get text content for common text-bearing nodes
 			if ctrl is Label:
-				info["text"] = (ctrl as Label).text
+				info["text"] = _bounded_observation_text((ctrl as Label).text, info)
 			elif ctrl is Button:
-				info["text"] = (ctrl as Button).text
+				info["text"] = _bounded_observation_text((ctrl as Button).text, info)
 			elif ctrl is LineEdit:
-				info["text"] = (ctrl as LineEdit).text
+				info["text"] = _bounded_observation_text((ctrl as LineEdit).text, info)
 			elif ctrl is RichTextLabel:
-				info["text"] = (ctrl as RichTextLabel).get_parsed_text()
+				info["text"] = _bounded_observation_text((ctrl as RichTextLabel).get_parsed_text(), info)
 
 			elements.append(info)
 
 	for child in node.get_children():
-		_collect_ui_elements(child, elements)
+		_collect_ui_elements(child, elements, traversal)
+		if traversal["truncated"]:
+			return
+
+
+func _bounded_observation_text(value: String, metadata: Dictionary) -> String:
+	if value.length() <= MAX_UI_OBSERVATION_TEXT_CHARS:
+		return value
+	metadata["text_truncated"] = true
+	metadata["text_length"] = value.length()
+	return value.left(MAX_UI_OBSERVATION_TEXT_CHARS) + "…[truncated]"
 
 
 # --- Get Scene Tree ---

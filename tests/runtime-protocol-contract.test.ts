@@ -131,8 +131,12 @@ describe('runtime protocol contract', () => {
     });
     expect(core).toContain('optional_int("max_nodes", 1000, 1, 10000)');
     expect(subprocess).toContain('GODOT_PROCESS_LOG_LINE_LIMIT = 1_000');
+    expect(subprocess).toContain('GODOT_PROCESS_LOG_LINE_LIMIT_BYTES = 64 * 1024');
+    expect(subprocess).toContain('GODOT_PROCESS_OBSERVATION_PAGE_BYTES = 192 * 1024');
     expect(subprocess).toContain('GODOT_COMMAND_MAX_BUFFER_BYTES = 16 * 1024 * 1024');
-    expect(manager).toContain('remaining: this.activeProcess.output.length - end');
+    expect(manager).toContain('private readPage(');
+    expect(manager).toContain('remaining: lines.length - end');
+    expect(manager).toContain('byteLimited: end < maximum');
   });
 
   it('publishes deterministic session timing and runtime time-scale control', () => {

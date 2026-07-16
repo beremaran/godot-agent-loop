@@ -40,4 +40,39 @@ describe('LifecycleTrace', () => {
     expect(finish).toMatchObject({ phase: 'finish', outcome: 'conflict' });
     expect(JSON.stringify(finish)).not.toContain('hidden');
   });
+
+  it('forwards every terminal outcome with complete bounded Activity fields', () => {
+    let now = 10_000;
+    const activity: import('../src/lifecycle-trace.js').LifecycleTraceEvent[] = [];
+    const trace = new LifecycleTrace({
+      now: () => now += 5,
+      onEvent: (_projectPath, event) => { activity.push(event); },
+    });
+    const outcomes = [
+      'success', 'failure', 'timeout', 'fallback', 'conflict', 'paused', 'cancelled',
+    ] as const;
+
+    for (const outcome of outcomes) {
+      const span = trace.begin('/project', 'godot_call', `effective_${outcome}`, 'runtime', {
+        correlationId: `trace-${outcome}`, parentCorrelationId: 'parent-trace',
+      });
+      trace.finish(span, outcome, {
+        synchronization: outcome === 'conflict' ? 'conflict' : outcome === 'fallback' ? 'detached' : undefined,
+        token: 'never-forward-this',
+      });
+    }
+
+    const terminal = activity.filter(event => event.phase === 'finish');
+    expect(terminal.map(event => event.outcome)).toEqual(outcomes);
+    for (const event of terminal) {
+      expect(event).toMatchObject({
+        event_id: expect.any(Number), timestamp: expect.any(String),
+        correlation_id: `trace-${event.outcome}`, parent_correlation_id: 'parent-trace',
+        tool: 'godot_call', command: `effective_${event.outcome}`,
+        target_backend: 'runtime', phase: 'finish', source: 'agent',
+        duration_ms: expect.any(Number),
+      });
+    }
+    expect(JSON.stringify(activity)).not.toContain('never-forward-this');
+  });
 });

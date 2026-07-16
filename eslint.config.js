@@ -38,6 +38,8 @@ export default tseslint.config(
     ignores: [
       'build/**',
       'coverage/**',
+      'evals/cold-model-runner.mjs',
+      'evals/cold-model/**',
       'node_modules/**',
       'scripts/**',
       'src/scripts/**',

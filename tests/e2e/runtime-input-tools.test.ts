@@ -301,9 +301,11 @@ describe('runtime G+ input tools through MCP', () => {
     });
     expect(restored.isError, restored.text).toBe(false);
 
-    await expect(game.client.callTool({
-      name: 'game_input_state', arguments: { action: 'set_mouse_mode', mouseMode: 'invalid' },
-    })).rejects.toThrow(/mouseMode.*visible/i);
+    const invalidMode = await game.call('game_input_state', {
+      action: 'set_mouse_mode', mouseMode: 'invalid',
+    });
+    expect(invalidMode.isError).toBe(true);
+    expect(invalidMode.text).toMatch(/mouseMode.*visible/i);
     const missingCoords = await game.call('game_input_state', { action: 'warp_mouse', x: 1 });
     expect(missingCoords.isError).toBe(true);
     expect(missingCoords.text).toMatch(/y is required/i);

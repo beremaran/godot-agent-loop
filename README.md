@@ -7,7 +7,7 @@ An MCP automation loop for Godot 4.
 [![npm version](https://img.shields.io/npm/v/%40beremaran%2Fgodot-agent-loop)](https://www.npmjs.com/package/@beremaran/godot-agent-loop)
 [![Godot integration tests](https://github.com/beremaran/godot-agent-loop/actions/workflows/godot-integration.yml/badge.svg)](https://github.com/beremaran/godot-agent-loop/actions/workflows/godot-integration.yml)
 <!-- generated-coverage-badge:start -->
-[![E2E tools: 171/171](https://img.shields.io/badge/E2E_tools-171%2F171-brightgreen)](docs/coverage/coverage-report.md)
+[![E2E tools: 173/173](https://img.shields.io/badge/E2E_tools-173%2F173-brightgreen)](docs/coverage/coverage-report.md)
 <!-- generated-coverage-badge:end -->
 [![MCP Server](https://badge.mcpx.dev?type=server 'MCP Server')](https://modelcontextprotocol.io/introduction)
 [![Made with Godot](https://img.shields.io/badge/Made%20with-Godot-478CBF?style=flat&logo=godot%20engine&logoColor=white)](https://godotengine.org)
@@ -36,21 +36,21 @@ claude mcp add godot-agent-loop -- npx -y @beremaran/godot-agent-loop
 ```
 
 Then point the agent at a project directory—or an empty directory—and describe
-the playable result. The compact default surface exposes 40 tools for the loop
-above; the `godot_tools` meta-tool searches, describes, and dispatches the full
-171-tool catalog on demand. Runtime injection is transient; watched projects
-can use the optional persistent editor addon.
+the playable result. The default `core` surface is kept within the generated
+[tool-surface budget](docs/coverage/tool-surface.json). Use read-only
+`godot_catalog` to find and inspect a hidden capability, then `godot_call` to
+execute it. Runtime injection is transient; watched projects can use the optional
+persistent editor addon.
 
 Using Cline, Cursor, or another MCP client? See
 [Configuration](#configuration).
 
 ## Proof before claims
 
-- **171/171 tools** exercised through the complete MCP-to-Godot path, with
-  **365 public actions** traced to resolving tests; see the generated
-  [coverage report](docs/coverage/coverage-report.md).
-- **171/171 tools have full-path MCP E2E coverage**, with the complete serial
-  real-Godot matrix enforced in CI.
+- Every current tool and public action is traced to resolving tests in the
+  source-derived [coverage report](docs/coverage/coverage-report.md); its counts
+  and surface sizes are generated rather than copied into prose.
+- The complete serial real-Godot matrix is enforced in CI.
 - A cold agent built and independently verified a playable win/lose game with
   zero human corrections, in under seven minutes, using 103 MCP calls and no
   built-in tools; see the [launch evidence](docs/launch/launch-evidence.md) and
@@ -96,10 +96,10 @@ builds, and unbounded engine control are not claimed. Details in the
 
 ## Tool catalog
 
-The full inventory of 171 tools — runtime interaction, scene authoring,
-project management, verification, 2D/3D rendering, audio, UI, networking, and
-more — lives in [docs/tools.md](docs/tools.md). Per-tool verification status
-and test references are in the generated
+The full inventory—runtime interaction, scene authoring, project management,
+verification, 2D/3D rendering, audio, UI, networking, and more—lives in
+[docs/tools.md](docs/tools.md). Per-tool verification status and test references
+are in the generated
 [coverage report](docs/coverage/coverage-report.md).
 
 ## Requirements
@@ -308,7 +308,7 @@ the event name, runtime component, numeric session ID, and timestamp.
 | `GODOT_MCP_ALLOWED_DIRS` | Optional. Restrict `run_project` to projects under these roots (`;`, `,`, or `:` separated). When unset, any project path is allowed. |
 | `GODOT_MCP_RUNTIME_SECRET` | Optional explicit shared runtime secret. The MCP server generates a fresh 256-bit value when omitted and passes it only to Godot processes it launches. Set the same value manually only when connecting to a separately launched runtime. |
 | `GODOT_MCP_EDITOR_START_PAUSED` | Optional, default `false`. Start the editor addon's cooperative lock in human-editing mode so mutating MCP tools are refused until **Resume Agent** is pressed. |
-| `GODOT_MCP_TOOL_SURFACE` | Optional, default `core`. Set to `full` to advertise the complete static tool catalog instead of the compact 40-tool core, which includes `godot_tools` discovery/dispatch. |
+| `GODOT_MCP_TOOL_SURFACE` | Optional, default `core`. `compact` is a compatibility alias for `core`; `full` advertises the complete static catalog. Unknown values are rejected. Use `godot_catalog` plus `godot_call` for hidden tools; the combined `godot_tools` alias is deprecated through the 1.x release line. |
 | `GODOT_MCP_PRIVILEGED_GROUPS` | Optional comma-separated least-privilege grants: `reflection`, `code-execution`, and/or `network`. All are denied by default. |
 | `GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS` | Optional, default `false`. Explicitly enable runtime `eval`, arbitrary property/method access, script control, RPC, HTTP, and WebSocket commands for a trusted localhost developer workflow. |
 
@@ -361,6 +361,7 @@ The server uses three bounded execution paths:
 | `src/index.ts` | MCP server entry point |
 | `src/tool-definitions.ts` | Tool names and JSON schemas |
 | `src/tool-manifest.ts` | Per-tool domain, backend, and action declarations |
+| `src/tool-surface.ts` | Reviewed core membership, discovery ranking, compatibility modes, and generated size budgets |
 | `src/tool-handlers/` | Lifecycle, project, and game handler implementations |
 | `src/scripts/godot_operations.gd` | Persistent and one-shot GDScript operations runner |
 | `src/scripts/mcp_interaction_server.gd` | TCP interaction server autoload |
@@ -379,6 +380,11 @@ npm run test:golden-agent # cold-agent game build acceptance gate
 npm run test:godot  # strict parsing, subprocess operations, runtime protocol
 npm run test:watch  # watch mode
 ```
+
+The shipped build, debug, verify, and ship skill scenarios are versioned under
+`evals/`. Their committed status is intentionally `not_run` until a deliberate
+current-model client run records versioned inputs and schema-valid metrics; the
+deterministic golden replay is not presented as a substitute for that run.
 
 ## Example Prompts
 

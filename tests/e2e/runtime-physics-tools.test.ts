@@ -104,9 +104,9 @@ describe('runtime G+ physics tools through MCP', () => {
     expect(overlap.isError, overlap.text).toBe(false);
     expect(overlap.text).toContain('/root/Main/Physics2D/Crate');
 
-    await expect(game.client.callTool({
-      name: 'game_raycast', arguments: { from: { x: 0, y: 0 } },
-    })).rejects.toThrow(/to is required/i);
+    const missingRayEnd = await game.call('game_raycast', { from: { x: 0, y: 0 } });
+    expect(missingRayEnd.isError).toBe(true);
+    expect(missingRayEnd.text).toMatch(/to is required/i);
     const badParent = await game.call('game_add_collision', {
       parentPath: '/root/Main/Anchor', shapeType: 'box', shapeParams: {},
     });
@@ -269,8 +269,8 @@ describe('runtime G+ physics tools through MCP', () => {
     expect(payload(path2d.text)).toMatchObject({ mode: '2d', point_count: expect.any(Number) });
     expect((payload(path2d.text) as { point_count: number }).point_count).toBeGreaterThanOrEqual(2);
 
-    await expect(game.client.callTool({
-      name: 'game_navigate_path', arguments: { start: { x: 0, y: 0 } },
-    })).rejects.toThrow(/end is required/i);
+    const missingPathEnd = await game.call('game_navigate_path', { start: { x: 0, y: 0 } });
+    expect(missingPathEnd.isError).toBe(true);
+    expect(missingPathEnd.text).toMatch(/end is required/i);
   });
 });

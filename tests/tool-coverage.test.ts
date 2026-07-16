@@ -32,6 +32,8 @@ interface ToolCoverage {
   tests: string[];
   actions: Record<string, ActionCoverage>;
   dimensions: Record<string, string>;
+  /** Applicable dimension -> indexes into this tool's resolving `tests` array. */
+  dimensionEvidence: Record<string, number>;
 }
 
 const coverage = JSON.parse(
@@ -111,6 +113,18 @@ describe('tool coverage inventory', () => {
           `${name}.${dimension} must be "applicable" or "n/a: <reason>", got "${status}"`,
         ).toBe(true);
       }
+      const applicable = Object.entries(tool.dimensions)
+        .filter(([, status]) => status === 'applicable')
+        .map(([dimension]) => dimension)
+        .sort();
+      expect(Object.keys(tool.dimensionEvidence).sort(), `${name} dimension evidence keys`)
+        .toEqual(applicable);
+      for (const [dimension, index] of Object.entries(tool.dimensionEvidence)) {
+        expect(Number.isInteger(index), `${name}.${dimension} evidence index`).toBe(true);
+        expect(index, `${name}.${dimension} evidence index`).toBeGreaterThanOrEqual(0);
+        expect(index, `${name}.${dimension} evidence index`).toBeLessThan(tool.tests.length);
+        assertReferences(`${name}.${dimension}`, [tool.tests[index]]);
+      }
     }
   });
 
@@ -141,6 +155,10 @@ describe('tool coverage inventory', () => {
         ...tool.tests,
         ...Object.values(tool.actions).flatMap(row => row.tests ?? []),
       ].filter(reference => reference.startsWith('tests/e2e/'));
+      // Contract-only tools deliberately make no real-engine/E2E claim. Their
+      // public parameter evidence becomes mandatory when an E2E reference is
+      // added and the inventory level is promoted.
+      if (references.length === 0) continue;
       const files = [...new Set(references.map(reference => reference.split('::')[0]))];
       const evidence = files.map(file => referencedFile(file) ?? '').join('\n');
       for (const [parameter, schema] of Object.entries(definition.inputSchema.properties)) {

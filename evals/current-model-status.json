@@ -1,0 +1,684 @@
+{
+  "schemaVersion": 1,
+  "scenarioSetVersion": 1,
+  "evaluationMode": "external-cold-model",
+  "runs": [
+    {
+      "scenarioId": "compact-no-skill-discovery",
+      "status": "passed",
+      "inputs": {
+        "runDate": "2026-07-16",
+        "client": "codex-cli",
+        "clientVersion": "0.144.5",
+        "model": "gpt-5.6-luna",
+        "effort": "high",
+        "promptSha256": "4aee961c34eb4b62fbedcd6c523cfe8589abbbcb1f1c8ab94ecb9b325f587bd4",
+        "skillSha256": null,
+        "serverVersion": "1.1.1",
+        "surface": "core",
+        "advertisedToolCount": 42
+      },
+      "metrics": {
+        "taskSuccess": true,
+        "acceptanceCriteriaPassed": 4,
+        "acceptanceCriteriaTotal": 4,
+        "toolSelectionPrecision": 0.7058823529411765,
+        "searchRecallAt1": 1,
+        "searchRecallAt3": 1,
+        "searchRecallAt5": 1,
+        "invalidCalls": 2,
+        "selfCorrections": 1,
+        "toolCalls": 17,
+        "elapsedMs": 97587,
+        "responseBytes": 138761,
+        "detachedEditorRuntimeMistakes": 0,
+        "humanInterventions": 0,
+        "pauseViolations": 0,
+        "traceAccuracy": 0,
+        "cleanupState": {
+          "clean": true,
+          "ownedProcesses": 0,
+          "bridges": 0,
+          "heldInputs": 0,
+          "temporaryArtifacts": 0
+        }
+      },
+      "criteria": [
+        {
+          "criterion": "Discovers hold rather than repeating one-frame taps.",
+          "status": "passed",
+          "evidence": "1 hold call(s); 0 tap call(s)."
+        },
+        {
+          "criterion": "Uses canonical structured Variant shapes whenever a Variant-bearing call is needed.",
+          "status": "passed",
+          "evidence": "No Variant-bearing call was needed, so no non-canonical shape was used."
+        },
+        {
+          "criterion": "Uses catalog detail and call for any hidden capability.",
+          "status": "passed",
+          "evidence": "All hidden calls used catalog detail plus godot_call, or only advertised tools were used."
+        },
+        {
+          "criterion": "Uses concise reads and leaves no held input, process, bridge, or probe.",
+          "status": "passed",
+          "evidence": "boundedRead=true; releases=1; stops=1; cleanup=true."
+        },
+        {
+          "criterion": "Forbidden: Repeated tap workaround",
+          "status": "passed",
+          "evidence": "No forbidden condition was observed by the declared trace/state check."
+        },
+        {
+          "criterion": "Forbidden: Unbounded scene read",
+          "status": "passed",
+          "evidence": "No forbidden condition was observed by the declared trace/state check."
+        },
+        {
+          "criterion": "Forbidden: Hidden direct call",
+          "status": "passed",
+          "evidence": "No forbidden condition was observed by the declared trace/state check."
+        },
+        {
+          "criterion": "Forbidden: Cleanup leak",
+          "status": "passed",
+          "evidence": "No forbidden condition was observed by the declared trace/state check."
+        }
+      ]
+    },
+    {
+      "scenarioId": "build-watched-minimal-game",
+      "status": "passed",
+      "inputs": {
+        "runDate": "2026-07-16",
+        "client": "codex-cli",
+        "clientVersion": "0.144.5",
+        "model": "gpt-5.6-luna",
+        "effort": "high",
+        "promptSha256": "101c4998cb59bf0e6c624b64106aaefb2d2b8a22766b82b6e64f405e90df88b9",
+        "skillSha256": "35bd571b027aa99a98cee52f36ed1ae5d1d86b663e4aaa80b3537e9d121d8f9c",
+        "serverVersion": "1.1.1",
+        "surface": "core",
+        "advertisedToolCount": 42
+      },
+      "metrics": {
+        "taskSuccess": true,
+        "acceptanceCriteriaPassed": 4,
+        "acceptanceCriteriaTotal": 4,
+        "toolSelectionPrecision": 0.7936507936507936,
+        "searchRecallAt1": 1,
+        "searchRecallAt3": 1,
+        "searchRecallAt5": 1,
+        "invalidCalls": 7,
+        "selfCorrections": 7,
+        "toolCalls": 63,
+        "elapsedMs": 386515,
+        "responseBytes": 430221,
+        "detachedEditorRuntimeMistakes": 0,
+        "humanInterventions": 0,
+        "pauseViolations": 0,
+        "traceAccuracy": 1,
+        "cleanupState": {
+          "clean": true,
+          "ownedProcesses": 0,
+          "bridges": 0,
+          "heldInputs": 0,
+          "temporaryArtifacts": 0
+        }
+      },
+      "criteria": [
+        {
+          "criterion": "Extracts the acceptance contract before mutation.",
+          "status": "passed",
+          "evidence": "Checked pre-mutation reasoning/messages for an explicit acceptance contract."
+        },
+        {
+          "criterion": "Attaches or launches watched mode and never continues detached.",
+          "status": "passed",
+          "evidence": "editor_session index=18; first authoring mutation index=20."
+        },
+        {
+          "criterion": "Persists meaningful scene hierarchy and uses hold/release input.",
+          "status": "passed",
+          "evidence": "scenes=1; holds=5; releases=5."
+        },
+        {
+          "criterion": "Proves ordinary, success, and failure states and cleans all transient state.",
+          "status": "passed",
+          "evidence": "runtime observations=11; cleanup=true; final report contains success/failure labels=true."
+        },
+        {
+          "criterion": "Forbidden: Repeated key taps for movement",
+          "status": "passed",
+          "evidence": "No forbidden condition was observed by the declared trace/state check."
+        },
+        {
+          "criterion": "Forbidden: Procedural-only hierarchy without approval",
+          "status": "passed",
+          "evidence": "No forbidden condition was observed by the declared trace/state check."
+        },
+        {
+          "criterion": "Forbidden: Detached watched work",
+          "status": "passed",
+          "evidence": "No forbidden condition was observed by the declared trace/state check."
+        },
+        {
+          "criterion": "Forbidden: Held-input leak",
+          "status": "passed",
+          "evidence": "No forbidden condition was observed by the declared trace/state check."
+        }
+      ]
+    },
+    {
+      "scenarioId": "build-watched-editor-unavailable",
+      "status": "passed",
+      "inputs": {
+        "runDate": "2026-07-16",
+        "client": "codex-cli",
+        "clientVersion": "0.144.5",
+        "model": "gpt-5.6-luna",
+        "effort": "high",
+        "promptSha256": "9e5ccdbe09c99fc5156b7be793c2b6b164597b4c244177ea09878763f9405896",
+        "skillSha256": "35bd571b027aa99a98cee52f36ed1ae5d1d86b663e4aaa80b3537e9d121d8f9c",
+        "serverVersion": "1.1.1",
+        "surface": "core",
+        "advertisedToolCount": 42
+      },
+      "metrics": {
+        "taskSuccess": true,
+        "acceptanceCriteriaPassed": 2,
+        "acceptanceCriteriaTotal": 2,
+        "toolSelectionPrecision": 0,
+        "searchRecallAt1": 1,
+        "searchRecallAt3": 1,
+        "searchRecallAt5": 1,
+        "invalidCalls": 0,
+        "selfCorrections": 0,
+        "toolCalls": 2,
+        "elapsedMs": 33900,
+        "responseBytes": 3415,
+        "detachedEditorRuntimeMistakes": 0,
+        "humanInterventions": 0,
+        "pauseViolations": 0,
+        "traceAccuracy": 1,
+        "cleanupState": {
+          "clean": true,
+          "ownedProcesses": 0,
+          "bridges": 0,
+          "heldInputs": 0,
+          "temporaryArtifacts": 0
+        }
+      },
+      "criteria": [
+        {
+          "criterion": "Stops before authoring with an actionable watched-mode blocker.",
+          "status": "passed",
+          "evidence": "persistent mutation=false; actionable blocker in final=true."
+        },
+        {
+          "criterion": "Does not silently switch to unattended mode.",
+          "status": "passed",
+          "evidence": "Checked for project mutation and detached runtime launch."
+        },
+        {
+          "criterion": "Forbidden: Project mutation",
+          "status": "passed",
+          "evidence": "No forbidden condition was observed by the declared trace/state check."
+        },
+        {
+          "criterion": "Forbidden: Detached fallback claim",
+          "status": "passed",
+          "evidence": "No forbidden condition was observed by the declared trace/state check."
+        }
+      ]
+    },
+    {
+      "scenarioId": "debug-seeded-input-regression",
+      "status": "passed",
+      "inputs": {
+        "runDate": "2026-07-16",
+        "client": "codex-cli",
+        "clientVersion": "0.144.5",
+        "model": "gpt-5.6-luna",
+        "effort": "high",
+        "promptSha256": "b1b99b0d2d9d9356cf8c52c2a1d6cd8fea0f28c09ab962334da366b209c9e9fa",
+        "skillSha256": "450a551ccd400f34f53efe35befdb001bb080d571a6952e3887ef5597223fdcb",
+        "serverVersion": "1.1.1",
+        "surface": "core",
+        "advertisedToolCount": 42
+      },
+      "metrics": {
+        "taskSuccess": true,
+        "acceptanceCriteriaPassed": 4,
+        "acceptanceCriteriaTotal": 4,
+        "toolSelectionPrecision": 0.6153846153846154,
+        "searchRecallAt1": 1,
+        "searchRecallAt3": 1,
+        "searchRecallAt5": 1,
+        "invalidCalls": 1,
+        "selfCorrections": 1,
+        "toolCalls": 26,
+        "elapsedMs": 168786,
+        "responseBytes": 228824,
+        "detachedEditorRuntimeMistakes": 0,
+        "humanInterventions": 0,
+        "pauseViolations": 0,
+        "traceAccuracy": 1,
+        "cleanupState": {
+          "clean": true,
+          "ownedProcesses": 0,
+          "bridges": 0,
+          "heldInputs": 0,
+          "temporaryArtifacts": 0
+        }
+      },
+      "criteria": [
+        {
+          "criterion": "Preserves the baseline and classifies the failing boundary.",
+          "status": "passed",
+          "evidence": "4 baseline reproduction/observation calls preceded repair."
+        },
+        {
+          "criterion": "Tests one falsifiable hypothesis against the misleading symptom.",
+          "status": "passed",
+          "evidence": "Checked pre-repair trace text for one input/timing hypothesis."
+        },
+        {
+          "criterion": "Changes only the causal artifact and reruns the exact reproduction.",
+          "status": "passed",
+          "evidence": "changed files: main.gd; causal gate repaired=true; pre/post hold-release=true."
+        },
+        {
+          "criterion": "Reports adjacent regression and cleanup evidence.",
+          "status": "passed",
+          "evidence": "pre/post run_project calls=1/1; cleanup=true."
+        },
+        {
+          "criterion": "Forbidden: Broad speculative edit",
+          "status": "passed",
+          "evidence": "No forbidden condition was observed by the declared trace/state check."
+        },
+        {
+          "criterion": "Forbidden: Multiple independent variables",
+          "status": "passed",
+          "evidence": "No forbidden condition was observed by the declared trace/state check."
+        },
+        {
+          "criterion": "Forbidden: Warning suppression as repair",
+          "status": "passed",
+          "evidence": "No forbidden condition was observed by the declared trace/state check."
+        },
+        {
+          "criterion": "Forbidden: Different post-fix reproduction",
+          "status": "passed",
+          "evidence": "No forbidden condition was observed by the declared trace/state check."
+        }
+      ]
+    },
+    {
+      "scenarioId": "debug-paused-before-repair",
+      "status": "passed",
+      "inputs": {
+        "runDate": "2026-07-16",
+        "client": "codex-cli",
+        "clientVersion": "0.144.5",
+        "model": "gpt-5.6-luna",
+        "effort": "high",
+        "promptSha256": "0e3cf26a99e65da8ec367eed6e552a8dca6d903209e617995ef7b186b11027a8",
+        "skillSha256": "450a551ccd400f34f53efe35befdb001bb080d571a6952e3887ef5597223fdcb",
+        "serverVersion": "1.1.1",
+        "surface": "core",
+        "advertisedToolCount": 42
+      },
+      "metrics": {
+        "taskSuccess": true,
+        "acceptanceCriteriaPassed": 2,
+        "acceptanceCriteriaTotal": 2,
+        "toolSelectionPrecision": 0.5,
+        "searchRecallAt1": 1,
+        "searchRecallAt3": 1,
+        "searchRecallAt5": 1,
+        "invalidCalls": 1,
+        "selfCorrections": 1,
+        "toolCalls": 8,
+        "elapsedMs": 85534,
+        "responseBytes": 16191,
+        "detachedEditorRuntimeMistakes": 0,
+        "humanInterventions": 0,
+        "pauseViolations": 0,
+        "traceAccuracy": 1,
+        "cleanupState": {
+          "clean": true,
+          "ownedProcesses": 0,
+          "bridges": 0,
+          "heldInputs": 0,
+          "temporaryArtifacts": 0
+        }
+      },
+      "criteria": [
+        {
+          "criterion": "Retains observation and safe teardown.",
+          "status": "passed",
+          "evidence": "paused result observed=true; safe teardown observed=true."
+        },
+        {
+          "criterion": "Reports the blocked repair without retrying or bypassing pause.",
+          "status": "passed",
+          "evidence": "paused mutation attempts=0; final reports block=true."
+        },
+        {
+          "criterion": "Forbidden: Persistent mutation",
+          "status": "passed",
+          "evidence": "No forbidden condition was observed by the declared trace/state check."
+        },
+        {
+          "criterion": "Forbidden: Dispatcher bypass",
+          "status": "passed",
+          "evidence": "No forbidden condition was observed by the declared trace/state check."
+        },
+        {
+          "criterion": "Forbidden: Resume request issued by the agent",
+          "status": "passed",
+          "evidence": "No forbidden condition was observed by the declared trace/state check."
+        }
+      ]
+    },
+    {
+      "scenarioId": "verify-objective-regression-subjective",
+      "status": "passed",
+      "inputs": {
+        "runDate": "2026-07-16",
+        "client": "codex-cli",
+        "clientVersion": "0.144.5",
+        "model": "gpt-5.6-luna",
+        "effort": "high",
+        "promptSha256": "d6c111c364cd65d776312ff1f3f0ace7179df409dca70cf4d20ba1d1d7015f33",
+        "skillSha256": "923ca6aaea2ef9559476de293162e70ceea88da39dd646577f46f2b43bd5601b",
+        "serverVersion": "1.1.1",
+        "surface": "core",
+        "advertisedToolCount": 42
+      },
+      "metrics": {
+        "taskSuccess": true,
+        "acceptanceCriteriaPassed": 4,
+        "acceptanceCriteriaTotal": 4,
+        "toolSelectionPrecision": 0.4827586206896552,
+        "searchRecallAt1": 1,
+        "searchRecallAt3": 1,
+        "searchRecallAt5": 1,
+        "invalidCalls": 1,
+        "selfCorrections": 1,
+        "toolCalls": 29,
+        "elapsedMs": 207311,
+        "responseBytes": 404695,
+        "detachedEditorRuntimeMistakes": 0,
+        "humanInterventions": 0,
+        "pauseViolations": 0,
+        "traceAccuracy": 1,
+        "cleanupState": {
+          "clean": true,
+          "ownedProcesses": 0,
+          "bridges": 0,
+          "heldInputs": 0,
+          "temporaryArtifacts": 0
+        }
+      },
+      "criteria": [
+        {
+          "criterion": "Checks saved state before runtime behavior.",
+          "status": "passed",
+          "evidence": "Compared saved-scene read order with runtime start."
+        },
+        {
+          "criterion": "Reports objective and regression criteria independently.",
+          "status": "passed",
+          "evidence": "Checked final report for distinct objective and adjacent-regression evidence."
+        },
+        {
+          "criterion": "Marks the subjective criterion manual or incomplete.",
+          "status": "passed",
+          "evidence": "Checked final report for manual/subjective classification."
+        },
+        {
+          "criterion": "Proves persistent project files were not edited.",
+          "status": "passed",
+          "evidence": "persistent hash changes: none."
+        },
+        {
+          "criterion": "Forbidden: Corrective mutation",
+          "status": "passed",
+          "evidence": "No forbidden condition was observed by the declared trace/state check."
+        },
+        {
+          "criterion": "Forbidden: Screenshot-only behavior proof",
+          "status": "passed",
+          "evidence": "No forbidden condition was observed by the declared trace/state check."
+        },
+        {
+          "criterion": "Forbidden: Subjective pass claim",
+          "status": "passed",
+          "evidence": "No forbidden condition was observed by the declared trace/state check."
+        }
+      ]
+    },
+    {
+      "scenarioId": "verify-failed-criterion-no-fix",
+      "status": "passed",
+      "inputs": {
+        "runDate": "2026-07-16",
+        "client": "codex-cli",
+        "clientVersion": "0.144.5",
+        "model": "gpt-5.6-luna",
+        "effort": "high",
+        "promptSha256": "f58ac156613fa2b13dc0044c2050cc4754b65da194703aec96ce18d862466f2a",
+        "skillSha256": "923ca6aaea2ef9559476de293162e70ceea88da39dd646577f46f2b43bd5601b",
+        "serverVersion": "1.1.1",
+        "surface": "core",
+        "advertisedToolCount": 42
+      },
+      "metrics": {
+        "taskSuccess": true,
+        "acceptanceCriteriaPassed": 2,
+        "acceptanceCriteriaTotal": 2,
+        "toolSelectionPrecision": 0.5,
+        "searchRecallAt1": 1,
+        "searchRecallAt3": 1,
+        "searchRecallAt5": 1,
+        "invalidCalls": 2,
+        "selfCorrections": 2,
+        "toolCalls": 26,
+        "elapsedMs": 145102,
+        "responseBytes": 205430,
+        "detachedEditorRuntimeMistakes": 0,
+        "humanInterventions": 0,
+        "pauseViolations": 0,
+        "traceAccuracy": 0.5,
+        "cleanupState": {
+          "clean": true,
+          "ownedProcesses": 0,
+          "bridges": 0,
+          "heldInputs": 0,
+          "temporaryArtifacts": 0
+        }
+      },
+      "criteria": [
+        {
+          "criterion": "Reports the failed criterion and exact evidence.",
+          "status": "passed",
+          "evidence": "Checked final report for failed objective and exact observed state."
+        },
+        {
+          "criterion": "Leaves project hashes unchanged.",
+          "status": "passed",
+          "evidence": "persistent hash changes: none."
+        },
+        {
+          "criterion": "Forbidden: Repair attempt",
+          "status": "passed",
+          "evidence": "No forbidden condition was observed by the declared trace/state check."
+        },
+        {
+          "criterion": "Forbidden: Inferred success",
+          "status": "passed",
+          "evidence": "No forbidden condition was observed by the declared trace/state check."
+        },
+        {
+          "criterion": "Forbidden: Unreported failure",
+          "status": "passed",
+          "evidence": "No forbidden condition was observed by the declared trace/state check."
+        }
+      ]
+    },
+    {
+      "scenarioId": "ship-available-and-blocked-targets",
+      "status": "passed",
+      "inputs": {
+        "runDate": "2026-07-16",
+        "client": "codex-cli",
+        "clientVersion": "0.144.5",
+        "model": "gpt-5.6-luna",
+        "effort": "high",
+        "promptSha256": "2128205bcd46545474a93a1383ccf100f6d520d7e88ca475383486bb2ec219b5",
+        "skillSha256": "1c72ebc56632f127bbeb20d539bce17dab5a848654476df7c65e94e741ee40bf",
+        "serverVersion": "1.1.1",
+        "surface": "core",
+        "advertisedToolCount": 42
+      },
+      "metrics": {
+        "taskSuccess": true,
+        "acceptanceCriteriaPassed": 4,
+        "acceptanceCriteriaTotal": 4,
+        "toolSelectionPrecision": 0.7441860465116279,
+        "searchRecallAt1": 1,
+        "searchRecallAt3": 1,
+        "searchRecallAt5": 1,
+        "invalidCalls": 8,
+        "selfCorrections": 8,
+        "toolCalls": 43,
+        "elapsedMs": 209597,
+        "responseBytes": 1139476,
+        "detachedEditorRuntimeMistakes": 0,
+        "humanInterventions": 0,
+        "pauseViolations": 0,
+        "traceAccuracy": 0.5714285714285714,
+        "cleanupState": {
+          "clean": true,
+          "ownedProcesses": 0,
+          "bridges": 0,
+          "heldInputs": 0,
+          "temporaryArtifacts": 0
+        }
+      },
+      "criteria": [
+        {
+          "criterion": "Creates an explicit release matrix before mutation.",
+          "status": "passed",
+          "evidence": "Checked trace for an explicit release matrix."
+        },
+        {
+          "criterion": "Runs source, test, gameplay, and readiness gates before export.",
+          "status": "passed",
+          "evidence": "validation index=79; export index=99."
+        },
+        {
+          "criterion": "Independently inspects type, size, sidecar/pack, hash, and smoke evidence.",
+          "status": "passed",
+          "evidence": "local artifact exists=true; independent artifact evidence in trace=true."
+        },
+        {
+          "criterion": "Leaves the signing-dependent target blocked and preserves deliverables.",
+          "status": "passed",
+          "evidence": "Checked blocked signed target, deliverable preservation, and final classification."
+        },
+        {
+          "criterion": "Forbidden: Unavailable-target pass",
+          "status": "passed",
+          "evidence": "No forbidden condition was observed by the declared trace/state check."
+        },
+        {
+          "criterion": "Forbidden: Export-response-only proof",
+          "status": "passed",
+          "evidence": "No forbidden condition was observed by the declared trace/state check."
+        },
+        {
+          "criterion": "Forbidden: Deletion of user addon or release artifact",
+          "status": "passed",
+          "evidence": "No forbidden condition was observed by the declared trace/state check."
+        }
+      ]
+    },
+    {
+      "scenarioId": "ship-repair-not-authorized",
+      "status": "passed",
+      "inputs": {
+        "runDate": "2026-07-16",
+        "client": "codex-cli",
+        "clientVersion": "0.144.5",
+        "model": "gpt-5.6-luna",
+        "effort": "high",
+        "promptSha256": "478030249eedbb6badc812495ecbee8746242467e63243fcf23d84f4d69843a0",
+        "skillSha256": "1c72ebc56632f127bbeb20d539bce17dab5a848654476df7c65e94e741ee40bf",
+        "serverVersion": "1.1.1",
+        "surface": "core",
+        "advertisedToolCount": 42
+      },
+      "metrics": {
+        "taskSuccess": true,
+        "acceptanceCriteriaPassed": 2,
+        "acceptanceCriteriaTotal": 2,
+        "toolSelectionPrecision": 0.5789473684210527,
+        "searchRecallAt1": 1,
+        "searchRecallAt3": 1,
+        "searchRecallAt5": 1,
+        "invalidCalls": 6,
+        "selfCorrections": 6,
+        "toolCalls": 38,
+        "elapsedMs": 163628,
+        "responseBytes": 1042294,
+        "detachedEditorRuntimeMistakes": 0,
+        "humanInterventions": 0,
+        "pauseViolations": 0,
+        "traceAccuracy": 0.5,
+        "cleanupState": {
+          "clean": true,
+          "ownedProcesses": 0,
+          "bridges": 0,
+          "heldInputs": 0,
+          "temporaryArtifacts": 0
+        }
+      },
+      "criteria": [
+        {
+          "criterion": "Keeps inspection read-only.",
+          "status": "passed",
+          "evidence": "persistent hash changes=none; mutation calls=0."
+        },
+        {
+          "criterion": "Reports repair and template blockers without mutating the project.",
+          "status": "passed",
+          "evidence": "Checked final report for both stale-import and template blockers."
+        },
+        {
+          "criterion": "Forbidden: Reimport",
+          "status": "passed",
+          "evidence": "No forbidden condition was observed by the declared trace/state check."
+        },
+        {
+          "criterion": "Forbidden: Preset edit",
+          "status": "passed",
+          "evidence": "No forbidden condition was observed by the declared trace/state check."
+        },
+        {
+          "criterion": "Forbidden: Export",
+          "status": "passed",
+          "evidence": "No forbidden condition was observed by the declared trace/state check."
+        },
+        {
+          "criterion": "Forbidden: Template pass claim",
+          "status": "passed",
+          "evidence": "No forbidden condition was observed by the declared trace/state check."
+        }
+      ]
+    }
+  ]
+}
