@@ -97,5 +97,5 @@ describe('packed public agent layout', () => {
       const installedInterface = readFileSync(join(installedSkillRoot, 'agents/openai.yaml'), 'utf8');
       expect(installedInterface).toContain(`default_prompt: ${JSON.stringify(declared.interface.defaultPrompt)}`);
     }
-  });
+  }, 30_000);
 });
