@@ -36,7 +36,7 @@ describe('OpenCode setup', () => {
     expect(parsed.theme).toBe('system');
     expect(parsed.mcp['godot-agent-loop']).toEqual({
       type: 'local',
-      command: ['npx', '-y', '@beremaran/godot-agent-loop@1.1.1'],
+      command: ['npx', '-y', '@beremaran/godot-agent-loop@1.1.2'],
       enabled: true,
       environment: { GODOT_MCP_TOOL_SURFACE: 'core' },
     });

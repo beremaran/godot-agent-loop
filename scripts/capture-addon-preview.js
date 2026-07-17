@@ -35,7 +35,7 @@ async function waitForBridge(port, secret) {
         socket.once('error', reject);
       });
       const messages = [
-        { id: 1, secret, command: 'handshake', params: { protocol_version: '1', server_version: '1.1.1' } },
+        { id: 1, secret, command: 'handshake', params: { protocol_version: '1', server_version: '1.1.2' } },
         { id: 2, secret, command: 'activity', params: { event: 'request_finished', command: 'create_scene', target: 'res://main.tscn', outcome: 'success', duration_ms: 184, correlation_id: 'preview-create' } },
         { id: 3, secret, command: 'activity', params: { event: 'request_finished', command: 'run_project', target: 'game', outcome: 'success', duration_ms: 932, correlation_id: 'preview-run' } },
         { id: 4, secret, command: 'activity', params: { event: 'request_finished', command: 'game_capture_screenshot', target: '/root/Main', outcome: 'success', duration_ms: 67, correlation_id: 'preview-verify' } },

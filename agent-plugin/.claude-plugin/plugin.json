@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "godot-agent-loop",
   "displayName": "Godot Agent Loop",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Build, playtest, and prove Godot games with an MCP automation loop.",
   "author": {
     "name": "Berke Arslan"

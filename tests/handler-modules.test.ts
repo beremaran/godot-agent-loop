@@ -369,7 +369,7 @@ describe('LifecycleToolHandlers', () => {
     const ensureEditorSession = vi.fn().mockResolvedValue({
       state: 'connected', project_path: projectPath, connected: true, reused: true, spawned: false,
       editor_pid: 42, editor_start_identity: '42:1', port: 32000, protocol_version: '2',
-      addon_version: '1.1.1', godot_version: '4.7', created_at: '1',
+      addon_version: '1.1.2', godot_version: '4.7', created_at: '1',
     });
     const handlers = new LifecycleToolHandlers(context({ ensureEditorSession }));
 

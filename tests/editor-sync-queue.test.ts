@@ -6,7 +6,7 @@ import { EditorSessionUnavailableError, type PublicEditorSession } from '../src/
 const connected: PublicEditorSession = {
   state: 'connected', project_path: '/project', connected: true, reused: true, spawned: false,
   editor_pid: 10, editor_start_identity: '10-1', port: 30000, protocol_version: '2',
-  addon_version: '1.1.1', godot_version: '4.7', created_at: 'now',
+  addon_version: '1.1.2', godot_version: '4.7', created_at: 'now',
 };
 
 describe('EditorSyncQueue', () => {

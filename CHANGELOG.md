@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-07-17
+
+### Testing
+
+- Increase the agent package layout test timeout so the release gate remains
+  stable on slower verification environments.
+
 ## [1.1.1] - 2026-07-16
 
 ### Packaging
@@ -81,7 +88,8 @@ identity. Full release notes: [`docs/releases/1.0.0.md`](docs/releases/1.0.0.md)
 - Runtime connections are authenticated with a per-session secret; transports
   bind to loopback and retained logs are bounded and redacted.
 
-[Unreleased]: https://github.com/beremaran/godot-agent-loop/compare/v1.1.1...HEAD
+[Unreleased]: https://github.com/beremaran/godot-agent-loop/compare/v1.1.2...HEAD
+[1.1.2]: https://github.com/beremaran/godot-agent-loop/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/beremaran/godot-agent-loop/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/beremaran/godot-agent-loop/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/beremaran/godot-agent-loop/compare/v1.0.0...v1.0.1

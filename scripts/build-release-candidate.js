@@ -41,7 +41,7 @@ execFileSync(process.execPath, [
 const copies = [
   ['assets/demo/godot-agent-loop-launch.mp4', 'godot-agent-loop-launch.mp4'],
   ['assets/demo/godot-agent-loop-launch-poster.png', 'godot-agent-loop-launch-poster.png'],
-  ['docs/releases/1.1.1.md', 'RELEASE_NOTES.md'],
+  [`docs/releases/${product.version}.md`, 'RELEASE_NOTES.md'],
   ['server.json', 'server.json'],
 ];
 for (const [source, destination] of copies) {
