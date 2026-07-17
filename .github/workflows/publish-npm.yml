@@ -71,8 +71,8 @@ jobs:
       - name: Install and rebuild the exact source
         run: npm ci --ignore-scripts
 
-      - name: Recheck TypeScript, contracts, lint, and generated evidence
-        run: npm run check
+      - name: Build, then recheck TypeScript, contracts, lint, and generated evidence
+        run: npm run build && npm run check
 
       - name: Build the exact npm tarball
         run: |
