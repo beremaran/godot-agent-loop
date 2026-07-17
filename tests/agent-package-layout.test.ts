@@ -12,16 +12,34 @@ afterEach(() => {
   for (const path of temporary.splice(0)) rmSync(path, { recursive: true, force: true });
 });
 
+export function parseNpmPackJson(output: string): { filename: string; files: { path: string }[] } {
+  const start = output.indexOf('[');
+  const end = output.lastIndexOf(']');
+  if (start === -1 || end === -1 || end < start) {
+    throw new Error(`npm pack did not return JSON output: ${output}`);
+  }
+  return JSON.parse(output.slice(start, end + 1))[0] as {
+    filename: string;
+    files: { path: string }[];
+  };
+}
+
 describe('packed public agent layout', () => {
+  it('parses npm pack JSON when lifecycle output is printed first', () => {
+    expect(parseNpmPackJson('Agent adapters are current\n[{"filename":"pkg.tgz","files":[]}]\n'))
+      .toEqual({ filename: 'pkg.tgz', files: [] });
+  });
+
   it('installs byte-identical skills and consistent client metadata from the npm archive', async () => {
     const output = mkdtempSync(join(repoRoot, '.godot-agent-loop-pack-'));
     temporary.push(output);
-    const packed = JSON.parse(execFileSync('npm', [
+    const packed = parseNpmPackJson(execFileSync('npm', [
       'pack', '--ignore-scripts', '--json', '--pack-destination', output,
-    ], { cwd: repoRoot, encoding: 'utf8' }))[0] as {
-      filename: string;
-      files: { path: string }[];
-    };
+    ], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      env: { ...process.env, npm_config_cache: join(output, '.npm-cache') },
+    }));
     const archive = join(output, packed.filename);
     const paths = packed.files.map(file => file.path);
     const adapter = JSON.parse(readFileSync(join(repoRoot, 'agent-plugin/adapter-manifest.json'), 'utf8')) as {
