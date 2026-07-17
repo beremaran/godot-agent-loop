@@ -4,6 +4,10 @@ import { fileURLToPath } from 'node:url';
 import { parseSkillFrontmatter } from './skill-frontmatter.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const write = process.argv.includes('--write');
+const manifest = json('agent-plugin/adapter-manifest.json');
+const product = json('product.json');
+const packageJson = json('package.json');
 
 function json(path) {
   return JSON.parse(readFileSync(join(root, path), 'utf8'));
@@ -19,7 +23,7 @@ function assertEqual(actual, expected, label) {
   }
 }
 
-function syncJson(path, expected, write) {
+function syncJson(path, expected) {
   const target = join(root, path);
   if (write) {
     writeFileSync(target, formatted(expected));
@@ -28,22 +32,14 @@ function syncJson(path, expected, write) {
   }
 }
 
-export function normalizeLineEndingsAndTrailingNewlines(value) {
-  return value
-    .replace(/\r\n/g, '\n')
-    .replace(/\r/g, '\n')
-    .replace(/[ \t\n]+$/g, '');
-}
-
-function syncText(path, expected, write) {
+function syncText(path, expected) {
   const target = join(root, path);
   if (write) {
     writeFileSync(target, expected);
     return;
   }
-  const actual = normalizeLineEndingsAndTrailingNewlines(readFileSync(target, 'utf8'));
-  const normalizedExpected = normalizeLineEndingsAndTrailingNewlines(expected);
-  if (actual !== normalizedExpected) {
+  const actual = readFileSync(target, 'utf8');
+  if (actual !== expected) {
     throw new Error(`${path} is out of sync with agent-plugin/adapter-manifest.json`);
   }
 }
@@ -53,133 +49,123 @@ function skillFrontmatter(name) {
   return parseSkillFrontmatter(source, name);
 }
 
-export function syncAgentAdapters(write = process.argv.includes('--write')) {
-  const manifest = json('agent-plugin/adapter-manifest.json');
-  const product = json('product.json');
-  const packageJson = json('package.json');
-
+assertEqual(
+  { name: manifest.displayName, version: manifest.version, package: manifest.package },
+  { name: product.name, version: product.version, package: product.npm.package },
+  'adapter identity',
+);
+assertEqual(manifest.mcp.command, ['npx', '-y', `${product.npm.package}@${product.version}`], 'MCP command');
+assertEqual(manifest.skills.map(({ name }) => name), [...manifest.skills.map(({ name }) => name)].sort(), 'skill inventory order');
+for (const declared of manifest.skills) {
   assertEqual(
-    { name: manifest.displayName, version: manifest.version, package: manifest.package },
-    { name: product.name, version: product.version, package: product.npm.package },
-    'adapter identity',
+    skillFrontmatter(declared.name),
+    { name: declared.name, description: declared.description },
+    `skill ${declared.name}`,
   );
-  assertEqual(manifest.mcp.command, ['npx', '-y', `${product.npm.package}@${product.version}`], 'MCP command');
-  assertEqual(manifest.skills.map(({ name }) => name), [...manifest.skills.map(({ name }) => name)].sort(), 'skill inventory order');
-  for (const declared of manifest.skills) {
-    assertEqual(
-      skillFrontmatter(declared.name),
-      { name: declared.name, description: declared.description },
-      `skill ${declared.name}`,
-    );
-    const ui = declared.interface;
-    const openaiYaml = [
-      'interface:',
-      `  display_name: ${JSON.stringify(ui.displayName)}`,
-      `  short_description: ${JSON.stringify(ui.shortDescription)}`,
-      `  default_prompt: ${JSON.stringify(ui.defaultPrompt)}`,
-      '',
-    ].join('\n');
-    syncText(`agent-plugin/skills/${declared.name}/agents/openai.yaml`, openaiYaml, write);
-  }
+  const ui = declared.interface;
+  const openaiYaml = [
+    'interface:',
+    `  display_name: ${JSON.stringify(ui.displayName)}`,
+    `  short_description: ${JSON.stringify(ui.shortDescription)}`,
+    `  default_prompt: ${JSON.stringify(ui.defaultPrompt)}`,
+    '',
+  ].join('\n');
+  syncText(`agent-plugin/skills/${declared.name}/agents/openai.yaml`, openaiYaml);
+}
 
-  const mcpServers = {
-    mcpServers: {
-      [manifest.name]: {
-        command: manifest.mcp.command[0],
-        args: manifest.mcp.command.slice(1),
-        env: manifest.mcp.environment,
-      },
+const mcpServers = {
+  mcpServers: {
+    [manifest.name]: {
+      command: manifest.mcp.command[0],
+      args: manifest.mcp.command.slice(1),
+      env: manifest.mcp.environment,
     },
-  };
+  },
+};
 
-  const claudePlugin = {
-    $schema: 'https://json.schemastore.org/claude-code-plugin-manifest.json',
-    name: manifest.name,
+const claudePlugin = {
+  $schema: 'https://json.schemastore.org/claude-code-plugin-manifest.json',
+  name: manifest.name,
+  displayName: manifest.displayName,
+  version: manifest.version,
+  description: manifest.description,
+  author: { name: 'Berke Arslan' },
+  homepage: product.repository.url,
+  repository: product.repository.url,
+  license: 'MIT',
+  keywords: ['godot', 'mcp', 'game-development'],
+  mcpServers: './.mcp.json',
+};
+
+const codexPlugin = {
+  name: manifest.name,
+  version: manifest.version,
+  description: manifest.description,
+  author: { name: 'Berke Arslan', url: 'https://github.com/beremaran' },
+  homepage: product.repository.url,
+  repository: product.repository.url,
+  license: 'MIT',
+  keywords: ['godot', 'mcp', 'game-development'],
+  skills: './skills/',
+  mcpServers: './.mcp.json',
+  interface: {
     displayName: manifest.displayName,
-    version: manifest.version,
-    description: manifest.description,
-    author: { name: 'Berke Arslan' },
-    homepage: product.repository.url,
-    repository: product.repository.url,
-    license: 'MIT',
-    keywords: ['godot', 'mcp', 'game-development'],
-    mcpServers: './.mcp.json',
-  };
+    shortDescription: 'Build, playtest, and prove Godot games',
+    longDescription: manifest.description,
+    developerName: 'Berke Arslan',
+    category: 'Developer Tools',
+    capabilities: ['Read', 'Write'],
+    websiteURL: product.repository.url,
+    defaultPrompt: manifest.defaultPrompts,
+    brandColor: '#478CBF',
+  },
+};
 
-  const codexPlugin = {
+const claudeMarketplace = {
+  name: manifest.name,
+  owner: { name: 'Berke Arslan' },
+  description: 'Godot game-development tools and agent workflows.',
+  plugins: [{
     name: manifest.name,
-    version: manifest.version,
-    description: manifest.description,
-    author: { name: 'Berke Arslan', url: 'https://github.com/beremaran' },
-    homepage: product.repository.url,
-    repository: product.repository.url,
-    license: 'MIT',
-    keywords: ['godot', 'mcp', 'game-development'],
-    skills: './skills/',
-    mcpServers: './.mcp.json',
-    interface: {
-      displayName: manifest.displayName,
-      shortDescription: 'Build, playtest, and prove Godot games',
-      longDescription: manifest.description,
-      developerName: 'Berke Arslan',
-      category: 'Developer Tools',
-      capabilities: ['Read', 'Write'],
-      websiteURL: product.repository.url,
-      defaultPrompt: manifest.defaultPrompts,
-      brandColor: '#478CBF',
-    },
-  };
+    source: './agent-plugin',
+    description: 'Build, playtest, and prove Godot games through MCP.',
+    category: 'development',
+  }],
+};
 
-  const claudeMarketplace = {
+const codexMarketplace = {
+  name: manifest.name,
+  interface: { displayName: manifest.displayName },
+  plugins: [{
     name: manifest.name,
-    owner: { name: 'Berke Arslan' },
-    description: 'Godot game-development tools and agent workflows.',
-    plugins: [{
-      name: manifest.name,
-      source: './agent-plugin',
-      description: 'Build, playtest, and prove Godot games through MCP.',
-      category: 'development',
-    }],
-  };
+    source: { source: 'local', path: './agent-plugin' },
+    policy: { installation: 'AVAILABLE', authentication: 'ON_INSTALL' },
+    category: 'Developer Tools',
+  }],
+};
 
-  const codexMarketplace = {
-    name: manifest.name,
-    interface: { displayName: manifest.displayName },
-    plugins: [{
-      name: manifest.name,
-      source: { source: 'local', path: './agent-plugin' },
-      policy: { installation: 'AVAILABLE', authentication: 'ON_INSTALL' },
-      category: 'Developer Tools',
-    }],
-  };
+syncJson('agent-plugin/.mcp.json', mcpServers);
+syncJson('agent-plugin/.claude-plugin/plugin.json', claudePlugin);
+syncJson('agent-plugin/.codex-plugin/plugin.json', codexPlugin);
+syncJson('.claude-plugin/marketplace.json', claudeMarketplace);
+syncJson('.agents/plugins/marketplace.json', codexMarketplace);
 
-  syncJson('agent-plugin/.mcp.json', mcpServers, write);
-  syncJson('agent-plugin/.claude-plugin/plugin.json', claudePlugin, write);
-  syncJson('agent-plugin/.codex-plugin/plugin.json', codexPlugin, write);
-  syncJson('.claude-plugin/marketplace.json', claudeMarketplace, write);
-  syncJson('.agents/plugins/marketplace.json', codexMarketplace, write);
-
-  const expectedPackage = {
-    files: ['build', 'agent-plugin', 'addons/godot_agent_loop', 'product.json', 'scripts/prepare-package.js'],
-    pi: {
-      extensions: ['./agent-plugin/pi/extension.ts'],
-      skills: ['./agent-plugin/skills'],
-    },
-  };
-  if (write) {
-    packageJson.files = expectedPackage.files;
-    packageJson.pi = expectedPackage.pi;
-    packageJson.keywords = [...new Set([...packageJson.keywords, 'pi-package'])];
-    writeFileSync(join(root, 'package.json'), formatted(packageJson));
-  } else {
-    assertEqual(packageJson.files, expectedPackage.files, 'package.json files');
-    assertEqual(packageJson.pi, expectedPackage.pi, 'package.json pi');
-    if (!packageJson.keywords.includes('pi-package')) throw new Error('package.json is missing the pi-package keyword');
-  }
-
-  console.log(write ? 'Agent adapters synchronized' : 'Agent adapters are current');
+const expectedPackage = {
+  files: ['build', 'agent-plugin', 'addons/godot_agent_loop', 'product.json', 'scripts/prepare-package.js'],
+  pi: {
+    extensions: ['./agent-plugin/pi/extension.ts'],
+    skills: ['./agent-plugin/skills'],
+  },
+};
+if (write) {
+  packageJson.files = expectedPackage.files;
+  packageJson.pi = expectedPackage.pi;
+  packageJson.keywords = [...new Set([...packageJson.keywords, 'pi-package'])];
+  writeFileSync(join(root, 'package.json'), formatted(packageJson));
+} else {
+  assertEqual(packageJson.files, expectedPackage.files, 'package.json files');
+  assertEqual(packageJson.pi, expectedPackage.pi, 'package.json pi');
+  if (!packageJson.keywords.includes('pi-package')) throw new Error('package.json is missing the pi-package keyword');
 }
 
-if (process.argv[1] && process.argv[1] === fileURLToPath(import.meta.url)) {
-  syncAgentAdapters();
-}
+console.log(write ? 'Agent adapters synchronized' : 'Agent adapters are current');
