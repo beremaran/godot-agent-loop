@@ -20,7 +20,7 @@ jobs:
         node-version: ["22.x", "24.x"]
     name: Build, tests, lint, coverage (Node ${{ matrix.node-version }})
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v6
         with:
@@ -59,7 +59,7 @@ jobs:
         godot-version: ["4.7-stable"]
     name: Godot ${{ matrix.godot-version }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install Godot ${{ matrix.godot-version }}
         run: |
@@ -129,7 +129,7 @@ jobs:
         godot-version: ["4.7-stable"]
     name: Godot .NET ${{ matrix.godot-version }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v6
         with:
@@ -169,7 +169,7 @@ jobs:
             template-version: "4.7.stable"
     name: Linux export ${{ matrix.godot-version }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v6
         with:
@@ -215,7 +215,7 @@ jobs:
             label: Forward+
     name: Renderer ${{ matrix.label }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v6
         with:
@@ -261,7 +261,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     name: Platform ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v6
         with:
