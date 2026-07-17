@@ -44,7 +44,7 @@ describe('Godot support policy', () => {
     expect(workflow).toContain('actions/checkout@v6');
     expect(workflow).toContain('actions/setup-node@v6');
     expect(workflow).toContain('actions/setup-dotnet@v5');
-    expect(workflow).toContain('actions/upload-artifact@v6');
+    expect(workflow).toContain('actions/upload-artifact@v7');
     expect(workflow).toContain('node-version: 24');
     expect(workflow).not.toMatch(/actions\/(?:checkout|setup-node|setup-dotnet|upload-artifact)@v4/);
     expect(workflow).not.toContain('node-version: 20');
