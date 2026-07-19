@@ -50,6 +50,22 @@ describe('Godot support policy', () => {
     expect(workflow).not.toContain('node-version: 20');
   });
 
+  it('checks new stable Godot releases against the last known-good release', () => {
+    const workflow = readRepoFile('.github/workflows/godot-latest-compatibility.yml');
+    expect(workflow).toContain('cron: "23 3 * * 1-6"');
+    expect(workflow).toContain('cron: "23 3 * * 0"');
+    expect(workflow).toContain(`LAST_KNOWN_GOOD_GODOT: ${PRIMARY_TARGET}-stable`);
+    expect(workflow).toContain("grep -E '^4\\.[0-9]+(\\.[0-9]+)?-stable$'");
+    expect(workflow).toContain('xvfb-run -a npm run test:godot');
+    expect(workflow).toContain('xvfb-run -a npm run test:e2e');
+    expect(workflow).toContain('tests-outcome: ${{ steps.tests.outcome }}');
+    expect(workflow).toContain("needs.test-latest.outputs.tests-outcome == 'failure'");
+    expect(workflow).toContain("needs.test-known-good.result == 'success'");
+    expect(workflow).toContain('issues: write');
+    expect(workflow).toContain('actions/github-script@v8');
+    expect(workflow).toContain('issue.title === title');
+  });
+
   it('keeps npm publication manual and verifies the registered SSH signing key', () => {
     const workflow = readRepoFile('.github/workflows/publish-npm.yml');
     expect(workflow).toContain('workflow_dispatch:');
