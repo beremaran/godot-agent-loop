@@ -541,6 +541,32 @@ describe('LifecycleToolHandlers', () => {
     expect(sendGameCommand).not.toHaveBeenCalled();
   });
 
+  it('keeps node wait evidence small instead of returning full node reflection data', async () => {
+    const sendGameCommand = vi.fn().mockResolvedValue({
+      jsonrpc: '2.0', id: 1, result: {
+        path: '/root/Main/Player', name: 'Player', class: 'CharacterBody2D',
+        properties: Array.from({ length: 256 }, (_, index) => ({ name: `property_${index}`, value: index })),
+        methods: Array.from({ length: 512 }, (_, index) => `method_${index}`),
+        signals: ['ready'], children: [],
+      },
+    });
+    const handlers = new LifecycleToolHandlers(context({
+      isGameConnected: () => true, sendGameCommand,
+    }));
+
+    const response = await handlers.handleGameWaitUntil({
+      condition: 'node', nodePath: '/root/Main/Player', timeoutSeconds: 1,
+    });
+    const evidence = JSON.parse(textFrom(response));
+
+    expect(evidence).toMatchObject({
+      satisfied: true, condition: 'node', attempts: 1,
+      last_observed: { found: true, path: '/root/Main/Player', name: 'Player', class: 'CharacterBody2D' },
+    });
+    expect(textFrom(response)).not.toContain('property_255');
+    expect(textFrom(response).length).toBeLessThan(500);
+  });
+
   it('turns an edge-of-deadline poll transport timeout into structured wait evidence', async () => {
     const sendGameCommand = vi.fn()
       .mockResolvedValueOnce({ jsonrpc: '2.0', id: 1, result: { value: 'Anchor' } })

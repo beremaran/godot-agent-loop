@@ -11,12 +11,12 @@
   },
   "full": {
     "tools": 173,
-    "bytes": 1185962,
-    "estimatedTokens": 296491
+    "bytes": 1186038,
+    "estimatedTokens": 296510
   },
   "core": {
     "tools": 42,
-    "bytes": 59515,
+    "bytes": 59513,
     "estimatedTokens": 14879
   },
   "coreByteReductionPercent": 94.98,

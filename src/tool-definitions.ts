@@ -464,7 +464,7 @@ const rawToolDefinitions = [
       },
       parentNodePath: {
         type: 'string',
-        description: 'Path to the parent node (e.g., "root" or "root/Player")',
+        description: 'Saved-scene path to the parent node (for example, "root" or "root/Player"). Omit only when adding a direct child of the scene root.',
       },
       nodeType: {
         type: 'string',

@@ -49,7 +49,12 @@ the supported boundary. Never add MCP autoloads, addons, or bridge files.
    root plus meaningful gameplay and UI child nodes in the saved scene.
    In unattended work, if `editor_transaction` cannot run because no editor
    add-on is ready, use `create_scene`, `add_node`, `attach_script`, and other
-   persisted authoring tools. Do not hand-write tscn text as a shortcut.
+   persisted authoring tools. For each nested node, pass the parentNodePath field
+   to `add_node`; omitting it adds the node at the scene root. Instantiate a saved
+   child scene or attach its script and resources to the node in the main scene:
+   making a separate player scene does not wire a plain CharacterBody2D in the
+   main scene to it. Re-read each scene after authoring and compare its node paths
+   with the planned hierarchy. Do not hand-write tscn text as a shortcut.
 3. Use canonical Godot Variant shapes. For example, pass a Vector2 as
    `{ "x": 120, "y": 80 }` and a Color as
    `{ "r": 0.2, "g": 0.7, "b": 1.0, "a": 1.0 }`, not numeric arrays.

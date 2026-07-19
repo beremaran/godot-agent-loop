@@ -152,6 +152,27 @@ function relevantIssues(
       return !(error.keyword === 'oneOf'
         && error.schemaPath === '#/properties/steps/items/oneOf');
     });
+
+    const conditionBranches = schema.properties?.steps?.items?.properties?.condition?.oneOf;
+    if (conditionBranches?.some(branch => branch.properties?.condition?.const !== undefined)) {
+      const conditionBranchPattern = /^#\/properties\/steps\/items\/properties\/condition\/oneOf\/(\d+)(?:\/|$)/;
+      filtered = filtered.filter(error => {
+        const conditionMatch = /^\/steps\/(\d+)\/condition(?:\/|$)/.exec(error.instancePath);
+        if (!conditionMatch) return true;
+        const step = steps[Number(conditionMatch[1])];
+        if (!step || typeof step !== 'object' || Array.isArray(step)) return true;
+        const condition = (step as Record<string, unknown>).condition;
+        if (!condition || typeof condition !== 'object' || Array.isArray(condition)) return true;
+        const selector = (condition as Record<string, unknown>).condition;
+        const selected = conditionBranches.findIndex(
+          branch => branch.properties?.condition?.const === selector,
+        );
+        const branchMatch = conditionBranchPattern.exec(error.schemaPath);
+        if (branchMatch) return selected >= 0 && Number(branchMatch[1]) === selected;
+        return !(error.keyword === 'oneOf'
+          && error.schemaPath === '#/properties/steps/items/properties/condition/oneOf');
+      });
+    }
   }
   return (filtered.length > 0 ? filtered : errors).map(formatIssue);
 }

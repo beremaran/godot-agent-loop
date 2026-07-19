@@ -1,0 +1,20 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/main.gd" id="1_o5qli"]
+
+[node name="root" type="Node2D" unique_id=1606074527]
+script = ExtResource("1_o5qli")
+
+[node name="Player" type="CharacterBody2D" parent="." unique_id=131113800]
+position = Vector2(400, 520)
+
+[node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=1941267748]
+
+[node name="CatchLabel" type="Label" parent="." unique_id=1187443570]
+text = "Caught: 0/3"
+
+[node name="MissLabel" type="Label" parent="." unique_id=1759802611]
+text = "Missed: 0/3"
+
+[node name="MessageLabel" type="Label" parent="." unique_id=1339311177]
+visible = false

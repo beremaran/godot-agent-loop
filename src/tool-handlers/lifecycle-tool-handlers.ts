@@ -104,6 +104,18 @@ function waitSuccess(condition: unknown, startedAt: number, attempts: number, ob
   return { satisfied: true, condition, elapsed_ms: Date.now() - startedAt, attempts, last_observed: observed };
 }
 
+function compactNodeWaitObservation(observed: unknown): unknown {
+  if (!observed || typeof observed !== 'object' || Array.isArray(observed)) return observed;
+  const record = observed as Record<string, unknown>;
+  return {
+    found: true,
+    ...(['path', 'name', 'class'] as const).reduce<Record<string, unknown>>((result, key) => {
+      if (record[key] !== undefined) result[key] = record[key];
+      return result;
+    }, {}),
+  };
+}
+
 function sameJson(left: unknown, right: unknown): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }
@@ -777,7 +789,9 @@ export class LifecycleToolHandlers {
           }
           if (response) {
             lastObserved = 'error' in response ? { error: response.error } : response.result;
-            if (condition === 'node' && !('error' in response)) return waitSuccess(condition, startedAt, attempts, lastObserved);
+            if (condition === 'node' && !('error' in response)) {
+              return waitSuccess(condition, startedAt, attempts, compactNodeWaitObservation(lastObserved));
+            }
             if (condition === 'property' && !('error' in response)) {
               const result = response.result as Record<string, unknown>;
               if (sameJson(result.value, args.value)) return waitSuccess(condition, startedAt, attempts, lastObserved);

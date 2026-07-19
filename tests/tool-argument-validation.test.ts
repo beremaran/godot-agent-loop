@@ -55,6 +55,17 @@ describe('parseToolArguments', () => {
       name: 'missing-condition-field',
       steps: [{ type: 'wait', condition: { condition: 'property', nodePath: '/root/Main' } }],
     })).toThrow('arguments.steps[0].condition.property is required');
+    try {
+      parseToolArguments(tool('game_scenario'), {
+        name: 'missing-condition-kind', steps: [{ type: 'wait', condition: { timeoutSeconds: 1 } }],
+      });
+      throw new Error('Expected scenario condition validation to fail');
+    } catch (error) {
+      expect(error).toBeInstanceOf(ToolArgumentValidationError);
+      expect((error as ToolArgumentValidationError).details).toEqual([
+        expect.objectContaining({ path: 'arguments.steps[0].condition.condition', keyword: 'required' }),
+      ]);
+    }
     expect(() => parseToolArguments(tool('game_scenario'), {
       name: 'forbidden-step-field',
       steps: [{ type: 'screenshot', arguments: {} }],
