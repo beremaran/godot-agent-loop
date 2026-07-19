@@ -1,0 +1,27 @@
+Use $build-godot-game and the Godot Agent Loop MCP to build and prove a small Snake game.
+
+Work only in this new project:
+  /Users/beremaran/projects/godot-agent-loop/experiments/opencode-qwen/game-03
+
+This is an unattended experiment. Use Godot Agent Loop MCP tools for all project authoring and testing. Do not use shell commands or OpenCode file-edit tools to create or change the game.
+
+Acceptance contract:
+- Godot 4.7 project with a meaningful saved scene hierarchy, not a root script that builds the whole scene in _ready().
+- A visible 20 x 15 play field. The snake moves one grid cell per fixed tick.
+- Arrow keys and WASD steer it. It cannot reverse straight into itself.
+- Eating food grows the snake and raises the visible score.
+- Reaching score 3 shows a clear YOU WIN state.
+- Hitting a wall or the snake body shows a clear GAME OVER state.
+- R restarts from either end state and restores score 0.
+- Add deterministic named test input actions if needed so win, wall loss, self loss, and restart can be tested without relying on random food placement or agent timing. These hooks must not change the normal tick speed or normal player rules.
+- Keep the game small and use built-in shapes and text; no external assets.
+
+Before play, validate scripts, re-read saved scenes, scripts, project settings, and project integrity. During play:
+1. Observe the baseline and check runtime errors at once.
+2. Prove ordinary movement and one real direction change.
+3. Prove growth and score from eating.
+4. From known reset states, prove win, wall loss, self loss, and restart with direct UI or state assertions after each action.
+5. Check get_debug_output and game_get_errors at the end.
+6. Release any held input and stop the project.
+
+A scenario that only ran steps is not proof of an unstated claim. Report each acceptance item as passed, failed, or unproved based only on observed evidence. Do not edit the MCP server, its skills, or any files outside game-03.

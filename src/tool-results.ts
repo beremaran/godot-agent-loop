@@ -68,6 +68,10 @@ export interface ToolResultContext {
   error?: StructuredToolError;
 }
 
+export interface StructuredToolResultOptions {
+  legacyJsonText?: boolean;
+}
+
 /**
  * Add the common MCP structured contract while preserving every legacy content
  * block. A final JSON text block mirrors `structuredContent` for clients that
@@ -77,6 +81,7 @@ export interface ToolResultContext {
 export function withStructuredToolResult(
   response: ToolResponse,
   context: ToolResultContext,
+  options: StructuredToolResultOptions = {},
 ): ToolResponse {
   const isError = response.isError === true;
   const structured: StructuredToolContent = {
@@ -113,10 +118,11 @@ export function withStructuredToolResult(
   if (commonIssues.length > 0) {
     throw new Error(`Invalid common structured output for ${context.advertisedTool}: ${commonIssues.map(issue => `${issue.path} ${issue.message}`).join('; ')}`);
   }
-  const serialized = JSON.stringify(structured, null, 2);
   return {
     ...response,
-    content: [...response.content, { type: 'text', text: serialized }],
+    content: options.legacyJsonText === false
+      ? response.content
+      : [...response.content, { type: 'text', text: JSON.stringify(structured, null, 2) }],
     structuredContent: structured,
   };
 }

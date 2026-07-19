@@ -449,7 +449,21 @@ export class LifecycleToolHandlers {
         },
       );
       await reportProgress(2, 4, 'Godot process started; waiting for runtime authentication');
-      await this.context.connectToGame(args.projectPath, currentExecutionContext()?.signal);
+      const executionSignal = currentExecutionContext()?.signal;
+      const startupController = new AbortController();
+      const forwardCancellation = () => {
+        startupController.abort(executionSignal?.reason);
+      };
+      executionSignal?.addEventListener('abort', forwardCancellation, { once: true });
+      try {
+        await Promise.race([
+          this.context.connectToGame(args.projectPath, startupController.signal),
+          this.watchForFatalStartup(runningProcess, startupController.signal),
+        ]);
+      } finally {
+        executionSignal?.removeEventListener('abort', forwardCancellation);
+        startupController.abort();
+      }
       throwIfCancelled();
       await reportProgress(3, 4, 'Runtime authenticated; probing scene tree readiness');
       const probe = await this.context.sendGameCommand(
@@ -935,6 +949,32 @@ export class LifecycleToolHandlers {
       truncated: stdout.length > maxStreamCharacters || stderr.length > maxStreamCharacters,
       limit_bytes: maxStreamCharacters * 2,
     };
+  }
+
+  private watchForFatalStartup(record: GodotProcess, signal: AbortSignal): Promise<never> {
+    return new Promise((_, reject) => {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const cleanup = () => {
+        if (timer) clearTimeout(timer);
+        signal.removeEventListener('abort', cleanup);
+      };
+      const inspect = () => {
+        if (signal.aborted) {
+          cleanup();
+          return;
+        }
+        const output = [...record.output, ...record.errors].join('\n');
+        const fatal = /ERROR:\s+(?:Error parsing ['"][^'"\n]*project\.godot['"]|Couldn't load file ['"][^'"\n]*project\.godot['"])[^\n]*/i.exec(output);
+        if (fatal) {
+          cleanup();
+          reject(new Error(`Godot reported a fatal startup error: ${fatal[0]}`));
+          return;
+        }
+        timer = setTimeout(inspect, 25);
+      };
+      signal.addEventListener('abort', cleanup, { once: true });
+      inspect();
+    });
   }
 
   private async requireGodotPath(): Promise<string | null> {

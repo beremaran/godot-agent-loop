@@ -11,13 +11,13 @@
   },
   "full": {
     "tools": 173,
-    "bytes": 1186038,
-    "estimatedTokens": 296510
+    "bytes": 1186353,
+    "estimatedTokens": 296589
   },
   "core": {
     "tools": 42,
-    "bytes": 59513,
-    "estimatedTokens": 14879
+    "bytes": 59553,
+    "estimatedTokens": 14889
   },
   "coreByteReductionPercent": 94.98,
   "counts": {
@@ -298,6 +298,7 @@
         "godot_catalog",
         "list_project_files",
         "manage_input_map",
+        "modify_project_settings",
         "read_project_settings",
         "read_scene",
         "run_project",

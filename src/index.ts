@@ -733,7 +733,7 @@ export class GodotServer {
             ...(synchronizationEvidence === undefined ? {} : { synchronizationEvidence }),
             ...(metadata.details?.cleanup !== undefined ? { cleanup: metadata.details.cleanup } : {}),
             ...(metadata.error ? { error: metadata.error } : {}),
-          });
+          }, { legacyJsonText: process.env.GODOT_MCP_LEGACY_JSON_TEXT !== 'false' });
           response = setToolResultMetadata(copyToolResultMetadata(response, structured), { structured: true });
           metadata = getToolResultMetadata(response);
         }

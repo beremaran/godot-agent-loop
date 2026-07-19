@@ -148,7 +148,8 @@ export class ProjectConfigurationService {
     try {
       let content = readFileSync(projectFile(args.projectPath), 'utf8');
       const header = `[${args.section}]`;
-      const setting = `${args.key}=${args.value}`;
+      const serializedValue = serializeProjectSettingValue(args.value);
+      const setting = `${args.key}=${serializedValue}`;
       const index = content.indexOf(header);
       if (index === -1) content += `\n\n${header}\n\n${setting}\n`;
       else {
@@ -159,9 +160,20 @@ export class ProjectConfigurationService {
         content = content.slice(0, index) + updated + (end === -1 ? '' : content.slice(end));
       }
       writeFileSync(projectFile(args.projectPath), content, 'utf8');
-      return { content: [{ type: 'text', text: `Setting updated: [${args.section}] ${args.key}=${args.value}` }] };
+      return { content: [{ type: 'text', text: `Setting updated: [${args.section}] ${args.key}=${serializedValue}` }] };
     } catch (error: unknown) { return createErrorResponse(`Failed to modify project settings: ${errorMessage(error)}`); }
   }
+}
+
+/** Convert common JSON values to valid project.godot Variant text. */
+export function serializeProjectSettingValue(value: unknown): string {
+  if (typeof value === 'boolean' || typeof value === 'number') return JSON.stringify(value);
+  if (typeof value !== 'string') throw new Error('value must be a string, number, or boolean');
+  const trimmed = value.trim();
+  if (!trimmed) return '""';
+  if (/^(?:true|false|null|[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)$/.test(trimmed)) return trimmed;
+  if (/^(?:[A-Za-z_][A-Za-z0-9_]*\s*\(|[[{"&^])/.test(trimmed)) return trimmed;
+  return JSON.stringify(value);
 }
 
 /** Owns GDScript validation and keeps batch limits in one place. */

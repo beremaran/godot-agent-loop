@@ -51,7 +51,10 @@ the supported boundary. Never add MCP autoloads, addons, or bridge files.
    add-on is ready, use `create_scene`, `add_node`, `attach_script`, and other
    persisted authoring tools. For each nested node, pass the parentNodePath field
    to `add_node`; omitting it adds the node at the scene root. Instantiate a saved
-   child scene or attach its script and resources to the node in the main scene:
+   child with `parentNodePath` set to a saved-scene path such as `HUD`; omit the
+   field or use `.` for a direct child of the scene root. Never pass runtime paths
+   such as `/root` to persistent scene tools. Instantiate a saved child scene or
+   attach its script and resources to the node in the main scene:
    making a separate player scene does not wire a plain CharacterBody2D in the
    main scene to it. Re-read each scene after authoring and compare its node paths
    with the planned hierarchy. Do not hand-write tscn text as a shortcut.
@@ -60,18 +63,24 @@ the supported boundary. Never add MCP autoloads, addons, or bridge files.
    `{ "r": 0.2, "g": 0.7, "b": 1.0, "a": 1.0 }`, not numeric arrays.
 4. Put behavior in `create_script` or `write_file`, attach it with
    `attach_script`, create named actions with `manage_input_map`, and set the
-   startup scene with `set_main_scene`.
+   startup scene with `set_main_scene`. Pass plain JSON strings to
+   `modify_project_settings`; the tool writes their required Godot quotes.
 5. Run `validate_scripts`, then independently re-read changed scenes, scripts,
    settings, and integrity state before starting the game. Treat this as a gate:
    script validation alone does not prove saved scenes or project settings.
 6. Start watched gameplay with `run_project`; success means the runtime bridge is
    usable. Observe the baseline with concise `game_get_scene_tree`, `game_get_ui`,
    logs, and `game_screenshot`. Check `game_get_errors` at once. Prefer these
-   small views over broad node method or property dumps.
+   small views over broad node method or property dumps. Read the runtime tree or
+   UI paths before asserting them; persisted paths and runtime paths are distinct.
 7. Prefer bounded `game_wait_until` and `game_scenario` steps. Use
    `game_key_press` for a one-frame tap, `game_key_hold` for continuous movement,
    and always pair a hold with `game_key_release`, including failure cleanup.
    When a named input action exists, pass its action name instead of a raw key.
+   Named action injection updates Godot's Input action state. Game code tested
+   this way should consume `Input.is_action_pressed()` or
+   `Input.is_action_just_pressed()`; it must not rely only on `_input()` or
+   `_unhandled_input()` events.
    When the game exposes continuous control, prove at least one real
    hold/release path even if debug keys can force success or failure.
    A valid scenario step is an input with tool plus arguments, a wait or

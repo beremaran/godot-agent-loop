@@ -464,7 +464,7 @@ const rawToolDefinitions = [
       },
       parentNodePath: {
         type: 'string',
-        description: 'Saved-scene path to the parent node (for example, "root" or "root/Player"). Omit only when adding a direct child of the scene root.',
+        description: 'Saved-scene path to the parent node. Omit it or use "." for a direct child of the scene root; use paths such as "HUD" for nested nodes. Do not use runtime paths such as "/root".',
       },
       nodeType: {
         type: 'string',
@@ -1052,8 +1052,8 @@ const rawToolDefinitions = [
         description: 'Setting key (e.g., "run/main_scene", "window/size/viewport_width")',
       },
       value: {
-        type: 'string',
-        description: 'Value to set (as a string, will be written as-is)',
+        anyOf: [{ type: 'string' }, { type: 'number' }, { type: 'boolean' }],
+        description: 'JSON string, number, or boolean. Plain strings are quoted as Godot Variant strings; already quoted strings and explicit Godot constructors are preserved.',
       },
     },
     required: ['projectPath', 'section', 'key', 'value'],

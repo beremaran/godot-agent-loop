@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GameToolHandlers } from '../src/tool-handlers/game-tool-handlers.js';
 import { LifecycleToolHandlers, type LifecycleToolHandlerContext } from '../src/tool-handlers/lifecycle-tool-handlers.js';
 import { ProjectToolHandlers } from '../src/tool-handlers/project-tool-handlers.js';
+import { serializeProjectSettingValue } from '../src/tool-handlers/project-handler-services.js';
 import type { GodotProcess } from '../src/godot-process-manager.js';
 import { getToolResultMetadata, setToolResultMetadata } from '../src/execution-context.js';
 
@@ -27,6 +28,16 @@ function createProject(): string {
 function textFrom(response: any): string {
   return response.content.find((item: any) => item.type === 'text').text;
 }
+
+describe('project setting serialization', () => {
+  it('quotes plain strings and preserves explicit Variant syntax', () => {
+    expect(serializeProjectSettingValue('gl_compatibility')).toBe('"gl_compatibility"');
+    expect(serializeProjectSettingValue('"already quoted"')).toBe('"already quoted"');
+    expect(serializeProjectSettingValue('PackedStringArray("4.7")')).toBe('PackedStringArray("4.7")');
+    expect(serializeProjectSettingValue(false)).toBe('false');
+    expect(serializeProjectSettingValue('720')).toBe('720');
+  });
+});
 
 describe('GameToolHandlers', () => {
   it('maps camelCase arguments and delegates through the command service', async () => {
@@ -362,6 +373,35 @@ describe('LifecycleToolHandlers', () => {
     expect(removeInteractionServer).toHaveBeenCalledWith(projectPath);
     expect(clearConnectedProjectPath).toHaveBeenCalledOnce();
     expect(active).toBeNull();
+  });
+
+  it('fails fast when Godot reports a fatal project settings parse error', async () => {
+    const projectPath = createProject();
+    const process = {
+      output: [`ERROR: Error parsing '${projectPath}/project.godot' at line 3: Unexpected identifier.`],
+      errors: [],
+    } as GodotProcess;
+    let active: GodotProcess | null = null;
+    const stopProjectProcess = vi.fn(() => {
+      active = null;
+      return process;
+    });
+    const handlers = new LifecycleToolHandlers(context({
+      getActiveProcess: () => active,
+      startProjectProcess: () => {
+        active = process;
+        return process;
+      },
+      stopProjectProcess,
+      connectToGame: vi.fn(() => new Promise<void>(() => undefined)),
+      getConnectedProjectPath: () => projectPath,
+    }));
+
+    const response = await handlers.handleRunProject({ projectPath });
+
+    expect(response.isError).toBe(true);
+    expect(textFrom(response)).toContain('fatal startup error');
+    expect(stopProjectProcess).toHaveBeenCalledOnce();
   });
 
   it('serializes concurrent idempotent editor ensure requests for one project', async () => {

@@ -38,7 +38,7 @@ describe('OpenCode setup', () => {
       type: 'local',
       command: ['npx', '-y', '@beremaran/godot-agent-loop@1.1.3'],
       enabled: true,
-      environment: { GODOT_MCP_TOOL_SURFACE: 'core' },
+      environment: { GODOT_MCP_TOOL_SURFACE: 'core', GODOT_MCP_LEGACY_JSON_TEXT: 'false' },
     });
     expect(setupOpenCode({ cwd, write: true }).changes).toEqual([]);
     expect(existsSync(join(cwd, '.agents/skills/ship-godot-game/SKILL.md'))).toBe(true);

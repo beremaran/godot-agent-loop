@@ -89,7 +89,10 @@ describe('packed public agent layout', () => {
     const installedConfig = JSON.parse(readFileSync(join(target, 'opencode.json'), 'utf8')) as {
       mcp: Record<string, { environment: Record<string, string> }>;
     };
-    expect(installedConfig.mcp[adapter.name].environment).toEqual({ GODOT_MCP_TOOL_SURFACE: 'core' });
+    expect(installedConfig.mcp[adapter.name].environment).toEqual({
+      GODOT_MCP_TOOL_SURFACE: 'core',
+      GODOT_MCP_LEGACY_JSON_TEXT: 'false',
+    });
     for (const declared of adapter.skills) {
       const installedSkillRoot = join(target, '.agents/skills', declared.name);
       expect(readFileSync(join(installedSkillRoot, 'SKILL.md')))

@@ -8,7 +8,8 @@
   "mcp": {
     "command": ["npx", "-y", "@beremaran/godot-agent-loop@1.1.3"],
     "environment": {
-      "GODOT_MCP_TOOL_SURFACE": "core"
+      "GODOT_MCP_TOOL_SURFACE": "core",
+      "GODOT_MCP_LEGACY_JSON_TEXT": "false"
     },
     "canonicalSurface": "core",
     "surfaceAliases": ["compact"],
@@ -30,7 +31,7 @@
         "direct": [
           "godot_catalog", "godot_call", "get_godot_version", "editor_session", "editor_transaction",
           "create_project", "read_project_settings", "read_scene", "create_scene",
-          "add_node", "create_script", "write_file", "attach_script", "manage_input_map",
+          "add_node", "create_script", "write_file", "attach_script", "manage_input_map", "modify_project_settings",
           "set_main_scene", "validate_scripts", "run_project", "game_get_scene_tree",
           "game_get_ui", "game_screenshot", "game_wait_until", "game_scenario",
           "game_key_press", "game_key_hold", "game_key_release", "verify_project",
@@ -114,8 +115,7 @@
   "defaultPrompts": [
     "Build a small playable Godot game and prove both its win and lose states.",
     "Debug this Godot project from a reproducible failure and verify the fix independently.",
-    "Verify this existing Godot change without editing the project or claiming subjective criteria passed.",
-    "Prepare this Godot game for release and report export evidence and remaining gates."
+    "Verify an existing change or prepare a release, with clear passed, failed, blocked, and manual gates."
   ],
   "clients": {
     "claudeCode": { "manifest": ".claude-plugin/plugin.json" },
