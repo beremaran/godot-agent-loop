@@ -644,6 +644,7 @@ export class LifecycleToolHandlers {
     let cancelled = false;
     let structuredError: StructuredToolError | undefined;
     const heldKeys = new Set<string>();
+    const heldActions = new Set<string>();
     await reportProgress(0, args.steps.length + 1, `Starting scenario ${args.name}`);
     for (let index = 0; index < args.steps.length; index++) {
       try { throwIfCancelled(); } catch (error) {
@@ -700,7 +701,9 @@ export class LifecycleToolHandlers {
             ? { type: 'image', mime_type: 'mimeType' in content ? content.mimeType : 'image/png', preview_omitted: true }
             : { type: content.type, text: 'text' in content ? String(content.text).slice(0, 2_000) : '' });
           if (tool === 'game_key_hold' && typeof step.arguments?.key === 'string') heldKeys.add(step.arguments.key);
+          if (tool === 'game_key_hold' && typeof step.arguments?.action === 'string') heldActions.add(step.arguments.action);
           if (tool === 'game_key_release' && typeof step.arguments?.key === 'string') heldKeys.delete(step.arguments.key);
+          if (tool === 'game_key_release' && typeof step.arguments?.action === 'string') heldActions.delete(step.arguments.action);
         } else {
           throw new Error(`Unsupported scenario step type: ${String(step.type)}`);
         }
@@ -723,6 +726,12 @@ export class LifecycleToolHandlers {
         if (!('error' in response)) released.push(key);
       }
       teardown.released_keys = released;
+      const releasedActions: string[] = [];
+      for (const action of heldActions) {
+        const response = await this.context.sendGameCommand('key_release', { action }, 2_000, null);
+        if (!('error' in response)) releasedActions.push(action);
+      }
+      teardown.released_actions = releasedActions;
       const restored = await this.context.sendGameCommand('time_scale', { action: 'set', time_scale: 1 }, 2_000, null);
       teardown.time_scale_restored = !('error' in restored);
     } catch (error) {

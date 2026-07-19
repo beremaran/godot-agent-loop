@@ -43,7 +43,9 @@ engine behavior as outside the supported boundary.
    not disable multiple systems and infer a single cause.
 5. For input, use `game_key_press` only for a one-frame tap. Use
    `game_key_hold` for continuous movement and always call `game_key_release` in
-   normal and failure cleanup. Use bounded `game_wait_until`, never manual sleeps.
+   normal and failure cleanup. Keep hold, bounded wait or observation, and
+   release in one `game_scenario`. Never leave input held across a separate MCP
+   call or while reasoning. Use bounded `game_wait_until`, never manual sleeps.
 6. Stop the project before persistent repair. Apply the smallest matching scene,
    script, resource, or setting change as one coherent undoable change.
 7. Run static validation before runtime proof. Repeat the exact baseline,

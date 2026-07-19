@@ -11,15 +11,15 @@
   },
   "full": {
     "tools": 173,
-    "bytes": 1186353,
-    "estimatedTokens": 296589
+    "bytes": 1186989,
+    "estimatedTokens": 296748
   },
   "core": {
     "tools": 42,
-    "bytes": 59553,
-    "estimatedTokens": 14889
+    "bytes": 59982,
+    "estimatedTokens": 14996
   },
-  "coreByteReductionPercent": 94.98,
+  "coreByteReductionPercent": 94.95,
   "counts": {
     "domains": {
       "game": 111,
@@ -249,8 +249,8 @@
       "declared": 173,
       "dialectDeclared": 173,
       "closedTopLevel": 173,
-      "propertyNodes": 2256,
-      "describedPropertyNodes": 2256
+      "propertyNodes": 2260,
+      "describedPropertyNodes": 2260
     },
     "outputSchemas": {
       "declared": 173,
@@ -284,6 +284,7 @@
         "editor_session",
         "editor_transaction",
         "game_get_errors",
+        "game_get_node_info",
         "game_get_scene_tree",
         "game_get_ui",
         "game_key_hold",

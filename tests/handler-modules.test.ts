@@ -713,6 +713,22 @@ describe('LifecycleToolHandlers', () => {
     expect(sendGameCommand).toHaveBeenLastCalledWith('time_scale', { action: 'set', time_scale: 1 }, 2_000, null);
   });
 
+  it('releases a held named action during scenario cleanup', async () => {
+    const sendGameCommand = vi.fn(async () => ({ jsonrpc: '2.0' as const, id: 1, result: { success: true } }));
+    const dispatchTool = vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '{"pressed":true}' }] });
+    const handlers = new LifecycleToolHandlers(context({
+      isGameConnected: () => true, sendGameCommand, dispatchTool,
+    }));
+
+    const response = await handlers.handleGameScenario({ name: 'named-action', steps: [
+      { type: 'input', tool: 'game_key_hold', arguments: { action: 'move_right' } },
+    ] });
+    const evidence = JSON.parse(textFrom(response));
+
+    expect(evidence.teardown.released_actions).toEqual(['move_right']);
+    expect(sendGameCommand).toHaveBeenCalledWith('key_release', { action: 'move_right' }, 2_000, null);
+  });
+
   it('stops the process and removes its injected interaction server', async () => {
     const process = { output: ['done'], errors: [] } as GodotProcess;
     const stopProjectProcess = vi.fn().mockReturnValue(process);

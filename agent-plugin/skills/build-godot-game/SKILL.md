@@ -69,13 +69,19 @@ the supported boundary. Never add MCP autoloads, addons, or bridge files.
    settings, and integrity state before starting the game. Treat this as a gate:
    script validation alone does not prove saved scenes or project settings.
 6. Start watched gameplay with `run_project`; success means the runtime bridge is
-   usable. Observe the baseline with concise `game_get_scene_tree`, `game_get_ui`,
-   logs, and `game_screenshot`. Check `game_get_errors` at once. Prefer these
-   small views over broad node method or property dumps. Read the runtime tree or
-   UI paths before asserting them; persisted paths and runtime paths are distinct.
+   usable. Observe the baseline with `game_get_scene_tree` capped to the nodes
+   needed, `game_get_ui` rooted at the HUD or menu, logs, and `game_screenshot`.
+   Check `game_get_errors` at once. For one node, use `game_get_node_info` with
+   compact detail and exact property names; never request its full method
+   and property dump for a value you already know by name. Read runtime paths
+   before asserting them; persisted paths and runtime paths are distinct.
 7. Prefer bounded `game_wait_until` and `game_scenario` steps. Use
    `game_key_press` for a one-frame tap, `game_key_hold` for continuous movement,
    and always pair a hold with `game_key_release`, including failure cleanup.
+   Never leave a key or action held across separate MCP calls. Put hold, bounded
+   wait or observation, and release steps in one `game_scenario`; its teardown is
+   the backstop, not the main release. If a direct hold is unavoidable, make the
+   next call its release before any screenshot, tree, UI, log, or node read.
    When a named input action exists, pass its action name instead of a raw key.
    Named action injection updates Godot's Input action state. Game code tested
    this way should consume `Input.is_action_pressed()` or
@@ -91,9 +97,11 @@ the supported boundary. Never add MCP autoloads, addons, or bridge files.
    {"name":"baseline","steps":[{"type":"wait","condition":{"condition":"node","nodePath":"/root/Main/Player","timeoutSeconds":2}},{"type":"observe","tool":"game_get_ui"},{"type":"screenshot"}]}
    ```
 
-   Wait on current scene, node, UI, signal, or new log evidence. Never use an old
-   log line as a clock. Do not slow or change the game to fit agent response time;
-   use bounded engine-side waits, test hooks, or fixed-frame proof instead.
+   Before input, confirm the game has not advanced past the baseline; restart it
+   if it has. Wait on current scene, node, UI, signal, or new log evidence. Never
+   use an old log line or time spent reasoning between calls as a clock. Do not
+   slow or change the game to fit agent response time; use bounded engine-side
+   waits, test hooks, or fixed-frame proof instead.
 8. Prove ordinary play and requested success/failure transitions with independent
    state plus rendered or log evidence. Use `verify_project` and
    `run_project_tests` where they express the criteria directly.

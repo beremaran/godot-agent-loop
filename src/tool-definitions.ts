@@ -696,10 +696,13 @@ const rawToolDefinitions = [
 },
 {
   name: 'game_get_ui',
-  description: 'Get visible UI elements from the running game',
+  description: 'Get a bounded list of visible UI elements from the running game',
   inputSchema: {
     type: 'object',
-    properties: {},
+    properties: {
+      rootPath: { type: 'string', description: 'Optional runtime subtree root, such as "/root/Main/HUD"' },
+      maxElements: { type: 'integer', minimum: 1, maximum: 1000, description: 'Maximum controls returned. Default: 200' },
+    },
     required: [],
   },
 },
@@ -795,7 +798,7 @@ const rawToolDefinitions = [
 },
 {
   name: 'game_get_node_info',
-  description: 'Get node info: class, properties, signals, methods, children',
+  description: 'Get compact or full node info; use compact with propertyNames for small reads',
   inputSchema: {
     type: 'object',
     properties: {
@@ -803,6 +806,8 @@ const rawToolDefinitions = [
         type: 'string',
         description: 'Path to the node (e.g., "/root/Player")',
       },
+      detail: { type: 'string', enum: ['compact', 'full'], description: 'Compact omits methods and signals and returns only named properties. Default: full for compatibility' },
+      propertyNames: { type: 'array', items: { type: 'string' }, maxItems: 64, description: 'Exact properties to include; use with detail=compact for a small response' },
     },
     required: ['nodePath'],
   },

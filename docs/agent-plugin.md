@@ -48,6 +48,33 @@ claude plugin validate ./agent-plugin
 claude --plugin-dir ./agent-plugin
 ```
 
+`--plugin-dir` loads the checkout's skills and plugin manifest. The published
+`.mcp.json` still starts the pinned npm package by design. To test the checkout's
+server too, build it and override the MCP entry with a local config:
+
+```bash
+npm run build
+claude --plugin-dir ./agent-plugin \
+  --mcp-config /absolute/path/to/local-mcp.json --strict-mcp-config
+```
+
+Use this shape for `local-mcp.json`, with absolute paths:
+
+```json
+{
+  "mcpServers": {
+    "godot-agent-loop": {
+      "command": "/absolute/path/to/node",
+      "args": ["/absolute/path/to/godot-agent-loop/build/index.js"],
+      "env": {
+        "GODOT_MCP_TOOL_SURFACE": "core",
+        "GODOT_MCP_LEGACY_JSON_TEXT": "false"
+      }
+    }
+  }
+}
+```
+
 Install from the repository marketplace after the repository is public:
 
 ```text

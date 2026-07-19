@@ -786,21 +786,30 @@ func _cmd_screenshot(_params: Dictionary) -> void:
 
 
 # --- Get UI Elements ---
-func _cmd_get_ui_elements(_params: Dictionary) -> void:
+func _cmd_get_ui_elements(params: Dictionary) -> void:
+	var root_path: String = str(params.get("root_path", "/root"))
+	var root: Node = get_tree().root.get_node_or_null(root_path)
+	if root == null:
+		_send_response({"error": "UI root not found: %s" % root_path})
+		return
+	var max_elements_value: Variant = params.get("max_elements", MAX_UI_OBSERVATION_ELEMENTS)
+	var max_elements: int = max_elements_value if max_elements_value is int else MAX_UI_OBSERVATION_ELEMENTS
+	max_elements = clampi(max_elements, 1, MAX_UI_OBSERVATION_ELEMENTS)
 	var elements: Array = []
 	var traversal: Dictionary = {"truncated": false}
-	_collect_ui_elements(get_tree().root, elements, traversal)
+	_collect_ui_elements(root, elements, traversal, max_elements)
 	_send_response({
 		"success": true,
 		"elements": elements,
 		"returned_count": elements.size(),
-		"limit": MAX_UI_OBSERVATION_ELEMENTS,
+		"limit": max_elements,
+		"root_path": root_path,
 		"truncated": traversal["truncated"],
 	})
 
 
-func _collect_ui_elements(node: Node, elements: Array, traversal: Dictionary) -> void:
-	if elements.size() >= MAX_UI_OBSERVATION_ELEMENTS:
+func _collect_ui_elements(node: Node, elements: Array, traversal: Dictionary, max_elements: int) -> void:
+	if elements.size() >= max_elements:
 		traversal["truncated"] = true
 		return
 	if node is Control:
@@ -826,7 +835,7 @@ func _collect_ui_elements(node: Node, elements: Array, traversal: Dictionary) ->
 			elements.append(info)
 
 	for child in node.get_children():
-		_collect_ui_elements(child, elements, traversal)
+		_collect_ui_elements(child, elements, traversal, max_elements)
 		if traversal["truncated"]:
 			return
 

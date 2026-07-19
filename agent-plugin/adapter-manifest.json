@@ -33,7 +33,7 @@
           "create_project", "read_project_settings", "read_scene", "create_scene",
           "add_node", "create_script", "write_file", "attach_script", "manage_input_map", "modify_project_settings",
           "set_main_scene", "validate_scripts", "run_project", "game_get_scene_tree",
-          "game_get_ui", "game_screenshot", "game_wait_until", "game_scenario",
+          "game_get_ui", "game_get_node_info", "game_screenshot", "game_wait_until", "game_scenario",
           "game_key_press", "game_key_hold", "game_key_release", "verify_project",
           "run_project_tests", "get_debug_output", "game_get_errors", "stop_project"
         ],

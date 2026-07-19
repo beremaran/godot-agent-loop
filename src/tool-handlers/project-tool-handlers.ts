@@ -257,9 +257,21 @@ export class ProjectToolHandlers {
       );
     }
   
+    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath, true)) {
+      return createErrorResponse(
+        `Project path is outside the allowed roots: ${args.projectPath}`
+      );
+    }
+
+    if (!existsSync(args.projectPath)) {
+      return createErrorResponse(
+        `Project directory does not exist: ${args.projectPath}. Use create_project only if a new project was requested.`
+      );
+    }
+
     if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath)) {
       return createErrorResponse(
-        'Invalid project path'
+        `Project path cannot be read safely: ${args.projectPath}`
       );
     }
   

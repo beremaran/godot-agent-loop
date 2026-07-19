@@ -42,11 +42,14 @@ user separately requested a fix. Support begins at Godot 4.7.
    hidden integrity analysis only through the declared discovery flow.
 3. Prefer `verify_project` and `run_project_tests`; use realtime `run_project`
    only for behavior the compound tools cannot prove.
-4. Observe a baseline with concise `game_get_scene_tree`, `game_get_ui`,
-   `game_get_node_info`, logs, and `game_screenshot` where rendering is material.
+4. Observe a baseline with capped `game_get_scene_tree`, subtree-filtered
+   `game_get_ui`, logs, and `game_screenshot` where rendering is material. Use
+   `game_get_node_info` with compact detail and exact property names.
 5. Prefer bounded `game_wait_until` and `game_scenario`. Use `game_key_press` for
    a one-frame tap, `game_key_hold` for continuous input, and always pair holds
-   with `game_key_release`, including failure cleanup. Use `game_click` only when
+   with `game_key_release`, including failure cleanup. Keep hold, bounded wait or
+   observation, and release in one scenario. Never leave input held while making
+   a separate observation call or while reasoning. Use `game_click` only when
    coordinate interaction is part of the criterion.
 6. Repeat the same observation and compare the intended state. A successful tool
    response or screenshot alone does not prove behavior, audio quality, feel, or
