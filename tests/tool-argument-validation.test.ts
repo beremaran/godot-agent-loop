@@ -31,6 +31,19 @@ describe('parseToolArguments', () => {
     expect(() => parseToolArguments(tool('game_scenario'), {
       name: 'invalid', steps: [{ type: 'input', tool: 'game_key_hold' }],
     })).toThrow('arguments.steps[0].arguments is required');
+    try {
+      parseToolArguments(tool('game_scenario'), {
+        name: 'bad-wait', steps: [{ type: 'wait', arguments: { seconds: 1 } }],
+      });
+      throw new Error('Expected scenario validation to fail');
+    } catch (error) {
+      expect(error).toBeInstanceOf(ToolArgumentValidationError);
+      const validation = error as ToolArgumentValidationError;
+      expect(validation.details.map(issue => [issue.path, issue.keyword])).toEqual([
+        ['arguments.steps[0].condition', 'required'],
+        ['arguments.steps[0].arguments', 'not'],
+      ]);
+    }
     expect(() => parseToolArguments(tool('editor_transaction'), {
       projectPath: '/project', scenePath: 'main.tscn', name: 'invalid',
       operations: [{ op: 'add_node', nodeName: 'MissingType' }],

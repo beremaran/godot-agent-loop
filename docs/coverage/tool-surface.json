@@ -275,9 +275,11 @@
   "skillToolReferences": {
     "build-godot-game": {
       "tools": [
+        "add_node",
         "analyze_project_integrity",
         "attach_script",
         "create_project",
+        "create_scene",
         "create_script",
         "editor_session",
         "editor_transaction",

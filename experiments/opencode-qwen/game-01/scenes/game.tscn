@@ -1,0 +1,41 @@
+[gd_scene load_steps=3 format=3 uid="uid://game01root"]
+
+[ext_resource type="Script" path="res://scripts/game.gd" id="1_game"]
+[ext_resource type="PackedScene" path="res://scenes/target.tscn" id="2_target"]
+[ext_resource type="Script" path="res://scripts/player.gd" id="3_player"]
+
+[node name="Game" type="Node2D"]
+script = ExtResource("1_game")
+
+[node name="Player" type="CharacterBody2D" parent="."]
+position = Vector2(1000, 850)
+script = ExtResource("3_player")
+
+[node name="PlayerSprite" type="Sprite2D" parent="Player"]
+position = Vector2(0, -20)
+
+[node name="UI" type="Node2D" parent="."]
+
+[node name="ScoreLabel" type="Label" parent="UI"]
+position = Vector2(20, 20)
+text = "Score: 0 / 3"
+labels/outline_size = 2
+
+[node name="MissesLabel" type="Label" parent="UI"]
+position = Vector2(20, 60)
+text = "Misses: 0 / 3"
+labels/outline_size = 2
+
+[node name="ControlsLabel" type="Label" parent="UI"]
+position = Vector2(20, 760)
+text = "Controls: A/D or Left/Right to move | R to restart"
+labels/outline_size = 2
+
+[node name="ResultLabel" type="Label" parent="UI"]
+position = Vector2(800, 400)
+text = ""
+horizontal_alignment = 1
+labels/outline_size = 3
+labels/font_size = 48
+
+[node name="TargetArea" type="Area2D" parent="."]

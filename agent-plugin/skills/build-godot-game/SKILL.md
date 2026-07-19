@@ -47,6 +47,9 @@ the supported boundary. Never add MCP autoloads, addons, or bridge files.
    construction only when requested or explicitly accepted. A scripted root
    that creates all controls at runtime is not a persisted hierarchy: save the
    root plus meaningful gameplay and UI child nodes in the saved scene.
+   In unattended work, if `editor_transaction` cannot run because no editor
+   add-on is ready, use `create_scene`, `add_node`, `attach_script`, and other
+   persisted authoring tools. Do not hand-write tscn text as a shortcut.
 3. Use canonical Godot Variant shapes. For example, pass a Vector2 as
    `{ "x": 120, "y": 80 }` and a Color as
    `{ "r": 0.2, "g": 0.7, "b": 1.0, "a": 1.0 }`, not numeric arrays.
@@ -54,18 +57,33 @@ the supported boundary. Never add MCP autoloads, addons, or bridge files.
    `attach_script`, create named actions with `manage_input_map`, and set the
    startup scene with `set_main_scene`.
 5. Run `validate_scripts`, then independently re-read changed scenes, scripts,
-   settings, and integrity state before starting the game.
+   settings, and integrity state before starting the game. Treat this as a gate:
+   script validation alone does not prove saved scenes or project settings.
 6. Start watched gameplay with `run_project`; success means the runtime bridge is
    usable. Observe the baseline with concise `game_get_scene_tree`, `game_get_ui`,
-   logs, and `game_screenshot`.
+   logs, and `game_screenshot`. Check `game_get_errors` at once. Prefer these
+   small views over broad node method or property dumps.
 7. Prefer bounded `game_wait_until` and `game_scenario` steps. Use
    `game_key_press` for a one-frame tap, `game_key_hold` for continuous movement,
    and always pair a hold with `game_key_release`, including failure cleanup.
+   When a named input action exists, pass its action name instead of a raw key.
    When the game exposes continuous control, prove at least one real
    hold/release path even if debug keys can force success or failure.
+   A valid scenario step is an input with tool plus arguments, a wait or
+   assert with condition, an observe with tool, or a bare screenshot or
+   performance step. For example:
+
+   ```json
+   {"name":"baseline","steps":[{"type":"wait","condition":{"condition":"node","nodePath":"/root/Main/Player","timeoutSeconds":2}},{"type":"observe","tool":"game_get_ui"},{"type":"screenshot"}]}
+   ```
+
+   Wait on current scene, node, UI, signal, or new log evidence. Never use an old
+   log line as a clock. Do not slow or change the game to fit agent response time;
+   use bounded engine-side waits, test hooks, or fixed-frame proof instead.
 8. Prove ordinary play and requested success/failure transitions with independent
    state plus rendered or log evidence. Use `verify_project` and
    `run_project_tests` where they express the criteria directly.
+   Mark each unobserved path as unproved, even if the code seems to implement it.
 9. Inspect `get_debug_output` and `game_get_errors`, release held input, call
    `stop_project`, and remove only identified MCP-owned probes or transient files.
    For watched work, leave the editor available to the human and use

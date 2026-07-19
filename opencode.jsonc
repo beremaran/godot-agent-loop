@@ -1,0 +1,17 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "godot-agent-loop": {
+      "type": "local",
+      "command": [
+        "node",
+        "/Users/beremaran/projects/godot-agent-loop/build/index.js"
+      ],
+      "enabled": true,
+      "environment": {
+        "GODOT_MCP_TOOL_SURFACE": "core",
+        "GODOT_MCP_ALLOWED_DIRS": "/Users/beremaran/projects/godot-agent-loop"
+      }
+    }
+  }
+}
