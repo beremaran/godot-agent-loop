@@ -1,6 +1,7 @@
 import { existsSync } from 'fs';
 import { join } from 'path';
 
+import type { AuthoringMode } from './authoring-mode.js';
 import { createErrorResponse, errorMessage, validatePath, PathSecurity, type OperationParams, type ToolResponse } from './utils.js';
 import { AuthoringSessionUnavailableError, type AuthoringSessionManager } from './authoring-session-manager.js';
 import type { HeadlessOperationResult, HeadlessOperationRunner } from './headless-operation-runner.js';
@@ -13,11 +14,12 @@ export class HeadlessOperationService {
     private readonly runner: HeadlessOperationRunner,
     private readonly pathSecurity = new PathSecurity(),
     private readonly authoringSession?: AuthoringSessionManager,
+    private readonly authoringMode: AuthoringMode = 'persistent',
   ) {}
 
   public async execute(operation: string, params: OperationParams, projectPath: string): Promise<HeadlessOperationResult> {
     const backend = authoringBackendForOperation(operation);
-    if (backend && this.authoringSession) {
+    if (backend && this.authoringSession && this.authoringMode === 'persistent') {
       try {
         return await this.authoringSession.execute(backend, params, projectPath);
       } catch (error: unknown) {

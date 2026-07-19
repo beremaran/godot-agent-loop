@@ -42,6 +42,7 @@ import { EditorAuthoringRouter } from './editor-authoring-router.js';
 import { EditorPluginInstaller, type EditorPluginInstallation } from './editor-plugin-installer.js';
 import { PRIVILEGED_RUNTIME_GROUPS, type PrivilegedRuntimeGroup } from './runtime-protocol.js';
 import { AuthoringSessionManager } from './authoring-session-manager.js';
+import { resolveAuthoringMode } from './authoring-mode.js';
 import { EditorMutationGuard } from './editor-mutation-guard.js';
 import { SERVER_INSTRUCTIONS } from './server-instructions.js';
 import { advertisedToolDefinitions } from './tool-surface.js';
@@ -224,6 +225,7 @@ export class GodotServer {
   constructor(config?: GodotServerConfig) {
     // Apply configuration if provided
     let debugMode = DEBUG_MODE;
+    const authoringMode = resolveAuthoringMode();
     this.executableValidator = new GodotExecutableValidator(message => { this.logDebug(message); });
     this.executable = new GodotExecutableService(
       this.executableValidator,
@@ -290,7 +292,12 @@ export class GodotServer {
         command, params, projectPath,
       ),
     });
-    this.headlessOperations = new HeadlessOperationService(this.operationRunner, pathSecurity, this.authoringSession);
+    this.headlessOperations = new HeadlessOperationService(
+      this.operationRunner,
+      pathSecurity,
+      this.authoringSession,
+      authoringMode,
+    );
     this.gameCommands = new GameCommandService(this.processManager, this.gameConnection);
     if (debugMode) console.error(`[DEBUG] Operations script path: ${this.operationsScriptPath}`);
     this.projectSupport = new ProjectSupport({
@@ -307,6 +314,7 @@ export class GodotServer {
       operations: this.headlessOperations,
       projectSupport: this.projectSupport,
       pathSecurity,
+      ownedTransientFiles: projectPath => this.interactionServerInstaller.ownedTransientFiles(projectPath),
     });
     this.lifecycleToolHandlers = new LifecycleToolHandlers({
       executable: this.executable,

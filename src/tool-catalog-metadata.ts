@@ -29,6 +29,10 @@ export interface ToolCatalogMetadata {
   readonly requiredState: ToolRequiredState;
   readonly mutation: ToolMutation;
   readonly privilege: ToolPrivilege;
+  readonly conditionalPrivileges: readonly {
+    readonly selector: string;
+    readonly group: 'reflection' | 'code-execution' | 'network';
+  }[];
   readonly destructive: boolean;
   readonly idempotent: boolean;
   readonly actionRequirements: Readonly<Record<string, {
@@ -57,6 +61,7 @@ interface CuratedGuidance {
   remediation?: string;
   preferredAlternatives?: readonly ToolName[];
   relatedTools?: readonly ToolName[];
+  conditionalPrivileges?: ToolCatalogMetadata['conditionalPrivileges'];
 }
 
 type WorkflowGuidance = readonly [whenToUse: string, whenNotToUse: string];
@@ -185,6 +190,16 @@ const CURATED_GUIDANCE: Partial<Record<ToolName, CuratedGuidance>> = {
     aliases: ['wait until a label changes', 'wait until a property changes', 'bounded condition wait'],
     tags: ['wait', 'condition', 'label', 'property', 'signal', 'bounded'],
     concepts: ['Signal', 'Node property'],
+    warnings: ['The property condition requires the reflection privilege group and fails before polling when it is disabled.'],
+    fallbacks: ['Use a log condition for an emitted state marker, or use game_get_ui for bounded control text without reflection.'],
+    remediation: 'Enable reflection with GODOT_MCP_PRIVILEGED_GROUPS=reflection and restart the runtime, or choose a log/UI fallback.',
+    conditionalPrivileges: [{ selector: 'condition=property', group: 'reflection' }],
+  },
+  game_scenario: {
+    warnings: ['Property wait and assert steps require the reflection privilege group and fail before polling when it is disabled.'],
+    fallbacks: ['Use a log condition step for an emitted state marker, or observe with game_get_ui without reflection.'],
+    remediation: 'Enable reflection with GODOT_MCP_PRIVILEGED_GROUPS=reflection and restart the runtime, or choose a log/UI fallback.',
+    conditionalPrivileges: [{ selector: 'steps[].condition.condition=property', group: 'reflection' }],
   },
   game_visual_regression: {
     aliases: ['compare a screenshot', 'screenshot comparison', 'visual regression'],
@@ -344,6 +359,7 @@ function metadataFor(name: ToolName): ToolCatalogMetadata {
     requiredState: requiredStateFor(name, manifest.backend),
     mutation,
     privilege: manifest.privileged ? 'required' : 'none',
+    conditionalPrivileges: curated.conditionalPrivileges ?? [],
     destructive: POTENTIALLY_DESTRUCTIVE_TOOLS.has(name),
     idempotent: mutation === 'read-only',
     actionRequirements: actionRequirementsFor(name),

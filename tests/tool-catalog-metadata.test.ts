@@ -23,6 +23,7 @@ describe('tool catalog metadata', () => {
       expect(['none', 'project', 'editor', 'runtime']).toContain(metadata.requiredState);
       expect(['read-only', 'mutating', 'mixed']).toContain(metadata.mutation);
       expect(metadata.privilege).toBe(toolManifest[definition.name].privileged ? 'required' : 'none');
+      expect(metadata.conditionalPrivileges).toEqual(expect.any(Array));
       expect(metadata.destructive).toEqual(expect.any(Boolean));
       expect(metadata.idempotent).toEqual(expect.any(Boolean));
       expect(Object.keys(metadata.actionRequirements).sort()).toEqual(
@@ -37,6 +38,22 @@ describe('tool catalog metadata', () => {
       expect(metadata.preferredAlternatives).toEqual(expect.any(Array));
       expect(metadata.relatedTools).toEqual(expect.any(Array));
     }
+  });
+
+  it('discloses reflection-only property conditions and safe fallbacks', () => {
+    expect(toolCatalogMetadata.game_wait_until).toMatchObject({
+      privilege: 'none',
+      conditionalPrivileges: [{ selector: 'condition=property', group: 'reflection' }],
+      warnings: [expect.stringMatching(/fails before polling/i)],
+      fallbacks: [expect.stringMatching(/log condition.*game_get_ui/i)],
+      remediation: expect.stringMatching(/GODOT_MCP_PRIVILEGED_GROUPS=reflection/i),
+    });
+    expect(toolCatalogMetadata.game_scenario).toMatchObject({
+      privilege: 'none',
+      conditionalPrivileges: [{ selector: 'steps[].condition.condition=property', group: 'reflection' }],
+      warnings: [expect.stringMatching(/wait and assert steps.*fail before polling/i)],
+      fallbacks: [expect.stringMatching(/log condition.*game_get_ui/i)],
+    });
   });
 
   it('uses reviewed workflow guidance for every compact and shipped-skill tool', () => {

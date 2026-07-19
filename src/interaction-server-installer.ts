@@ -1,5 +1,5 @@
 import { copyFileSync, cpSync, existsSync, readFileSync, readdirSync, rmSync, unlinkSync, writeFileSync } from 'fs';
-import { dirname, join } from 'path';
+import { dirname, join, relative } from 'path';
 import type { DebugLogger } from './godot-executable.js';
 
 const DEFAULT_AUTOLOAD_NAME = 'McpInteractionServer';
@@ -75,6 +75,46 @@ export class InteractionServerInstaller {
       this.logDebug(`Removed interaction server autoload from ${OVERRIDE_FILE_NAME}`);
     }
     this.removeInstalledArtifacts(projectPath);
+  }
+
+  /**
+   * Returns project-relative paths that the current transient installation
+   * proves belong to MCP. The generated override block proves the installation
+   * is transient, while byte equality proves ownership of each returned file.
+   * Modified files and extra files under mcp_runtime remain user-visible.
+   */
+  ownedTransientFiles(projectPath: string): ReadonlySet<string> {
+    const projectFile = join(projectPath, 'project.godot');
+    if (
+      !this.hasOwnedOverrideBlock(projectPath)
+      || (existsSync(projectFile) && readFileSync(projectFile, 'utf8').includes(this.autoloadName))
+    ) return new Set();
+
+    const owned = new Set<string>();
+    const destinationScript = join(projectPath, DESTINATION_SCRIPT_NAME);
+    if (existsSync(destinationScript) && this.fileMatchesShippedSource(destinationScript)) {
+      owned.add(DESTINATION_SCRIPT_NAME);
+    }
+
+    const sourceRuntime = join(dirname(this.options.sourceScriptPath), RUNTIME_DIR_NAME);
+    const visitSource = (sourceDirectory: string): void => {
+      if (!existsSync(sourceDirectory)) return;
+      for (const entry of readdirSync(sourceDirectory, { withFileTypes: true })) {
+        const source = join(sourceDirectory, entry.name);
+        if (entry.isDirectory()) {
+          visitSource(source);
+          continue;
+        }
+        if (!entry.isFile()) continue;
+        const sourceRelative = relative(sourceRuntime, source);
+        const installed = join(projectPath, RUNTIME_DIR_NAME, sourceRelative);
+        if (existsSync(installed) && this.filesMatch(installed, source)) {
+          owned.add(join(RUNTIME_DIR_NAME, sourceRelative).replaceAll('\\', '/'));
+        }
+      }
+    };
+    visitSource(sourceRuntime);
+    return owned;
   }
 
   /**
@@ -190,13 +230,21 @@ export class InteractionServerInstaller {
     return true;
   }
 
+  private hasOwnedOverrideBlock(projectPath: string): boolean {
+    const overrideFile = join(projectPath, OVERRIDE_FILE_NAME);
+    if (!existsSync(overrideFile)) return false;
+    const content = readFileSync(overrideFile, 'utf8');
+    return content.includes(BLOCK_BEGIN) || content.includes(LEGACY_BLOCK_BEGIN);
+  }
+
   /** Whether the installed server script is byte-identical to the shipped source. */
   private fileMatchesShippedSource(installedPath: string): boolean {
-    try {
-      return readFileSync(installedPath).equals(readFileSync(this.options.sourceScriptPath));
-    } catch {
-      return false;
-    }
+    return this.filesMatch(installedPath, this.options.sourceScriptPath);
+  }
+
+  private filesMatch(left: string, right: string): boolean {
+    try { return readFileSync(left).equals(readFileSync(right)); }
+    catch { return false; }
   }
 
   /**

@@ -8,7 +8,7 @@ import { GameToolHandlers } from '../src/tool-handlers/game-tool-handlers.js';
 import { LifecycleToolHandlers, type LifecycleToolHandlerContext } from '../src/tool-handlers/lifecycle-tool-handlers.js';
 import { ProjectToolHandlers } from '../src/tool-handlers/project-tool-handlers.js';
 import type { GodotProcess } from '../src/godot-process-manager.js';
-import { setToolResultMetadata } from '../src/execution-context.js';
+import { getToolResultMetadata, setToolResultMetadata } from '../src/execution-context.js';
 
 const temporaryDirectories: string[] = [];
 
@@ -493,7 +493,11 @@ describe('LifecycleToolHandlers', () => {
     const sendGameCommand = vi.fn().mockResolvedValue({
       jsonrpc: '2.0', id: 1, result: { value: 42 },
     });
-    const handlers = new LifecycleToolHandlers(context({ isGameConnected: () => true, sendGameCommand }));
+    const handlers = new LifecycleToolHandlers(context({
+      isGameConnected: () => true,
+      getRuntimeHandshake: () => ({ capabilities: ['privileged-reflection'] }),
+      sendGameCommand,
+    }));
 
     const matched = await handlers.handleGameWaitUntil({
       condition: 'property', nodePath: '/root/Player', property: 'score', value: 42,
@@ -511,11 +515,41 @@ describe('LifecycleToolHandlers', () => {
     expect(timedOut.isError).toBe(true);
   });
 
+  it('fails a default-security property wait before polling with retry and fallback guidance', async () => {
+    const sendGameCommand = vi.fn();
+    const handlers = new LifecycleToolHandlers(context({
+      isGameConnected: () => true,
+      getRuntimeHandshake: () => ({ capabilities: ['runtime-commands', 'godot-json-values'] }),
+      sendGameCommand,
+    }));
+
+    const response = await handlers.handleGameWaitUntil({
+      condition: 'property', nodePath: '/root/Player', property: 'score', value: 42,
+      timeoutSeconds: 60,
+    });
+
+    expect(response.isError).toBe(true);
+    expect(JSON.parse(textFrom(response))).toMatchObject({
+      satisfied: false, condition: 'property', elapsed_ms: 0, attempts: 0, last_observed: null,
+      error: expect.stringMatching(/reflection privilege group/i),
+    });
+    expect(getToolResultMetadata(response).error).toMatchObject({
+      code: 'reflection_privilege_required', category: 'policy', retryable: true,
+      remediation: expect.stringMatching(/GODOT_MCP_PRIVILEGED_GROUPS=reflection.*log condition.*game_get_ui/i),
+      details: { condition: 'property', privilegeGroup: 'reflection' },
+    });
+    expect(sendGameCommand).not.toHaveBeenCalled();
+  });
+
   it('turns an edge-of-deadline poll transport timeout into structured wait evidence', async () => {
     const sendGameCommand = vi.fn()
       .mockResolvedValueOnce({ jsonrpc: '2.0', id: 1, result: { value: 'Anchor' } })
       .mockRejectedValue(new Error("Game request 'godot.runtime.get_property' timed out after 0.001s"));
-    const handlers = new LifecycleToolHandlers(context({ isGameConnected: () => true, sendGameCommand }));
+    const handlers = new LifecycleToolHandlers(context({
+      isGameConnected: () => true,
+      getRuntimeHandshake: () => ({ capabilities: ['privileged-reflection'] }),
+      sendGameCommand,
+    }));
 
     const response = await handlers.handleGameWaitUntil({
       condition: 'property', nodePath: '/root/Main/Anchor', property: 'name', value: 'Never',
@@ -526,6 +560,37 @@ describe('LifecycleToolHandlers', () => {
     expect(JSON.parse(textFrom(response))).toMatchObject({
       satisfied: false, condition: 'property', last_observed: { value: 'Anchor' },
     });
+  });
+
+  it.each(['wait', 'assert'])('gives scenario %s property steps the same fail-fast policy contract', async type => {
+    const sendGameCommand = vi.fn(async (command: string) => ({
+      jsonrpc: '2.0' as const, id: 1, result: { command },
+    }));
+    const handlers = new LifecycleToolHandlers(context({
+      isGameConnected: () => true,
+      getRuntimeHandshake: () => ({ capabilities: ['runtime-commands', 'godot-json-values'] }),
+      sendGameCommand,
+    }));
+
+    const response = await handlers.handleGameScenario({
+      name: `${type}-property`,
+      steps: [{
+        type,
+        condition: { condition: 'property', nodePath: '/root/Player', property: 'score', value: 42, timeoutSeconds: 60 },
+      }],
+    });
+    const evidence = JSON.parse(textFrom(response));
+
+    expect(response.isError).toBe(true);
+    expect(evidence).toMatchObject({
+      passed: false,
+      failure: expect.stringMatching(/reflection privilege group/i),
+      steps: [{ result: { satisfied: false, condition: 'property', attempts: 0 } }],
+    });
+    expect(getToolResultMetadata(response).error).toMatchObject({
+      code: 'reflection_privilege_required', retryable: true,
+    });
+    expect(sendGameCommand.mock.calls.map(call => call[0])).toEqual(['time_scale']);
   });
 
   it('runs a bounded compound scenario and restores time scale without textual image payloads', async () => {
