@@ -17,6 +17,7 @@ user separately requested a fix. Support begins at Godot 4.7.
   can prove it did not edit them.
 - Record watched or unattended mode. For watched work, call `editor_session` with
   `ensure` and launch enabled; stop if no usable editor can be established.
+  Include projectPath for status reads too.
   For unattended verification, do not launch an editor: direct saved-state,
   compound verification, and runtime tools are sufficient and must not rewrite
   project metadata merely to establish a bridge.
@@ -43,14 +44,19 @@ user separately requested a fix. Support begins at Godot 4.7.
 3. Prefer `verify_project` and `run_project_tests`; use realtime `run_project`
    only for behavior the compound tools cannot prove.
 4. Observe a baseline with capped `game_get_scene_tree`, subtree-filtered
-   `game_get_ui`, logs, and `game_screenshot` where rendering is material. Use
-   `game_get_node_info` with compact detail and exact property names.
+   `game_get_ui`, logs, and `game_screenshot` where rendering is material. Read
+   the tree before using a node path; keep runtime reads serial because the
+   bridge handles one command at a time. Use `game_get_node_info` with compact
+   detail and exact property names.
 5. Prefer bounded `game_wait_until` and `game_scenario`. Use `game_key_press` for
    a one-frame tap, `game_key_hold` for continuous input, and always pair holds
    with `game_key_release`, including failure cleanup. Keep hold, bounded wait or
    observation, and release in one scenario. Never leave input held while making
    a separate observation call or while reasoning. Use `game_click` only when
    coordinate interaction is part of the criterion.
+   In a scenario, put input fields under arguments; wait and assert steps put
+   condition directly on the step, not tool `game_wait_until` plus arguments.
+   `game_key_hold` has no duration field; use a bounded wait, then release it.
 6. Repeat the same observation and compare the intended state. A successful tool
    response or screenshot alone does not prove behavior, audio quality, feel, or
    aesthetics.

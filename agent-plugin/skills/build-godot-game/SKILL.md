@@ -12,8 +12,8 @@ the supported boundary. Never add MCP autoloads, addons, or bridge files.
 ## Control contract
 
 - Validate the requested `projectPath` against the effective MCP roots and
-  allowed directories before mutation. Inspect first; call `create_project` only
-  when `project.godot` is absent.
+  allowed directories before mutation. If `project.godot` is absent, skip
+  project reads and call `create_project` before inspecting the new project.
 - For an empty watched directory, preflight the executable with
   `get_godot_version` before `create_project`. If Godot is unavailable, stop
   without writing anything. After the minimal project scaffold exists, attach
@@ -79,12 +79,12 @@ the supported boundary. Never add MCP autoloads, addons, or bridge files.
    `game_key_press` for a one-frame tap, `game_key_hold` for continuous movement,
    and always pair a hold with `game_key_release`, including failure cleanup.
    Never leave a key or action held across separate MCP calls. Put hold, bounded
-   wait or observation, and release steps in one `game_scenario`; its teardown is
-   the backstop, not the main release. If a direct hold is unavoidable, make the
+   wait or observation, and release steps in one `game_scenario`; its teardown is the
+   backstop, not the main release. If a direct hold is unavoidable, make the
    next call its release before any screenshot, tree, UI, log, or node read.
    When a named input action exists, pass its action name instead of a raw key.
-   Named action injection updates Godot's Input action state. Game code tested
-   this way should consume `Input.is_action_pressed()` or
+   Named action injection updates Godot's Input action state. Game code tested this
+   way should consume `Input.is_action_pressed()` or
    `Input.is_action_just_pressed()`; it must not rely only on `_input()` or
    `_unhandled_input()` events.
    When the game exposes continuous control, prove at least one real
@@ -96,6 +96,8 @@ the supported boundary. Never add MCP autoloads, addons, or bridge files.
    ```json
    {"name":"baseline","steps":[{"type":"wait","condition":{"condition":"node","nodePath":"/root/Main/Player","timeoutSeconds":2}},{"type":"observe","tool":"game_get_ui"},{"type":"screenshot"}]}
    ```
+
+   Put input fields inside step arguments, for example {"type":"input","tool":"game_key_hold","arguments":{"action":"move_right"}}; `game_key_hold` has no duration field. Use a bounded wait, then release it in the same scenario. In a scenario, wait/assert steps put condition directly on the step, not tool `game_wait_until` plus arguments. Keep baseline runtime reads serial to avoid a busy bridge.
 
    Before input, confirm the game has not advanced past the baseline; restart it
    if it has. Wait on current scene, node, UI, signal, or new log evidence. Never

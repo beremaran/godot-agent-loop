@@ -925,7 +925,7 @@ const rawToolDefinitions = [
 },
 {
   name: 'game_scenario',
-  description: 'Property waits need reflection; run bounded input, wait, assertion, screenshot, and performance steps',
+  description: 'Property waits need reflection; run bounded input, wait, assertion, screenshot, and performance steps. Put input fields inside each step arguments object.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -938,9 +938,9 @@ const rawToolDefinitions = [
           type: 'object', description: 'One discriminated scenario step',
           properties: {
             type: { type: 'string', enum: ['input', 'wait', 'observe', 'assert', 'screenshot', 'performance'], description: 'Scenario step discriminator' },
-            tool: { type: 'string', description: 'Allowlisted runtime tool for input or observation' },
-            arguments: { type: 'object', description: 'Arguments validated against the selected scenario tool' },
-            condition: { type: 'object', description: 'game_wait_until-compatible condition for wait or assert' },
+            tool: { type: 'string', description: 'Allowlisted runtime tool for input or observation steps only; wait and assert steps use condition directly' },
+            arguments: { type: 'object', description: 'Arguments for the selected scenario tool, nested here; for example {"action":"move_right"} for game_key_hold. game_key_hold has no duration field.' },
+            condition: { type: 'object', description: 'Put the game_wait_until-compatible condition directly on wait or assert steps; do not add game_wait_until as their tool' },
             label: { type: 'string', maxLength: 200, description: 'Optional evidence label' },
           },
           required: ['type'],
@@ -1313,7 +1313,7 @@ const rawToolDefinitions = [
 // Enhanced input tools
 {
   name: 'game_key_hold',
-  description: 'Hold a key down without auto-releasing',
+  description: 'Hold exactly one key or input action without auto-releasing; it has no duration field, so use a bounded wait in game_scenario and then game_key_release',
   inputSchema: {
     type: 'object',
     properties: {
@@ -1325,7 +1325,7 @@ const rawToolDefinitions = [
 },
 {
   name: 'game_key_release',
-  description: 'Release a previously held key',
+  description: 'Release exactly one previously held key or input action',
   inputSchema: {
     type: 'object',
     properties: {

@@ -800,13 +800,17 @@ export class ProjectToolHandlers {
       return createErrorResponse('projectPath and scenePath are required.');
     }
 
-    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath) || !validatePath(args.scenePath)) {
+    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath, true) || !validatePath(args.scenePath)) {
       return createErrorResponse('Invalid path.');
+    }
+
+    if (!existsSync(args.projectPath)) {
+      return createErrorResponse(`Project directory does not exist: ${args.projectPath}. Use create_project first.`);
     }
 
     const projectFile = join(args.projectPath, 'project.godot');
     if (!existsSync(projectFile)) {
-      return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
+      return createErrorResponse(`Not a valid Godot project: ${args.projectPath}. Use create_project first.`);
     }
 
     const scenePath = this.projectRelativePath(args.projectPath, args.scenePath);

@@ -125,7 +125,9 @@ export class ProjectConfigurationService {
   async read(args: ToolArguments): Promise<ToolResponse> {
     args = normalizeParameters(args || {});
     if (!args.projectPath) return createErrorResponse('projectPath is required.');
-    if (!validProject(this.context, args.projectPath)) return createErrorResponse('Invalid path.');
+    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath, true)) return createErrorResponse('Invalid path.');
+    if (!existsSync(args.projectPath)) return createErrorResponse(`Project directory does not exist: ${args.projectPath}. Use create_project first.`);
+    if (!existsSync(projectFile(args.projectPath))) return createErrorResponse(`Not a valid Godot project: ${args.projectPath}. Use create_project first.`);
     try {
       const sections: Record<string, Record<string, string>> = {};
       let currentSection = '';
@@ -144,7 +146,9 @@ export class ProjectConfigurationService {
   async modify(args: ToolArguments): Promise<ToolResponse> {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.section || !args.key || args.value === undefined) return createErrorResponse('projectPath, section, key, and value are required.');
-    if (!validProject(this.context, args.projectPath)) return createErrorResponse('Invalid path.');
+    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath, true)) return createErrorResponse('Invalid path.');
+    if (!existsSync(args.projectPath)) return createErrorResponse(`Project directory does not exist: ${args.projectPath}. Use create_project first.`);
+    if (!existsSync(projectFile(args.projectPath))) return createErrorResponse(`Not a valid Godot project: ${args.projectPath}. Use create_project first.`);
     try {
       let content = readFileSync(projectFile(args.projectPath), 'utf8');
       const header = `[${args.section}]`;

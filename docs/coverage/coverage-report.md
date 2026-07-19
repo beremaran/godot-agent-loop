@@ -29,8 +29,8 @@ and budgets are in [`tool-surface.json`](tool-surface.json).
 
 | Surface | Tools | Bytes | Estimated tokens |
 | --- | ---: | ---: | ---: |
-| Full catalog | 173 | 1186989 | 296748 |
-| Default core | 42 | 59982 | 14996 |
+| Full catalog | 173 | 1187334 | 296834 |
+| Default core | 42 | 59991 | 14998 |
 | Reduction | — | 94.95% | 94.95% |
 
 ## Coverage by class

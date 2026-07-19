@@ -17,8 +17,8 @@
   "infeasibilityEvidence": {
     "structuralFloorBeforeAnnotationsAndDescriptions": 44856,
     "noDescriptionFloorWithRequiredAnnotations": 49267,
-    "actualBytesWithRequiredContractsGuidanceAndAnnotations": 59982,
-    "actualEstimatedTokens": 14996
+    "actualBytesWithRequiredContractsGuidanceAndAnnotations": 59991,
+    "actualEstimatedTokens": 14998
   },
   "projectionRationale": {
     "fullSurfaceBytes": 1146392,
