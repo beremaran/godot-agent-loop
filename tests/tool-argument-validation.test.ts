@@ -55,6 +55,19 @@ describe('parseToolArguments', () => {
     })).toThrow('arguments.scenePath is forbidden by this action shape');
   });
 
+  it('marks property waits and scenario conditions as reflection-dependent', () => {
+    const wait = tool('game_wait_until');
+    expect(wait.description).toMatch(/property waits need reflection/i);
+    expect(wait.inputSchema.oneOf?.find(branch => branch.properties?.condition?.const === 'property'))
+      .toMatchObject({ 'x-privilege-group': 'reflection' });
+
+    const scenario = tool('game_scenario');
+    const condition = scenario.inputSchema.properties?.steps?.items?.properties?.condition;
+    expect(scenario.description).toMatch(/property waits need reflection/i);
+    expect(condition?.oneOf?.find(branch => branch.properties?.condition?.const === 'property'))
+      .toMatchObject({ 'x-privilege-group': 'reflection' });
+  });
+
   it('accepts arguments that match the advertised schema', () => {
     expect(parseToolArguments(tool('game_click'), { x: 10, y: 20 })).toEqual({ x: 10, y: 20 });
     expect(parseToolArguments(tool('read_scene'), {

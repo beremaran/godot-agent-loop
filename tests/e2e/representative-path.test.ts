@@ -104,7 +104,7 @@ describe('persistent authoring operation path', () => {
 
 describe('lifecycle and runtime path', () => {
   it('runs the project, queries and mutates the live scene tree, waits frames, and stops cleanly', async () => {
-    server = await startServer({ allowPrivileged: true });
+    server = await startServer();
     const started = await server.call('run_project', {
       projectPath: server.projectPath, timingMode: 'realtime', scene: 'main.tscn',
     });
@@ -155,7 +155,31 @@ describe('lifecycle and runtime path', () => {
     });
     expect(timeoutWait.isError).toBe(true);
     expect(JSON.parse(timeoutWait.text)).toMatchObject({
-      satisfied: false, condition: 'property', last_observed: { value: 'Anchor' },
+      satisfied: false, condition: 'property', elapsed_ms: 0, attempts: 0, last_observed: null,
+      error: expect.stringMatching(/reflection privilege group/i),
+    });
+    expect((timeoutWait.raw as { structuredContent?: unknown }).structuredContent).toMatchObject({
+      ok: false,
+      error: {
+        code: 'reflection_privilege_required', category: 'policy', retryable: true,
+        remediation: expect.stringMatching(/GODOT_MCP_PRIVILEGED_GROUPS=reflection.*log condition.*game_get_ui/i),
+      },
+    });
+    const blockedScenario = await server.call('game_scenario', {
+      projectPath: server.projectPath,
+      name: 'Default-security property assertion',
+      steps: [{
+        type: 'assert',
+        condition: { condition: 'property', nodePath: '/root/Main/Anchor', property: 'name', value: 'Anchor' },
+      }],
+    });
+    expect(blockedScenario.isError).toBe(true);
+    expect(JSON.parse(blockedScenario.text)).toMatchObject({
+      passed: false,
+      steps: [{ result: { condition: 'property', satisfied: false, attempts: 0 } }],
+    });
+    expect((blockedScenario.raw as { structuredContent?: unknown }).structuredContent).toMatchObject({
+      ok: false, error: { code: 'reflection_privilege_required', retryable: true },
     });
     const waitConditionKinds = ['connection', 'node', 'property', 'signal', 'log', 'scene'];
     expect(waitConditionKinds).toContain('node');
@@ -174,7 +198,7 @@ describe('lifecycle and runtime path', () => {
         { type: 'observe', tool: 'game_get_node_info', arguments: { nodePath: '/root/Main/Anchor' } },
         {
           type: 'assert',
-          condition: { condition: 'property', nodePath: '/root/Main/Anchor', property: 'name', value: 'Anchor' },
+          condition: { condition: 'node', nodePath: '/root/Main/Anchor' },
         },
         { type: 'performance' },
         { type: 'screenshot' },
@@ -367,6 +391,25 @@ describe('recovery and multi-project isolation', () => {
     });
     expect(reflected.isError, reflected.text).toBe(false);
     expect(reflected.text).toContain('Main');
+
+    const propertyWait = await server.call('game_wait_until', {
+      condition: 'property', nodePath: '/root/Main', property: 'name', value: 'Main', timeoutSeconds: 2,
+    });
+    expect(propertyWait.isError, propertyWait.text).toBe(false);
+    expect(JSON.parse(propertyWait.text)).toMatchObject({
+      satisfied: true, condition: 'property', attempts: 1, last_observed: { value: 'Main' },
+    });
+    const propertyScenario = await server.call('game_scenario', {
+      name: 'Reflection-enabled property assertion',
+      steps: [{
+        type: 'assert',
+        condition: { condition: 'property', nodePath: '/root/Main', property: 'name', value: 'Main' },
+      }],
+    });
+    expect(propertyScenario.isError, propertyScenario.text).toBe(false);
+    expect(JSON.parse(propertyScenario.text)).toMatchObject({
+      passed: true, steps: [{ result: { satisfied: true, condition: 'property', attempts: 1 } }],
+    });
 
     const code = await server.call('game_eval', { code: 'return "must-not-run"' });
     expect(code.isError).toBe(true);

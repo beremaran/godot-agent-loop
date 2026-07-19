@@ -116,6 +116,7 @@ export interface ProjectToolHandlerContext {
   operations: HeadlessOperationService;
   projectSupport: ProjectSupport;
   pathSecurity?: PathSecurity;
+  ownedTransientFiles?: (projectPath: string) => ReadonlySet<string>;
 }
 
 interface ProjectOperationApi {
@@ -167,6 +168,7 @@ export class ProjectToolHandlers {
       operations: context.operations,
       pathSecurity,
       projectSupport: context.projectSupport,
+      ownedTransientFiles: context.ownedTransientFiles,
     };
     this.fileIO = new ProjectFileIOService(serviceContext);
     this.configuration = new ProjectConfigurationService(serviceContext);
@@ -1290,7 +1292,9 @@ export class ProjectToolHandlers {
       candidates = changed.files!;
     } else if (args.scope === 'all') {
       scope = 'all';
-      candidates = this.context.projectSupport.listAllGdFiles(args.projectPath);
+      const ownedTransientFiles = this.context.ownedTransientFiles?.(args.projectPath) ?? new Set<string>();
+      candidates = this.context.projectSupport.listAllGdFiles(args.projectPath)
+        .filter(path => !ownedTransientFiles.has(path));
     } else {
       return createErrorResponse(`Invalid scope "${args.scope}". Use "changed" or "all", or pass scriptPaths.`);
     }

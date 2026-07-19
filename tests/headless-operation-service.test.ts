@@ -2,7 +2,8 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { resolveAuthoringMode, type AuthoringMode } from '../src/authoring-mode.js';
 import { HeadlessOperationService } from '../src/headless-operation-service.js';
 import type { HeadlessOperationResult, HeadlessOperationRunner } from '../src/headless-operation-runner.js';
 import { AuthoringSessionUnavailableError, RenderingContextUnavailableError, type AuthoringSessionManager } from '../src/authoring-session-manager.js';
@@ -19,17 +20,37 @@ function makeProject(): string {
 function makeService(
   result: HeadlessOperationResult,
   session?: Pick<AuthoringSessionManager, 'execute'>,
+  authoringMode: AuthoringMode = 'persistent',
 ): HeadlessOperationService {
   const runner = { execute: async (): Promise<HeadlessOperationResult> => result } as unknown as HeadlessOperationRunner;
   const pathSecurity = {
     isProjectPathAllowed: () => true,
     isRelativePathAllowed: () => true,
   };
-  return new HeadlessOperationService(runner, pathSecurity as any, session as AuthoringSessionManager | undefined);
+  return new HeadlessOperationService(
+    runner,
+    pathSecurity as any,
+    session as AuthoringSessionManager | undefined,
+    authoringMode,
+  );
 }
 
 afterEach(() => {
   while (projects.length > 0) rmSync(projects.pop()!, { recursive: true, force: true });
+});
+
+describe('authoring mode configuration', () => {
+  it('keeps persistent authoring as the default and accepts headless mode', () => {
+    expect(resolveAuthoringMode(undefined)).toBe('persistent');
+    expect(resolveAuthoringMode('')).toBe('persistent');
+    expect(resolveAuthoringMode('persistent')).toBe('persistent');
+    expect(resolveAuthoringMode('headless')).toBe('headless');
+  });
+
+  it('rejects unknown values', () => {
+    expect(() => resolveAuthoringMode('invalid'))
+      .toThrow(/Expected persistent or headless/);
+  });
 });
 
 describe('HeadlessOperationService authoring routing', () => {
@@ -52,6 +73,41 @@ describe('HeadlessOperationService authoring routing', () => {
     ).execute('create_scene', {}, makeProject());
 
     expect(response.stdout).toBe('fallback');
+  });
+
+  it('uses declared subprocess fallbacks without starting a session in headless mode', async () => {
+    const runner = {
+      execute: vi.fn(async (): Promise<HeadlessOperationResult> => ({
+        stdout: 'headless', stderr: '', exitCode: 0, signal: null,
+      })),
+    };
+    const session = { execute: vi.fn() };
+    const service = new HeadlessOperationService(
+      runner as unknown as HeadlessOperationRunner,
+      { isProjectPathAllowed: () => true, isRelativePathAllowed: () => true } as any,
+      session as unknown as AuthoringSessionManager,
+      'headless',
+    );
+    const firstProject = makeProject();
+    const secondProject = makeProject();
+
+    const results = await Promise.all([
+      service.execute('read_scene', { scenePath: 'main.tscn' }, firstProject),
+      service.execute('add_node', { scenePath: 'main.tscn' }, secondProject),
+      service.execute('manage_resource', { action: 'read', resourcePath: 'theme.tres' }, firstProject),
+    ]);
+
+    expect(results.map(result => result.stdout)).toEqual(['headless', 'headless', 'headless']);
+    expect(session.execute).not.toHaveBeenCalled();
+    expect(runner.execute).toHaveBeenNthCalledWith(
+      1, 'read_scene', { scenePath: 'main.tscn' }, firstProject,
+    );
+    expect(runner.execute).toHaveBeenNthCalledWith(
+      2, 'add_node', { scenePath: 'main.tscn' }, secondProject,
+    );
+    expect(runner.execute).toHaveBeenNthCalledWith(
+      3, 'manage_resource', { action: 'read', resourcePath: 'theme.tres' }, firstProject,
+    );
   });
 
   it('does not replay an operation after the session returns a command failure', async () => {

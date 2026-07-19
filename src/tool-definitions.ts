@@ -28,6 +28,7 @@ export interface ToolPropertySchema {
   const?: unknown;
   examples?: readonly unknown[];
   'x-invalidExamples'?: readonly ToolSchemaInvalidExample[];
+  'x-privilege-group'?: 'reflection' | 'code-execution' | 'network';
   default?: unknown;
   minimum?: number;
   maximum?: number;
@@ -899,12 +900,12 @@ const rawToolDefinitions = [
 },
 {
   name: 'game_wait_until',
-  description: 'Wait once for a bounded runtime condition and return the last observation',
+  description: 'Property waits need reflection; wait once for a bounded runtime condition and return the last observation',
   inputSchema: {
     type: 'object',
     properties: {
       projectPath: { type: 'string', description: 'Godot project path for trace correlation' },
-      condition: { type: 'string', enum: ['connection', 'node', 'property', 'signal', 'log', 'scene'], description: 'Condition kind' },
+      condition: { type: 'string', enum: ['connection', 'node', 'property', 'signal', 'log', 'scene'], description: 'Property waits need reflection; select the condition kind' },
       nodePath: { type: 'string', description: 'Runtime node path for node, property, or signal conditions' },
       property: { type: 'string', description: 'Property name for a property condition' },
       value: { description: 'Expected canonical Godot Variant value for a property condition' },
@@ -919,7 +920,7 @@ const rawToolDefinitions = [
 },
 {
   name: 'game_scenario',
-  description: 'Run bounded input, wait, assertion, screenshot, and performance steps',
+  description: 'Property waits need reflection; run bounded input, wait, assertion, screenshot, and performance steps',
   inputSchema: {
     type: 'object',
     properties: {
@@ -3665,7 +3666,10 @@ function waitConditionBranches(): ToolPropertySchema[] {
   return [
     selectorBranch('condition', 'connection', [], WAIT_CONDITION_FIELDS),
     selectorBranch('condition', 'node', ['nodePath'], ['property', 'value', 'signal', 'text', 'scenePath']),
-    selectorBranch('condition', 'property', ['nodePath', 'property', 'value'], ['signal', 'text', 'scenePath']),
+    {
+      ...selectorBranch('condition', 'property', ['nodePath', 'property', 'value'], ['signal', 'text', 'scenePath']),
+      'x-privilege-group': 'reflection',
+    },
     selectorBranch('condition', 'signal', ['nodePath', 'signal'], ['property', 'value', 'text', 'scenePath']),
     selectorBranch('condition', 'log', ['text'], ['nodePath', 'property', 'value', 'signal', 'scenePath']),
     selectorBranch('condition', 'scene', ['scenePath'], ['nodePath', 'property', 'value', 'signal', 'text']),
@@ -3677,7 +3681,7 @@ function scenarioConditionSchema(description: string): ToolPropertySchema {
     type: 'object',
     description,
     properties: {
-      condition: { type: 'string', enum: ['connection', 'node', 'property', 'signal', 'log', 'scene'], description: 'Condition discriminator.' },
+      condition: { type: 'string', enum: ['connection', 'node', 'property', 'signal', 'log', 'scene'], description: 'Property waits and asserts need reflection; select the condition kind.' },
       nodePath: { type: 'string', description: 'Runtime node path for node, property, or signal conditions.' },
       property: { type: 'string', description: 'Property name for a property condition.' },
       value: { description: 'Expected canonical Godot Variant value for a property condition.' },

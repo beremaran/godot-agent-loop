@@ -31,6 +31,8 @@ import {
 import type { EditorPluginInstallation } from '../editor-plugin-installer.js';
 import { canonicalProjectPath, type PublicEditorSession } from '../editor-session-registry.js';
 import { createBoundedObservationResponse } from '../observation-result.js';
+import { PRIVILEGED_RUNTIME_CAPABILITY, privilegedGroupCapability } from '../runtime-protocol.js';
+import type { StructuredToolError } from '../tool-results.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -84,6 +86,19 @@ const SCENARIO_OBSERVE_TOOLS = new Set([
   'game_get_scene_tree', 'game_get_ui', 'game_get_node_info', 'game_get_property',
   'game_get_errors', 'game_get_logs', 'game_get_camera', 'game_get_audio', 'game_performance',
 ]);
+
+const PROPERTY_WAIT_REFLECTION_ERROR: StructuredToolError = {
+  code: 'reflection_privilege_required',
+  category: 'policy',
+  message: 'Property waits and assertions require the reflection privilege group, but the connected runtime did not authorize it.',
+  retryable: true,
+  remediation: 'Enable GODOT_MCP_PRIVILEGED_GROUPS=reflection and restart the runtime, or use a log condition or game_get_ui observation that does not require reflection.',
+  details: {
+    condition: 'property',
+    privilegeGroup: 'reflection',
+    fallbackTools: ['game_wait_until condition=log', 'game_get_ui'],
+  },
+};
 
 function waitSuccess(condition: unknown, startedAt: number, attempts: number, observed: unknown): Record<string, unknown> {
   return { satisfied: true, condition, elapsed_ms: Date.now() - startedAt, attempts, last_observed: observed };
@@ -580,10 +595,13 @@ export class LifecycleToolHandlers {
   public async handleGameWaitUntil(args: ToolArguments): Promise<ToolResponse> {
     args = normalizeParameters(args || {});
     const result = await this.waitUntilEvidence(args);
-    return {
+    const response = {
       content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
       ...(result.satisfied === true ? {} : { isError: true }),
     };
+    return this.isReflectionPreconditionFailure(result)
+      ? setToolResultMetadata(response, { outcome: 'failure', error: PROPERTY_WAIT_REFLECTION_ERROR })
+      : response;
   }
 
   public async handleGameScenario(args: ToolArguments): Promise<ToolResponse> {
@@ -598,6 +616,7 @@ export class LifecycleToolHandlers {
     let passed = true;
     let failure: string | null = null;
     let cancelled = false;
+    let structuredError: StructuredToolError | undefined;
     const heldKeys = new Set<string>();
     await reportProgress(0, args.steps.length + 1, `Starting scenario ${args.name}`);
     for (let index = 0; index < args.steps.length; index++) {
@@ -615,7 +634,15 @@ export class LifecycleToolHandlers {
           const requestedTimeout = typeof condition.timeoutSeconds === 'number' ? condition.timeoutSeconds : remaining;
           const result = await this.waitUntilEvidence({ ...condition, timeoutSeconds: Math.min(remaining, requestedTimeout) });
           item.result = result;
-          if (result.satisfied !== true) { passed = false; failure = `Step ${index} condition was not satisfied`; }
+          if (result.satisfied !== true) {
+            passed = false;
+            if (this.isReflectionPreconditionFailure(result)) {
+              structuredError = PROPERTY_WAIT_REFLECTION_ERROR;
+              failure = `Step ${index} failed: ${PROPERTY_WAIT_REFLECTION_ERROR.message}`;
+            } else {
+              failure = `Step ${index} condition was not satisfied`;
+            }
+          }
         } else if (step.type === 'screenshot') {
           const response = await this.context.sendGameCommand('screenshot', {}, Math.max(1, deadline - Date.now()));
           if ('error' in response) throw new Error(response.error.message);
@@ -684,13 +711,27 @@ export class LifecycleToolHandlers {
         duration_ms: Date.now() - startedAt, steps: evidence, teardown,
       }, null, 2) }],
       ...(passed ? {} : { isError: true }),
-    }, { outcome: cancelled ? 'cancelled' : passed ? 'success' : 'failure', details: { teardown } });
+    }, {
+      outcome: cancelled ? 'cancelled' : passed ? 'success' : 'failure',
+      details: { teardown },
+      ...(structuredError ? { error: structuredError } : {}),
+    });
   }
 
   private async waitUntilEvidence(args: ToolArguments): Promise<Record<string, unknown>> {
     const condition = args.condition;
     if (!['connection', 'node', 'property', 'signal', 'log', 'scene'].includes(condition)) {
       return { satisfied: false, error: 'condition must be connection, node, property, signal, log, or scene' };
+    }
+    if (condition === 'property' && !this.runtimeSupportsReflection()) {
+      return {
+        satisfied: false,
+        condition,
+        elapsed_ms: 0,
+        attempts: 0,
+        last_observed: null,
+        error: PROPERTY_WAIT_REFLECTION_ERROR.message,
+      };
     }
     const timeoutMs = Math.round((typeof args.timeoutSeconds === 'number' ? args.timeoutSeconds : 10) * 1_000);
     const pollMs = typeof args.pollIntervalMs === 'number' ? args.pollIntervalMs : 100;
@@ -755,6 +796,19 @@ export class LifecycleToolHandlers {
       satisfied: false, condition, elapsed_ms: Date.now() - startedAt, attempts,
       timeout_ms: timeoutMs, last_observed: lastObserved,
     };
+  }
+
+  private runtimeSupportsReflection(): boolean {
+    const capabilities = this.context.getRuntimeHandshake?.()?.capabilities;
+    return Array.isArray(capabilities)
+      && (capabilities.includes(PRIVILEGED_RUNTIME_CAPABILITY)
+        || capabilities.includes(privilegedGroupCapability('reflection')));
+  }
+
+  private isReflectionPreconditionFailure(result: Record<string, unknown>): boolean {
+    return result.condition === 'property'
+      && result.attempts === 0
+      && result.error === PROPERTY_WAIT_REFLECTION_ERROR.message;
   }
 
   private async evaluateVerificationAssertion(assertion: ToolArguments): Promise<Record<string, unknown>> {

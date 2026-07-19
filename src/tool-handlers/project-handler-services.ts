@@ -35,6 +35,7 @@ export interface ProjectHandlerServiceContext {
   operations: HeadlessOperationService;
   pathSecurity: PathSecurity;
   projectSupport: ProjectSupport;
+  ownedTransientFiles?: (projectPath: string) => ReadonlySet<string>;
 }
 
 function projectFile(projectPath: string): string {
@@ -665,13 +666,16 @@ export class ProjectIntegrityService {
 
   private scan(projectPath: string, maxFiles: number): { files: string[] } | { error: string } {
     const files: string[] = [];
+    const ownedTransientFiles = this.context.ownedTransientFiles?.(projectPath) ?? new Set<string>();
     const walk = (directory: string): boolean => {
       for (const entry of readdirSync(directory, { withFileTypes: true })) {
         if (['.godot', '.git', 'node_modules'].includes(entry.name)) continue;
         const full = join(directory, entry.name);
         if (entry.isDirectory()) { if (!walk(full)) return false; }
         else if (entry.isFile() && ProjectIntegrityService.resourceExtensions.has(extname(entry.name).toLowerCase())) {
-          files.push(relative(projectPath, full).replaceAll('\\', '/'));
+          const projectRelative = relative(projectPath, full).replaceAll('\\', '/');
+          if (ownedTransientFiles.has(projectRelative)) continue;
+          files.push(projectRelative);
           if (files.length > maxFiles) return false;
         }
       }

@@ -11,15 +11,15 @@
   },
   "full": {
     "tools": 173,
-    "bytes": 1185743,
-    "estimatedTokens": 296436
+    "bytes": 1185962,
+    "estimatedTokens": 296491
   },
   "core": {
     "tools": 42,
-    "bytes": 59447,
-    "estimatedTokens": 14862
+    "bytes": 59515,
+    "estimatedTokens": 14879
   },
-  "coreByteReductionPercent": 94.99,
+  "coreByteReductionPercent": 94.98,
   "counts": {
     "domains": {
       "game": 111,

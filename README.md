@@ -196,6 +196,7 @@ Add to your Claude Code MCP settings:
       "args": ["-y", "@beremaran/godot-agent-loop"],
       "env": {
         "GODOT_PATH": "/path/to/godot",
+        "GODOT_MCP_AUTHORING_MODE": "headless",
         "DEBUG": "true"
       }
     }
@@ -306,6 +307,7 @@ the event name, runtime component, numeric session ID, and timestamp.
 | `GODOT_PATH` | Path to the Godot executable (overrides auto-detection) |
 | `DEBUG` | Set to `"true"` for detailed server-side logging. This also runs the headless operations script with `--debug-godot`, which logs diagnostics and writes a temporary write-access probe file into the project (removed again on every branch). Parameter values are summarized by type and size in both logs, never printed. |
 | `GODOT_MCP_ALLOWED_DIRS` | Optional. Restrict `run_project` to projects under these roots (`;`, `,`, or `:` separated). When unset, any project path is allowed. |
+| `GODOT_MCP_AUTHORING_MODE` | Optional, default `persistent`. `persistent` reuses a headed Godot process and avoids startup cost on each scene or resource call. `headless` opens no helper window and runs each authoring call through its declared one-shot `--headless` subprocess fallback. This does not change the headed `run_project` path. |
 | `GODOT_MCP_RUNTIME_SECRET` | Optional explicit shared runtime secret. The MCP server generates a fresh 256-bit value when omitted and passes it only to Godot processes it launches. Set the same value manually only when connecting to a separately launched runtime. |
 | `GODOT_MCP_EDITOR_START_PAUSED` | Optional, default `false`. Start the editor addon's cooperative lock in human-editing mode so mutating MCP tools are refused until **Resume Agent** is pressed. |
 | `GODOT_MCP_TOOL_SURFACE` | Optional, default `core`. `compact` is a compatibility alias for `core`; `full` advertises the complete static catalog. Unknown values are rejected. Use `godot_catalog` plus `godot_call` for hidden tools; the combined `godot_tools` alias is deprecated through the 1.x release line. |
@@ -339,20 +341,19 @@ queries instead of receiving partial unlabelled data.
 
 The server uses three bounded execution paths:
 
-1. **Persistent authoring session** - The primary scene/resource authoring path.
-   It owns a headed, deterministic Godot main loop and serves authenticated
-   JSON-RPC commands without paying engine startup cost per edit.
+1. **Scene and resource authoring** - `GODOT_MCP_AUTHORING_MODE=persistent`
+   reuses a headed, deterministic Godot main loop and avoids engine startup cost
+   per edit. `GODOT_MCP_AUTHORING_MODE=headless` creates no helper window and
+   sends each call to its declared one-shot `--headless` subprocess fallback.
 
 2. **Running-game socket** - `run_project` launches the user's game headed and
    injects the authenticated `mcp_interaction_server.gd` autoload through
    `override.cfg` for high-fidelity runtime interaction.
 
-3. **One-shot subprocess fallback** - Isolated authoring, validation, import,
-   and export operations may invoke Godot once and exit. Commands that do not
-   render may internally use `--headless`; this is not a supported display-less
-   agent-loop tier. Authoring sessions, running games, screenshots, and visual
-   verification require a desktop display, Xvfb, or another reachable rendering
-   context and fail fast when none exists.
+3. **Other one-shot subprocess work** - Validation, import, and export operations
+   may invoke Godot once and exit. Headless authoring does not make visual work
+   display-less: running games, screenshots, and visual checks still require a
+   desktop display, Xvfb, or another reachable rendering context.
 
 ### Source layout
 

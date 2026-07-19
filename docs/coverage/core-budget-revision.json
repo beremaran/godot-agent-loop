@@ -17,8 +17,8 @@
   "infeasibilityEvidence": {
     "structuralFloorBeforeAnnotationsAndDescriptions": 44856,
     "noDescriptionFloorWithRequiredAnnotations": 49267,
-    "actualBytesWithRequiredContractsGuidanceAndAnnotations": 59447,
-    "actualEstimatedTokens": 14862
+    "actualBytesWithRequiredContractsGuidanceAndAnnotations": 59515,
+    "actualEstimatedTokens": 14879
   },
   "projectionRationale": {
     "fullSurfaceBytes": 1146392,
@@ -26,9 +26,9 @@
     "omittedFromCompactOnly": ["examples", "x-invalidExamples", "descriptions below the first schema level", "detailed nested output documentation"],
     "largestTools": [
       { "name": "editor_transaction", "bytes": 5943, "reason": "ten exact operation discriminators with required and forbidden fields" },
-      { "name": "game_scenario", "bytes": 4655, "reason": "safe input/observe step allowlists and nested wait-condition discriminators" },
+      { "name": "game_scenario", "bytes": 4681, "reason": "safe input/observe step allowlists and nested wait-condition discriminators" },
       { "name": "editor_control", "bytes": 3846, "reason": "nine exact editor action shapes" },
-      { "name": "game_wait_until", "bytes": 3215, "reason": "six exact wait-condition shapes" }
+      { "name": "game_wait_until", "bytes": 3257, "reason": "six exact wait-condition shapes" }
     ]
   },
   "membershipRevision": {
