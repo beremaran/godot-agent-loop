@@ -177,7 +177,7 @@ export class EditorPluginInstaller {
         'name="Godot Agent Loop Transient Bridge"',
         'description="Session-owned authenticated editor bridge"',
         'author="Godot Agent Loop"',
-        'version="1.1.2"',
+        'version="1.1.3"',
         'script="plugin.gd"',
         `protocol_version="${EDITOR_BRIDGE_PROTOCOL_VERSION}"`,
         'minimum_godot_version="4.7"',

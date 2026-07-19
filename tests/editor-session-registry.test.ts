@@ -32,7 +32,7 @@ function record(projectPath: string, overrides: Partial<EditorSessionDiscoveryRe
     port: 32123,
     token: 'a'.repeat(43),
     protocol_version: '2',
-    addon_version: '1.1.2',
+    addon_version: '1.1.3',
     godot_version: '4.7',
     created_at: '2026-07-15T00:00:00Z',
     ...overrides,
