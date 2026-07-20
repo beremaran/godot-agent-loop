@@ -117,7 +117,7 @@ const REVIEWED_WORKFLOW_GUIDANCE: Partial<Record<ToolName, WorkflowGuidance>> = 
   set_main_scene: ['Set the project main scene persistently.', 'Do not use it to change only the current runtime scene.'],
   stop_project: ['Safely stop the connected game runtime with no arguments; it is process-global.', 'Do not pass projectPath or disconnect the editor when only the game should stop.'],
   validate_script: ['Validate one GDScript file.', 'Use validate_scripts for a bounded project batch.'],
-  validate_scripts: ['Validate changed, all, or explicit GDScript files.', 'Use validate_script for a single known path.'],
+  validate_scripts: ['Validate changed, all, or explicit GDScript files.', 'A zero-file changed scope is unvalidated; use all or explicit paths.'],
   verify_dotnet_project: ['Inspect, restore, build, or run the project .NET workflow.', 'Do not use it for a GDScript-only project.'],
   verify_export_readiness: ['Inspect or smoke-test an export preset.', 'Do not substitute it for testing the exported artifact.'],
   verify_project: ['Run bounded project-wide static verification.', 'Use runtime observations for gameplay behavior.'],

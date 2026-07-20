@@ -219,7 +219,11 @@ describe('EditorSessionRegistry', () => {
     expect((await registry.ensure(path, 0)).reused).toBe(true);
     expect(authenticate).toHaveBeenCalledTimes(1);
     expect(send).not.toHaveBeenCalled();
-    expect(registry.disconnect(path).state).toBe('no_editor');
+    expect(registry.disconnect(path)).toMatchObject({
+      state: 'no_editor',
+      process_alive: true,
+      reason: 'MCP connection detached; Godot editor process remains open',
+    });
     expect(disconnect).toHaveBeenCalledOnce();
   });
 

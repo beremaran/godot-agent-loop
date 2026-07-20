@@ -470,6 +470,8 @@ export class LifecycleToolHandlers {
         'get_scene_tree', { max_nodes: 1 }, 5_000, currentExecutionContext()?.signal,
       );
       if ('error' in probe) throw new Error(`Runtime readiness probe failed: ${probe.error.message}`);
+      const fatalStartup = this.fatalStartupMessage(runningProcess);
+      if (fatalStartup) throw new Error(`Godot reported a fatal startup error: ${fatalStartup}`);
       await reportProgress(4, 4, 'Runtime authenticated and ready');
 
       const handshake = this.context.getRuntimeHandshake?.() ?? null;
@@ -969,6 +971,19 @@ export class LifecycleToolHandlers {
     };
   }
 
+  private fatalStartupMessage(record: GodotProcess | null | undefined): string | null {
+    const output = [...(record?.output ?? []), ...(record?.errors ?? [])].join('\n');
+    const patterns = [
+      /ERROR:\s+(?:Error parsing ['"][^'"\n]*project\.godot['"]|Couldn't load file ['"][^'"\n]*project\.godot['"])[^\n]*/i,
+      /(?:SCRIPT ERROR:\s*)?(?:Parse Error|Failed to load script|Could not load script|Can't load script)[^\n]*/i,
+    ];
+    for (const pattern of patterns) {
+      const match = pattern.exec(output);
+      if (match) return match[0];
+    }
+    return null;
+  }
+
   private watchForFatalStartup(record: GodotProcess, signal: AbortSignal): Promise<never> {
     return new Promise((_, reject) => {
       let timer: ReturnType<typeof setTimeout> | undefined;
@@ -981,11 +996,10 @@ export class LifecycleToolHandlers {
           cleanup();
           return;
         }
-        const output = [...record.output, ...record.errors].join('\n');
-        const fatal = /ERROR:\s+(?:Error parsing ['"][^'"\n]*project\.godot['"]|Couldn't load file ['"][^'"\n]*project\.godot['"])[^\n]*/i.exec(output);
+        const fatal = this.fatalStartupMessage(record);
         if (fatal) {
           cleanup();
-          reject(new Error(`Godot reported a fatal startup error: ${fatal[0]}`));
+          reject(new Error(`Godot reported a fatal startup error: ${fatal}`));
           return;
         }
         timer = setTimeout(inspect, 25);

@@ -54,6 +54,7 @@ describe('MCP-owned transient runtime filtering', () => {
         operations: {} as any,
         projectSupport: {
           listAllGdFiles: (path: string) => support.listAllGdFiles(path),
+          listChangedGdFiles: vi.fn().mockResolvedValue({ files: [] }),
           runGdScriptCheck,
         } as any,
         ownedTransientFiles: path => installer.ownedTransientFiles(path),
@@ -133,5 +134,17 @@ describe('MCP-owned transient runtime filtering', () => {
     expect(result.results.map((entry: Record<string, unknown>) => entry.scriptPath).sort())
       .toEqual(['mcp_runtime/user_owned.gd', 'scripts/game.gd']);
     expect(runGdScriptCheck).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not report changed scope as valid when no files matched', async () => {
+    const { handlers: tools, runGdScriptCheck } = handlers();
+
+    const result = json(await tools.handleValidateScripts({ projectPath, scope: 'changed' }));
+
+    expect(result).toMatchObject({
+      scope: 'changed', fileCount: 0, filesWithErrors: 0, allValid: false,
+      warning: expect.stringContaining('validation did not run'),
+    });
+    expect(runGdScriptCheck).not.toHaveBeenCalled();
   });
 });

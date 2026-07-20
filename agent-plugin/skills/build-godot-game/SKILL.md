@@ -29,14 +29,12 @@ the supported boundary. Never add MCP autoloads, addons, or bridge files.
   never report them as saved project changes.
 - Use canonical core tools directly (`compact` is only the compatibility alias).
   Resolve hidden `list_project_files` and `analyze_project_integrity` through
-  `godot_catalog` detail, then invoke them with `godot_call`; never call a hidden
-  tool directly.
+  `godot_catalog` detail, then invoke them with `godot_call`; never call a hidden tool directly.
 - If the human selects **Pause Agent**, do not retry, route around, or disguise a
   blocked mutation. Preserve state, continue only safe observation or teardown,
   and report the blocked effective tool.
-- Use privileged reflection or evaluation only when already enabled, necessary,
-  and recorded. Never enable a privilege merely to make the workflow easier.
-- Action schemas are strict: `editor_session` timeoutSeconds/launchIfNeeded only apply to ensure; status/disconnect use only projectPath/action. `run_project_tests` discover uses framework/testPaths; run also uses artifactPaths/timeoutSeconds/failFast. `read_project_settings` takes only projectPath; `stop_project` takes no arguments.
+- Use privileged reflection or evaluation only when already enabled, necessary, and recorded. Never enable a privilege merely to make the workflow easier.
+- Action schemas are strict: `editor_session` timeoutSeconds/launchIfNeeded only apply to ensure; status/disconnect use only projectPath/action. `run_project_tests` discover uses framework/testPaths; `read_project_settings` takes only projectPath; `stop_project` takes no arguments.
 
 ## Workflow
 
@@ -66,13 +64,15 @@ the supported boundary. Never add MCP autoloads, addons, or bridge files.
    `attach_script`, create named actions with `manage_input_map`, and set the
    startup scene with `set_main_scene`. Pass plain JSON strings to
    `modify_project_settings`; the tool writes their required Godot quotes.
-5. Run `validate_scripts`, then independently re-read changed scenes, scripts,
-   settings, and integrity state before starting the game. Treat this as a gate:
-   script validation alone does not prove saved scenes or project settings.
+5. Run `validate_scripts` (use all or explicit paths if changed finds none),
+   then independently re-read changed scenes, scripts, settings, and integrity
+   state before starting the game. Treat this as a gate: script validation alone
+   does not prove saved scenes or project settings.
 6. Start watched gameplay with `run_project`; success means the runtime bridge is
    usable. Observe the baseline with `game_get_scene_tree` capped to the nodes
    needed, `game_get_ui` rooted at the HUD or menu, logs, and `game_screenshot`.
-   Check `game_get_errors` at once. For one node, use `game_get_node_info` with
+   A connected bridge is not startup proof: inspect startup diagnostics and `game_get_errors` at once; stop on SCRIPT ERROR, Parse Error, or failed script load.
+   For one node, use `game_get_node_info` with
    compact detail and exact property names; never request its full method
    and property dump for a value you already know by name. Read runtime paths
    before asserting them; persisted paths and runtime paths are distinct. If startup output matters, drain it with `game_get_logs`; its cursor does not set a later log wait's start point.
@@ -93,14 +93,13 @@ the supported boundary. Never add MCP autoloads, addons, or bridge files.
    ```json
    {"name":"baseline","steps":[{"type":"wait","condition":{"condition":"node","nodePath":"/root/Main/Player","timeoutSeconds":2}},{"type":"observe","tool":"game_get_ui"},{"type":"screenshot"}]}
    ```
-
    Put input fields inside step arguments, for example {"type":"input","tool":"game_key_hold","arguments":{"action":"move_right"}}; `game_key_hold` has no duration field. Use a bounded wait, then release it in the same scenario. In a scenario, wait/assert steps put condition directly on the step, not tool `game_wait_until` plus arguments. Set fresh=true on a log condition when it must prove an event emitted after that wait starts; without it, retained process output may satisfy the condition. Keep baseline runtime reads serial to avoid a busy bridge.
 
    Before input, confirm the game has not advanced past the baseline; restart it
-   if it has. Wait on current scene, node, UI, signal, or fresh log evidence. Never
-   use an old log line or time spent reasoning between calls as a clock. Do not
-   slow or change the game to fit agent response time; use bounded engine-side
-   waits, test hooks, or fixed-frame proof instead.
+   if it has. Use a timer long enough for the agent to observe and act, and recheck
+   state after each read. Stop the runtime before any persistent scene, script,
+   setting, or input repair. Never use an old log line or time spent reasoning as a
+   clock; use bounded engine-side waits, test hooks, or fixed-frame proof instead.
 8. Prove ordinary play and requested success/failure transitions with independent
    state plus rendered or log evidence. Use `verify_project` and
    `run_project_tests` where they express the criteria directly. For discovery,
@@ -111,7 +110,8 @@ the supported boundary. Never add MCP autoloads, addons, or bridge files.
    `stop_project`, and remove only identified MCP-owned probes or transient files.
    For watched work, leave the editor available to the human and use
    `editor_session` with projectPath/action=disconnect to hand off the agent
-   connection; do not add timeoutSeconds to that action.
+   connection; do not add timeoutSeconds to that action. Confirm its process_alive
+   result; if false, relaunch the editor before handoff.
 
 Establish an explicit frame/object/voice budget before high-volume effects. For
 external assets, verify source, license, attribution, import, and rendered or

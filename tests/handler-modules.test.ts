@@ -404,6 +404,27 @@ describe('LifecycleToolHandlers', () => {
     expect(stopProjectProcess).toHaveBeenCalledOnce();
   });
 
+  it('rejects script parse errors before reporting runtime readiness', async () => {
+    const projectPath = createProject();
+    const process = {
+      output: [],
+      errors: ['SCRIPT ERROR: Parse Error: Expected new line after "\\". at main.gd:17'],
+    } as GodotProcess;
+    const stopProjectProcess = vi.fn(() => process);
+    const handlers = new LifecycleToolHandlers(context({
+      startProjectProcess: () => process,
+      stopProjectProcess,
+      getConnectedProjectPath: () => projectPath,
+    }));
+
+    const response = await handlers.handleRunProject({ projectPath });
+
+    expect(response.isError).toBe(true);
+    expect(textFrom(response)).toContain('fatal startup error');
+    expect(textFrom(response)).toContain('Parse Error');
+    expect(stopProjectProcess).toHaveBeenCalledOnce();
+  });
+
   it('serializes concurrent idempotent editor ensure requests for one project', async () => {
     const projectPath = createProject();
     const ensureEditorSession = vi.fn().mockResolvedValue({

@@ -1318,6 +1318,10 @@ export class ProjectToolHandlers {
     const results: ValidationResult[] = [];
     let filesWithErrors = 0;
     const toCheck: string[] = [];
+    const warnings: string[] = [];
+    if (scope !== 'explicit' && candidates.length === 0) {
+      warnings.push('No GDScript files matched this scope; validation did not run. Use scope: "all" or pass scriptPaths.');
+    }
     for (const rel of candidates) {
       if (!/\.gd$/i.test(rel) || !validatePath(rel)) {
         if (explicit) results.push({ scriptPath: rel, checked: false, error: 'Not a valid .gd path' });
@@ -1344,17 +1348,20 @@ export class ProjectToolHandlers {
       }
     }
 
+    const report: Record<string, unknown> = {
+      scope,
+      fileCount: results.length,
+      filesWithErrors,
+      allValid: warnings.length === 0 && filesWithErrors === 0 && results.every(r => r.checked),
+      results,
+    };
+    if (warnings.length > 0) report.warning = warnings.join(' ');
+
     return {
       content: [
         {
           type: 'text',
-          text: JSON.stringify({
-            scope,
-            fileCount: results.length,
-            filesWithErrors,
-            allValid: filesWithErrors === 0 && results.every(r => r.checked),
-            results,
-          }, null, 2),
+          text: JSON.stringify(report, null, 2),
         },
       ],
     };
