@@ -5,8 +5,10 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { parse } from 'jsonc-parser';
 import { setupOpenCode } from '../src/opencode-setup.js';
+import { repoRoot } from './helpers/manifest-sources.js';
 
 const temporary: string[] = [];
+const packageJson = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8')) as { version: string };
 
 function fixture(): string {
   const path = mkdtempSync(join(tmpdir(), 'godot-agent-loop-opencode-'));
@@ -36,7 +38,7 @@ describe('OpenCode setup', () => {
     expect(parsed.theme).toBe('system');
     expect(parsed.mcp['godot-agent-loop']).toEqual({
       type: 'local',
-      command: ['npx', '-y', '@beremaran/godot-agent-loop@1.1.3'],
+      command: ['npx', '-y', `@beremaran/godot-agent-loop@${packageJson.version}`],
       enabled: true,
       environment: { GODOT_MCP_TOOL_SURFACE: 'core', GODOT_MCP_LEGACY_JSON_TEXT: 'false' },
     });

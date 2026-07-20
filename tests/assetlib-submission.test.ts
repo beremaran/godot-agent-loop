@@ -9,6 +9,8 @@ import { repoRoot } from './e2e/helpers/harness.js';
 
 const roots: string[] = [];
 
+const packageJson = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8')) as { version: string };
+
 afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
@@ -29,7 +31,7 @@ describe('AssetLib submission payload', () => {
       category: 'Addons/Tools',
       godotVersion: '4.7',
       testedThroughGodotVersion: '4.7',
-      version: '1.1.3',
+      version: packageJson.version,
       repositoryUrl: 'https://github.com/beremaran/godot-agent-loop',
       issuesUrl: 'https://github.com/beremaran/godot-agent-loop/issues',
       downloadCommit: commit,
