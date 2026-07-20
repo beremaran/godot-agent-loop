@@ -1,7 +1,7 @@
 import { toolManifest } from './tool-manifest.js';
 import { structuredResultSchemaFor } from './tool-output-schema.js';
 
-const WAIT_CONDITION_FIELDS = ['nodePath', 'property', 'value', 'signal', 'text', 'scenePath'] as const;
+const WAIT_CONDITION_FIELDS = ['nodePath', 'property', 'value', 'signal', 'text', 'scenePath', 'fresh'] as const;
 const SCENARIO_INPUT_TOOLS = [
   'game_key_press', 'game_key_hold', 'game_key_release', 'game_click', 'game_mouse_move',
   'game_scroll', 'game_mouse_drag', 'game_gamepad', 'game_input_action',
@@ -147,7 +147,7 @@ const rawToolDefinitions = [
       projectPath: { type: 'string', description: 'Godot project path' },
       action: { type: 'string', enum: ['ensure', 'status', 'disconnect'], description: 'Session action' },
       launchIfNeeded: { type: 'boolean', description: 'For ensure, launch an editor only after discovery finds none. Default: false' },
-      timeoutSeconds: { type: 'number', minimum: 0, maximum: 30, description: 'Bounded discovery/attach wait. Default: 2' },
+      timeoutSeconds: { type: 'number', minimum: 0, maximum: 30, description: 'For action=ensure only: bounded discovery/attach wait. Do not pass it to status or disconnect. Default: 2' },
     },
     required: ['projectPath', 'action'],
   },
@@ -264,7 +264,7 @@ const rawToolDefinitions = [
 },
 {
   name: 'run_project_tests',
-  description: 'Discover or run native, GUT, and GdUnit4 project tests with structured results',
+  description: 'Discover or run native, GUT, and GdUnit4 project tests with structured results. action=discover accepts only projectPath, action, framework, and testPaths; action=run also accepts artifactPaths, timeoutSeconds, and failFast.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -378,7 +378,7 @@ const rawToolDefinitions = [
 },
 {
   name: 'stop_project',
-  description: 'Stop the currently running Godot project',
+  description: 'Stop the currently running Godot project. This process-global tool takes no arguments; do not pass projectPath.',
   inputSchema: {
     type: 'object',
     properties: {},
@@ -905,7 +905,7 @@ const rawToolDefinitions = [
 },
 {
   name: 'game_wait_until',
-  description: 'Property waits need reflection; wait once for a bounded runtime condition and return the last observation',
+  description: 'Property waits need reflection; wait once for a bounded runtime condition and return the last observation. For a log event, set fresh=true to ignore output emitted before the wait started.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -916,6 +916,7 @@ const rawToolDefinitions = [
       value: { description: 'Expected canonical Godot Variant value for a property condition' },
       signal: { type: 'string', description: 'Signal name for a signal condition' },
       text: { type: 'string', maxLength: 1000, description: 'Required bounded substring for a log condition' },
+      fresh: { type: 'boolean', description: 'For log conditions, require the text to be emitted after this wait starts. Use this for event or transition proof; default: false' },
       scenePath: { type: 'string', description: 'Expected current scene resource path for a scene condition' },
       timeoutSeconds: { type: 'number', minimum: 0.05, maximum: 60, description: 'Maximum wait. Default: 10' },
       pollIntervalMs: { type: 'integer', minimum: 20, maximum: 1000, description: 'Internal poll interval. Default: 100' },
@@ -925,7 +926,7 @@ const rawToolDefinitions = [
 },
 {
   name: 'game_scenario',
-  description: 'Property waits need reflection; run bounded input, wait, assertion, screenshot, and performance steps. Put input fields inside each step arguments object.',
+  description: 'Property waits need reflection; run bounded input, wait, assertion, screenshot, and performance steps. Put input fields inside each step arguments object. Set fresh=true on log conditions that must prove a new event.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -1026,7 +1027,7 @@ const rawToolDefinitions = [
 },
 {
   name: 'read_project_settings',
-  description: 'Read project.godot as structured JSON',
+  description: 'Read project.godot as structured JSON. This tool accepts only projectPath; do not pass detail, keys, or other filters.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -1301,7 +1302,7 @@ const rawToolDefinitions = [
 },
 {
   name: 'game_get_logs',
-  description: 'Get new print output from the running game since last call',
+  description: 'Get new print output from the running game since the last call. This is a cursor read; it does not define the start point for a log wait.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -1313,7 +1314,7 @@ const rawToolDefinitions = [
 // Enhanced input tools
 {
   name: 'game_key_hold',
-  description: 'Hold exactly one key or input action without auto-releasing; it has no duration field, so use a bounded wait in game_scenario and then game_key_release',
+  description: 'Hold exactly one key or input action without auto-releasing. It has no duration field and returns at once; in a scenario, use a short engine-side wait or observation, then game_key_release.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -3670,14 +3671,14 @@ function exactlyOneBranch(required: string, forbidden: readonly string[]): ToolP
 function waitConditionBranches(): ToolPropertySchema[] {
   return [
     selectorBranch('condition', 'connection', [], WAIT_CONDITION_FIELDS),
-    selectorBranch('condition', 'node', ['nodePath'], ['property', 'value', 'signal', 'text', 'scenePath']),
+    selectorBranch('condition', 'node', ['nodePath'], ['property', 'value', 'signal', 'text', 'scenePath', 'fresh']),
     {
-      ...selectorBranch('condition', 'property', ['nodePath', 'property', 'value'], ['signal', 'text', 'scenePath']),
+      ...selectorBranch('condition', 'property', ['nodePath', 'property', 'value'], ['signal', 'text', 'scenePath', 'fresh']),
       'x-privilege-group': 'reflection',
     },
-    selectorBranch('condition', 'signal', ['nodePath', 'signal'], ['property', 'value', 'text', 'scenePath']),
+    selectorBranch('condition', 'signal', ['nodePath', 'signal'], ['property', 'value', 'text', 'scenePath', 'fresh']),
     selectorBranch('condition', 'log', ['text'], ['nodePath', 'property', 'value', 'signal', 'scenePath']),
-    selectorBranch('condition', 'scene', ['scenePath'], ['nodePath', 'property', 'value', 'signal', 'text']),
+    selectorBranch('condition', 'scene', ['scenePath'], ['nodePath', 'property', 'value', 'signal', 'text', 'fresh']),
   ];
 }
 
@@ -3692,6 +3693,7 @@ function scenarioConditionSchema(description: string): ToolPropertySchema {
       value: { description: 'Expected canonical Godot Variant value for a property condition.' },
       signal: { type: 'string', description: 'Signal name for a signal condition.' },
       text: { type: 'string', maxLength: 1000, description: 'Required bounded substring for a log condition.' },
+      fresh: { type: 'boolean', description: 'For log conditions, require the text to be emitted after this wait starts.' },
       scenePath: { type: 'string', description: 'Expected current scene resource path for a scene condition.' },
       timeoutSeconds: { type: 'number', minimum: 0.05, maximum: 60, description: 'Maximum wait for this condition.' },
       pollIntervalMs: { type: 'integer', minimum: 20, maximum: 1000, description: 'Bounded polling interval.' },

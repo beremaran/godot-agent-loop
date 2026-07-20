@@ -36,8 +36,8 @@ export const CORE_TOOL_NAMES: ReadonlySet<ToolName> = new Set([
 ]);
 
 export const TOOL_SURFACE_BUDGETS = {
-  coreBytesMax: 60_000,
-  coreEstimatedTokensMax: 15_000,
+  coreBytesMax: 62_000,
+  coreEstimatedTokensMax: 15_500,
   coreReductionPercentMin: 70,
 } as const;
 

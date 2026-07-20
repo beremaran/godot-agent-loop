@@ -36,6 +36,7 @@ the supported boundary. Never add MCP autoloads, addons, or bridge files.
   and report the blocked effective tool.
 - Use privileged reflection or evaluation only when already enabled, necessary,
   and recorded. Never enable a privilege merely to make the workflow easier.
+- Action schemas are strict: `editor_session` timeoutSeconds/launchIfNeeded only apply to ensure; status/disconnect use only projectPath/action. `run_project_tests` discover uses framework/testPaths; run also uses artifactPaths/timeoutSeconds/failFast. `read_project_settings` takes only projectPath; `stop_project` takes no arguments.
 
 ## Workflow
 
@@ -74,7 +75,7 @@ the supported boundary. Never add MCP autoloads, addons, or bridge files.
    Check `game_get_errors` at once. For one node, use `game_get_node_info` with
    compact detail and exact property names; never request its full method
    and property dump for a value you already know by name. Read runtime paths
-   before asserting them; persisted paths and runtime paths are distinct.
+   before asserting them; persisted paths and runtime paths are distinct. If startup output matters, drain it with `game_get_logs`; its cursor does not set a later log wait's start point.
 7. Prefer bounded `game_wait_until` and `game_scenario` steps. Use
    `game_key_press` for a one-frame tap, `game_key_hold` for continuous movement,
    and always pair a hold with `game_key_release`, including failure cleanup.
@@ -83,35 +84,34 @@ the supported boundary. Never add MCP autoloads, addons, or bridge files.
    backstop, not the main release. If a direct hold is unavoidable, make the
    next call its release before any screenshot, tree, UI, log, or node read.
    When a named input action exists, pass its action name instead of a raw key.
-   Named action injection updates Godot's Input action state. Game code tested this
-   way should consume `Input.is_action_pressed()` or
-   `Input.is_action_just_pressed()`; it must not rely only on `_input()` or
-   `_unhandled_input()` events.
-   When the game exposes continuous control, prove at least one real
-   hold/release path even if debug keys can force success or failure.
-   A valid scenario step is an input with tool plus arguments, a wait or
-   assert with condition, an observe with tool, or a bare screenshot or
-   performance step. For example:
+   A hold returns at once and has no duration. For grid movement, use taps or short hold-and-release segments with direct observations; do not hold through a long route and assume the next direction arrives before a collision.
+   Named action injection updates Godot's Input action state. Game code tested this way should consume `Input.is_action_pressed()` or `Input.is_action_just_pressed()`; it must not rely only on `_input()` or `_unhandled_input()` events.
+   When the game exposes continuous control, prove one real hold/release path.
+   A scenario step is input plus arguments, a wait/assert condition, an observe,
+   or a screenshot/performance step. For example:
 
    ```json
    {"name":"baseline","steps":[{"type":"wait","condition":{"condition":"node","nodePath":"/root/Main/Player","timeoutSeconds":2}},{"type":"observe","tool":"game_get_ui"},{"type":"screenshot"}]}
    ```
 
-   Put input fields inside step arguments, for example {"type":"input","tool":"game_key_hold","arguments":{"action":"move_right"}}; `game_key_hold` has no duration field. Use a bounded wait, then release it in the same scenario. In a scenario, wait/assert steps put condition directly on the step, not tool `game_wait_until` plus arguments. Keep baseline runtime reads serial to avoid a busy bridge.
+   Put input fields inside step arguments, for example {"type":"input","tool":"game_key_hold","arguments":{"action":"move_right"}}; `game_key_hold` has no duration field. Use a bounded wait, then release it in the same scenario. In a scenario, wait/assert steps put condition directly on the step, not tool `game_wait_until` plus arguments. Set fresh=true on a log condition when it must prove an event emitted after that wait starts; without it, retained process output may satisfy the condition. Keep baseline runtime reads serial to avoid a busy bridge.
 
    Before input, confirm the game has not advanced past the baseline; restart it
-   if it has. Wait on current scene, node, UI, signal, or new log evidence. Never
+   if it has. Wait on current scene, node, UI, signal, or fresh log evidence. Never
    use an old log line or time spent reasoning between calls as a clock. Do not
    slow or change the game to fit agent response time; use bounded engine-side
    waits, test hooks, or fixed-frame proof instead.
 8. Prove ordinary play and requested success/failure transitions with independent
    state plus rendered or log evidence. Use `verify_project` and
-   `run_project_tests` where they express the criteria directly.
+   `run_project_tests` where they express the criteria directly. For discovery,
+   pass only projectPath/action=discover plus optional framework/test paths;
+   use run-only fields only with action=run.
    Mark each unobserved path as unproved, even if the code seems to implement it.
 9. Inspect `get_debug_output` and `game_get_errors`, release held input, call
    `stop_project`, and remove only identified MCP-owned probes or transient files.
    For watched work, leave the editor available to the human and use
-   `editor_session` with the disconnect action to hand off the agent connection.
+   `editor_session` with projectPath/action=disconnect to hand off the agent
+   connection; do not add timeoutSeconds to that action.
 
 Establish an explicit frame/object/voice budget before high-volume effects. For
 external assets, verify source, license, attribution, import, and rendered or

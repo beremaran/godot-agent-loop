@@ -140,6 +140,7 @@ describe('lifecycle and runtime path', () => {
       timeoutSeconds: 2,
       pollIntervalMs: 20,
     });
+    // Log transition waits may set fresh: true to ignore retained output.
     expect(conditionWait.isError, conditionWait.text).toBe(false);
     expect(JSON.parse(conditionWait.text)).toMatchObject({
       satisfied: true, condition: 'node', last_observed: {},

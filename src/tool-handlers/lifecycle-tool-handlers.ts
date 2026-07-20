@@ -774,6 +774,10 @@ export class LifecycleToolHandlers {
     const deadline = startedAt + timeoutMs;
     let attempts = 0;
     let lastObserved: unknown = null;
+    const freshLogProcess = condition === 'log' && args.fresh === true
+      ? this.context.getActiveProcess()
+      : null;
+    const freshLogStart = freshLogProcess?.output.length ?? 0;
     if (condition === 'signal') {
       if (!args.nodePath || !args.signal) return { satisfied: false, error: 'nodePath and signal are required' };
       const response = await this.context.sendGameCommand('await_signal', {
@@ -789,8 +793,13 @@ export class LifecycleToolHandlers {
         lastObserved = { connected: this.context.isGameConnected() };
         if (this.context.isGameConnected()) return waitSuccess(condition, startedAt, attempts, lastObserved);
       } else if (condition === 'log') {
-        const output = this.context.getActiveProcess()?.output.join('\n') ?? '';
-        lastObserved = { tail: output.slice(-2_000) };
+        const activeProcess = this.context.getActiveProcess();
+        const outputLines = activeProcess?.output ?? [];
+        const start = args.fresh === true && activeProcess === freshLogProcess
+          ? Math.min(freshLogStart, outputLines.length)
+          : 0;
+        const output = outputLines.slice(start).join('\n');
+        lastObserved = { tail: output.slice(-2_000), ...(args.fresh === true ? { fresh: true } : {}) };
         if (typeof args.text === 'string' && output.includes(args.text)) return waitSuccess(condition, startedAt, attempts, lastObserved);
       } else {
         if (!this.context.isGameConnected()) lastObserved = { connected: false };

@@ -35,7 +35,7 @@
           "set_main_scene", "validate_scripts", "run_project", "game_get_scene_tree",
           "game_get_ui", "game_get_node_info", "game_screenshot", "game_wait_until", "game_scenario",
           "game_key_press", "game_key_hold", "game_key_release", "verify_project",
-          "run_project_tests", "get_debug_output", "game_get_errors", "stop_project"
+          "run_project_tests", "get_debug_output", "game_get_errors", "game_get_logs", "stop_project"
         ],
         "hidden": ["list_project_files", "analyze_project_integrity"],
         "privilegedGroups": [],

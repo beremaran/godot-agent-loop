@@ -17,8 +17,8 @@
   "infeasibilityEvidence": {
     "structuralFloorBeforeAnnotationsAndDescriptions": 44856,
     "noDescriptionFloorWithRequiredAnnotations": 49267,
-    "actualBytesWithRequiredContractsGuidanceAndAnnotations": 59991,
-    "actualEstimatedTokens": 14998
+    "actualBytesWithRequiredContractsGuidanceAndAnnotations": 60286,
+    "actualEstimatedTokens": 15072
   },
   "projectionRationale": {
     "fullSurfaceBytes": 1146392,
@@ -48,8 +48,8 @@
     "gain": "The reviewed core adds direct hold input plus separate read-only discovery and hidden execution identities; the deterministic ranked corpus passes all required intent variants."
   },
   "reviewedBudget": {
-    "coreBytesMax": 60000,
-    "coreEstimatedTokensMax": 15000
+    "coreBytesMax": 62000,
+    "coreEstimatedTokensMax": 15500
   },
   "revisionPolicy": "Any change to measured size, core membership, or reviewed maxima must update this evidence file and its contract test in the same change."
 }

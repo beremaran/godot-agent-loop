@@ -90,6 +90,12 @@ describe('parseToolArguments', () => {
     expect(scenario.description).toMatch(/property waits need reflection/i);
     expect(condition?.oneOf?.find(branch => branch.properties?.condition?.const === 'property'))
       .toMatchObject({ 'x-privilege-group': 'reflection' });
+    expect(parseToolArguments(tool('game_wait_until'), {
+      condition: 'log', text: 'SNAKE_STATE: WON', fresh: true,
+    })).toMatchObject({ condition: 'log', text: 'SNAKE_STATE: WON', fresh: true });
+    expect(() => parseToolArguments(tool('game_wait_until'), {
+      condition: 'node', nodePath: '/root/Main', fresh: true,
+    })).toThrow(/fresh is forbidden/i);
   });
 
   it('accepts arguments that match the advertised schema', () => {

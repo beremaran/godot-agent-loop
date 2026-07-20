@@ -607,6 +607,25 @@ describe('LifecycleToolHandlers', () => {
     expect(textFrom(response).length).toBeLessThan(500);
   });
 
+  it('fresh log waits ignore retained output and match a later event', async () => {
+    const process = { output: ['SNAKE_STATE: WON'], errors: [] } as GodotProcess;
+    const handlers = new LifecycleToolHandlers(context({
+      getActiveProcess: () => process,
+      isGameConnected: () => true,
+    }));
+    setTimeout(() => process.output.push('SNAKE_STATE: LOST reason=WALL COLLISION'), 25);
+
+    const response = await handlers.handleGameWaitUntil({
+      condition: 'log', text: 'SNAKE_STATE: LOST', fresh: true,
+      timeoutSeconds: 0.2, pollIntervalMs: 20,
+    });
+    const evidence = JSON.parse(textFrom(response));
+
+    expect(evidence).toMatchObject({
+      satisfied: true, condition: 'log', last_observed: { fresh: true },
+    });
+  });
+
   it('turns an edge-of-deadline poll transport timeout into structured wait evidence', async () => {
     const sendGameCommand = vi.fn()
       .mockResolvedValueOnce({ jsonrpc: '2.0', id: 1, result: { value: 'Anchor' } })
