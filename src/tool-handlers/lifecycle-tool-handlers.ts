@@ -760,16 +760,12 @@ export class LifecycleToolHandlers {
     if (!['connection', 'node', 'property', 'signal', 'log', 'scene'].includes(condition)) {
       return { satisfied: false, error: 'condition must be connection, node, property, signal, log, or scene' };
     }
-    if (condition === 'property' && !this.runtimeSupportsReflection()) {
-      return {
-        satisfied: false,
-        condition,
-        elapsed_ms: 0,
-        attempts: 0,
-        last_observed: null,
-        error: PROPERTY_WAIT_REFLECTION_ERROR.message,
-      };
-    }
+    // get_node_info exposes only editor-visible ("@export"-class) properties
+    // unprivileged, which covers the overwhelming majority of gameplay state
+    // (position, visible, modulate, ...). Only non-editor properties need the
+    // privileged get_property command, so the reflection gate is enforced
+    // lazily below once we know the editor-visible lookup actually missed.
+    const propertyUsesReflectionFallback = condition === 'property' && !this.runtimeSupportsReflection();
     const timeoutMs = Math.round((typeof args.timeoutSeconds === 'number' ? args.timeoutSeconds : 10) * 1_000);
     const pollMs = typeof args.pollIntervalMs === 'number' ? args.pollIntervalMs : 100;
     const startedAt = Date.now();
@@ -805,30 +801,49 @@ export class LifecycleToolHandlers {
         if (typeof args.text === 'string' && output.includes(args.text)) return waitSuccess(condition, startedAt, attempts, lastObserved);
       } else {
         if (!this.context.isGameConnected()) lastObserved = { connected: false };
-        else {
-          const command = condition === 'node' ? 'get_node_info' : condition === 'property' ? 'get_property' : 'get_scene_tree';
-          const params = condition === 'node' ? { node_path: args.nodePath }
-            : condition === 'property' ? { node_path: args.nodePath, property: args.property }
-            : {};
-          let response: GameResponse | null = null;
-          try {
-            response = await this.context.sendGameCommand(
-              command, params, Math.min(5_000, Math.max(1, deadline - Date.now())),
-            );
-          } catch (error) {
+        else if (condition === 'property' && propertyUsesReflectionFallback) {
+          // No reflection privilege: try the free, editor-property-only
+          // get_node_info read before giving up. This covers the common case
+          // (position, visible, modulate, ...) without requiring the caller
+          // to opt into arbitrary reflection just to poll one safe property.
+          const nodeInfoResult = await this.pollPropertyViaNodeInfo(args, deadline);
+          if (nodeInfoResult.found) {
+            lastObserved = nodeInfoResult.observed;
+            if (sameJson(nodeInfoResult.value, args.value)) return waitSuccess(condition, startedAt, attempts, lastObserved);
+          } else {
+            return {
+              satisfied: false,
+              condition,
+              elapsed_ms: Date.now() - startedAt,
+              attempts,
+              last_observed: nodeInfoResult.observed,
+              error: PROPERTY_WAIT_REFLECTION_ERROR.message,
+            };
+          }
+        } else if (condition === 'property') {
+          const response = await this.tryGameCommand('get_property', { node_path: args.nodePath, property: args.property }, deadline, (error) => {
+            if (lastObserved === null) lastObserved = { error: this.errorMessage(error) };
+          });
+          if (response) {
+            lastObserved = 'error' in response ? { error: response.error } : response.result;
+            if (!('error' in response)) {
+              const result = response.result as Record<string, unknown>;
+              if (sameJson(result.value, args.value)) return waitSuccess(condition, startedAt, attempts, lastObserved);
+            }
+          }
+        } else {
+          const command = condition === 'node' ? 'get_node_info' : 'get_scene_tree';
+          const params = condition === 'node' ? { node_path: args.nodePath } : {};
+          const response = await this.tryGameCommand(command, params, deadline, (error) => {
             // A poll issued at the edge of the deadline can consume its own
             // remaining transport budget. That is timeout evidence, not an
             // MCP handler crash, and must not erase the last successful read.
             if (lastObserved === null) lastObserved = { error: this.errorMessage(error) };
-          }
+          });
           if (response) {
             lastObserved = 'error' in response ? { error: response.error } : response.result;
             if (condition === 'node' && !('error' in response)) {
               return waitSuccess(condition, startedAt, attempts, compactNodeWaitObservation(lastObserved));
-            }
-            if (condition === 'property' && !('error' in response)) {
-              const result = response.result as Record<string, unknown>;
-              if (sameJson(result.value, args.value)) return waitSuccess(condition, startedAt, attempts, lastObserved);
             }
             if (condition === 'scene' && !('error' in response)) {
               const result = response.result as Record<string, unknown>;
@@ -846,6 +861,31 @@ export class LifecycleToolHandlers {
     };
   }
 
+  private async tryGameCommand(
+    command: string, params: Record<string, unknown>, deadline: number, onError: (error: unknown) => void,
+  ): Promise<GameResponse | null> {
+    try {
+      return await this.context.sendGameCommand(command, params, Math.min(5_000, Math.max(1, deadline - Date.now())));
+    } catch (error) {
+      onError(error);
+      return null;
+    }
+  }
+
+  private async pollPropertyViaNodeInfo(
+    args: ToolArguments, deadline: number,
+  ): Promise<{ found: boolean; value: unknown; observed: unknown }> {
+    const response = await this.tryGameCommand(
+      'get_node_info', { node_path: args.nodePath, detail: 'compact', property_names: [args.property] }, deadline, () => { /* no-op: treated as not-found below */ },
+    );
+    if (!response || 'error' in response) return { found: false, value: undefined, observed: response ? { error: response.error } : null };
+    const result = response.result as Record<string, unknown>;
+    const properties = Array.isArray(result.properties) ? result.properties as Record<string, unknown>[] : [];
+    const match = properties.find((p) => p.name === args.property);
+    if (!match) return { found: false, value: undefined, observed: result };
+    return { found: true, value: match.value, observed: { value: match.value, property: args.property, node_path: args.nodePath } };
+  }
+
   private runtimeSupportsReflection(): boolean {
     const capabilities = this.context.getRuntimeHandshake?.()?.capabilities;
     return Array.isArray(capabilities)
@@ -855,7 +895,6 @@ export class LifecycleToolHandlers {
 
   private isReflectionPreconditionFailure(result: Record<string, unknown>): boolean {
     return result.condition === 'property'
-      && result.attempts === 0
       && result.error === PROPERTY_WAIT_REFLECTION_ERROR.message;
   }
 

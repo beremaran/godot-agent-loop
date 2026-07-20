@@ -93,13 +93,13 @@ the supported boundary. Never add MCP autoloads, addons, or bridge files.
    ```json
    {"name":"baseline","steps":[{"type":"wait","condition":{"condition":"node","nodePath":"/root/Main/Player","timeoutSeconds":2}},{"type":"observe","tool":"game_get_ui"},{"type":"screenshot"}]}
    ```
+
    Put input fields inside step arguments, for example {"type":"input","tool":"game_key_hold","arguments":{"action":"move_right"}}; `game_key_hold` has no duration field. Use a bounded wait, then release it in the same scenario. In a scenario, wait/assert steps put condition directly on the step, not tool `game_wait_until` plus arguments. Set fresh=true on a log condition when it must prove an event emitted after that wait starts; without it, retained process output may satisfy the condition. Keep baseline runtime reads serial to avoid a busy bridge.
 
    Before input, confirm the game has not advanced past the baseline; restart it
    if it has. Use a timer long enough for the agent to observe and act, and recheck
-   state after each read. Stop the runtime before any persistent scene, script,
-   setting, or input repair. Never use an old log line or time spent reasoning as a
-   clock; use bounded engine-side waits, test hooks, or fixed-frame proof instead.
+   state after each read. Stop the runtime before any persistent scene, script, or
+   setting/input repair. Never use an old log line or reasoning time as a clock; use bounded engine-side waits, test hooks, or fixed-frame proof instead.
 8. Prove ordinary play and requested success/failure transitions with independent
    state plus rendered or log evidence. Use `verify_project` and
    `run_project_tests` where they express the criteria directly. For discovery,

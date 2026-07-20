@@ -3217,7 +3217,7 @@
     {
       "name": "GDScript",
       "bucket": "tooled",
-      "why": "src/scripts/godot_operations.gd, src/scripts/mcp_interaction_server.gd, src/scripts/mcp_runtime/scene_2d_domain.gd, src/scripts/validate_script.gd, src/tool-catalog-metadata.ts, src/tool-definitions.ts, src/tool-handlers/project-handler-services.ts, src/tool-manifest.ts",
+      "why": "src/scripts/godot_operations.gd, src/scripts/mcp_interaction_server.gd, src/scripts/mcp_runtime/scene_2d_domain.gd, src/scripts/validate_script.gd, src/tool-catalog-metadata.ts, src/tool-definitions.ts, src/tool-handlers/project-handler-services.ts, src/tool-handlers/project-tool-handlers.ts, src/tool-manifest.ts",
       "api_type": "core",
       "instantiable": true,
       "is_node": false,

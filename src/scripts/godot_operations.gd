@@ -640,7 +640,14 @@ func create_scene(params: Dictionary) -> OperationResult:
     # PackedScene.pack() stores the root plus the nodes it owns. The root itself
     # needs no owner: Node.set_owner() rejects a node owning itself, so assigning
     # one only printed an engine error.
-    scene_root.name = "root"
+    #
+    # Name the root after its type (matching the Godot editor's own default),
+    # not the literal string "root": _resolve_scene_node treats "root"/"."/""
+    # as aliases for the scene root, so a real child node literally named
+    # "root" (e.g. this scene instanced inside another one) becomes
+    # unaddressable by path — every rename/remove/read on it silently resolves
+    # to the wrong node instead.
+    scene_root.name = root_node_type
 
     var save_result := _save_scene_root(scene_root, full_scene_path)
     # The root never joins the SceneTree, so it must be freed explicitly or it

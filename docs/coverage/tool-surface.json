@@ -5,21 +5,21 @@
     "estimatedTokens": "ceil(bytes / 4); deterministic planning estimate, not a model tokenizer"
   },
   "budgets": {
-    "coreBytesMax": 60000,
-    "coreEstimatedTokensMax": 15000,
+    "coreBytesMax": 62000,
+    "coreEstimatedTokensMax": 15500,
     "coreReductionPercentMin": 70
   },
   "full": {
     "tools": 173,
-    "bytes": 1187334,
-    "estimatedTokens": 296834
+    "bytes": 1189325,
+    "estimatedTokens": 297332
   },
   "core": {
     "tools": 42,
-    "bytes": 59991,
-    "estimatedTokens": 14998
+    "bytes": 60286,
+    "estimatedTokens": 15072
   },
-  "coreByteReductionPercent": 94.95,
+  "coreByteReductionPercent": 94.93,
   "counts": {
     "domains": {
       "game": 111,
@@ -249,8 +249,8 @@
       "declared": 173,
       "dialectDeclared": 173,
       "closedTopLevel": 173,
-      "propertyNodes": 2260,
-      "describedPropertyNodes": 2260
+      "propertyNodes": 2272,
+      "describedPropertyNodes": 2272
     },
     "outputSchemas": {
       "declared": 173,
@@ -284,6 +284,7 @@
         "editor_session",
         "editor_transaction",
         "game_get_errors",
+        "game_get_logs",
         "game_get_node_info",
         "game_get_scene_tree",
         "game_get_ui",

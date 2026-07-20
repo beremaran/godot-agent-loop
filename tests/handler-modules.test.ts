@@ -576,7 +576,7 @@ describe('LifecycleToolHandlers', () => {
     expect(timedOut.isError).toBe(true);
   });
 
-  it('fails a default-security property wait before polling with retry and fallback guidance', async () => {
+  it('falls back to the unprivileged node-info read for a property wait, then fails with fallback guidance if that misses', async () => {
     const sendGameCommand = vi.fn();
     const handlers = new LifecycleToolHandlers(context({
       isGameConnected: () => true,
@@ -591,7 +591,7 @@ describe('LifecycleToolHandlers', () => {
 
     expect(response.isError).toBe(true);
     expect(JSON.parse(textFrom(response))).toMatchObject({
-      satisfied: false, condition: 'property', elapsed_ms: 0, attempts: 0, last_observed: null,
+      satisfied: false, condition: 'property', attempts: 1,
       error: expect.stringMatching(/reflection privilege group/i),
     });
     expect(getToolResultMetadata(response).error).toMatchObject({
@@ -599,7 +599,12 @@ describe('LifecycleToolHandlers', () => {
       remediation: expect.stringMatching(/GODOT_MCP_PRIVILEGED_GROUPS=reflection.*log condition.*game_get_ui/i),
       details: { condition: 'property', privilegeGroup: 'reflection' },
     });
-    expect(sendGameCommand).not.toHaveBeenCalled();
+    // Editor-visible properties (position, visible, ...) are checked for free
+    // via get_node_info before ever requiring the reflection privilege.
+    expect(sendGameCommand).toHaveBeenCalledWith('get_node_info', {
+      node_path: '/root/Player', detail: 'compact', property_names: ['score'],
+    }, expect.any(Number));
+    expect(sendGameCommand).toHaveBeenCalledTimes(1);
   });
 
   it('keeps node wait evidence small instead of returning full node reflection data', async () => {
@@ -691,12 +696,13 @@ describe('LifecycleToolHandlers', () => {
     expect(evidence).toMatchObject({
       passed: false,
       failure: expect.stringMatching(/reflection privilege group/i),
-      steps: [{ result: { satisfied: false, condition: 'property', attempts: 0 } }],
+      steps: [{ result: { satisfied: false, condition: 'property', attempts: 1 } }],
     });
     expect(getToolResultMetadata(response).error).toMatchObject({
       code: 'reflection_privilege_required', retryable: true,
     });
-    expect(sendGameCommand.mock.calls.map(call => call[0])).toEqual(['time_scale']);
+    // Property waits try the free get_node_info read before requiring privilege.
+    expect(sendGameCommand.mock.calls.map(call => call[0])).toEqual(['get_node_info', 'time_scale']);
   });
 
   it('runs a bounded compound scenario and restores time scale without textual image payloads', async () => {
