@@ -195,7 +195,7 @@ jobs:
       issues: write
     steps:
       - name: Open one issue for the release regression
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         env:
           LATEST_GODOT: ${{ needs.discover.outputs.latest }}
           TEST_DEPTH: ${{ needs.discover.outputs.suite }}
