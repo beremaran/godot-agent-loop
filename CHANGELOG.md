@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.3] - 2026-07-19
+
+### Headless authoring and compatibility
+
+- Add `GODOT_MCP_AUTHORING_MODE=headless` for scene and resource authoring
+  without a persistent helper window; `persistent` remains the default.
+- Add a scheduled compatibility check for new stable Godot 4 releases, with
+  known-good comparison and issue reporting for confirmed regressions.
+
+### Audit and policy fixes
+
+- Exclude only byte-proven, MCP-owned transient bridge files from project
+  integrity scans and whole-project script validation.
+- Fail property waits and scenario property assertions at once when the runtime
+  lacks reflection access, with clear opt-in and log or UI fallbacks.
+
 ## [1.1.2] - 2026-07-17
 
 ### Testing
@@ -88,7 +104,8 @@ identity. Full release notes: [`docs/releases/1.0.0.md`](docs/releases/1.0.0.md)
 - Runtime connections are authenticated with a per-session secret; transports
   bind to loopback and retained logs are bounded and redacted.
 
-[Unreleased]: https://github.com/beremaran/godot-agent-loop/compare/v1.1.2...HEAD
+[Unreleased]: https://github.com/beremaran/godot-agent-loop/compare/v1.1.3...HEAD
+[1.1.3]: https://github.com/beremaran/godot-agent-loop/compare/v1.1.2...v1.1.3
 [1.1.2]: https://github.com/beremaran/godot-agent-loop/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/beremaran/godot-agent-loop/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/beremaran/godot-agent-loop/compare/v1.0.1...v1.1.0

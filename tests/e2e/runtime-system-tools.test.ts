@@ -352,6 +352,13 @@ describe('runtime engine-state tools through MCP', () => {
     const button = elements.find(element => element.path === '/root/Main/HealthBar');
     expect(button, listed.text).toBeDefined();
     expect(button?.type).toBe('Button');
+
+    const filtered = await game.call('game_get_ui', { rootPath: '/root/Main/HealthBar', maxElements: 1 });
+    expect(filtered.isError, filtered.text).toBe(false);
+    expect((payload(filtered.text) as { elements: unknown[] }).elements).toHaveLength(1);
+
+    const missingRoot = await game.call('game_get_ui', { rootPath: '/root/Main/Missing' });
+    expect(missingRoot.isError).toBe(true);
   });
 
   it('game_screenshot returns a decodable PNG from the required rendering context', async () => {

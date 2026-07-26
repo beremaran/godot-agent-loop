@@ -192,7 +192,7 @@ describe('agent skill evaluation corpus', () => {
         inputs: {
           runDate: '2026-07-17', client: 'recorded-client', clientVersion: '1.0.0',
           model: 'recorded-model', effort: 'high', promptSha256: 'a'.repeat(64),
-          skillSha256: null, serverVersion: '1.1.2', surface: 'core', advertisedToolCount: 1,
+          skillSha256: null, serverVersion: '1.1.3', surface: 'core', advertisedToolCount: 1,
         },
         metrics: {
           taskSuccess: true, acceptanceCriteriaPassed: 1, acceptanceCriteriaTotal: 1,

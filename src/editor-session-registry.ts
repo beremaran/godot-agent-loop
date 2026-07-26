@@ -48,6 +48,7 @@ export interface PublicEditorSession {
   created_at: string | null;
   plugin_owned?: boolean;
   plugin_distribution?: 'persistent' | 'transient' | 'unavailable';
+  process_alive?: boolean | null;
   reason?: string;
 }
 
@@ -143,11 +144,17 @@ export class EditorSessionRegistry {
   disconnect(projectPath: string): PublicEditorSession {
     const canonical = canonicalProjectPath(projectPath);
     const entry = this.entries.get(canonical);
+    const processAlive = entry
+      ? (this.options.processExists ?? processExists)(entry.record.editor_pid)
+      : null;
     entry?.connection.disconnect();
     this.entries.delete(canonical);
     this.trackedProjects.delete(canonical);
     this.emittedSignatures.delete(canonical);
-    const session = emptySession(canonical, 'no_editor', 'Disconnected by caller');
+    const session = emptySession(canonical, 'no_editor', processAlive
+      ? 'MCP connection detached; Godot editor process remains open'
+      : 'Disconnected by caller');
+    session.process_alive = processAlive;
     this.emit(session);
     this.stopWatcherIfIdle();
     return session;

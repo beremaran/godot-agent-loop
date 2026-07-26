@@ -4,6 +4,7 @@ import { readRepoFile } from './helpers/manifest-sources.js';
 
 const COMPATIBILITY_FLOOR = '4.7';
 const PRIMARY_TARGET = '4.7';
+const packageJson = JSON.parse(readRepoFile('package.json')) as { version: string };
 
 describe('Godot support policy', () => {
   it('keeps the workflow matrix aligned with the documented primary target', () => {
@@ -50,10 +51,26 @@ describe('Godot support policy', () => {
     expect(workflow).not.toContain('node-version: 20');
   });
 
+  it('checks new stable Godot releases against the last known-good release', () => {
+    const workflow = readRepoFile('.github/workflows/godot-latest-compatibility.yml');
+    expect(workflow).toContain('cron: "23 3 * * 1-6"');
+    expect(workflow).toContain('cron: "23 3 * * 0"');
+    expect(workflow).toContain(`LAST_KNOWN_GOOD_GODOT: ${PRIMARY_TARGET}-stable`);
+    expect(workflow).toContain("grep -E '^4\\.[0-9]+(\\.[0-9]+)?-stable$'");
+    expect(workflow).toContain('xvfb-run -a npm run test:godot');
+    expect(workflow).toContain('xvfb-run -a npm run test:e2e');
+    expect(workflow).toContain('tests-outcome: ${{ steps.tests.outcome }}');
+    expect(workflow).toContain("needs.test-latest.outputs.tests-outcome == 'failure'");
+    expect(workflow).toContain("needs.test-known-good.result == 'success'");
+    expect(workflow).toContain('issues: write');
+    expect(workflow).toContain('actions/github-script@v8');
+    expect(workflow).toContain('issue.title === title');
+  });
+
   it('keeps npm publication manual and verifies the registered SSH signing key', () => {
     const workflow = readRepoFile('.github/workflows/publish-npm.yml');
     expect(workflow).toContain('workflow_dispatch:');
-    expect(workflow).toContain('publish-@beremaran/godot-agent-loop@1.1.2');
+    expect(workflow).toContain(`publish-@beremaran/godot-agent-loop@${packageJson.version}`);
     expect(workflow).toContain('gpg.ssh.allowedSignersFile="$ALLOWED_SIGNERS"');
     expect(workflow).toContain('berke@beremaran.com');
     expect(workflow).toContain('AAAAC3NzaC1lZDI1NTE5AAAAILjYS4yppZ4WvM2fzE4jMkMd9kn+psrlErcOR19rK5DZ');
@@ -64,8 +81,8 @@ describe('Godot support policy', () => {
     expect(workflow).toContain('sha256sum --check --strict');
     expect(workflow).toContain('mkdir -p dist');
     expect(workflow).toContain('npm pack --pack-destination dist');
-    expect(workflow).toContain('npm publish ./dist/beremaran-godot-agent-loop-1.1.2.tgz --access public --provenance');
-    expect(workflow).not.toContain('npm publish dist/beremaran-godot-agent-loop-1.1.2.tgz');
+    expect(workflow).toContain(`npm publish ./dist/beremaran-godot-agent-loop-${packageJson.version}.tgz --access public --provenance`);
+    expect(workflow).not.toContain(`npm publish dist/beremaran-godot-agent-loop-${packageJson.version}.tgz`);
     expect(workflow).toContain('id-token: write');
     expect(workflow).toContain('runs-on: ubuntu-latest');
     expect(workflow).not.toContain('NODE_AUTH_TOKEN');

@@ -35,6 +35,7 @@ export interface ProjectHandlerServiceContext {
   operations: HeadlessOperationService;
   pathSecurity: PathSecurity;
   projectSupport: ProjectSupport;
+  ownedTransientFiles?: (projectPath: string) => ReadonlySet<string>;
 }
 
 function projectFile(projectPath: string): string {
@@ -124,7 +125,9 @@ export class ProjectConfigurationService {
   async read(args: ToolArguments): Promise<ToolResponse> {
     args = normalizeParameters(args || {});
     if (!args.projectPath) return createErrorResponse('projectPath is required.');
-    if (!validProject(this.context, args.projectPath)) return createErrorResponse('Invalid path.');
+    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath, true)) return createErrorResponse('Invalid path.');
+    if (!existsSync(args.projectPath)) return createErrorResponse(`Project directory does not exist: ${args.projectPath}. Use create_project first.`);
+    if (!existsSync(projectFile(args.projectPath))) return createErrorResponse(`Not a valid Godot project: ${args.projectPath}. Use create_project first.`);
     try {
       const sections: Record<string, Record<string, string>> = {};
       let currentSection = '';
@@ -143,11 +146,14 @@ export class ProjectConfigurationService {
   async modify(args: ToolArguments): Promise<ToolResponse> {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.section || !args.key || args.value === undefined) return createErrorResponse('projectPath, section, key, and value are required.');
-    if (!validProject(this.context, args.projectPath)) return createErrorResponse('Invalid path.');
+    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath, true)) return createErrorResponse('Invalid path.');
+    if (!existsSync(args.projectPath)) return createErrorResponse(`Project directory does not exist: ${args.projectPath}. Use create_project first.`);
+    if (!existsSync(projectFile(args.projectPath))) return createErrorResponse(`Not a valid Godot project: ${args.projectPath}. Use create_project first.`);
     try {
       let content = readFileSync(projectFile(args.projectPath), 'utf8');
       const header = `[${args.section}]`;
-      const setting = `${args.key}=${args.value}`;
+      const serializedValue = serializeProjectSettingValue(args.value);
+      const setting = `${args.key}=${serializedValue}`;
       const index = content.indexOf(header);
       if (index === -1) content += `\n\n${header}\n\n${setting}\n`;
       else {
@@ -158,9 +164,20 @@ export class ProjectConfigurationService {
         content = content.slice(0, index) + updated + (end === -1 ? '' : content.slice(end));
       }
       writeFileSync(projectFile(args.projectPath), content, 'utf8');
-      return { content: [{ type: 'text', text: `Setting updated: [${args.section}] ${args.key}=${args.value}` }] };
+      return { content: [{ type: 'text', text: `Setting updated: [${args.section}] ${args.key}=${serializedValue}` }] };
     } catch (error: unknown) { return createErrorResponse(`Failed to modify project settings: ${errorMessage(error)}`); }
   }
+}
+
+/** Convert common JSON values to valid project.godot Variant text. */
+export function serializeProjectSettingValue(value: unknown): string {
+  if (typeof value === 'boolean' || typeof value === 'number') return JSON.stringify(value);
+  if (typeof value !== 'string') throw new Error('value must be a string, number, or boolean');
+  const trimmed = value.trim();
+  if (!trimmed) return '""';
+  if (/^(?:true|false|null|[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)$/.test(trimmed)) return trimmed;
+  if (/^(?:[A-Za-z_][A-Za-z0-9_]*\s*\(|[[{"&^])/.test(trimmed)) return trimmed;
+  return JSON.stringify(value);
 }
 
 /** Owns GDScript validation and keeps batch limits in one place. */
@@ -665,13 +682,16 @@ export class ProjectIntegrityService {
 
   private scan(projectPath: string, maxFiles: number): { files: string[] } | { error: string } {
     const files: string[] = [];
+    const ownedTransientFiles = this.context.ownedTransientFiles?.(projectPath) ?? new Set<string>();
     const walk = (directory: string): boolean => {
       for (const entry of readdirSync(directory, { withFileTypes: true })) {
         if (['.godot', '.git', 'node_modules'].includes(entry.name)) continue;
         const full = join(directory, entry.name);
         if (entry.isDirectory()) { if (!walk(full)) return false; }
         else if (entry.isFile() && ProjectIntegrityService.resourceExtensions.has(extname(entry.name).toLowerCase())) {
-          files.push(relative(projectPath, full).replaceAll('\\', '/'));
+          const projectRelative = relative(projectPath, full).replaceAll('\\', '/');
+          if (ownedTransientFiles.has(projectRelative)) continue;
+          files.push(projectRelative);
           if (files.length > maxFiles) return false;
         }
       }

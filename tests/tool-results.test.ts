@@ -26,6 +26,18 @@ describe('structured tool results', () => {
     });
   });
 
+  it('can omit the compatibility JSON block for structured clients', () => {
+    const response = withStructuredToolResult({
+      content: [{ type: 'text', text: '{"connected":true}' }],
+    }, {
+      advertisedTool: 'editor_session', effectiveTool: 'editor_session',
+      effectScope: 'read-only', startedAt: Date.now(),
+    }, { legacyJsonText: false });
+
+    expect(response.content).toHaveLength(1);
+    expect(response.structuredContent).toMatchObject({ ok: true, data: { connected: true } });
+  });
+
   it('emits stable recoverable error details and equivalent JSON text', () => {
     const error = argumentToolError('arguments.x must be number', 'arguments.x', [{ keyword: 'type' }]);
     const response = withStructuredToolResult({

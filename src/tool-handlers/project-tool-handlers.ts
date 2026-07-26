@@ -116,6 +116,7 @@ export interface ProjectToolHandlerContext {
   operations: HeadlessOperationService;
   projectSupport: ProjectSupport;
   pathSecurity?: PathSecurity;
+  ownedTransientFiles?: (projectPath: string) => ReadonlySet<string>;
 }
 
 interface ProjectOperationApi {
@@ -167,6 +168,7 @@ export class ProjectToolHandlers {
       operations: context.operations,
       pathSecurity,
       projectSupport: context.projectSupport,
+      ownedTransientFiles: context.ownedTransientFiles,
     };
     this.fileIO = new ProjectFileIOService(serviceContext);
     this.configuration = new ProjectConfigurationService(serviceContext);
@@ -255,9 +257,21 @@ export class ProjectToolHandlers {
       );
     }
   
+    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath, true)) {
+      return createErrorResponse(
+        `Project path is outside the allowed roots: ${args.projectPath}`
+      );
+    }
+
+    if (!existsSync(args.projectPath)) {
+      return createErrorResponse(
+        `Project directory does not exist: ${args.projectPath}. Use create_project only if a new project was requested.`
+      );
+    }
+
     if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath)) {
       return createErrorResponse(
-        'Invalid project path'
+        `Project path cannot be read safely: ${args.projectPath}`
       );
     }
   
@@ -786,13 +800,17 @@ export class ProjectToolHandlers {
       return createErrorResponse('projectPath and scenePath are required.');
     }
 
-    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath) || !validatePath(args.scenePath)) {
+    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath, true) || !validatePath(args.scenePath)) {
       return createErrorResponse('Invalid path.');
+    }
+
+    if (!existsSync(args.projectPath)) {
+      return createErrorResponse(`Project directory does not exist: ${args.projectPath}. Use create_project first.`);
     }
 
     const projectFile = join(args.projectPath, 'project.godot');
     if (!existsSync(projectFile)) {
-      return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
+      return createErrorResponse(`Not a valid Godot project: ${args.projectPath}. Use create_project first.`);
     }
 
     const scenePath = this.projectRelativePath(args.projectPath, args.scenePath);
@@ -1290,7 +1308,9 @@ export class ProjectToolHandlers {
       candidates = changed.files!;
     } else if (args.scope === 'all') {
       scope = 'all';
-      candidates = this.context.projectSupport.listAllGdFiles(args.projectPath);
+      const ownedTransientFiles = this.context.ownedTransientFiles?.(args.projectPath) ?? new Set<string>();
+      candidates = this.context.projectSupport.listAllGdFiles(args.projectPath)
+        .filter(path => !ownedTransientFiles.has(path));
     } else {
       return createErrorResponse(`Invalid scope "${args.scope}". Use "changed" or "all", or pass scriptPaths.`);
     }
@@ -1298,6 +1318,10 @@ export class ProjectToolHandlers {
     const results: ValidationResult[] = [];
     let filesWithErrors = 0;
     const toCheck: string[] = [];
+    const warnings: string[] = [];
+    if (scope !== 'explicit' && candidates.length === 0) {
+      warnings.push('No GDScript files matched this scope; validation did not run. Use scope: "all" or pass scriptPaths.');
+    }
     for (const rel of candidates) {
       if (!/\.gd$/i.test(rel) || !validatePath(rel)) {
         if (explicit) results.push({ scriptPath: rel, checked: false, error: 'Not a valid .gd path' });
@@ -1324,17 +1348,20 @@ export class ProjectToolHandlers {
       }
     }
 
+    const report: Record<string, unknown> = {
+      scope,
+      fileCount: results.length,
+      filesWithErrors,
+      allValid: warnings.length === 0 && filesWithErrors === 0 && results.every(r => r.checked),
+      results,
+    };
+    if (warnings.length > 0) report.warning = warnings.join(' ');
+
     return {
       content: [
         {
           type: 'text',
-          text: JSON.stringify({
-            scope,
-            fileCount: results.length,
-            filesWithErrors,
-            allValid: filesWithErrors === 0 && results.every(r => r.checked),
-            results,
-          }, null, 2),
+          text: JSON.stringify(report, null, 2),
         },
       ],
     };

@@ -1,4 +1,5 @@
 .prompts/
+.tmp/
 
 # Dependencies
 node_modules/

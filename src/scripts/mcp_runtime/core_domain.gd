@@ -133,14 +133,22 @@ func _cmd_get_node_info(params: Dictionary) -> void:
 	if node == null:
 		respond({"error": "Node not found: %s" % node_path})
 		return
+	var detail: String = str(params.get("detail", "full"))
+	if detail != "compact" and detail != "full":
+		respond({"error": "detail must be compact or full"})
+		return
+	var requested_properties_value: Variant = params.get("property_names", [])
+	var requested_properties: Array = requested_properties_value if requested_properties_value is Array else []
 
 	var properties: Array = []
 	for prop in node.get_property_list():
 		var prop_dict: Dictionary = prop
 		if prop_dict.get("usage", 0) & PROPERTY_USAGE_EDITOR:
+			var property_name: String = CommandParams.json_string(prop_dict, "name")
+			if detail == "compact" and not property_name in requested_properties:
+				continue
 			if properties.size() >= MAX_NODE_INFO_PROPERTIES:
 				break
-			var property_name: String = CommandParams.json_string(prop_dict, "name")
 			var encoded_value: Variant = variant_to_json(node.get(property_name))
 			var encoded_bytes: int = JSON.stringify(encoded_value).to_utf8_buffer().size()
 			if encoded_bytes > MAX_NODE_INFO_VALUE_BYTES:
@@ -157,19 +165,21 @@ func _cmd_get_node_info(params: Dictionary) -> void:
 			})
 
 	var signals: Array = []
-	for sig in node.get_signal_list():
-		if signals.size() >= MAX_NODE_INFO_SIGNALS:
-			break
-		var sig_dict: Dictionary = sig
-		signals.append(sig_dict.get("name", ""))
+	if detail == "full":
+		for sig in node.get_signal_list():
+			if signals.size() >= MAX_NODE_INFO_SIGNALS:
+				break
+			var sig_dict: Dictionary = sig
+			signals.append(sig_dict.get("name", ""))
 
 	var methods: Array = []
-	for m in node.get_method_list():
-		var m_dict: Dictionary = m
-		if not str(m_dict.get("name", "")).begins_with("_"):
-			if methods.size() >= MAX_NODE_INFO_METHODS:
-				break
-			methods.append(m_dict.get("name", ""))
+	if detail == "full":
+		for m in node.get_method_list():
+			var m_dict: Dictionary = m
+			if not str(m_dict.get("name", "")).begins_with("_"):
+				if methods.size() >= MAX_NODE_INFO_METHODS:
+					break
+				methods.append(m_dict.get("name", ""))
 
 	var children: Array = []
 	for child in node.get_children():
@@ -186,6 +196,7 @@ func _cmd_get_node_info(params: Dictionary) -> void:
 		"class": node.get_class(),
 		"name": node.name,
 		"path": str(node.get_path()),
+		"detail": detail,
 		"properties": properties,
 		"signals": signals,
 		"methods": methods,

@@ -31,6 +31,8 @@ import {
 import type { EditorPluginInstallation } from '../editor-plugin-installer.js';
 import { canonicalProjectPath, type PublicEditorSession } from '../editor-session-registry.js';
 import { createBoundedObservationResponse } from '../observation-result.js';
+import { PRIVILEGED_RUNTIME_CAPABILITY, privilegedGroupCapability } from '../runtime-protocol.js';
+import type { StructuredToolError } from '../tool-results.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -85,8 +87,33 @@ const SCENARIO_OBSERVE_TOOLS = new Set([
   'game_get_errors', 'game_get_logs', 'game_get_camera', 'game_get_audio', 'game_performance',
 ]);
 
+const PROPERTY_WAIT_REFLECTION_ERROR: StructuredToolError = {
+  code: 'reflection_privilege_required',
+  category: 'policy',
+  message: 'Property waits and assertions require the reflection privilege group, but the connected runtime did not authorize it.',
+  retryable: true,
+  remediation: 'Enable GODOT_MCP_PRIVILEGED_GROUPS=reflection and restart the runtime, or use a log condition or game_get_ui observation that does not require reflection.',
+  details: {
+    condition: 'property',
+    privilegeGroup: 'reflection',
+    fallbackTools: ['game_wait_until condition=log', 'game_get_ui'],
+  },
+};
+
 function waitSuccess(condition: unknown, startedAt: number, attempts: number, observed: unknown): Record<string, unknown> {
   return { satisfied: true, condition, elapsed_ms: Date.now() - startedAt, attempts, last_observed: observed };
+}
+
+function compactNodeWaitObservation(observed: unknown): unknown {
+  if (!observed || typeof observed !== 'object' || Array.isArray(observed)) return observed;
+  const record = observed as Record<string, unknown>;
+  return {
+    found: true,
+    ...(['path', 'name', 'class'] as const).reduce<Record<string, unknown>>((result, key) => {
+      if (record[key] !== undefined) result[key] = record[key];
+      return result;
+    }, {}),
+  };
 }
 
 function sameJson(left: unknown, right: unknown): boolean {
@@ -422,13 +449,29 @@ export class LifecycleToolHandlers {
         },
       );
       await reportProgress(2, 4, 'Godot process started; waiting for runtime authentication');
-      await this.context.connectToGame(args.projectPath, currentExecutionContext()?.signal);
+      const executionSignal = currentExecutionContext()?.signal;
+      const startupController = new AbortController();
+      const forwardCancellation = () => {
+        startupController.abort(executionSignal?.reason);
+      };
+      executionSignal?.addEventListener('abort', forwardCancellation, { once: true });
+      try {
+        await Promise.race([
+          this.context.connectToGame(args.projectPath, startupController.signal),
+          this.watchForFatalStartup(runningProcess, startupController.signal),
+        ]);
+      } finally {
+        executionSignal?.removeEventListener('abort', forwardCancellation);
+        startupController.abort();
+      }
       throwIfCancelled();
       await reportProgress(3, 4, 'Runtime authenticated; probing scene tree readiness');
       const probe = await this.context.sendGameCommand(
         'get_scene_tree', { max_nodes: 1 }, 5_000, currentExecutionContext()?.signal,
       );
       if ('error' in probe) throw new Error(`Runtime readiness probe failed: ${probe.error.message}`);
+      const fatalStartup = this.fatalStartupMessage(runningProcess);
+      if (fatalStartup) throw new Error(`Godot reported a fatal startup error: ${fatalStartup}`);
       await reportProgress(4, 4, 'Runtime authenticated and ready');
 
       const handshake = this.context.getRuntimeHandshake?.() ?? null;
@@ -580,10 +623,13 @@ export class LifecycleToolHandlers {
   public async handleGameWaitUntil(args: ToolArguments): Promise<ToolResponse> {
     args = normalizeParameters(args || {});
     const result = await this.waitUntilEvidence(args);
-    return {
+    const response = {
       content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
       ...(result.satisfied === true ? {} : { isError: true }),
     };
+    return this.isReflectionPreconditionFailure(result)
+      ? setToolResultMetadata(response, { outcome: 'failure', error: PROPERTY_WAIT_REFLECTION_ERROR })
+      : response;
   }
 
   public async handleGameScenario(args: ToolArguments): Promise<ToolResponse> {
@@ -598,7 +644,9 @@ export class LifecycleToolHandlers {
     let passed = true;
     let failure: string | null = null;
     let cancelled = false;
+    let structuredError: StructuredToolError | undefined;
     const heldKeys = new Set<string>();
+    const heldActions = new Set<string>();
     await reportProgress(0, args.steps.length + 1, `Starting scenario ${args.name}`);
     for (let index = 0; index < args.steps.length; index++) {
       try { throwIfCancelled(); } catch (error) {
@@ -615,7 +663,15 @@ export class LifecycleToolHandlers {
           const requestedTimeout = typeof condition.timeoutSeconds === 'number' ? condition.timeoutSeconds : remaining;
           const result = await this.waitUntilEvidence({ ...condition, timeoutSeconds: Math.min(remaining, requestedTimeout) });
           item.result = result;
-          if (result.satisfied !== true) { passed = false; failure = `Step ${index} condition was not satisfied`; }
+          if (result.satisfied !== true) {
+            passed = false;
+            if (this.isReflectionPreconditionFailure(result)) {
+              structuredError = PROPERTY_WAIT_REFLECTION_ERROR;
+              failure = `Step ${index} failed: ${PROPERTY_WAIT_REFLECTION_ERROR.message}`;
+            } else {
+              failure = `Step ${index} condition was not satisfied`;
+            }
+          }
         } else if (step.type === 'screenshot') {
           const response = await this.context.sendGameCommand('screenshot', {}, Math.max(1, deadline - Date.now()));
           if ('error' in response) throw new Error(response.error.message);
@@ -647,7 +703,9 @@ export class LifecycleToolHandlers {
             ? { type: 'image', mime_type: 'mimeType' in content ? content.mimeType : 'image/png', preview_omitted: true }
             : { type: content.type, text: 'text' in content ? String(content.text).slice(0, 2_000) : '' });
           if (tool === 'game_key_hold' && typeof step.arguments?.key === 'string') heldKeys.add(step.arguments.key);
+          if (tool === 'game_key_hold' && typeof step.arguments?.action === 'string') heldActions.add(step.arguments.action);
           if (tool === 'game_key_release' && typeof step.arguments?.key === 'string') heldKeys.delete(step.arguments.key);
+          if (tool === 'game_key_release' && typeof step.arguments?.action === 'string') heldActions.delete(step.arguments.action);
         } else {
           throw new Error(`Unsupported scenario step type: ${String(step.type)}`);
         }
@@ -670,6 +728,12 @@ export class LifecycleToolHandlers {
         if (!('error' in response)) released.push(key);
       }
       teardown.released_keys = released;
+      const releasedActions: string[] = [];
+      for (const action of heldActions) {
+        const response = await this.context.sendGameCommand('key_release', { action }, 2_000, null);
+        if (!('error' in response)) releasedActions.push(action);
+      }
+      teardown.released_actions = releasedActions;
       const restored = await this.context.sendGameCommand('time_scale', { action: 'set', time_scale: 1 }, 2_000, null);
       teardown.time_scale_restored = !('error' in restored);
     } catch (error) {
@@ -684,7 +748,11 @@ export class LifecycleToolHandlers {
         duration_ms: Date.now() - startedAt, steps: evidence, teardown,
       }, null, 2) }],
       ...(passed ? {} : { isError: true }),
-    }, { outcome: cancelled ? 'cancelled' : passed ? 'success' : 'failure', details: { teardown } });
+    }, {
+      outcome: cancelled ? 'cancelled' : passed ? 'success' : 'failure',
+      details: { teardown },
+      ...(structuredError ? { error: structuredError } : {}),
+    });
   }
 
   private async waitUntilEvidence(args: ToolArguments): Promise<Record<string, unknown>> {
@@ -692,12 +760,22 @@ export class LifecycleToolHandlers {
     if (!['connection', 'node', 'property', 'signal', 'log', 'scene'].includes(condition)) {
       return { satisfied: false, error: 'condition must be connection, node, property, signal, log, or scene' };
     }
+    // get_node_info exposes only editor-visible ("@export"-class) properties
+    // unprivileged, which covers the overwhelming majority of gameplay state
+    // (position, visible, modulate, ...). Only non-editor properties need the
+    // privileged get_property command, so the reflection gate is enforced
+    // lazily below once we know the editor-visible lookup actually missed.
+    const propertyUsesReflectionFallback = condition === 'property' && !this.runtimeSupportsReflection();
     const timeoutMs = Math.round((typeof args.timeoutSeconds === 'number' ? args.timeoutSeconds : 10) * 1_000);
     const pollMs = typeof args.pollIntervalMs === 'number' ? args.pollIntervalMs : 100;
     const startedAt = Date.now();
     const deadline = startedAt + timeoutMs;
     let attempts = 0;
     let lastObserved: unknown = null;
+    const freshLogProcess = condition === 'log' && args.fresh === true
+      ? this.context.getActiveProcess()
+      : null;
+    const freshLogStart = freshLogProcess?.output.length ?? 0;
     if (condition === 'signal') {
       if (!args.nodePath || !args.signal) return { satisfied: false, error: 'nodePath and signal are required' };
       const response = await this.context.sendGameCommand('await_signal', {
@@ -713,33 +791,59 @@ export class LifecycleToolHandlers {
         lastObserved = { connected: this.context.isGameConnected() };
         if (this.context.isGameConnected()) return waitSuccess(condition, startedAt, attempts, lastObserved);
       } else if (condition === 'log') {
-        const output = this.context.getActiveProcess()?.output.join('\n') ?? '';
-        lastObserved = { tail: output.slice(-2_000) };
+        const activeProcess = this.context.getActiveProcess();
+        const outputLines = activeProcess?.output ?? [];
+        const start = args.fresh === true && activeProcess === freshLogProcess
+          ? Math.min(freshLogStart, outputLines.length)
+          : 0;
+        const output = outputLines.slice(start).join('\n');
+        lastObserved = { tail: output.slice(-2_000), ...(args.fresh === true ? { fresh: true } : {}) };
         if (typeof args.text === 'string' && output.includes(args.text)) return waitSuccess(condition, startedAt, attempts, lastObserved);
       } else {
         if (!this.context.isGameConnected()) lastObserved = { connected: false };
-        else {
-          const command = condition === 'node' ? 'get_node_info' : condition === 'property' ? 'get_property' : 'get_scene_tree';
-          const params = condition === 'node' ? { node_path: args.nodePath }
-            : condition === 'property' ? { node_path: args.nodePath, property: args.property }
-            : {};
-          let response: GameResponse | null = null;
-          try {
-            response = await this.context.sendGameCommand(
-              command, params, Math.min(5_000, Math.max(1, deadline - Date.now())),
-            );
-          } catch (error) {
+        else if (condition === 'property' && propertyUsesReflectionFallback) {
+          // No reflection privilege: try the free, editor-property-only
+          // get_node_info read before giving up. This covers the common case
+          // (position, visible, modulate, ...) without requiring the caller
+          // to opt into arbitrary reflection just to poll one safe property.
+          const nodeInfoResult = await this.pollPropertyViaNodeInfo(args, deadline);
+          if (nodeInfoResult.found) {
+            lastObserved = nodeInfoResult.observed;
+            if (sameJson(nodeInfoResult.value, args.value)) return waitSuccess(condition, startedAt, attempts, lastObserved);
+          } else {
+            return {
+              satisfied: false,
+              condition,
+              elapsed_ms: Date.now() - startedAt,
+              attempts,
+              last_observed: nodeInfoResult.observed,
+              error: PROPERTY_WAIT_REFLECTION_ERROR.message,
+            };
+          }
+        } else if (condition === 'property') {
+          const response = await this.tryGameCommand('get_property', { node_path: args.nodePath, property: args.property }, deadline, (error) => {
+            if (lastObserved === null) lastObserved = { error: this.errorMessage(error) };
+          });
+          if (response) {
+            lastObserved = 'error' in response ? { error: response.error } : response.result;
+            if (!('error' in response)) {
+              const result = response.result as Record<string, unknown>;
+              if (sameJson(result.value, args.value)) return waitSuccess(condition, startedAt, attempts, lastObserved);
+            }
+          }
+        } else {
+          const command = condition === 'node' ? 'get_node_info' : 'get_scene_tree';
+          const params = condition === 'node' ? { node_path: args.nodePath } : {};
+          const response = await this.tryGameCommand(command, params, deadline, (error) => {
             // A poll issued at the edge of the deadline can consume its own
             // remaining transport budget. That is timeout evidence, not an
             // MCP handler crash, and must not erase the last successful read.
             if (lastObserved === null) lastObserved = { error: this.errorMessage(error) };
-          }
+          });
           if (response) {
             lastObserved = 'error' in response ? { error: response.error } : response.result;
-            if (condition === 'node' && !('error' in response)) return waitSuccess(condition, startedAt, attempts, lastObserved);
-            if (condition === 'property' && !('error' in response)) {
-              const result = response.result as Record<string, unknown>;
-              if (sameJson(result.value, args.value)) return waitSuccess(condition, startedAt, attempts, lastObserved);
+            if (condition === 'node' && !('error' in response)) {
+              return waitSuccess(condition, startedAt, attempts, compactNodeWaitObservation(lastObserved));
             }
             if (condition === 'scene' && !('error' in response)) {
               const result = response.result as Record<string, unknown>;
@@ -755,6 +859,43 @@ export class LifecycleToolHandlers {
       satisfied: false, condition, elapsed_ms: Date.now() - startedAt, attempts,
       timeout_ms: timeoutMs, last_observed: lastObserved,
     };
+  }
+
+  private async tryGameCommand(
+    command: string, params: Record<string, unknown>, deadline: number, onError: (error: unknown) => void,
+  ): Promise<GameResponse | null> {
+    try {
+      return await this.context.sendGameCommand(command, params, Math.min(5_000, Math.max(1, deadline - Date.now())));
+    } catch (error) {
+      onError(error);
+      return null;
+    }
+  }
+
+  private async pollPropertyViaNodeInfo(
+    args: ToolArguments, deadline: number,
+  ): Promise<{ found: boolean; value: unknown; observed: unknown }> {
+    const response = await this.tryGameCommand(
+      'get_node_info', { node_path: args.nodePath, detail: 'compact', property_names: [args.property] }, deadline, () => { /* no-op: treated as not-found below */ },
+    );
+    if (!response || 'error' in response) return { found: false, value: undefined, observed: response ? { error: response.error } : null };
+    const result = response.result as Record<string, unknown>;
+    const properties = Array.isArray(result.properties) ? result.properties as Record<string, unknown>[] : [];
+    const match = properties.find((p) => p.name === args.property);
+    if (!match) return { found: false, value: undefined, observed: result };
+    return { found: true, value: match.value, observed: { value: match.value, property: args.property, node_path: args.nodePath } };
+  }
+
+  private runtimeSupportsReflection(): boolean {
+    const capabilities = this.context.getRuntimeHandshake?.()?.capabilities;
+    return Array.isArray(capabilities)
+      && (capabilities.includes(PRIVILEGED_RUNTIME_CAPABILITY)
+        || capabilities.includes(privilegedGroupCapability('reflection')));
+  }
+
+  private isReflectionPreconditionFailure(result: Record<string, unknown>): boolean {
+    return result.condition === 'property'
+      && result.error === PROPERTY_WAIT_REFLECTION_ERROR.message;
   }
 
   private async evaluateVerificationAssertion(assertion: ToolArguments): Promise<Record<string, unknown>> {
@@ -867,6 +1008,44 @@ export class LifecycleToolHandlers {
       truncated: stdout.length > maxStreamCharacters || stderr.length > maxStreamCharacters,
       limit_bytes: maxStreamCharacters * 2,
     };
+  }
+
+  private fatalStartupMessage(record: GodotProcess | null | undefined): string | null {
+    const output = [...(record?.output ?? []), ...(record?.errors ?? [])].join('\n');
+    const patterns = [
+      /ERROR:\s+(?:Error parsing ['"][^'"\n]*project\.godot['"]|Couldn't load file ['"][^'"\n]*project\.godot['"])[^\n]*/i,
+      /(?:SCRIPT ERROR:\s*)?(?:Parse Error|Failed to load script|Could not load script|Can't load script)[^\n]*/i,
+    ];
+    for (const pattern of patterns) {
+      const match = pattern.exec(output);
+      if (match) return match[0];
+    }
+    return null;
+  }
+
+  private watchForFatalStartup(record: GodotProcess, signal: AbortSignal): Promise<never> {
+    return new Promise((_, reject) => {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const cleanup = () => {
+        if (timer) clearTimeout(timer);
+        signal.removeEventListener('abort', cleanup);
+      };
+      const inspect = () => {
+        if (signal.aborted) {
+          cleanup();
+          return;
+        }
+        const fatal = this.fatalStartupMessage(record);
+        if (fatal) {
+          cleanup();
+          reject(new Error(`Godot reported a fatal startup error: ${fatal}`));
+          return;
+        }
+        timer = setTimeout(inspect, 25);
+      };
+      signal.addEventListener('abort', cleanup, { once: true });
+      inspect();
+    });
   }
 
   private async requireGodotPath(): Promise<string | null> {

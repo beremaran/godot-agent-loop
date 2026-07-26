@@ -60,7 +60,7 @@ describe('portable agent plugin package', () => {
     expect(mcp.mcpServers[adapter.name]).toEqual({
       command: 'npx',
       args: ['-y', `${packageJson.name}@${packageJson.version}`],
-      env: { GODOT_MCP_TOOL_SURFACE: 'core' },
+      env: { GODOT_MCP_TOOL_SURFACE: 'core', GODOT_MCP_LEGACY_JSON_TEXT: 'false' },
     });
     expect(claudeMarketplace.plugins[0]).toMatchObject({ name: adapter.name, source: './agent-plugin' });
     expect(codexMarketplace.plugins[0]).toMatchObject({
@@ -154,7 +154,9 @@ describe('portable agent plugin package', () => {
   it('keeps backticked tool references valid and inside each direct/hidden contract', () => {
     const catalog = new Set(toolDefinitions.map(tool => tool.name));
     const documentedNonTools = new Set([
-      '_ready()', 'compact', 'ensure', 'game_*', 'project.godot', 'projectPath',
+      '.', '/root', 'HUD', '_input()', '_ready()', '_unhandled_input()', 'compact', 'ensure', 'game_*',
+      'Input.is_action_just_pressed()', 'Input.is_action_pressed()', 'parentNodePath',
+      'project.godot', 'projectPath',
       '{ "r": 0.2, "g": 0.7, "b": 1.0, "a": 1.0 }',
       '{ "x": 120, "y": 80 }',
     ]);
@@ -221,12 +223,12 @@ describe('portable agent plugin package', () => {
     })).toEqual({
       command: process.execPath,
       args: ['/installed/package/build/index.js'],
-      environment: { GODOT_MCP_TOOL_SURFACE: 'core' },
+      environment: { GODOT_MCP_TOOL_SURFACE: 'core', GODOT_MCP_LEGACY_JSON_TEXT: 'false' },
     });
     expect(resolvePiServerLaunch({ exists: () => false })).toEqual({
       command: 'npx',
       args: ['-y', `${packageJson.name}@${packageJson.version}`],
-      environment: { GODOT_MCP_TOOL_SURFACE: 'core' },
+      environment: { GODOT_MCP_TOOL_SURFACE: 'core', GODOT_MCP_LEGACY_JSON_TEXT: 'false' },
     });
   });
 });

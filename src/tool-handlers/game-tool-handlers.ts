@@ -140,8 +140,11 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameGetUi() {
-    return this.context.gameCommand('get_ui_elements', {}, () => ({}));
+  public async handleGameGetUi(args: ToolArguments) {
+    return this.context.gameCommand('get_ui_elements', args, a => ({
+      ...(a.rootPath ? { root_path: a.rootPath } : {}),
+      max_elements: a.maxElements ?? 200,
+    }));
   }
 
   public async handleGameGetSceneTree(args: ToolArguments) {
@@ -179,7 +182,11 @@ export class GameToolHandlers {
   public async handleGameGetNodeInfo(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath) return createErrorResponse('nodePath is required.');
-    return this.context.gameCommand('get_node_info', args, a => ({ node_path: a.nodePath }));
+    return this.context.gameCommand('get_node_info', args, a => ({
+      node_path: a.nodePath,
+      detail: a.detail ?? 'full',
+      property_names: a.propertyNames ?? [],
+    }));
   }
 
   public async handleGameInstantiateScene(args: ToolArguments) {

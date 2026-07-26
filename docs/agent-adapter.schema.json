@@ -70,7 +70,7 @@
         }
       }
     },
-    "defaultPrompts": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+    "defaultPrompts": { "type": "array", "minItems": 1, "maxItems": 3, "items": { "type": "string", "minLength": 1 } },
     "clients": { "type": "object", "required": ["claudeCode", "codex", "openCode", "pi"] }
   },
   "$defs": {

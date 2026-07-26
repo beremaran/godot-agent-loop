@@ -1,0 +1,235 @@
+name: Godot latest-release compatibility
+
+on:
+  schedule:
+    # Daily engine checks from Monday through Saturday.
+    - cron: "23 3 * * 1-6"
+    # The Sunday check also runs the full MCP-to-Godot E2E suite.
+    - cron: "23 3 * * 0"
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Test depth
+        required: true
+        default: full
+        type: choice
+        options:
+          - godot
+          - full
+
+permissions:
+  contents: read
+
+concurrency:
+  group: godot-latest-compatibility
+  cancel-in-progress: false
+
+env:
+  # Update this only after the main CI workflow proves a newer release.
+  LAST_KNOWN_GOOD_GODOT: 4.7-stable
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      latest: ${{ steps.release.outputs.latest }}
+      known-good: ${{ steps.release.outputs.known-good }}
+      suite: ${{ steps.mode.outputs.suite }}
+    steps:
+      - name: Find the newest stable Godot 4 release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          latest="$(
+            gh api --paginate \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "repos/godotengine/godot-builds/releases?per_page=100" \
+              --jq '.[] | select(.draft == false and .prerelease == false) | .tag_name' \
+              | grep -E '^4\.[0-9]+(\.[0-9]+)?-stable$' \
+              | sort -V \
+              | tail -n 1
+          )"
+          if [[ ! "$latest" =~ ^4\.[0-9]+(\.[0-9]+)?-stable$ ]]; then
+            echo "Could not find a stable Godot 4 release" >&2
+            exit 1
+          fi
+          echo "Latest stable Godot release: $latest"
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+          echo "known-good=$LAST_KNOWN_GOOD_GODOT" >> "$GITHUB_OUTPUT"
+
+      - name: Select daily or weekly test depth
+        id: mode
+        env:
+          DISPATCH_SUITE: ${{ inputs.suite }}
+          SCHEDULE: ${{ github.event.schedule }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            suite="$DISPATCH_SUITE"
+          elif [[ "$SCHEDULE" == "23 3 * * 0" ]]; then
+            suite=full
+          else
+            suite=godot
+          fi
+          echo "suite=$suite" >> "$GITHUB_OUTPUT"
+
+  test-latest:
+    needs: discover
+    runs-on: ubuntu-latest
+    name: Test latest (${{ needs.discover.outputs.latest }})
+    outputs:
+      tests-outcome: ${{ steps.tests.outcome }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb mesa-vulkan-drivers
+          npm ci --ignore-scripts
+
+      - name: Install Godot ${{ needs.discover.outputs.latest }}
+        env:
+          GODOT_VERSION: ${{ needs.discover.outputs.latest }}
+        run: |
+          archive="$RUNNER_TEMP/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          install_dir="$RUNNER_TEMP/godot-${GODOT_VERSION}"
+          curl --fail --location --retry 3 --silent --show-error \
+            --output "$archive" \
+            "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          mkdir -p "$install_dir"
+          unzip -q "$archive" -d "$install_dir"
+          godot_bin="$install_dir/Godot_v${GODOT_VERSION}_linux.x86_64"
+          chmod +x "$godot_bin"
+          echo "GODOT_BIN=$godot_bin" >> "$GITHUB_ENV"
+          "$godot_bin" --version
+
+      - name: Run the Godot test suite
+        id: tests
+        continue-on-error: true
+        env:
+          TEST_DEPTH: ${{ needs.discover.outputs.suite }}
+        run: |
+          xvfb-run -a npm run test:godot
+          if [[ "$TEST_DEPTH" == "full" ]]; then
+            xvfb-run -a npm run test:e2e
+          fi
+
+      - name: Preserve failure evidence
+        if: steps.tests.outcome == 'failure'
+        uses: actions/upload-artifact@v7
+        with:
+          name: godot-latest-${{ needs.discover.outputs.latest }}-failure
+          path: |
+            tests/godot/logs/
+            tests/godot/fixture/
+          if-no-files-found: ignore
+
+      - name: Fail when the latest release test failed
+        if: steps.tests.outcome == 'failure'
+        run: exit 1
+
+  test-known-good:
+    needs: [discover, test-latest]
+    if: >-
+      always() &&
+      needs.discover.result == 'success' &&
+      needs.test-latest.outputs.tests-outcome == 'failure' &&
+      needs.discover.outputs.latest != needs.discover.outputs.known-good
+    runs-on: ubuntu-latest
+    name: Retest known good (${{ needs.discover.outputs.known-good }})
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb mesa-vulkan-drivers
+          npm ci --ignore-scripts
+
+      - name: Install Godot ${{ needs.discover.outputs.known-good }}
+        env:
+          GODOT_VERSION: ${{ needs.discover.outputs.known-good }}
+        run: |
+          archive="$RUNNER_TEMP/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          install_dir="$RUNNER_TEMP/godot-${GODOT_VERSION}"
+          curl --fail --location --retry 3 --silent --show-error \
+            --output "$archive" \
+            "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          mkdir -p "$install_dir"
+          unzip -q "$archive" -d "$install_dir"
+          godot_bin="$install_dir/Godot_v${GODOT_VERSION}_linux.x86_64"
+          chmod +x "$godot_bin"
+          echo "GODOT_BIN=$godot_bin" >> "$GITHUB_ENV"
+          "$godot_bin" --version
+
+      - name: Run the same suite against the known-good release
+        env:
+          TEST_DEPTH: ${{ needs.discover.outputs.suite }}
+        run: |
+          xvfb-run -a npm run test:godot
+          if [[ "$TEST_DEPTH" == "full" ]]; then
+            xvfb-run -a npm run test:e2e
+          fi
+
+  report-regression:
+    needs: [discover, test-latest, test-known-good]
+    if: >-
+      always() &&
+      needs.discover.result == 'success' &&
+      needs.test-latest.outputs.tests-outcome == 'failure' &&
+      needs.test-known-good.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Open one issue for the release regression
+        uses: actions/github-script@v8
+        env:
+          LATEST_GODOT: ${{ needs.discover.outputs.latest }}
+          TEST_DEPTH: ${{ needs.discover.outputs.suite }}
+        with:
+          script: |
+            const title = `Godot ${process.env.LATEST_GODOT} compatibility regression`;
+            const openIssues = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100,
+            });
+            const existing = openIssues.find((issue) =>
+              issue.pull_request === undefined && issue.title === title
+            );
+            if (existing) {
+              core.notice(`Issue #${existing.number} already tracks this release.`);
+              return;
+            }
+
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = [
+              `The ${process.env.TEST_DEPTH} compatibility suite fails on Godot ${process.env.LATEST_GODOT}.`,
+              '',
+              `The same commit and suite pass on the last known-good Godot release, ${process.env.LAST_KNOWN_GOOD_GODOT}.`,
+              '',
+              `Workflow run: ${runUrl}`,
+              '',
+              'Failure logs and the staged Godot fixture are attached to the workflow run.',
+            ].join('\n');
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+            });
+            core.notice(`Created issue #${issue.data.number}.`);

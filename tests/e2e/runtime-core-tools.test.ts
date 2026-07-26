@@ -125,7 +125,7 @@ describe('runtime mutation tools through MCP', () => {
   it('game_get_node_info reports class, children, signals, and methods', async () => {
     const game = await startedGame();
 
-    const result = await game.call('game_get_node_info', { nodePath: '/root/Main' });
+    const result = await game.call('game_get_node_info', { nodePath: '/root/Main', detail: 'full' });
     expect(result.isError, result.text).toBe(false);
     const info = payload(result.text) as {
       class: string; name: string; path: string;
@@ -139,6 +139,18 @@ describe('runtime mutation tools through MCP', () => {
     expect(info.properties.map(property => property.name)).toContain('position');
     expect(JSON.stringify(info.signals)).toContain('e2e_event');
     expect(JSON.stringify(info.methods)).toContain('observe_value');
+
+    const compactResult = await game.call('game_get_node_info', {
+      nodePath: '/root/Main', detail: 'compact', propertyNames: ['position'],
+    });
+    expect(compactResult.isError, compactResult.text).toBe(false);
+    const compact = payload(compactResult.text) as {
+      detail: string; properties: { name: string }[]; signals: unknown[]; methods: unknown[];
+    };
+    expect(compact.detail).toBe('compact');
+    expect(compact.properties.map(property => property.name)).toEqual(['position']);
+    expect(compact.signals).toEqual([]);
+    expect(compact.methods).toEqual([]);
 
     const missing = await game.call('game_get_node_info', { nodePath: '/root/Main/Ghost' });
     expect(missing.isError).toBe(true);

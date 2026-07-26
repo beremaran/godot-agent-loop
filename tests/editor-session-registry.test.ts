@@ -32,7 +32,7 @@ function record(projectPath: string, overrides: Partial<EditorSessionDiscoveryRe
     port: 32123,
     token: 'a'.repeat(43),
     protocol_version: '2',
-    addon_version: '1.1.2',
+    addon_version: '1.1.3',
     godot_version: '4.7',
     created_at: '2026-07-15T00:00:00Z',
     ...overrides,
@@ -219,7 +219,11 @@ describe('EditorSessionRegistry', () => {
     expect((await registry.ensure(path, 0)).reused).toBe(true);
     expect(authenticate).toHaveBeenCalledTimes(1);
     expect(send).not.toHaveBeenCalled();
-    expect(registry.disconnect(path).state).toBe('no_editor');
+    expect(registry.disconnect(path)).toMatchObject({
+      state: 'no_editor',
+      process_alive: true,
+      reason: 'MCP connection detached; Godot editor process remains open',
+    });
     expect(disconnect).toHaveBeenCalledOnce();
   });
 

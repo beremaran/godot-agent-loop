@@ -1,0 +1,9 @@
+[gd_scene load_steps=2 format=3 uid="uid://target01root"]
+
+[ext_resource type="Script" path="res://scripts/target.gd" id="1_target"]
+
+[node name="Target" type="Area2D"]
+script = ExtResource("1_target")
+
+[node name="TargetSprite" type="Sprite2D" parent="."]
+position = Vector2(0, 0)

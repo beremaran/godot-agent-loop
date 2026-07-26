@@ -31,6 +31,19 @@ describe('parseToolArguments', () => {
     expect(() => parseToolArguments(tool('game_scenario'), {
       name: 'invalid', steps: [{ type: 'input', tool: 'game_key_hold' }],
     })).toThrow('arguments.steps[0].arguments is required');
+    try {
+      parseToolArguments(tool('game_scenario'), {
+        name: 'bad-wait', steps: [{ type: 'wait', arguments: { seconds: 1 } }],
+      });
+      throw new Error('Expected scenario validation to fail');
+    } catch (error) {
+      expect(error).toBeInstanceOf(ToolArgumentValidationError);
+      const validation = error as ToolArgumentValidationError;
+      expect(validation.details.map(issue => [issue.path, issue.keyword])).toEqual([
+        ['arguments.steps[0].condition', 'required'],
+        ['arguments.steps[0].arguments', 'not'],
+      ]);
+    }
     expect(() => parseToolArguments(tool('editor_transaction'), {
       projectPath: '/project', scenePath: 'main.tscn', name: 'invalid',
       operations: [{ op: 'add_node', nodeName: 'MissingType' }],
@@ -42,6 +55,17 @@ describe('parseToolArguments', () => {
       name: 'missing-condition-field',
       steps: [{ type: 'wait', condition: { condition: 'property', nodePath: '/root/Main' } }],
     })).toThrow('arguments.steps[0].condition.property is required');
+    try {
+      parseToolArguments(tool('game_scenario'), {
+        name: 'missing-condition-kind', steps: [{ type: 'wait', condition: { timeoutSeconds: 1 } }],
+      });
+      throw new Error('Expected scenario condition validation to fail');
+    } catch (error) {
+      expect(error).toBeInstanceOf(ToolArgumentValidationError);
+      expect((error as ToolArgumentValidationError).details).toEqual([
+        expect.objectContaining({ path: 'arguments.steps[0].condition.condition', keyword: 'required' }),
+      ]);
+    }
     expect(() => parseToolArguments(tool('game_scenario'), {
       name: 'forbidden-step-field',
       steps: [{ type: 'screenshot', arguments: {} }],
@@ -53,6 +77,25 @@ describe('parseToolArguments', () => {
     expect(() => parseToolArguments(tool('editor_control'), {
       projectPath: '/project', action: 'inspect', scenePath: 'main.tscn',
     })).toThrow('arguments.scenePath is forbidden by this action shape');
+  });
+
+  it('marks property waits and scenario conditions as reflection-dependent', () => {
+    const wait = tool('game_wait_until');
+    expect(wait.description).toMatch(/property waits need reflection/i);
+    expect(wait.inputSchema.oneOf?.find(branch => branch.properties?.condition?.const === 'property'))
+      .toMatchObject({ 'x-privilege-group': 'reflection' });
+
+    const scenario = tool('game_scenario');
+    const condition = scenario.inputSchema.properties?.steps?.items?.properties?.condition;
+    expect(scenario.description).toMatch(/property waits need reflection/i);
+    expect(condition?.oneOf?.find(branch => branch.properties?.condition?.const === 'property'))
+      .toMatchObject({ 'x-privilege-group': 'reflection' });
+    expect(parseToolArguments(tool('game_wait_until'), {
+      condition: 'log', text: 'SNAKE_STATE: WON', fresh: true,
+    })).toMatchObject({ condition: 'log', text: 'SNAKE_STATE: WON', fresh: true });
+    expect(() => parseToolArguments(tool('game_wait_until'), {
+      condition: 'node', nodePath: '/root/Main', fresh: true,
+    })).toThrow(/fresh is forbidden/i);
   });
 
   it('accepts arguments that match the advertised schema', () => {

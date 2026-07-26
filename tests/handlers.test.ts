@@ -122,11 +122,21 @@ describe('Game command handlers — argument transforms', () => {
     });
   });
 
-  // game_get_ui (no args)
+  // game_get_ui
   describe('handleGameGetUi', () => {
-    it('sends empty args', () => {
-      const r = fakeGameCommand(true, true, {}, () => ({}));
-      expect(r.commandArgs).toEqual({});
+    const argsFn = (a: any) => ({
+      ...(a.rootPath ? { root_path: a.rootPath } : {}),
+      max_elements: a.maxElements ?? 200,
+    });
+
+    it('bounds the default response', () => {
+      const r = fakeGameCommand(true, true, {}, argsFn);
+      expect(r.commandArgs).toEqual({ max_elements: 200 });
+    });
+
+    it('passes subtree and result limits', () => {
+      const r = fakeGameCommand(true, true, { rootPath: '/root/Main/HUD', maxElements: 8 }, argsFn);
+      expect(r.commandArgs).toEqual({ root_path: '/root/Main/HUD', max_elements: 8 });
     });
   });
 
@@ -207,9 +217,13 @@ describe('Game command handlers — argument transforms', () => {
 
   // game_get_node_info
   describe('handleGameGetNodeInfo', () => {
-    it('passes nodePath as node_path', () => {
-      const r = fakeGameCommand(true, true, { nodePath: '/root/UI' }, a => ({ node_path: a.nodePath }));
-      expect(r.commandArgs).toEqual({ node_path: '/root/UI' });
+    it('passes compact detail and exact properties', () => {
+      const r = fakeGameCommand(true, true, {
+        nodePath: '/root/UI', detail: 'compact', propertyNames: ['position'],
+      }, a => ({
+        node_path: a.nodePath, detail: a.detail ?? 'full', property_names: a.propertyNames ?? [],
+      }));
+      expect(r.commandArgs).toEqual({ node_path: '/root/UI', detail: 'compact', property_names: ['position'] });
     });
   });
 
@@ -1087,6 +1101,8 @@ describe('Lifecycle handlers', () => {
   it('handleGetProjectInfo reads project.godot', () => {
     expect(sourceCode).toContain('handleGetProjectInfo');
     expect(sourceCode).toContain('readFileSync');
+    expect(sourceCode).toContain('Project directory does not exist:');
+    expect(sourceCode).toContain('Use create_project only if a new project was requested.');
   });
 
   it('handleCreateScene calls executeOperation', () => {

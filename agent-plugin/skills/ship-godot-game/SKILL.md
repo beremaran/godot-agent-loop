@@ -55,6 +55,8 @@ toolchain, or target device into a passing claim. Support begins at Godot 4.7.
    Use bounded `game_scenario` and `game_wait_until` where needed. Use
    `game_key_press` for a one-frame tap, `game_key_hold` for continuous input,
    and always pair holds with `game_key_release`, including failure cleanup.
+   Keep each hold, bounded wait or observation, and release in one scenario;
+   never leave input held across separate MCP calls or while reasoning.
 5. Inspect `game_get_errors`, `get_debug_output`, warnings, metric availability,
    leaks, and teardown; call `stop_project` before artifact production.
 6. For each authorized target, run readiness before export. Keep unavailable or

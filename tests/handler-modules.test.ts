@@ -7,8 +7,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GameToolHandlers } from '../src/tool-handlers/game-tool-handlers.js';
 import { LifecycleToolHandlers, type LifecycleToolHandlerContext } from '../src/tool-handlers/lifecycle-tool-handlers.js';
 import { ProjectToolHandlers } from '../src/tool-handlers/project-tool-handlers.js';
+import { serializeProjectSettingValue } from '../src/tool-handlers/project-handler-services.js';
 import type { GodotProcess } from '../src/godot-process-manager.js';
-import { setToolResultMetadata } from '../src/execution-context.js';
+import { getToolResultMetadata, setToolResultMetadata } from '../src/execution-context.js';
 
 const temporaryDirectories: string[] = [];
 
@@ -27,6 +28,16 @@ function createProject(): string {
 function textFrom(response: any): string {
   return response.content.find((item: any) => item.type === 'text').text;
 }
+
+describe('project setting serialization', () => {
+  it('quotes plain strings and preserves explicit Variant syntax', () => {
+    expect(serializeProjectSettingValue('gl_compatibility')).toBe('"gl_compatibility"');
+    expect(serializeProjectSettingValue('"already quoted"')).toBe('"already quoted"');
+    expect(serializeProjectSettingValue('PackedStringArray("4.7")')).toBe('PackedStringArray("4.7")');
+    expect(serializeProjectSettingValue(false)).toBe('false');
+    expect(serializeProjectSettingValue('720')).toBe('720');
+  });
+});
 
 describe('GameToolHandlers', () => {
   it('maps camelCase arguments and delegates through the command service', async () => {
@@ -364,12 +375,62 @@ describe('LifecycleToolHandlers', () => {
     expect(active).toBeNull();
   });
 
+  it('fails fast when Godot reports a fatal project settings parse error', async () => {
+    const projectPath = createProject();
+    const process = {
+      output: [`ERROR: Error parsing '${projectPath}/project.godot' at line 3: Unexpected identifier.`],
+      errors: [],
+    } as GodotProcess;
+    let active: GodotProcess | null = null;
+    const stopProjectProcess = vi.fn(() => {
+      active = null;
+      return process;
+    });
+    const handlers = new LifecycleToolHandlers(context({
+      getActiveProcess: () => active,
+      startProjectProcess: () => {
+        active = process;
+        return process;
+      },
+      stopProjectProcess,
+      connectToGame: vi.fn(() => new Promise<void>(() => undefined)),
+      getConnectedProjectPath: () => projectPath,
+    }));
+
+    const response = await handlers.handleRunProject({ projectPath });
+
+    expect(response.isError).toBe(true);
+    expect(textFrom(response)).toContain('fatal startup error');
+    expect(stopProjectProcess).toHaveBeenCalledOnce();
+  });
+
+  it('rejects script parse errors before reporting runtime readiness', async () => {
+    const projectPath = createProject();
+    const process = {
+      output: [],
+      errors: ['SCRIPT ERROR: Parse Error: Expected new line after "\\". at main.gd:17'],
+    } as GodotProcess;
+    const stopProjectProcess = vi.fn(() => process);
+    const handlers = new LifecycleToolHandlers(context({
+      startProjectProcess: () => process,
+      stopProjectProcess,
+      getConnectedProjectPath: () => projectPath,
+    }));
+
+    const response = await handlers.handleRunProject({ projectPath });
+
+    expect(response.isError).toBe(true);
+    expect(textFrom(response)).toContain('fatal startup error');
+    expect(textFrom(response)).toContain('Parse Error');
+    expect(stopProjectProcess).toHaveBeenCalledOnce();
+  });
+
   it('serializes concurrent idempotent editor ensure requests for one project', async () => {
     const projectPath = createProject();
     const ensureEditorSession = vi.fn().mockResolvedValue({
       state: 'connected', project_path: projectPath, connected: true, reused: true, spawned: false,
       editor_pid: 42, editor_start_identity: '42:1', port: 32000, protocol_version: '2',
-      addon_version: '1.1.2', godot_version: '4.7', created_at: '1',
+      addon_version: '1.1.3', godot_version: '4.7', created_at: '1',
     });
     const handlers = new LifecycleToolHandlers(context({ ensureEditorSession }));
 
@@ -493,7 +554,11 @@ describe('LifecycleToolHandlers', () => {
     const sendGameCommand = vi.fn().mockResolvedValue({
       jsonrpc: '2.0', id: 1, result: { value: 42 },
     });
-    const handlers = new LifecycleToolHandlers(context({ isGameConnected: () => true, sendGameCommand }));
+    const handlers = new LifecycleToolHandlers(context({
+      isGameConnected: () => true,
+      getRuntimeHandshake: () => ({ capabilities: ['privileged-reflection'] }),
+      sendGameCommand,
+    }));
 
     const matched = await handlers.handleGameWaitUntil({
       condition: 'property', nodePath: '/root/Player', property: 'score', value: 42,
@@ -511,11 +576,91 @@ describe('LifecycleToolHandlers', () => {
     expect(timedOut.isError).toBe(true);
   });
 
+  it('falls back to the unprivileged node-info read for a property wait, then fails with fallback guidance if that misses', async () => {
+    const sendGameCommand = vi.fn();
+    const handlers = new LifecycleToolHandlers(context({
+      isGameConnected: () => true,
+      getRuntimeHandshake: () => ({ capabilities: ['runtime-commands', 'godot-json-values'] }),
+      sendGameCommand,
+    }));
+
+    const response = await handlers.handleGameWaitUntil({
+      condition: 'property', nodePath: '/root/Player', property: 'score', value: 42,
+      timeoutSeconds: 60,
+    });
+
+    expect(response.isError).toBe(true);
+    expect(JSON.parse(textFrom(response))).toMatchObject({
+      satisfied: false, condition: 'property', attempts: 1,
+      error: expect.stringMatching(/reflection privilege group/i),
+    });
+    expect(getToolResultMetadata(response).error).toMatchObject({
+      code: 'reflection_privilege_required', category: 'policy', retryable: true,
+      remediation: expect.stringMatching(/GODOT_MCP_PRIVILEGED_GROUPS=reflection.*log condition.*game_get_ui/i),
+      details: { condition: 'property', privilegeGroup: 'reflection' },
+    });
+    // Editor-visible properties (position, visible, ...) are checked for free
+    // via get_node_info before ever requiring the reflection privilege.
+    expect(sendGameCommand).toHaveBeenCalledWith('get_node_info', {
+      node_path: '/root/Player', detail: 'compact', property_names: ['score'],
+    }, expect.any(Number));
+    expect(sendGameCommand).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps node wait evidence small instead of returning full node reflection data', async () => {
+    const sendGameCommand = vi.fn().mockResolvedValue({
+      jsonrpc: '2.0', id: 1, result: {
+        path: '/root/Main/Player', name: 'Player', class: 'CharacterBody2D',
+        properties: Array.from({ length: 256 }, (_, index) => ({ name: `property_${index}`, value: index })),
+        methods: Array.from({ length: 512 }, (_, index) => `method_${index}`),
+        signals: ['ready'], children: [],
+      },
+    });
+    const handlers = new LifecycleToolHandlers(context({
+      isGameConnected: () => true, sendGameCommand,
+    }));
+
+    const response = await handlers.handleGameWaitUntil({
+      condition: 'node', nodePath: '/root/Main/Player', timeoutSeconds: 1,
+    });
+    const evidence = JSON.parse(textFrom(response));
+
+    expect(evidence).toMatchObject({
+      satisfied: true, condition: 'node', attempts: 1,
+      last_observed: { found: true, path: '/root/Main/Player', name: 'Player', class: 'CharacterBody2D' },
+    });
+    expect(textFrom(response)).not.toContain('property_255');
+    expect(textFrom(response).length).toBeLessThan(500);
+  });
+
+  it('fresh log waits ignore retained output and match a later event', async () => {
+    const process = { output: ['SNAKE_STATE: WON'], errors: [] } as GodotProcess;
+    const handlers = new LifecycleToolHandlers(context({
+      getActiveProcess: () => process,
+      isGameConnected: () => true,
+    }));
+    setTimeout(() => process.output.push('SNAKE_STATE: LOST reason=WALL COLLISION'), 25);
+
+    const response = await handlers.handleGameWaitUntil({
+      condition: 'log', text: 'SNAKE_STATE: LOST', fresh: true,
+      timeoutSeconds: 0.2, pollIntervalMs: 20,
+    });
+    const evidence = JSON.parse(textFrom(response));
+
+    expect(evidence).toMatchObject({
+      satisfied: true, condition: 'log', last_observed: { fresh: true },
+    });
+  });
+
   it('turns an edge-of-deadline poll transport timeout into structured wait evidence', async () => {
     const sendGameCommand = vi.fn()
       .mockResolvedValueOnce({ jsonrpc: '2.0', id: 1, result: { value: 'Anchor' } })
       .mockRejectedValue(new Error("Game request 'godot.runtime.get_property' timed out after 0.001s"));
-    const handlers = new LifecycleToolHandlers(context({ isGameConnected: () => true, sendGameCommand }));
+    const handlers = new LifecycleToolHandlers(context({
+      isGameConnected: () => true,
+      getRuntimeHandshake: () => ({ capabilities: ['privileged-reflection'] }),
+      sendGameCommand,
+    }));
 
     const response = await handlers.handleGameWaitUntil({
       condition: 'property', nodePath: '/root/Main/Anchor', property: 'name', value: 'Never',
@@ -526,6 +671,38 @@ describe('LifecycleToolHandlers', () => {
     expect(JSON.parse(textFrom(response))).toMatchObject({
       satisfied: false, condition: 'property', last_observed: { value: 'Anchor' },
     });
+  });
+
+  it.each(['wait', 'assert'])('gives scenario %s property steps the same fail-fast policy contract', async type => {
+    const sendGameCommand = vi.fn(async (command: string) => ({
+      jsonrpc: '2.0' as const, id: 1, result: { command },
+    }));
+    const handlers = new LifecycleToolHandlers(context({
+      isGameConnected: () => true,
+      getRuntimeHandshake: () => ({ capabilities: ['runtime-commands', 'godot-json-values'] }),
+      sendGameCommand,
+    }));
+
+    const response = await handlers.handleGameScenario({
+      name: `${type}-property`,
+      steps: [{
+        type,
+        condition: { condition: 'property', nodePath: '/root/Player', property: 'score', value: 42, timeoutSeconds: 60 },
+      }],
+    });
+    const evidence = JSON.parse(textFrom(response));
+
+    expect(response.isError).toBe(true);
+    expect(evidence).toMatchObject({
+      passed: false,
+      failure: expect.stringMatching(/reflection privilege group/i),
+      steps: [{ result: { satisfied: false, condition: 'property', attempts: 1 } }],
+    });
+    expect(getToolResultMetadata(response).error).toMatchObject({
+      code: 'reflection_privilege_required', retryable: true,
+    });
+    // Property waits try the free get_node_info read before requiring privilege.
+    expect(sendGameCommand.mock.calls.map(call => call[0])).toEqual(['get_node_info', 'time_scale']);
   });
 
   it('runs a bounded compound scenario and restores time scale without textual image payloads', async () => {
@@ -580,6 +757,22 @@ describe('LifecycleToolHandlers', () => {
     expect(evidence.failure).toMatch(/paused/i);
     expect(sendGameCommand).toHaveBeenCalledWith('key_release', { key: 'W' }, 2_000, null);
     expect(sendGameCommand).toHaveBeenLastCalledWith('time_scale', { action: 'set', time_scale: 1 }, 2_000, null);
+  });
+
+  it('releases a held named action during scenario cleanup', async () => {
+    const sendGameCommand = vi.fn(async () => ({ jsonrpc: '2.0' as const, id: 1, result: { success: true } }));
+    const dispatchTool = vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '{"pressed":true}' }] });
+    const handlers = new LifecycleToolHandlers(context({
+      isGameConnected: () => true, sendGameCommand, dispatchTool,
+    }));
+
+    const response = await handlers.handleGameScenario({ name: 'named-action', steps: [
+      { type: 'input', tool: 'game_key_hold', arguments: { action: 'move_right' } },
+    ] });
+    const evidence = JSON.parse(textFrom(response));
+
+    expect(evidence.teardown.released_actions).toEqual(['move_right']);
+    expect(sendGameCommand).toHaveBeenCalledWith('key_release', { action: 'move_right' }, 2_000, null);
   });
 
   it('stops the process and removes its injected interaction server', async () => {

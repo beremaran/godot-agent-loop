@@ -139,7 +139,7 @@ export function createGameToolRegistry(
       'game_click': args => handlers.handleGameClick(args),
       'game_key_press': args => handlers.handleGameKeyPress(args),
       'game_mouse_move': args => handlers.handleGameMouseMove(args),
-      'game_get_ui': () => handlers.handleGameGetUi(),
+      'game_get_ui': args => handlers.handleGameGetUi(args),
       'game_get_scene_tree': args => handlers.handleGameGetSceneTree(args),
       'game_eval': args => handlers.handleGameEval(args),
       'game_get_property': args => handlers.handleGameGetProperty(args),

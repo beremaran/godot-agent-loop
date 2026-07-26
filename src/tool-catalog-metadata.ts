@@ -29,6 +29,10 @@ export interface ToolCatalogMetadata {
   readonly requiredState: ToolRequiredState;
   readonly mutation: ToolMutation;
   readonly privilege: ToolPrivilege;
+  readonly conditionalPrivileges: readonly {
+    readonly selector: string;
+    readonly group: 'reflection' | 'code-execution' | 'network';
+  }[];
   readonly destructive: boolean;
   readonly idempotent: boolean;
   readonly actionRequirements: Readonly<Record<string, {
@@ -57,6 +61,7 @@ interface CuratedGuidance {
   remediation?: string;
   preferredAlternatives?: readonly ToolName[];
   relatedTools?: readonly ToolName[];
+  conditionalPrivileges?: ToolCatalogMetadata['conditionalPrivileges'];
 }
 
 type WorkflowGuidance = readonly [whenToUse: string, whenNotToUse: string];
@@ -77,17 +82,17 @@ const REVIEWED_WORKFLOW_GUIDANCE: Partial<Record<ToolName, WorkflowGuidance>> = 
   game_click: ['Click runtime UI or viewport coordinates.', 'Use key tools for keyboard or InputMap actions.'],
   game_eval: ['Evaluate a bounded diagnostic runtime expression.', 'Do not use it for persistent authoring or untrusted code.'],
   game_get_errors: ['Read bounded new runtime errors.', 'Use get_debug_output for raw process output.'],
-  game_get_logs: ['Read bounded new runtime log messages.', 'Use game_get_errors when only failures matter.'],
+  game_get_logs: ['Read bounded new runtime log messages.', 'Use game_get_errors when only failures matter; use a fresh log condition for a transition wait.'],
   game_get_node_info: ['Inspect one runtime node and selected properties.', 'Use scene-tree reads to discover an unknown node path first.'],
   game_get_property: ['Read one known runtime property.', 'Use game_get_node_info for a broader node inspection.'],
   game_get_scene_tree: ['Discover the live runtime scene tree.', 'Use read_scene for saved authored structure.'],
   game_get_ui: ['Inspect concise runtime UI controls and text.', 'Use the full scene tree for non-UI nodes.'],
-  game_key_hold: ['Hold a key or InputMap action across frames.', 'Use game_key_press for a one-frame tap.'],
+  game_key_hold: ['Hold one key or InputMap action across frames; in a scenario, use step.arguments and a short engine-side wait or observation.', 'Do not pass a duration field or rely on a long hold to steer through a grid route; use game_key_release after the wait.'],
   game_key_press: ['Tap a key, action, or text once.', 'Use hold/release for continuous movement.'],
   game_key_release: ['Release input previously held by the agent.', 'Do not use it as a one-frame key tap.'],
-  game_scenario: ['Run a bounded sequence of safe input, wait, observation, and assertions.', 'Do not use it to dispatch arbitrary hidden or persistent tools.'],
+  game_scenario: ['Run a bounded sequence of safe input, wait, observation, and assertions; put input fields inside each step.arguments object and conditions directly on wait/assert steps.', 'Do not use it to dispatch arbitrary hidden or persistent tools; set fresh=true on log conditions that must prove a new event.'],
   game_screenshot: ['Capture visual evidence from the running game.', 'Do not treat a screenshot alone as behavioral verification.'],
-  game_wait_until: ['Wait for a bounded runtime condition.', 'Do not replace deterministic immediate reads with polling.'],
+  game_wait_until: ['Wait for a bounded runtime condition; set fresh=true on a log condition when it must match output emitted after the wait starts.', 'Do not replace deterministic immediate reads with polling or use an old log line as transition proof.'],
   get_debug_output: ['Read bounded runtime stdout and stderr.', 'Use structured logs/errors when their typed data is sufficient.'],
   get_godot_version: ['Inspect the selected Godot executable version.', 'Do not use it as a project compatibility proof.'],
   get_project_info: ['Inspect project metadata and main-scene configuration.', 'Use read_project_settings for individual settings.'],
@@ -103,16 +108,16 @@ const REVIEWED_WORKFLOW_GUIDANCE: Partial<Record<ToolName, WorkflowGuidance>> = 
   modify_project_settings: ['Change one persistent project setting.', 'Use read_project_settings before changing an unfamiliar key.'],
   modify_scene_node: ['Change properties on a node in a saved scene.', 'Use runtime property tools for temporary playtest changes.'],
   read_file: ['Read one bounded project-relative text file.', 'Use specialized scene/settings readers when structure matters.'],
-  read_project_settings: ['Read persistent project settings.', 'Do not use it for live runtime state.'],
+  read_project_settings: ['Read persistent project settings with projectPath only.', 'Do not pass detail or filter fields, and do not use it for live runtime state.'],
   read_scene: ['Inspect bounded authored scene structure.', 'Use game_get_scene_tree for the live instantiated tree.'],
   remove_scene_node: ['Remove a node from a saved scene.', 'Use runtime removal for a temporary instantiated node.'],
   run_project: ['Start the game and wait for the runtime bridge.', 'Do not launch a duplicate runtime when one is already connected.'],
-  run_project_tests: ['Discover or run project test suites.', 'Use verify_project for broader static and configuration checks.'],
+  run_project_tests: ['Discover or run project test suites. action=discover accepts framework and testPaths; action=run also accepts artifactPaths, timeoutSeconds, and failFast.', 'Do not pass run-only fields to action=discover; use verify_project for broader static and configuration checks.'],
   save_scene: ['Persist an authored scene resource.', 'Do not use it as proof the running game reloaded the change.'],
   set_main_scene: ['Set the project main scene persistently.', 'Do not use it to change only the current runtime scene.'],
-  stop_project: ['Safely stop the connected game runtime.', 'Do not disconnect the editor when only the game should stop.'],
+  stop_project: ['Safely stop the connected game runtime with no arguments; it is process-global.', 'Do not pass projectPath or disconnect the editor when only the game should stop.'],
   validate_script: ['Validate one GDScript file.', 'Use validate_scripts for a bounded project batch.'],
-  validate_scripts: ['Validate changed, all, or explicit GDScript files.', 'Use validate_script for a single known path.'],
+  validate_scripts: ['Validate changed, all, or explicit GDScript files.', 'A zero-file changed scope is unvalidated; use all or explicit paths.'],
   verify_dotnet_project: ['Inspect, restore, build, or run the project .NET workflow.', 'Do not use it for a GDScript-only project.'],
   verify_export_readiness: ['Inspect or smoke-test an export preset.', 'Do not substitute it for testing the exported artifact.'],
   verify_project: ['Run bounded project-wide static verification.', 'Use runtime observations for gameplay behavior.'],
@@ -185,6 +190,16 @@ const CURATED_GUIDANCE: Partial<Record<ToolName, CuratedGuidance>> = {
     aliases: ['wait until a label changes', 'wait until a property changes', 'bounded condition wait'],
     tags: ['wait', 'condition', 'label', 'property', 'signal', 'bounded'],
     concepts: ['Signal', 'Node property'],
+    warnings: ['The property condition requires the reflection privilege group and fails before polling when it is disabled.'],
+    fallbacks: ['Use a log condition for an emitted state marker, or use game_get_ui for bounded control text without reflection.'],
+    remediation: 'Enable reflection with GODOT_MCP_PRIVILEGED_GROUPS=reflection and restart the runtime, or choose a log/UI fallback.',
+    conditionalPrivileges: [{ selector: 'condition=property', group: 'reflection' }],
+  },
+  game_scenario: {
+    warnings: ['Property wait and assert steps require the reflection privilege group and fail before polling when it is disabled.'],
+    fallbacks: ['Use a log condition step for an emitted state marker, or observe with game_get_ui without reflection.'],
+    remediation: 'Enable reflection with GODOT_MCP_PRIVILEGED_GROUPS=reflection and restart the runtime, or choose a log/UI fallback.',
+    conditionalPrivileges: [{ selector: 'steps[].condition.condition=property', group: 'reflection' }],
   },
   game_visual_regression: {
     aliases: ['compare a screenshot', 'screenshot comparison', 'visual regression'],
@@ -344,6 +359,7 @@ function metadataFor(name: ToolName): ToolCatalogMetadata {
     requiredState: requiredStateFor(name, manifest.backend),
     mutation,
     privilege: manifest.privileged ? 'required' : 'none',
+    conditionalPrivileges: curated.conditionalPrivileges ?? [],
     destructive: POTENTIALLY_DESTRUCTIVE_TOOLS.has(name),
     idempotent: mutation === 'read-only',
     actionRequirements: actionRequirementsFor(name),

@@ -121,19 +121,59 @@ function relevantIssues(
   input: unknown,
   errors: readonly ErrorObject[],
 ): ToolArgumentIssue[] {
-  if (!input || typeof input !== 'object' || Array.isArray(input)
-    || typeof (input as Record<string, unknown>).action !== 'string'
-    || !schema.oneOf?.some(branch => branch.properties?.action?.const !== undefined)) {
-    return errors.map(formatIssue);
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return errors.map(formatIssue);
+  const record = input as Record<string, unknown>;
+  let filtered = errors;
+  if (typeof record.action === 'string'
+    && schema.oneOf?.some(branch => branch.properties?.action?.const !== undefined)) {
+    const selected = schema.oneOf.findIndex(branch => branch.properties?.action?.const === record.action);
+    const branchPattern = /^#\/oneOf\/(\d+)(?:\/|$)/;
+    filtered = filtered.filter(error => {
+      const match = branchPattern.exec(error.schemaPath);
+      if (!match) return !(error.keyword === 'oneOf' && error.schemaPath === '#/oneOf');
+      return selected >= 0 && Number(match[1]) === selected;
+    });
   }
-  const action = (input as Record<string, unknown>).action;
-  const selected = schema.oneOf.findIndex(branch => branch.properties?.action?.const === action);
-  const branchPattern = /^#\/oneOf\/(\d+)(?:\/|$)/;
-  const filtered = errors.filter(error => {
-    const match = branchPattern.exec(error.schemaPath);
-    if (!match) return !(error.keyword === 'oneOf' && error.schemaPath === '#/oneOf');
-    return selected >= 0 && Number(match[1]) === selected;
-  });
+  const stepBranches = schema.properties?.steps?.items?.oneOf;
+  if (Array.isArray(record.steps) && stepBranches?.some(branch => branch.properties?.type?.const !== undefined)) {
+    const steps = record.steps;
+    const branchPattern = /^#\/properties\/steps\/items\/oneOf\/(\d+)(?:\/|$)/;
+    filtered = filtered.filter(error => {
+      const stepMatch = /^\/steps\/(\d+)(?:\/|$)/.exec(error.instancePath);
+      if (!stepMatch) return true;
+      const step = steps[Number(stepMatch[1])];
+      if (!step || typeof step !== 'object' || Array.isArray(step)) return true;
+      const selected = stepBranches.findIndex(
+        branch => branch.properties?.type?.const === (step as Record<string, unknown>).type,
+      );
+      if (selected < 0) return true;
+      const branchMatch = branchPattern.exec(error.schemaPath);
+      if (branchMatch) return Number(branchMatch[1]) === selected;
+      return !(error.keyword === 'oneOf'
+        && error.schemaPath === '#/properties/steps/items/oneOf');
+    });
+
+    const conditionBranches = schema.properties?.steps?.items?.properties?.condition?.oneOf;
+    if (conditionBranches?.some(branch => branch.properties?.condition?.const !== undefined)) {
+      const conditionBranchPattern = /^#\/properties\/steps\/items\/properties\/condition\/oneOf\/(\d+)(?:\/|$)/;
+      filtered = filtered.filter(error => {
+        const conditionMatch = /^\/steps\/(\d+)\/condition(?:\/|$)/.exec(error.instancePath);
+        if (!conditionMatch) return true;
+        const step = steps[Number(conditionMatch[1])];
+        if (!step || typeof step !== 'object' || Array.isArray(step)) return true;
+        const condition = (step as Record<string, unknown>).condition;
+        if (!condition || typeof condition !== 'object' || Array.isArray(condition)) return true;
+        const selector = (condition as Record<string, unknown>).condition;
+        const selected = conditionBranches.findIndex(
+          branch => branch.properties?.condition?.const === selector,
+        );
+        const branchMatch = conditionBranchPattern.exec(error.schemaPath);
+        if (branchMatch) return selected >= 0 && Number(branchMatch[1]) === selected;
+        return !(error.keyword === 'oneOf'
+          && error.schemaPath === '#/properties/steps/items/properties/condition/oneOf');
+      });
+    }
+  }
   return (filtered.length > 0 ? filtered : errors).map(formatIssue);
 }
 
