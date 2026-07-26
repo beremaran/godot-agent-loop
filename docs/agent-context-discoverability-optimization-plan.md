@@ -18,6 +18,48 @@ also records 28 invalid calls across 252 calls. Tool responses total 3,609,307
 bytes across those runs, with a 228,824-byte median and a 1,139,476-byte maximum
 per run.
 
+The plan date is the date of this review; the external evidence was run on
+2026-07-16 and is retained as historical input. The generated surface report
+and the cold-model record are authoritative for their respective measurements:
+[`docs/coverage/tool-surface.json`](coverage/tool-surface.json) and
+[`evals/current-model-status.json`](../evals/current-model-status.json). The
+completed hardening program that established the current split catalog/call
+surface is documented in
+[`docs/tool-surface-and-skills-hardening-plan.md`](tool-surface-and-skills-hardening-plan.md).
+
+## Baseline evidence and measurement contract
+
+| Measure | Current value | Definition and source |
+| --- | ---: | --- |
+| Full catalog | 173 tools / 1,189,325 bytes | Serialized full definitions in `tool-surface.json` |
+| Core surface | 42 tools / 60,286 bytes / 15,072 estimated tokens | Serialized `core` definitions; tokens are `ceil(bytes / 4)` |
+| Core byte reduction | 94.93% | `1 - core bytes / full bytes` |
+| External runs | 9 passed / 9 scenarios | `current-model-status.json`, model `gpt-5.6-luna`, high effort |
+| Search recall | 1.0 at rank 1, 3, and 5 | Minimum applicable scenario recall in the retained record |
+| Invalid calls | 28 / 252 = 11.1% | Sum of `invalidCalls` divided by sum of `toolCalls` |
+| Result volume | 3,609,307 total; 228,824 median; 1,139,476 maximum | Median and maximum of per-scenario `responseBytes` |
+
+All future comparisons must use the same scenario IDs, metric definitions,
+surface mode, and response-byte accounting unless a versioned evaluation
+change is recorded. Do not compare deterministic discovery results with fresh
+model selection results as if they were the same evidence. A metric is not a
+release result until its raw trace or generated artifact is retained.
+
+The following invariants are non-negotiable throughout the work:
+
+- Hidden execution remains available through `godot_catalog` inspection followed
+  by `godot_call`, while the complete static catalog remains available in
+  explicit `full` mode.
+- Discovery metadata is advisory. Roots, authentication, project correlation,
+  Pause Agent, privilege, mutation policy, cancellation, and cleanup remain
+  server-enforced at the effective nested tool.
+- Concise output may remove repetition, but it may not remove error severity,
+  state, counts, paths, trace identity, or the evidence needed to reproduce a
+  verification conclusion.
+- Historical evaluation records are append-only. Candidate runs receive a
+  version, model/client identity, prompt and skill hashes, surface mode, and
+  retained raw traces.
+
 ## Outcomes and success measures
 
 The program is complete when all of these conditions hold:
@@ -85,6 +127,13 @@ Before changing schemas or descriptions, make the current costs explainable.
   surfaces. Keep the existing bytes/4 estimate for deterministic CI budgeting.
 - [ ] Separate advertised definition bytes, initialization-instruction bytes,
   tool-result bytes, and legacy duplicate-text bytes in reports.
+- [ ] Freeze the baseline inputs before changing behavior: the current tool
+  surface report, current model status, scenario corpus, result schema, server
+  version, and package lock. Record their content hashes in the generated
+  artifact rather than relying on filenames alone.
+- [ ] Define explicit `baselineVersion` and `candidateVersion` fields for
+  reports. A changed scenario, model, client, metric implementation, or byte
+  accounting rule requires a new version and a comparison note.
 
 ### Phase 0 acceptance
 
@@ -92,6 +141,9 @@ Before changing schemas or descriptions, make the current costs explainable.
   evidence; unknown cases remain explicitly `unobserved`.
 - [ ] Generated reports reproduce the current tool counts and byte totals.
 - [ ] Re-running report generation produces no diff.
+- [ ] A reviewer can trace every baseline number in this document to a retained
+  JSON field or deterministic generated report without manual arithmetic hidden
+  in prose.
 
 ## Phase 1: Teach discovery in the always-present instructions
 
@@ -141,6 +193,9 @@ plugin skill is installed.
   call or repeated primitive workaround.
 - [ ] Initialization guidance remains concise and within its explicit byte
   budget.
+- [ ] The fallback rule does not claim that a tool is unavailable merely because
+  it is hidden, and it does not imply that catalog inspection grants mutation
+  authorization.
 
 ## Phase 2: Reduce invalid calls with targeted schema ergonomics
 
@@ -182,6 +237,9 @@ traces show that models make mistakes.
 - [ ] The aggregate cold-model invalid-call rate is at most 5%.
 - [ ] No historical unknown-field, tap-versus-hold, or structured-Variant
   failure recurs.
+- [ ] Invalid-call classification is based on the server's structured error
+  code and field path; prose-only guesses from the model trace are not counted
+  as proof.
 
 ## Phase 3: Make compound workflows win selection
 
@@ -221,6 +279,8 @@ they hand-compose long primitive sequences.
   reducing task success, search recall, or evidence quality.
 - [ ] Primitive tools remain usable for interactive diagnosis and cases that
   the compound contract cannot express.
+- [ ] A compound-tool hint never changes authorization, silently retries a
+  mutation, or hides a primitive call from trace and Activity records.
 
 ## Phase 4: Bound result growth
 
@@ -269,6 +329,9 @@ aggressively cutting useful input schemas.
 - [ ] No scenario compensates for concise output by repeatedly fetching the same
   unfiltered data.
 - [ ] Existing verification conclusions remain independently reproducible.
+- [ ] The 30% reduction is measured against the frozen 228,824-byte median of
+  per-scenario totals, not against a selected large response or a changed
+  scenario denominator.
 
 ## Phase 5: Revisit the core budget using evidence
 
@@ -300,6 +363,9 @@ volume have stable measurements.
 - [ ] The selected surface does not regress any release gate.
 - [ ] Generated coverage, adapter manifests, docs, and package contents agree on
   membership and size.
+- [ ] If no supported tokenizer can be measured for a model family, the report
+  records `unsupported` with the reason and does not present the bytes/4
+  estimate as an actual tokenizer result.
 
 ## Phase 6: Release validation and rollout
 
@@ -335,6 +401,52 @@ volume have stable measurements.
   counts.
 - [ ] The final report distinguishes deterministic proof, fresh-model evidence,
   unsupported claims, and manual-review requirements.
+
+## Ownership, dependencies, and rollout
+
+The implementation owner for each phase is the maintainer responsible for the
+named repository area; the reviewer is a maintainer who did not author the
+measurement or schema change. No phase is accepted from a green unit test alone.
+
+| Phase | Primary owner | Required dependency | Review evidence |
+| --- | --- | --- | --- |
+| 0 | Evaluation and tooling maintainer | Stable current surface and retained traces | Versioned baseline report and reproducible generation |
+| 1 | MCP server maintainer | Phase 0 initialization-byte measurement | Instruction test, catalog contract test, and no-skill traces |
+| 2 | Schema and validation maintainer | Classified invalid-call corpus | Structured error fixtures plus positive/negative engine coverage |
+| 3 | Workflow maintainer | Stable discovery and error metrics | Trace classifier and fresh compound-workflow scenarios |
+| 4 | Observation/result maintainer | Result-byte telemetry and evidence inventory | Size budgets, cursor tests, and verification replay |
+| 5 | Surface/adapter maintainer | Stable Phases 1–4 metrics | Fresh A/B runs for each surface candidate |
+| 6 | Release maintainer | All candidate artifacts and raw traces | Full gate matrix and release-record review |
+
+Roll out in two stages. First, land server-side telemetry, bounded hints, and
+backward-compatible result fields behind existing behavior; do not change the
+default surface or remove legacy text in the measurement stage. Second, change
+defaults only after the candidate beats the frozen baseline on task success,
+invalid calls, response volume, cleanup, and evidence quality. Keep `full` and
+the deprecated `godot_tools` compatibility path available for rollback through
+the documented 1.x compatibility window. Any result-shape or default-surface
+change must update release notes, adapter metadata, and the generated coverage
+record in the same commit.
+
+## Completion audit
+
+The final report must contain one row for each success measure above with the
+following fields: requirement ID, observed value, threshold, evidence path,
+evaluation version, and status. Use these proof sources:
+
+| Requirement family | Authoritative proof |
+| --- | --- |
+| Catalog reachability and surface budget | Tool-surface report, registry/handler contract tests, adapter smoke, and a full-mode hidden-call trace |
+| Discovery and compound selection | Ranked discovery corpus plus fresh no-skill/skill-backed traces with effective-tool attribution |
+| Invalid calls and remediation | Versioned result schema, structured error fixtures, classified raw traces, and positive/negative E2E cases |
+| Result volume and evidence | Per-scenario/per-tool telemetry, bounded-result fixtures, continuation tests, and verification replay |
+| Safety and cleanup | Effective-call policy tests, Godot/E2E traces, pause/roots/cancellation checks, and pre/post residue reports |
+| Compatibility and packaging | Build output, adapter manifests, package archive checks, docs consistency, and legacy alias tests |
+| Tokenizer measurements | Model-family tokenizer artifact, tokenizer version, serialized input, and unsupported reasons where applicable |
+
+If any row is `missing`, `unobserved`, `unsupported`, or `manual`, the program
+remains proposed. Those statuses are useful release information, but they are
+not substitutes for passing evidence.
 
 ## Suggested implementation order
 
