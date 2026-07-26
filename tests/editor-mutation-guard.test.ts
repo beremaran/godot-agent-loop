@@ -1,6 +1,7 @@
 // @test-kind: unit
 import { describe, expect, it, vi } from 'vitest';
-import { EditorMutationGuard } from '../src/editor-mutation-guard.js';
+import { EditorRequestTimeoutError } from '../src/editor-connection.js';
+import { EDITOR_DRIVER_STATE_ATTEMPTS, EditorMutationGuard } from '../src/editor-mutation-guard.js';
 import { createExecutionContext, getToolResultMetadata } from '../src/execution-context.js';
 import { ToolRegistry } from '../src/tool-registry.js';
 
@@ -40,6 +41,31 @@ describe('EditorMutationGuard', () => {
       () => true,
     );
     const response = await guard.check('create_scene', { projectPath: '/project' });
+    expect(response?.isError).toBe(true);
+    expect(String(response?.content[0]?.text)).toContain('pause state could not be confirmed');
+  });
+
+  it('retries transient pause-state timeouts before allowing mutation', async () => {
+    const read = vi.fn()
+      .mockRejectedValueOnce(new EditorRequestTimeoutError('Editor request timed out'))
+      .mockRejectedValueOnce(new EditorRequestTimeoutError('Editor request timed out'))
+      .mockResolvedValue({ paused: false });
+    const guard = new EditorMutationGuard(read, () => true);
+
+    await expect(guard.check('write_file', {
+      projectPath: '/project', filePath: 'player.gd', content: 'extends Node\n',
+    })).resolves.toBeUndefined();
+
+    expect(read).toHaveBeenCalledTimes(3);
+  });
+
+  it('fails closed after repeated pause-state timeouts', async () => {
+    const read = vi.fn().mockRejectedValue(new EditorRequestTimeoutError('Editor request timed out'));
+    const guard = new EditorMutationGuard(read, () => true);
+
+    const response = await guard.check('create_scene', { projectPath: '/project' });
+
+    expect(read).toHaveBeenCalledTimes(EDITOR_DRIVER_STATE_ATTEMPTS);
     expect(response?.isError).toBe(true);
     expect(String(response?.content[0]?.text)).toContain('pause state could not be confirmed');
   });

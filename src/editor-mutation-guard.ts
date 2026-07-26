@@ -1,10 +1,17 @@
 import { isToolCallAllowedWhilePaused, isToolCallMutating } from './tool-mutation-policy.js';
-import { isAbortError, setToolResultMetadata, type ToolExecutionContext } from './execution-context.js';
-import { createErrorResponse, type ToolArguments, type ToolResponse } from './utils.js';
-import { EditorBridgeCompatibilityError } from './editor-connection.js';
+import {
+  cancellableDelay,
+  isAbortError,
+  setToolResultMetadata,
+  type ToolExecutionContext,
+} from './execution-context.js';
+import { createErrorResponse, errorMessage, type ToolArguments, type ToolResponse } from './utils.js';
+import { EditorBridgeCompatibilityError, EditorRequestTimeoutError } from './editor-connection.js';
 
 export const EDITOR_DRIVER_STATE_COMMAND = 'driver_state';
 export const EDITOR_DRIVER_STATE_TIMEOUT_MS = 500;
+export const EDITOR_DRIVER_STATE_ATTEMPTS = 3;
+export const EDITOR_DRIVER_STATE_RETRY_DELAY_MS = 100;
 export const AGENT_MUTATIONS_PAUSED_MESSAGE =
   'Agent mutation refused: mutations are paused in the Godot editor. Use Resume Agent in the Agent Activity dock to continue.';
 
@@ -29,25 +36,40 @@ export class EditorMutationGuard {
     const projectPath = context?.projectPath ?? (typeof args.projectPath === 'string' ? args.projectPath : undefined);
     if (!projectPath) return undefined;
     const attachedBeforeCheck = this.hasAttachedEditor(projectPath);
+    let state: Record<string, unknown> | undefined;
+    let failure: unknown;
 
-    try {
-      const state = await this.readDriverState(
-        projectPath,
-        EDITOR_DRIVER_STATE_COMMAND,
-        {},
-        EDITOR_DRIVER_STATE_TIMEOUT_MS,
-        context?.signal,
-      );
-      if (state.paused === true) {
-        return setToolResultMetadata(createErrorResponse(AGENT_MUTATIONS_PAUSED_MESSAGE), { outcome: 'paused' });
+    for (let attempt = 1; attempt <= EDITOR_DRIVER_STATE_ATTEMPTS; attempt += 1) {
+      try {
+        state = await this.readDriverState(
+          projectPath,
+          EDITOR_DRIVER_STATE_COMMAND,
+          {},
+          EDITOR_DRIVER_STATE_TIMEOUT_MS,
+          context?.signal,
+        );
+        failure = undefined;
+        break;
+      } catch (error) {
+        if (isAbortError(error)) throw error;
+        if (error instanceof EditorBridgeCompatibilityError) {
+          return setToolResultMetadata(createErrorResponse(`Agent mutation refused: ${error.message}`), { outcome: 'failure' });
+        }
+        failure = error;
+        if (error instanceof EditorRequestTimeoutError && attempt < EDITOR_DRIVER_STATE_ATTEMPTS) {
+          await cancellableDelay(EDITOR_DRIVER_STATE_RETRY_DELAY_MS, context?.signal);
+          continue;
+        }
+        break;
       }
-    } catch (error) {
-      if (isAbortError(error)) throw error;
-      if (error instanceof EditorBridgeCompatibilityError) {
-        return setToolResultMetadata(createErrorResponse(`Agent mutation refused: ${error.message}`), { outcome: 'failure' });
-      }
+    }
+
+    if (state?.paused === true) {
+      return setToolResultMetadata(createErrorResponse(AGENT_MUTATIONS_PAUSED_MESSAGE), { outcome: 'paused' });
+    }
+    if (failure) {
       if (attachedBeforeCheck) {
-        const reason = error instanceof Error ? error.message : String(error);
+        const reason = errorMessage(failure);
         return setToolResultMetadata(createErrorResponse(
           `Agent mutation refused: the attached editor's pause state could not be confirmed (${reason}). Reconnect the editor session or explicitly disconnect it before retrying.`,
         ), { outcome: 'failure' });
