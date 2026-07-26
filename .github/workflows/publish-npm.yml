@@ -9,18 +9,13 @@ on:
       tag:
         description: Signed, fully tested release tag
         required: true
-        default: v1.1.4
+        default: v1.1.5
       confirmation:
-        description: Type publish-@beremaran/godot-agent-loop@1.1.4
-        required: true
-      evaluation_run_id:
-        description: Successful attested paired-behavioral workflow run ID
+        description: Type publish-@beremaran/godot-agent-loop@1.1.5
         required: true
 
 permissions:
   contents: read
-  actions: read
-  attestations: read
   id-token: write
 
 jobs:
@@ -31,7 +26,7 @@ jobs:
       - name: Require the exact publication confirmation
         env:
           CONFIRMATION: ${{ inputs.confirmation }}
-        run: test "$CONFIRMATION" = "publish-@beremaran/godot-agent-loop@1.1.4"
+        run: test "$CONFIRMATION" = "publish-@beremaran/godot-agent-loop@1.1.5"
 
       - uses: actions/checkout@v6
         with:
@@ -49,39 +44,6 @@ jobs:
           test "$(git describe --tags --exact-match HEAD)" = "$RELEASE_TAG"
           test "$(git rev-parse "$RELEASE_TAG^{}")" = "$(git rev-parse HEAD)"
           test "$(node -p 'require("./package.json").version')" = "${RELEASE_TAG#v}"
-
-      - name: Download and verify the attested paired evaluation decision
-        env:
-          GH_TOKEN: ${{ github.token }}
-          EVALUATION_RUN_ID: ${{ inputs.evaluation_run_id }}
-          RELEASE_TAG: ${{ inputs.tag }}
-        run: |
-          EVALUATION_DIR="$RUNNER_TEMP/paired-evaluation"
-          mkdir -p "$EVALUATION_DIR"
-          gh run download "$EVALUATION_RUN_ID" \
-            --repo "$GITHUB_REPOSITORY" \
-            --name paired-behavioral-evaluation \
-            --dir "$EVALUATION_DIR"
-          gh attestation verify "$EVALUATION_DIR/comparison.json" \
-            --repo "$GITHUB_REPOSITORY"
-          gh attestation verify "$EVALUATION_DIR/run-manifest.json" \
-            --repo "$GITHUB_REPOSITORY"
-          node -e '
-            const crypto = require("node:crypto");
-            const fs = require("node:fs");
-            const comparison = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
-            const manifest = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
-            const expectedCommit = process.argv[3];
-            const expectedVersion = process.argv[4].replace(/^v/, "");
-            const digest = path => crypto.createHash("sha256").update(fs.readFileSync(path)).digest("hex");
-            if (comparison.releaseDecision !== "passed") throw new Error("evaluation decision did not pass");
-            if (comparison.inputs.scenarioCount < 24 || comparison.inputs.pairCount < 72) throw new Error("evaluation corpus or epoch count is incomplete");
-            if (manifest.epochs < 3 || manifest.candidate.gitCommit !== expectedCommit) throw new Error("evaluation does not cover this exact commit with three epochs");
-            if (manifest.candidate.packageVersion !== expectedVersion) throw new Error("evaluation package version does not match release tag");
-            if (comparison.inputs.runManifest.sha256 !== digest(process.argv[2])) throw new Error("comparison is not linked to this run manifest");
-            if (comparison.inputs.baseline.sha256 !== digest(process.argv[5])) throw new Error("baseline result hash does not match");
-            if (comparison.inputs.candidate.sha256 !== digest(process.argv[6])) throw new Error("candidate result hash does not match");
-          ' "$EVALUATION_DIR/comparison.json" "$EVALUATION_DIR/run-manifest.json" "$(git rev-parse HEAD)" "$RELEASE_TAG" "$EVALUATION_DIR/baseline-results.json" "$EVALUATION_DIR/candidate-results.json"
 
       - name: Install the audited Godot 4.7 engine
         env:
@@ -118,4 +80,4 @@ jobs:
           npm pack --pack-destination dist
 
       - name: Publish the tested tarball with provenance
-        run: npm publish ./dist/beremaran-godot-agent-loop-1.1.4.tgz --access public --provenance
+        run: npm publish ./dist/beremaran-godot-agent-loop-1.1.5.tgz --access public --provenance

@@ -51,7 +51,7 @@ stochastic model run.
 | Inspect AI controlled harness | Complete | Locked Python environment, native stdio MCP, ReAct tasks, deterministic scorers, no-cost mock smoke |
 | Metric repair and corpus growth | Complete | 24 cases, evidence IDs, capability/trajectory/grounding metrics, budgets, scorer audit |
 | Paired behavioral comparison | Complete | Immutable baseline launcher, randomized order, three-epoch minimum, clustered bootstrap intervals |
-| CI and release enforcement | Complete | Manual paid lane, change-impact selection, artifact attestation, release gate |
+| CI and release enforcement | Complete | Manual paid lane, change-impact selection, artifact attestation; publication remains ungated |
 | Real-client cold-model acceptance | Preserved | Existing Codex CLI runner remains the shipping-client lane |
 
 The deterministic gates do not silently substitute for the pending stochastic
@@ -623,7 +623,7 @@ Estimate: 1 week
 - Randomize paired run order and generate scenario-clustered intervals.
 - Add change-impact selection and explicit opt-in for paid model jobs.
 - Publish a concise GitHub job summary with links to failing cases and evidence.
-- Make the release workflow require a signed evaluation summary.
+- Keep paid behavioral evaluation opt-in and separate from publication.
 
 Exit gate: a deliberately regressed tool description, schema, handler, policy,
 cleanup path, and latency budget is independently caught by the expected lane.

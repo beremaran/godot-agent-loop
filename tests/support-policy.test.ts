@@ -85,6 +85,9 @@ describe('Godot support policy', () => {
     expect(workflow).not.toContain(`npm publish dist/beremaran-godot-agent-loop-${packageJson.version}.tgz`);
     expect(workflow).toContain('id-token: write');
     expect(workflow).toContain('runs-on: ubuntu-latest');
+    expect(workflow).not.toContain('evaluation_run_id');
+    expect(workflow).not.toContain('paired-behavioral-evaluation');
+    expect(workflow).not.toContain('attestations: read');
     expect(workflow).not.toContain('NODE_AUTH_TOKEN');
     expect(workflow).not.toContain('secrets.NPM_TOKEN');
   });

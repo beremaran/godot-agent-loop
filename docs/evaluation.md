@@ -125,8 +125,8 @@ bounded decision or calibration manifests with GitHub artifact provenance. Its
 protected environment must define `BEHAVIORAL_EVAL_PROVIDER_ENV` as
 newline-delimited provider environment variables. The workflow validates the
 variable names, exports them only to the Inspect parent process, and the task
-launcher does not forward them into either MCP server. The npm publish workflow
-accepts only an attested paired decision for the exact release commit.
+launcher does not forward them into either MCP server. This evaluation remains
+an optional, separate workflow and is not required for npm publication.
 
 ## Released baseline and paired comparison
 
