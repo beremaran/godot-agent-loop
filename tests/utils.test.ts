@@ -1,5 +1,5 @@
 // @test-kind: unit
-import { mkdtempSync, mkdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'fs';
+import { mkdtempSync, mkdirSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join, relative } from 'path';
 import { afterEach, describe, it, expect, vi } from 'vitest';
@@ -279,7 +279,7 @@ describe('PathSecurity', () => {
 
     const otherRoot = join(workspace, 'other-root');
     mkdirSync(join(otherRoot, 'project'), { recursive: true });
-    rmSync(linkedRoot);
+    unlinkSync(linkedRoot);
     symlinkSync(otherRoot, linkedRoot);
 
     const resolvedAfterRetarget = security.resolveProjectPath(canonicalProject!, 'scripts/player.gd');
