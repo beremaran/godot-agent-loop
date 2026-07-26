@@ -1,6 +1,6 @@
 # MCP server evaluation and improvement roadmap
 
-- Status: proposed
+- Status: operational; stochastic calibration evidence pending an authorized run
 - Date: 2026-07-26
 - Scope: MCP protocol, the 173-tool Godot surface, progressive discovery,
   agent behavior, engine integration, safety, cleanup, and performance
@@ -35,6 +35,28 @@ custom reporting work. The relevant facilities are documented in
 This is an adaptation, not a Python rewrite of the MCP server. Inspect and its
 locked Python environment live entirely under `evals/`; the product remains
 TypeScript and GDScript.
+
+## Implementation snapshot
+
+The roadmap is implemented as an operational evaluation system. This table
+separates completed engineering from evidence that requires an authorized
+stochastic model run.
+
+| Area | Status | Evidence |
+| --- | --- | --- |
+| Versioned corpus and immutable release baseline | Complete | `evals/case.schema.json`, 24 cases, `evals/baselines/v1.1.4/manifest.json` |
+| Deterministic A/A evaluator replay | Complete | Two zero-delta batches in `evals/baselines/v1.1.4/aa-calibration.json` |
+| Stochastic A/A model calibration | Runnable; evidence pending authorization | `eval:calibrate` runs two baseline/baseline, three-epoch batches over the original nine cases |
+| Protocol lane | Complete | Five applicable conformance scenarios, production-stdio Inspector, transport-equivalence E2E |
+| Inspect AI controlled harness | Complete | Locked Python environment, native stdio MCP, ReAct tasks, deterministic scorers, no-cost mock smoke |
+| Metric repair and corpus growth | Complete | 24 cases, evidence IDs, capability/trajectory/grounding metrics, budgets, scorer audit |
+| Paired behavioral comparison | Complete | Immutable baseline launcher, randomized order, three-epoch minimum, clustered bootstrap intervals |
+| CI and release enforcement | Complete | Manual paid lane, change-impact selection, artifact attestation, release gate |
+| Real-client cold-model acceptance | Preserved | Existing Codex CLI runner remains the shipping-client lane |
+
+The deterministic gates do not silently substitute for the pending stochastic
+evidence. `eval:inspect` and `eval:paired` reject live sampling unless both a
+model and explicit confirmation are supplied.
 
 ## Desired outcome
 
@@ -74,7 +96,8 @@ The repository is substantially ahead of a greenfield evaluation effort:
 - [The loop benchmark](../scripts/benchmark-authoring-loop.mjs) already enforces
   absolute and relative latency budgets.
 
-The main gaps are evaluation design rather than raw test volume:
+At roadmap authoring time, the main gaps were evaluation design rather than raw
+test volume. The implementation snapshot above records their current status:
 
 - Each current behavioral scenario has one stochastic sample, so 9/9 is a
   release record rather than an estimate of reliability.
@@ -455,6 +478,7 @@ npm run eval:corpus
 npm run eval:protocol
 npm run eval:smoke
 npm run eval:nightly
+npm run eval:calibrate -- --model PROVIDER/EXACT_MODEL --confirm-external-run
 npm run eval:compare -- --baseline v1.1.4
 npm run eval:release
 npm run eval:view

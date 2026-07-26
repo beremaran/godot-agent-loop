@@ -9,11 +9,12 @@
 
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
-import { join, dirname, normalize } from 'path';
+import { join, dirname, normalize, resolve } from 'path';
 import { randomBytes } from 'crypto';
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
@@ -122,10 +123,11 @@ const SERVER_VERSION = packageMetadata.version;
 /**
  * Interface for server configuration
  */
-interface GodotServerConfig {
+export interface GodotServerConfig {
   godotPath?: string;
   debugMode?: boolean;
   strictPathValidation?: boolean;
+  manageProcessLifecycle?: boolean;
 }
 
 /**
@@ -210,6 +212,7 @@ export class GodotServer {
   private readonly editorPluginInstaller: EditorPluginInstaller;
   private readonly editorPluginInstallations = new Map<string, EditorPluginInstallation>();
   private strictPathValidation = false;
+  private initialized = false;
   private readonly tcpGameConnection = new GameConnection({
     port: resolveRuntimePort(),
     allowPrivilegedCommands: ALLOW_PRIVILEGED_COMMANDS,
@@ -404,19 +407,21 @@ export class GodotServer {
     // Error handling
     this.server.server.onerror = (error) => { console.error('[MCP Error]', error); };
 
-    // Cleanup on both interactive interruption and process-manager shutdown.
-    // E2E clients and service supervisors use SIGTERM; without this handler a
-    // persistent authoring child would outlive the MCP server.
-    let shuttingDown = false;
-    const shutdown = () => {
-      if (shuttingDown) return;
-      shuttingDown = true;
-      void this.cleanup().finally(() => { process.exit(0); });
-    };
-    process.on('SIGINT', shutdown);
-    process.on('SIGTERM', shutdown);
-    if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
-      process.stdin.once('end', shutdown);
+    if (config?.manageProcessLifecycle !== false) {
+      // Cleanup on both interactive interruption and process-manager shutdown.
+      // E2E clients and service supervisors use SIGTERM; without this handler a
+      // persistent authoring child would outlive the MCP server.
+      let shuttingDown = false;
+      const shutdown = () => {
+        if (shuttingDown) return;
+        shuttingDown = true;
+        void this.close().finally(() => { process.exit(0); });
+      };
+      process.on('SIGINT', shutdown);
+      process.on('SIGTERM', shutdown);
+      if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
+        process.stdin.once('end', shutdown);
+      }
     }
   }
 
@@ -653,6 +658,14 @@ export class GodotServer {
   }
 
   /**
+   * Close the MCP transport and every process or transient bridge owned by this
+   * server instance. Evaluation transports use this instead of process signals.
+   */
+  async close(): Promise<void> {
+    await this.cleanup();
+  }
+
+  /**
    * Execute a Godot operation using the operations script
    * @param operation The operation to execute
    * @param params The parameters for the operation
@@ -792,38 +805,47 @@ export class GodotServer {
   }
 
 
+  private async initialize(): Promise<void> {
+    if (this.initialized) return;
+    // Detect Godot path before starting the server
+    await this.detectGodotPath();
+
+    if (!this.godotPath) {
+      throw new Error('Failed to find a valid Godot executable path. Set GODOT_PATH or provide a valid path.');
+    }
+
+    // Check if the path is valid
+    const isValid = await this.isValidGodotPath(this.godotPath);
+
+    if (!isValid) {
+      if (this.strictPathValidation) {
+        throw new Error(`Invalid Godot path: ${this.godotPath}`);
+      } else {
+        // In compatibility mode, warn but continue with the default path.
+        console.error(`[SERVER] Warning: Using potentially invalid Godot path: ${this.godotPath}`);
+        console.error('[SERVER] This may cause issues when executing Godot commands');
+        console.error('[SERVER] This fallback behavior will be removed in a future version. Set strictPathValidation: true to opt-in to the new behavior.');
+      }
+    }
+
+    console.error(`[SERVER] Using Godot at: ${this.godotPath}`);
+    this.initialized = true;
+  }
+
+  /**
+   * Connect the fully configured product server to an arbitrary MCP transport.
+   * Production uses stdio; evaluation uses an ephemeral loopback HTTP transport
+   * against this same registry, policy, handlers, and schemas.
+   */
+  async connect(transport: Transport): Promise<void> {
+    await this.initialize();
+    await this.server.connect(transport);
+  }
+
   async run() {
     try {
-      // Detect Godot path before starting the server
-      await this.detectGodotPath();
-
-      if (!this.godotPath) {
-        console.error('[SERVER] Failed to find a valid Godot executable path');
-        console.error('[SERVER] Please set GODOT_PATH environment variable or provide a valid path');
-        process.exit(1);
-      }
-
-      // Check if the path is valid
-      const isValid = await this.isValidGodotPath(this.godotPath);
-
-      if (!isValid) {
-        if (this.strictPathValidation) {
-          // In strict mode, exit if the path is invalid
-          console.error(`[SERVER] Invalid Godot path: ${this.godotPath}`);
-          console.error('[SERVER] Please set a valid GODOT_PATH environment variable or provide a valid path');
-          process.exit(1);
-        } else {
-          // In compatibility mode, warn but continue with the default path
-          console.error(`[SERVER] Warning: Using potentially invalid Godot path: ${this.godotPath}`);
-          console.error('[SERVER] This may cause issues when executing Godot commands');
-          console.error('[SERVER] This fallback behavior will be removed in a future version. Set strictPathValidation: true to opt-in to the new behavior.');
-        }
-      }
-
-      console.error(`[SERVER] Using Godot at: ${this.godotPath}`);
-
       const transport = new StdioServerTransport();
-      await this.server.connect(transport);
+      await this.connect(transport);
       console.error('Godot Agent Loop server running on stdio');
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -847,7 +869,7 @@ async function main(): Promise<void> {
   await server.run();
 }
 
-if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
+if (process.argv[1] && resolve(process.argv[1]) === __filename) {
   main().catch((error: unknown) => {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Godot Agent Loop failed:', errorMessage);

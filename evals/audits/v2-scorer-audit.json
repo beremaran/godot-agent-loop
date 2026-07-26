@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "caseSetVersion": 2,
+  "auditDate": "2026-07-26",
+  "scorerImplementation": "evals/cold-model-runner.mjs",
+  "reviewPopulation": {
+    "declaredCases": 24,
+    "declaredAcceptanceVerifiers": 66,
+    "declaredForbiddenVerifiers": 67,
+    "objectiveVerifiers": 132,
+    "deterministicSubjectiveClassificationVerifiers": 1,
+    "semanticVerifiers": 0,
+    "humanAuditRequirement": "not_applicable: no semantic grades exist"
+  },
+  "negativeControl": {
+    "description": "Every case is replayed with an assistant-only transcript containing no MCP calls.",
+    "command": "npm run eval:inspect:check",
+    "cases": 24,
+    "expectedTaskPasses": 0,
+    "observedTaskPasses": 0,
+    "falsePositiveRate": 0
+  },
+  "positiveControl": {
+    "description": "The preserved nine-case historical result contains complete passed objective criteria and clean teardown.",
+    "artifact": "evals/current-model-status.json",
+    "cases": 9,
+    "expectedTaskPasses": 9,
+    "observedTaskPasses": 9,
+    "falseNegativeRate": 0,
+    "limitation": "The historical raw traces are local and are not regraded; this control validates the retained result contract, not current-model qualification."
+  },
+  "interReviewerAgreement": {
+    "status": "not_applicable",
+    "reason": "All release-gating verifiers are deterministic engine, state, policy, trace, or cleanup checks; no human or LLM categorical grades are aggregated."
+  },
+  "releaseInterpretation": "The audit qualifies scorer wiring and deterministic controls. It does not substitute for an authorized paired stochastic model run."
+}

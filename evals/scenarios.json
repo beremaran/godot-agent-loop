@@ -10,7 +10,11 @@
   "metrics": [
     "taskSuccess",
     "acceptanceCriterionSuccess",
+    "validCallRate",
+    "repairRate",
     "toolSelectionPrecision",
+    "capabilityRecall",
+    "orderCompliance",
     "searchRecallAt1",
     "searchRecallAt3",
     "searchRecallAt5",
@@ -19,10 +23,12 @@
     "toolCalls",
     "elapsedMs",
     "responseBytes",
+    "redundantCallRate",
     "detachedEditorRuntimeMistakes",
     "humanInterventions",
     "pauseViolations",
-    "traceAccuracy",
+    "claimPrecision",
+    "claimRecall",
     "cleanupState"
   ],
   "scenarios": [

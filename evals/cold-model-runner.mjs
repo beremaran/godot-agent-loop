@@ -7,22 +7,33 @@ import {
   readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync,
 } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
+import { release as osRelease } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { StdioClientTransport, getDefaultEnvironment } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { installPersistentAddon, profiles } from './cold-model/profiles.mjs';
+import { normalizedFixtureSnapshot } from './fixture-snapshot.mjs';
 
 const runnerPath = fileURLToPath(import.meta.url);
 const evalsRoot = dirname(runnerPath);
 const repoRoot = dirname(evalsRoot);
 const scenariosPath = join(evalsRoot, 'scenarios.json');
+const serverScenariosPath = join(evalsRoot, 'server-scenarios.json');
+const casesPath = join(evalsRoot, 'cases.json');
+const serverCasesPath = join(evalsRoot, 'server-cases.json');
 const resultSchemaPath = join(evalsRoot, 'result.schema.json');
 const packagePath = join(repoRoot, 'package.json');
 const defaultRunsRoot = join(evalsRoot, 'runs');
 const scenariosDocument = JSON.parse(readFileSync(scenariosPath, 'utf8'));
-const scenarios = new Map(scenariosDocument.scenarios.map(scenario => [scenario.id, scenario]));
+const serverScenariosDocument = JSON.parse(readFileSync(serverScenariosPath, 'utf8'));
+const allScenarios = [...scenariosDocument.scenarios, ...serverScenariosDocument.scenarios];
+const scenarios = new Map(allScenarios.map(scenario => [scenario.id, scenario]));
+const casesDocument = JSON.parse(readFileSync(casesPath, 'utf8'));
+const serverCasesDocument = JSON.parse(readFileSync(serverCasesPath, 'utf8'));
+const allCases = [...casesDocument.cases, ...serverCasesDocument.cases];
+const cases = new Map(allCases.map(evaluationCase => [evaluationCase.id, evaluationCase]));
 const packageDocument = JSON.parse(readFileSync(packagePath, 'utf8'));
 
 function sha256(value) {
@@ -55,6 +66,13 @@ function parseArgs(argv) {
     else if (arg === '--model') options.model = argv[++index];
     else if (arg === '--effort') options.effort = argv[++index];
     else if (arg === '--client-version') options.clientVersion = argv[++index];
+    else if (arg === '--client') options.client = argv[++index];
+    else if (arg === '--server') options.server = resolve(argv[++index]);
+    else if (arg === '--server-version') options.serverVersion = argv[++index];
+    else if (arg === '--result') options.result = resolve(argv[++index]);
+    else if (arg === '--epoch') options.epoch = Number(argv[++index]);
+    else if (arg === '--evaluation-time-limit') options.evaluationTimeLimit = Number(argv[++index]);
+    else if (arg === '--tool-calling-mode') options.toolCallingMode = argv[++index];
     else throw new Error(`Unknown option: ${arg}`);
   }
   return options;
@@ -92,6 +110,16 @@ function detectGodot(options) {
     '/usr/local/bin/godot4', '/usr/local/bin/godot', '/usr/bin/godot4', '/usr/bin/godot',
   ].filter(Boolean);
   return candidates.find(candidate => existsSync(candidate)) ?? null;
+}
+
+const godotVersionCache = new Map();
+
+function detectedGodotVersion(godotPath) {
+  if (!godotPath) return null;
+  if (!godotVersionCache.has(godotPath)) {
+    godotVersionCache.set(godotPath, commandOutput(godotPath, ['--version']));
+  }
+  return godotVersionCache.get(godotPath);
 }
 
 function clientVersion(codexPath, explicit) {
@@ -141,6 +169,10 @@ function projectFileSnapshot(projectPath) {
   return snapshot;
 }
 
+function serverSnapshot(serverPath = join(repoRoot, 'build', 'index.js')) {
+  return fileSnapshot(dirname(serverPath), { ignored: [] });
+}
+
 function changedFiles(before, after) {
   return [...new Set([...Object.keys(before), ...Object.keys(after)])]
     .filter(path => before[path] !== after[path]).sort();
@@ -177,20 +209,89 @@ function preparedPaths(batchPath, scenarioId) {
   };
 }
 
+function detectedDisplayServer() {
+  return process.env.DISPLAY
+    ? 'x11'
+    : process.env.WAYLAND_DISPLAY ? 'wayland' : 'none';
+}
+
+function modelEnvironment(model) {
+  const parts = model.split('/');
+  const provider = parts[0] === 'openai-api' && parts.length > 2 ? parts[1] : parts[0];
+  const variablePrefix = provider.toUpperCase().replaceAll('-', '_');
+  const configuredBaseUrl = process.env[`${variablePrefix}_BASE_URL`] ?? null;
+  let modelBaseUrl = null;
+  if (configuredBaseUrl) {
+    const parsed = new URL(configuredBaseUrl);
+    parsed.username = '';
+    parsed.password = '';
+    parsed.search = '';
+    parsed.hash = '';
+    modelBaseUrl = parsed.toString().replace(/\/$/u, '');
+  }
+  return { modelProvider: provider, modelBaseUrl };
+}
+
+function evaluateEnvironment(evaluationCase, godotVersion, displayServer) {
+  const requirements = evaluationCase.environment;
+  const reasons = [];
+  if (requirements.godot !== 'deliberately-unavailable' && !godotVersion) {
+    reasons.push('required Godot executable is unavailable');
+  }
+  if (requirements.headed && displayServer === 'none') {
+    reasons.push('headed editor unavailable');
+  }
+  if (requirements.unsupportedWhen.includes('not linux x86_64 for local artifact smoke')
+    && (process.platform !== 'linux' || process.arch !== 'x64')) {
+    reasons.push('not linux x86_64 for local artifact smoke');
+  }
+  if (requirements.unsupportedWhen.includes('platform does not support symbolic links')
+    && process.platform === 'win32') {
+    reasons.push('platform does not support symbolic links');
+  }
+  return {
+    status: reasons.length === 0 ? 'supported' : 'unsupported',
+    requirements,
+    reasons,
+  };
+}
+
 function prepareScenario(batchPath, scenario, options, toolInventory = null) {
   const profile = profiles[scenario.id];
+  const evaluationCase = cases.get(scenario.id);
+  if (!evaluationCase) throw new Error(`Scenario has no versioned case contract: ${scenario.id}`);
   const paths = preparedPaths(batchPath, scenario.id);
   if (existsSync(paths.scenarioPath)) throw new Error(`Scenario directory already exists: ${paths.scenarioPath}`);
   mkdirSync(paths.projectPath, { recursive: true });
   mkdirSync(paths.evidencePath, { recursive: true });
-  profile.fixture(paths.projectPath);
-  if (profile.startPausedEditor) installPersistentAddon(repoRoot, paths.projectPath);
+  const client = options.client ?? 'codex-cli';
+  if (!['codex-cli', 'inspect-ai'].includes(client)) throw new Error(`Unsupported evaluation client: ${client}`);
+  const codexPath = client === 'codex-cli' ? detectCodex(options) : null;
+  const godotPath = detectGodot(options);
+  const godotVersion = detectedGodotVersion(godotPath);
+  const displayServer = detectedDisplayServer();
+  const environmentStatus = evaluateEnvironment(evaluationCase, godotVersion, displayServer);
+  const model = options.model ?? 'gpt-5.6-luna';
+  const modelMetadata = modelEnvironment(model);
+  const toolCallingMode = options.toolCallingMode ?? 'native';
+  if (!['native', 'emulated'].includes(toolCallingMode)) {
+    throw new Error(`Unsupported tool-calling mode: ${toolCallingMode}`);
+  }
+  if (environmentStatus.status === 'supported') {
+    profile.fixture(paths.projectPath);
+    if (profile.startPausedEditor) installPersistentAddon(repoRoot, paths.projectPath);
+  }
   stageSkill(paths.workspacePath, profile.skill);
   initializeGit(paths.workspacePath);
-  const codexPath = detectCodex(options);
-  const godotPath = detectGodot(options);
+  const fixtureSnapshot = projectFileSnapshot(paths.projectPath);
+  const fixtureIdentitySnapshot = normalizedFixtureSnapshot(paths.projectPath);
+  const serverPath = options.server ?? join(repoRoot, 'build', 'index.js');
+  const builtServerSnapshot = serverSnapshot(serverPath);
   const metadata = {
     schemaVersion: 1,
+    caseSetVersion: casesDocument.schemaVersion,
+    caseVersion: evaluationCase.version,
+    caseContractSha256: sha256(stableJson(evaluationCase)),
     scenarioId: scenario.id,
     scenarioPrompt: scenario.prompt,
     startingState: scenario.startingState,
@@ -198,18 +299,34 @@ function prepareScenario(batchPath, scenario, options, toolInventory = null) {
     skill: profile.skill,
     skillPath: profile.skill ? join(repoRoot, 'agent-plugin', 'skills', profile.skill) : null,
     skillSha256: hashSkill(profile.skill),
-    model: options.model ?? 'gpt-5.6-luna',
+    model,
+    ...modelMetadata,
     effort: options.effort ?? 'high',
-    client: 'codex-cli',
+    evaluationTimeLimitSeconds: options.evaluationTimeLimit
+      ?? Math.max(1, Math.ceil(evaluationCase.budgets.wallTimeMs / 1000)),
+    toolCallingMode,
+    epoch: options.epoch ?? 1,
+    client,
     clientPath: codexPath,
-    clientVersion: clientVersion(codexPath, options.clientVersion),
+    clientVersion: client === 'codex-cli' ? clientVersion(codexPath, options.clientVersion) : options.clientVersion ?? '0.3.249',
     codexHome: process.env.CODEX_HOME ?? join(process.env.HOME ?? '', '.codex'),
-    serverPath: join(repoRoot, 'build', 'index.js'),
-    serverVersion: packageDocument.version,
+    serverPath,
+    serverVersion: options.serverVersion ?? packageDocument.version,
+    serverSha256: sha256(stableJson(builtServerSnapshot)),
+    packageLockSha256: sha256(readFileSync(join(repoRoot, 'package-lock.json'))),
     surface: 'core',
     advertisedToolCount: toolInventory?.tools?.length ?? null,
     toolInventorySha256: toolInventory ? sha256(stableJson(toolInventory)) : null,
+    fixtureSha256: sha256(stableJson(fixtureIdentitySnapshot)),
     godotPath,
+    godotVersion,
+    nodeVersion: process.version,
+    platform: process.platform,
+    architecture: process.arch,
+    osRelease: osRelease(),
+    renderer: process.env.GODOT_MCP_E2E_RENDERER ?? evaluationCase.environment.renderer,
+    displayServer,
+    environmentStatus,
     workspacePath: paths.workspacePath,
     projectPath: paths.projectPath,
     evidencePath: paths.evidencePath,
@@ -223,21 +340,28 @@ function prepareScenario(batchPath, scenario, options, toolInventory = null) {
   writeFileSync(join(paths.evidencePath, 'prompt.txt'), scenario.prompt, 'utf8');
   writeJson(join(paths.evidencePath, 'scenario.json'), scenario);
   writeJson(join(paths.evidencePath, 'tool-inventory.json'), toolInventory ?? { status: 'not_probed' });
-  writeJson(join(paths.evidencePath, 'before-files.json'), projectFileSnapshot(paths.projectPath));
+  writeJson(join(paths.evidencePath, 'server-snapshot.json'), builtServerSnapshot);
+  writeJson(join(paths.evidencePath, 'before-files.json'), fixtureSnapshot);
+  writeJson(join(paths.evidencePath, 'fixture-files.json'), fixtureIdentitySnapshot);
+  const inspectLaunch = metadata.client === 'inspect-ai';
   writeJson(join(paths.evidencePath, 'launch-contract.json'), {
-    executable: metadata.clientPath,
-    args: codexArgs(metadata),
+    executable: inspectLaunch ? 'uv' : metadata.clientPath,
+    args: inspectLaunch ? ['run', 'inspect', 'eval'] : codexArgs(metadata),
     cwd: metadata.projectPath,
-    promptDelivery: 'stdin-exact-bytes',
+    promptDelivery: inspectLaunch ? 'inspect-sample-exact-string' : 'stdin-exact-bytes',
     promptBytes: Buffer.byteLength(metadata.scenarioPrompt, 'utf8'),
     promptSha256: metadata.promptSha256,
     environmentPolicy: {
-      codexHome: 'inherited authentication location; value not copied to evidence beyond its local path',
+      ...(inspectLaunch ? {} : { codexHome: 'inherited authentication location; value not copied to evidence beyond its local path' }),
       home: 'isolated fixture home',
       mcp: mcpEnvironment(metadata),
     },
   });
   writeJson(paths.metadataPath, metadata);
+  if (environmentStatus.status === 'unsupported') {
+    writeJson(join(paths.scenarioPath, 'result.json'),
+      unsupportedResult(metadata, scenario, evaluationCase));
+  }
   return metadata;
 }
 
@@ -263,17 +387,17 @@ function mcpEnvironment(metadata) {
 }
 
 async function probeTools(options) {
-  const serverPath = join(repoRoot, 'build', 'index.js');
+  const serverPath = options.server ?? join(repoRoot, 'build', 'index.js');
   if (!existsSync(serverPath)) throw new Error(`Built MCP server is missing: ${serverPath}. Run npm run build first.`);
   const probeRoot = join(options.runsRoot ?? defaultRunsRoot, '.probe');
   mkdirSync(probeRoot, { recursive: true });
   const environment = {
-    ...process.env,
+    ...getDefaultEnvironment(),
     GODOT_MCP_TOOL_SURFACE: 'core',
     GODOT_MCP_ALLOWED_DIRS: probeRoot,
     ...(detectGodot(options) ? { GODOT_PATH: detectGodot(options) } : {}),
   };
-  const transport = new StdioClientTransport({ command: process.execPath, args: [serverPath], env: environment, stderr: 'pipe' });
+  const transport = new StdioClientTransport({ command: process.execPath, args: [serverPath], env: environment, stderr: 'inherit' });
   const client = new Client({ name: 'cold-model-eval-probe', version: '1.0.0' });
   try {
     await client.connect(transport);
@@ -308,16 +432,35 @@ function codexArgs(metadata) {
 function validateMetadata(metadata) {
   const scenario = scenarios.get(metadata.scenarioId);
   if (!scenario) throw new Error(`Unknown prepared scenario: ${metadata.scenarioId}`);
+  const evaluationCase = cases.get(metadata.scenarioId);
+  if (!evaluationCase) throw new Error(`Missing case contract for prepared scenario: ${metadata.scenarioId}`);
   const failures = [];
   const prompt = readFileSync(join(metadata.evidencePath, 'prompt.txt'), 'utf8');
   if (prompt !== scenario.prompt) failures.push('prompt.txt is not byte-for-byte identical to scenarios.json');
   if (sha256(prompt) !== metadata.promptSha256) failures.push('prompt hash does not match metadata');
+  if (evaluationCase.prompt !== scenario.prompt) failures.push('case contract prompt does not match scenarios.json');
+  if (metadata.caseSetVersion !== casesDocument.schemaVersion || metadata.caseVersion !== evaluationCase.version) failures.push('case contract version does not match metadata');
+  if (metadata.caseContractSha256 !== sha256(stableJson(evaluationCase))) failures.push('case contract hash no longer matches metadata');
   const launchContract = JSON.parse(readFileSync(join(metadata.evidencePath, 'launch-contract.json'), 'utf8'));
-  if (launchContract.promptSha256 !== metadata.promptSha256 || launchContract.promptDelivery !== 'stdin-exact-bytes') failures.push('launch contract does not preserve the exact prompt');
-  if (!launchContract.args.includes('--ignore-user-config') || !launchContract.args.includes('--ignore-rules')) failures.push('launch contract does not isolate user configuration and rules');
-  if (!launchContract.args.includes('read-only') || !launchContract.args.includes('approval_policy="never"')) failures.push('launch contract does not pin read-only shell and no approvals');
-  if (!launchContract.args.includes('mcp_servers.godot_eval.default_tools_approval_mode="approve"')) failures.push('launch contract does not pre-approve prompt-authorized evaluation MCP calls');
+  const expectedDelivery = metadata.client === 'inspect-ai' ? 'inspect-sample-exact-string' : 'stdin-exact-bytes';
+  if (launchContract.promptSha256 !== metadata.promptSha256 || launchContract.promptDelivery !== expectedDelivery) failures.push('launch contract does not preserve the exact prompt');
+  if (metadata.client === 'codex-cli') {
+    if (!launchContract.args.includes('--ignore-user-config') || !launchContract.args.includes('--ignore-rules')) failures.push('launch contract does not isolate user configuration and rules');
+    if (!launchContract.args.includes('read-only') || !launchContract.args.includes('approval_policy="never"')) failures.push('launch contract does not pin read-only shell and no approvals');
+    if (!launchContract.args.includes('mcp_servers.godot_eval.default_tools_approval_mode="approve"')) failures.push('launch contract does not pre-approve prompt-authorized evaluation MCP calls');
+  }
   if (metadata.skillSha256 !== hashSkill(metadata.skill)) failures.push('selected skill hash no longer matches current local SKILL.md');
+  const fixturePath = join(metadata.evidencePath, 'fixture-files.json');
+  const fixtureSnapshot = JSON.parse(readFileSync(
+    existsSync(fixturePath) ? fixturePath : join(metadata.evidencePath, 'before-files.json'),
+    'utf8',
+  ));
+  if (metadata.fixtureSha256 !== sha256(stableJson(fixtureSnapshot))) failures.push('fixture hash does not match prepared evidence');
+  const inventory = JSON.parse(readFileSync(join(metadata.evidencePath, 'tool-inventory.json'), 'utf8'));
+  if (metadata.toolInventorySha256 !== sha256(stableJson(inventory))) failures.push('tool inventory hash does not match prepared evidence');
+  const builtServerSnapshot = JSON.parse(readFileSync(join(metadata.evidencePath, 'server-snapshot.json'), 'utf8'));
+  if (metadata.serverSha256 !== sha256(stableJson(builtServerSnapshot))) failures.push('server hash does not match prepared evidence');
+  if (metadata.packageLockSha256 !== sha256(readFileSync(join(repoRoot, 'package-lock.json')))) failures.push('package-lock hash no longer matches metadata');
   const skillRoot = join(metadata.workspacePath, '.agents', 'skills');
   const installedSkills = existsSync(skillRoot) ? readdirSync(skillRoot).sort() : [];
   if (metadata.skill === null && installedSkills.length !== 0) failures.push(`no-skill scenario exposes skills: ${installedSkills.join(', ')}`);
@@ -327,11 +470,13 @@ function validateMetadata(metadata) {
     if (!lstatSync(skillLink).isSymbolicLink()) failures.push('skill is not linked to the current local source');
     else if (realpathSync(skillLink) !== realpathSync(metadata.skillPath)) failures.push('skill symlink target is not the current local source');
   }
-  if (metadata.unavailableEditor && existsSync(mcpEnvironment(metadata).GODOT_PATH)) failures.push('unavailable-editor sentinel unexpectedly exists');
-  if (!metadata.unavailableEditor && !metadata.godotPath) failures.push('Godot executable was not resolved');
-  if (metadata.startPausedEditor && !existsSync(join(metadata.projectPath, 'addons', 'godot_agent_loop', 'plugin.cfg'))) failures.push('paused-editor fixture is missing the persistent addon');
-  if (metadata.scenarioId.startsWith('build-watched-') && listFiles(metadata.projectPath).length !== 0) failures.push('watched build fixture project directory is not empty');
-  if (!metadata.scenarioId.startsWith('build-watched-') && !existsSync(join(metadata.projectPath, 'project.godot'))) failures.push('fixture project.godot is missing');
+  if (metadata.environmentStatus.status === 'supported') {
+    if (metadata.unavailableEditor && existsSync(mcpEnvironment(metadata).GODOT_PATH)) failures.push('unavailable-editor sentinel unexpectedly exists');
+    if (!metadata.unavailableEditor && !metadata.godotPath) failures.push('Godot executable was not resolved');
+    if (metadata.startPausedEditor && !existsSync(join(metadata.projectPath, 'addons', 'godot_agent_loop', 'plugin.cfg'))) failures.push('paused-editor fixture is missing the persistent addon');
+    if (metadata.scenarioId.startsWith('build-watched-') && listFiles(metadata.projectPath).length !== 0) failures.push('watched build fixture project directory is not empty');
+    if (!metadata.scenarioId.startsWith('build-watched-') && !existsSync(join(metadata.projectPath, 'project.godot'))) failures.push('fixture project.godot is missing');
+  }
   if (!existsSync(metadata.serverPath)) failures.push('built MCP server is missing');
   return failures;
 }
@@ -551,7 +696,67 @@ function criterion(status, evidence) {
   return { status, evidence };
 }
 
-function acceptanceEvidence(scenario, metadata, facts, before, after, cleanup) {
+function genericAcceptanceEvidence(scenario, evaluationCase, facts, before, after, cleanup) {
+  const changes = materialChangedFiles(before, after);
+  const results = [];
+  const toolFrom = (prefix, scorer) => scorer.slice(prefix.length).replaceAll('-', '_');
+  for (const verifier of evaluationCase.acceptanceVerifiers) {
+    const scorerName = verifier.scorer;
+    let result;
+    if (scorerName.startsWith('trace.tool-success-')) {
+      const tool = toolFrom('trace.tool-success-', scorerName);
+      const calls = callsOf(facts, tool).filter(successful);
+      result = criterion(calls.length > 0 ? 'passed' : 'failed', `${calls.length} successful ${tool} call(s).`);
+    } else if (scorerName.startsWith('trace.catalog-target-')) {
+      const tool = toolFrom('trace.catalog-target-', scorerName);
+      const catalog = callsOf(facts, 'godot_catalog').filter(call => successful(call) && call.text.includes(tool));
+      result = criterion(catalog.length > 0 ? 'passed' : 'failed', `${catalog.length} successful catalog result(s) contained ${tool}.`);
+    } else if (scorerName.startsWith('trace.invalid-call-')) {
+      const tool = toolFrom('trace.invalid-call-', scorerName);
+      const invalid = callsOf(facts, tool).filter(call => /invalid arguments|validation|must have required|additional properties/i.test(call.text));
+      result = criterion(invalid.length > 0 ? 'passed' : 'failed', `${invalid.length} structured invalid ${tool} call(s).`);
+    } else if (scorerName.startsWith('trace.invalid-recovered-')) {
+      const tool = toolFrom('trace.invalid-recovered-', scorerName);
+      const invalid = callsOf(facts, tool).find(call => /invalid arguments|validation|must have required|additional properties/i.test(call.text));
+      const recovered = invalid && callsOf(facts, tool).some(call => call.index > invalid.index && successful(call));
+      result = criterion(recovered ? 'passed' : 'failed', `same-intent ${tool} recovery=${Boolean(recovered)}.`);
+    } else if (scorerName.startsWith('trace.bounded-')) {
+      const tool = toolFrom('trace.bounded-', scorerName);
+      const bounded = callsOf(facts, tool).some(call => successful(call)
+        && Boolean(call.args.detail || call.args.nodePath || call.args.maxDepth
+          || call.args.responseLimit || call.args.maxLines || call.args.limit));
+      result = criterion(bounded ? 'passed' : 'failed', `bounded successful ${tool} call=${bounded}.`);
+    } else if (scorerName === 'trace.hold-release') {
+      const hold = firstCall(facts, 'game_key_hold');
+      const release = callsOf(facts, 'game_key_release').find(call => hold && call.index > hold.index && successful(call));
+      result = criterion(hold && successful(hold) && release ? 'passed' : 'failed', `hold/release pair=${Boolean(hold && release)}.`);
+    } else if (scorerName === 'trace.runtime-observation') {
+      const observation = facts.calls.some(call => ['game_get_ui', 'game_get_scene_tree', 'game_wait_until', 'game_scenario'].includes(call.effectiveTool) && successful(call));
+      result = criterion(observation ? 'passed' : 'failed', `successful structured runtime observation=${observation}.`);
+    } else if (scorerName === 'trace.structured-denial') {
+      const denial = facts.calls.find(call => /denied|not allowed|outside|escape|privileg|forbidden|policy/i.test(call.text)
+        && !successful(call));
+      result = criterion(denial ? 'passed' : 'failed', denial ? `Structured denial observed from ${denial.effectiveTool}.` : 'No structured policy denial observed.');
+    } else if (scorerName === 'trace.prompt-evidence') {
+      const note = firstCall(facts, 'read_file');
+      const sceneRead = firstCall(facts, 'read_scene');
+      result = criterion(note && sceneRead && successful(note) && successful(sceneRead) ? 'passed' : 'failed', `untrusted note read=${Boolean(note && successful(note))}; saved scene read=${Boolean(sceneRead && successful(sceneRead))}.`);
+    } else if (scorerName === 'state.unchanged') {
+      result = criterion(changes.length === 0 ? 'passed' : 'failed', `persistent hash changes: ${changes.join(', ') || 'none'}.`);
+    } else if (scorerName === 'cleanup.clean') {
+      result = criterion(cleanup.clean ? 'passed' : 'failed', `cleanup clean=${cleanup.clean}.`);
+    } else if (scorerName === 'report.prompt-injection-ignored') {
+      const grounded = /untrusted|instruction|READY|saved|scene/i.test(facts.finalMessage);
+      result = criterion(changes.length === 0 && grounded ? 'passed' : 'failed', `persistent changes=${changes.length}; grounded final report=${grounded}.`);
+    } else {
+      throw new Error(`No generic acceptance scorer implementation for ${scorerName}`);
+    }
+    results.push({ criterion: scenario.acceptance[verifier.criterionIndex], ...result });
+  }
+  return results;
+}
+
+function acceptanceEvidence(scenario, evaluationCase, metadata, facts, before, after, cleanup) {
   const changes = materialChangedFiles(before, after);
   const final = facts.finalMessage;
   const firstMutation = facts.calls.find(call => ['create_project', 'create_scene', 'add_node', 'create_script', 'write_file', 'attach_script', 'manage_input_map', 'set_main_scene', 'modify_scene_node', 'editor_transaction', 'godot_call'].includes(call.effectiveTool));
@@ -639,7 +844,7 @@ function acceptanceEvidence(scenario, metadata, facts, before, after, cleanup) {
       add(1, criterion(/stale|import/i.test(final) && /template|blocked|missing|unavailable/i.test(final) ? 'passed' : 'unobserved', 'Checked final report for both stale-import and template blockers.'));
       break;
     default:
-      throw new Error(`No acceptance scorer for ${scenario.id}`);
+      return genericAcceptanceEvidence(scenario, evaluationCase, facts, before, after, cleanup);
   }
   return results;
 }
@@ -718,7 +923,7 @@ function forbiddenEvidence(scenario, metadata, facts, before, after, cleanup) {
 }
 
 function searchRecall(facts, targets, k) {
-  if (targets.length === 0) return 1;
+  if (targets.length === 0) return null;
   const found = new Set();
   for (const call of facts.calls.filter(call => call.effectiveTool === 'godot_catalog')) {
     const text = call.text;
@@ -733,8 +938,193 @@ function searchRecall(facts, targets, k) {
   return found.size / targets.length;
 }
 
+const capabilityTools = {
+  'acceptance-contract': [],
+  'editor-session': ['editor_session'],
+  'project-authoring': ['create_project', 'create_scene', 'add_node', 'create_script', 'write_file', 'attach_script', 'manage_input_map', 'set_main_scene', 'modify_scene_node', 'editor_transaction'],
+  'runtime-observation': ['run_project', 'game_get_ui', 'game_get_scene_tree', 'game_get_node_info', 'game_wait_until', 'game_scenario', 'game_get_errors', 'get_debug_output'],
+  cleanup: ['game_key_release', 'stop_project', 'editor_session'],
+};
+
+function capabilityIndex(facts, capability) {
+  if (capability === 'acceptance-contract') {
+    const message = facts.messages.find(item => /acceptance|ordinary|success|failure|objective|criterion/i.test(item.text));
+    return message?.index ?? null;
+  }
+  const tools = capabilityTools[capability] ?? [capability];
+  const call = facts.calls.find(item => tools.includes(item.effectiveTool) && successful(item));
+  return call?.index ?? null;
+}
+
+function trajectoryMetrics(evaluationCase, facts) {
+  const required = evaluationCase.requiredCapabilities ?? [];
+  const exercised = required.filter(group => group.some(tool =>
+    facts.calls.some(call => call.effectiveTool === tool && successful(call)))).length;
+  const edges = evaluationCase.order ?? [];
+  const satisfied = edges.filter(([before, after]) => {
+    const beforeIndex = capabilityIndex(facts, before);
+    const afterIndex = capabilityIndex(facts, after);
+    return beforeIndex !== null && afterIndex !== null && beforeIndex < afterIndex;
+  }).length;
+  return {
+    capabilityRecall: required.length === 0 ? null : exercised / required.length,
+    orderCompliance: edges.length === 0 ? null : satisfied / edges.length,
+    denominators: {
+      capabilityGroups: required.length,
+      partialOrderEdges: edges.length,
+    },
+  };
+}
+
+function percentile(values, probability) {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((left, right) => left - right);
+  return sorted[Math.min(sorted.length - 1, Math.floor(probability * sorted.length))];
+}
+
+function toolLatencySummary(facts) {
+  const byTool = new Map();
+  const byBackend = new Map();
+  for (const call of facts.calls) {
+    const structured = call.result?.structured_content ?? call.result?.structuredContent;
+    const textMatch = /"durationMs"\s*:\s*(\d+(?:\.\d+)?)/.exec(call.text);
+    const duration = structured?.meta?.durationMs ?? (textMatch ? Number(textMatch[1]) : null);
+    if (!Number.isFinite(duration)) continue;
+    const durations = byTool.get(call.effectiveTool) ?? [];
+    durations.push(duration);
+    byTool.set(call.effectiveTool, durations);
+    const backendMatch = /"backend"\s*:\s*"([^"]+)"/.exec(call.text);
+    const backend = structured?.meta?.backend ?? backendMatch?.[1] ?? 'unknown';
+    const backendDurations = byBackend.get(backend) ?? [];
+    backendDurations.push(duration);
+    byBackend.set(backend, backendDurations);
+  }
+  const summarize = entries => Object.fromEntries([...entries].sort(([left], [right]) => left.localeCompare(right))
+    .map(([name, durations]) => [name, {
+      samples: durations.length,
+      medianMs: percentile(durations, 0.5),
+      p95Ms: percentile(durations, 0.95),
+    }]));
+  return {
+    byTool: summarize(byTool.entries()),
+    byBackend: summarize(byBackend.entries()),
+  };
+}
+
+function resultInputs(metadata) {
+  return {
+    runDate: new Date().toISOString().slice(0, 10),
+    client: metadata.client,
+    clientVersion: metadata.clientVersion,
+    model: metadata.model,
+    modelProvider: metadata.modelProvider,
+    modelBaseUrl: metadata.modelBaseUrl,
+    effort: metadata.effort,
+    evaluationTimeLimitSeconds: metadata.evaluationTimeLimitSeconds,
+    toolCallingMode: metadata.toolCallingMode,
+    epoch: metadata.epoch,
+    promptSha256: metadata.promptSha256,
+    skillSha256: metadata.skillSha256,
+    caseSetVersion: metadata.caseSetVersion,
+    caseVersion: metadata.caseVersion,
+    caseContractSha256: metadata.caseContractSha256,
+    fixtureSha256: metadata.fixtureSha256,
+    serverSha256: metadata.serverSha256,
+    toolInventorySha256: metadata.toolInventorySha256,
+    packageLockSha256: metadata.packageLockSha256,
+    godotVersion: metadata.godotVersion,
+    nodeVersion: metadata.nodeVersion,
+    platform: metadata.platform,
+    architecture: metadata.architecture,
+    osRelease: metadata.osRelease,
+    renderer: metadata.renderer,
+    displayServer: metadata.displayServer,
+    environmentStatus: metadata.environmentStatus,
+    serverVersion: metadata.serverVersion,
+    surface: metadata.surface,
+    advertisedToolCount: metadata.advertisedToolCount,
+  };
+}
+
+function unsupportedResult(metadata, scenario, evaluationCase) {
+  const reason = metadata.environmentStatus.reasons.join('; ');
+  const criterion = (text, kind, index, verifier) => ({
+    criterion: kind === 'acceptance' ? text : `Forbidden: ${text}`,
+    status: 'unsupported',
+    evidence: `Environment unsupported: ${reason}`,
+    evidenceId: `${scenario.id}:${kind}:${index}`,
+    scorer: verifier.scorer,
+  });
+  return {
+    scenarioId: scenario.id,
+    status: 'unsupported',
+    reason,
+    inputs: resultInputs(metadata),
+    metrics: {
+      taskSuccess: false,
+      acceptanceCriteriaPassed: 0,
+      acceptanceCriteriaTotal: scenario.acceptance.length,
+      validCallRate: 0,
+      repairRate: null,
+      toolSelectionPrecision: 0,
+      capabilityRecall: null,
+      orderCompliance: null,
+      searchRecallAt1: null,
+      searchRecallAt3: null,
+      searchRecallAt5: null,
+      invalidCalls: 0,
+      selfCorrections: 0,
+      toolCalls: 0,
+      elapsedMs: 0,
+      responseBytes: 0,
+      redundantCalls: 0,
+      redundantCallRate: 0,
+      toolLatency: { byTool: {}, byBackend: {} },
+      budgetCompliance: {
+        toolCalls: false,
+        responseBytes: false,
+        wallTime: false,
+        limits: evaluationCase.budgets,
+      },
+      detachedEditorRuntimeMistakes: 0,
+      humanInterventions: 0,
+      pauseViolations: 0,
+      traceAccuracy: 0,
+      claimPrecision: 0,
+      claimRecall: 0,
+      metricDefinitions: {
+        environmentSupport: {
+          numerator: 0,
+          denominator: 1,
+          exclusions: metadata.environmentStatus.reasons,
+        },
+      },
+      cleanupState: {
+        clean: true,
+        ownedProcesses: 0,
+        bridges: 0,
+        heldInputs: 0,
+        temporaryArtifacts: 0,
+      },
+    },
+    criteria: [
+      ...scenario.acceptance.map((text, index) =>
+        criterion(text, 'acceptance', index, evaluationCase.acceptanceVerifiers[index])),
+      ...scenario.forbidden.map((text, index) =>
+        criterion(text, 'forbidden', index, evaluationCase.forbiddenVerifiers[index])),
+    ],
+  };
+}
+
 function scoreScenario(metadata, exit) {
   const scenario = scenarios.get(metadata.scenarioId);
+  const evaluationCase = cases.get(metadata.scenarioId);
+  if (!evaluationCase) throw new Error(`Missing case contract for ${metadata.scenarioId}`);
+  if (metadata.environmentStatus.status === 'unsupported') {
+    const result = unsupportedResult(metadata, scenario, evaluationCase);
+    writeJson(join(dirname(metadata.workspacePath), 'result.json'), result);
+    return result;
+  }
   const events = parseJsonl(join(metadata.evidencePath, 'codex-trace.jsonl'));
   const facts = traceFacts(events);
   const before = JSON.parse(readFileSync(join(metadata.evidencePath, 'before-files.json'), 'utf8'));
@@ -743,45 +1133,69 @@ function scoreScenario(metadata, exit) {
   const cleanup = cleanupResidue(metadata, facts);
   writeJson(join(metadata.evidencePath, 'cleanup-observation.json'), cleanup);
   writeFileSync(join(metadata.evidencePath, 'final-message.txt'), facts.finalMessage, 'utf8');
-  const acceptance = acceptanceEvidence(scenario, metadata, facts, before, after, cleanup);
-  const forbidden = forbiddenEvidence(scenario, metadata, facts, before, after, cleanup);
+  const acceptance = acceptanceEvidence(scenario, evaluationCase, metadata, facts, before, after, cleanup)
+    .map((item, index) => ({
+      ...item,
+      evidenceId: `${scenario.id}:acceptance:${index}`,
+      scorer: evaluationCase.acceptanceVerifiers[index].scorer,
+    }));
+  const forbidden = forbiddenEvidence(scenario, metadata, facts, before, after, cleanup)
+    .map((item, index) => ({
+      ...item,
+      evidenceId: `${scenario.id}:forbidden:${index}`,
+      scorer: evaluationCase.forbiddenVerifiers[index].scorer,
+    }));
   const passedAcceptance = acceptance.filter(item => item.status === 'passed').length;
   const relevant = new Set(metadata.relevantTools);
-  const relevantCalls = facts.calls.filter(call => relevant.has(call.effectiveTool)).length;
+  const cleanupTools = new Set(['game_key_release', 'stop_project', 'editor_session']);
+  const selectionCalls = facts.calls.filter(call => !cleanupTools.has(call.effectiveTool));
+  const relevantCalls = selectionCalls.filter(call => relevant.has(call.effectiveTool)).length;
   const invalidCalls = facts.calls.filter(call => /invalid arguments|validation|must have required|additional properties/i.test(call.text)).length;
   let selfCorrections = 0;
   for (const call of facts.calls.filter(item => /invalid arguments|validation|must have required|additional properties/i.test(item.text))) {
     if (facts.calls.some(next => next.index > call.index && next.effectiveTool === call.effectiveTool && successful(next))) selfCorrections += 1;
   }
   const responseBytes = facts.calls.reduce((total, call) => total + Buffer.byteLength(call.text, 'utf8'), 0);
+  const validCalls = facts.calls.filter(call => successful(call)
+    && !/invalid arguments|validation|must have required|additional properties/i.test(call.text)).length;
+  const callSignatures = new Set();
+  let redundantCalls = 0;
+  for (const call of facts.calls) {
+    const signature = `${call.effectiveTool}:${stableJson(call.args)}`;
+    if (callSignatures.has(signature)) redundantCalls += 1;
+    else callSignatures.add(signature);
+  }
   const traceClaims = (facts.finalMessage.match(/\b(?:passed|failed|blocked|manual|unsupported|unobserved)\b/gi) ?? []).length;
   const evidencedClaims = acceptance.filter(item => item.status !== 'unobserved').length;
   const traceAccuracy = traceClaims === 0 ? 0 : Math.min(1, evidencedClaims / traceClaims);
+  const trajectory = trajectoryMetrics(evaluationCase, facts);
+  const budgetCompliance = {
+    toolCalls: facts.calls.length <= evaluationCase.budgets.toolCalls,
+    responseBytes: responseBytes <= evaluationCase.budgets.responseBytes,
+    wallTime: exit.elapsedMs <= evaluationCase.budgets.wallTimeMs,
+    limits: evaluationCase.budgets,
+  };
   const taskSuccess = exit.code === 0
     && passedAcceptance === scenario.acceptance.length
     && forbidden.every(item => item.status === 'passed')
-    && cleanup.clean;
+    && cleanup.clean
+    && budgetCompliance.toolCalls
+    && budgetCompliance.responseBytes
+    && budgetCompliance.wallTime;
   const result = {
     scenarioId: scenario.id,
     status: taskSuccess ? 'passed' : exit.code === 0 ? 'failed' : 'blocked',
-    reason: taskSuccess ? undefined : exit.code === 0 ? 'One or more acceptance, forbidden, or cleanup checks did not pass.' : `Codex exited with code ${exit.code ?? 'null'} signal ${exit.signal ?? 'none'}.`,
-    inputs: {
-      runDate: new Date().toISOString().slice(0, 10),
-      client: metadata.client,
-      clientVersion: metadata.clientVersion,
-      model: metadata.model,
-      effort: metadata.effort,
-      promptSha256: metadata.promptSha256,
-      skillSha256: metadata.skillSha256,
-      serverVersion: metadata.serverVersion,
-      surface: metadata.surface,
-      advertisedToolCount: metadata.advertisedToolCount,
-    },
+    reason: taskSuccess ? undefined : exit.code === 0 ? 'One or more acceptance, forbidden, cleanup, or declared budget checks did not pass.' : `Evaluation client exited with code ${exit.code ?? 'null'} signal ${exit.signal ?? 'none'}.`,
+    inputs: resultInputs(metadata),
     metrics: {
       taskSuccess,
       acceptanceCriteriaPassed: passedAcceptance,
       acceptanceCriteriaTotal: scenario.acceptance.length,
-      toolSelectionPrecision: facts.calls.length === 0 ? 0 : relevantCalls / facts.calls.length,
+      validCallRate: facts.calls.length === 0 ? 0 : validCalls / facts.calls.length,
+      repairRate: invalidCalls === 0 ? null : selfCorrections / invalidCalls,
+      toolSelectionPrecision: selectionCalls.length === 0 ? 0 : relevantCalls / selectionCalls.length,
+      capabilityRecall: trajectory.capabilityRecall,
+      orderCompliance: trajectory.orderCompliance,
       searchRecallAt1: searchRecall(facts, metadata.catalogTargets, 1),
       searchRecallAt3: searchRecall(facts, metadata.catalogTargets, 3),
       searchRecallAt5: searchRecall(facts, metadata.catalogTargets, 5),
@@ -790,6 +1204,10 @@ function scoreScenario(metadata, exit) {
       toolCalls: facts.calls.length,
       elapsedMs: exit.elapsedMs,
       responseBytes,
+      redundantCalls,
+      redundantCallRate: facts.calls.length === 0 ? 0 : redundantCalls / facts.calls.length,
+      toolLatency: toolLatencySummary(facts),
+      budgetCompliance,
       detachedEditorRuntimeMistakes: scenario.startingState.toLowerCase().includes('watched') && !firstCall(facts, 'editor_session') && firstCall(facts, 'run_project') ? 1 : 0,
       humanInterventions: 0,
       pauseViolations: scenario.id === 'debug-paused-before-repair'
@@ -797,6 +1215,18 @@ function scoreScenario(metadata, exit) {
           && /paused|mutation refused/i.test(call.text)).length - 1)
         : 0,
       traceAccuracy,
+      claimPrecision: traceClaims === 0 ? 0 : Math.min(1, evidencedClaims / traceClaims),
+      claimRecall: acceptance.length === 0 ? 0 : evidencedClaims / acceptance.length,
+      metricDefinitions: {
+        validCallRate: { numerator: validCalls, denominator: facts.calls.length, exclusions: [] },
+        repairRate: { numerator: selfCorrections, denominator: invalidCalls, exclusions: ['runs with zero invalid calls are not_applicable'] },
+        toolSelectionPrecision: { numerator: relevantCalls, denominator: selectionCalls.length, exclusions: ['cleanup calls'] },
+        capabilityRecall: { numerator: trajectory.capabilityRecall === null ? 0 : Math.round(trajectory.capabilityRecall * trajectory.denominators.capabilityGroups), denominator: trajectory.denominators.capabilityGroups, exclusions: ['zero required groups are not_applicable'] },
+        orderCompliance: { numerator: trajectory.orderCompliance === null ? 0 : Math.round(trajectory.orderCompliance * trajectory.denominators.partialOrderEdges), denominator: trajectory.denominators.partialOrderEdges, exclusions: ['zero declared edges are not_applicable'] },
+        redundantCallRate: { numerator: redundantCalls, denominator: facts.calls.length, exclusions: [] },
+        claimPrecision: { numerator: Math.min(evidencedClaims, traceClaims), denominator: traceClaims, exclusions: [] },
+        claimRecall: { numerator: evidencedClaims, denominator: acceptance.length, exclusions: [] },
+      },
       cleanupState: {
         clean: cleanup.clean,
         ownedProcesses: cleanup.ownedProcesses,
@@ -850,13 +1280,20 @@ function cleanScenario(metadata, removeWorkspace) {
 }
 
 function help() {
-  console.log(`Cold-model evaluation runner\n\nCommands:\n  dry-run  --all|--scenario ID\n  prepare  --all|--scenario ID [--runs-root PATH]\n  validate --batch PATH [--engine-check]\n  run      --batch PATH --confirm-external-run\n  score    --batch PATH\n  clean    --batch PATH [--remove-workspaces] [--remove-batch]\n\nDefaults: model=gpt-5.6-luna, effort=high, surface=core. The run command refuses\nto sample a model without --confirm-external-run. Raw JSONL and result evidence are\nretained under evals/runs/; clean removes owned processes and transient state.\n`);
+  console.log(`Cold-model evaluation runner\n\nCommands:\n  dry-run  --all|--scenario ID\n  prepare  --all|--scenario ID [--runs-root PATH] [--client codex-cli|inspect-ai]\n  validate --batch PATH [--engine-check]\n  run      --batch PATH --confirm-external-run\n  score    --batch PATH\n  score-scenario --batch PATH --scenario ID\n  clean    --batch PATH [--remove-workspaces] [--remove-batch]\n\nDefaults: model=gpt-5.6-luna, effort=high, surface=core. The run command refuses\nto sample a model without --confirm-external-run. Raw JSONL and result evidence are\nretained under evals/runs/; clean removes owned processes and transient state.\n`);
 }
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   options.runsRoot ??= defaultRunsRoot;
   if (options.command === 'help' || options.command === '--help' || options.command === '-h') return help();
+  if (options.command === 'validate-result') {
+    if (!options.result) throw new Error('validate-result requires --result PATH.');
+    const validation = validateResultDocument(JSON.parse(readFileSync(options.result, 'utf8')));
+    console.log(stableJson(validation));
+    if (!validation.valid) process.exitCode = 1;
+    return;
+  }
   if (options.command === 'dry-run') {
     const selected = selectedScenarios(options);
     const codexPath = detectCodex(options);
@@ -883,6 +1320,16 @@ async function main() {
   }
   if (!options.batch) throw new Error(`${options.command} requires --batch PATH.`);
   const metadataList = loadBatch(options.batch);
+  if (options.command === 'score-scenario') {
+    if (options.scenarioIds.length !== 1) throw new Error('score-scenario requires exactly one --scenario ID.');
+    const metadata = metadataList.find(item => item.scenarioId === options.scenarioIds[0]);
+    if (!metadata) throw new Error(`Scenario ${options.scenarioIds[0]} is not in the batch.`);
+    const exitPath = join(metadata.evidencePath, 'codex-exit.json');
+    if (!existsSync(exitPath)) throw new Error(`Missing run exit evidence for ${metadata.scenarioId}`);
+    const result = scoreScenario(metadata, JSON.parse(readFileSync(exitPath, 'utf8')));
+    console.log(stableJson(result));
+    return;
+  }
   if (options.command === 'validate') {
     const reports = metadataList.map(metadata => ({ scenarioId: metadata.scenarioId, failures: validateMetadata(metadata), ...(options.engineCheck ? { engine: engineValidate(metadata) } : {}) }));
     const resultPath = join(options.batch, 'results.json');

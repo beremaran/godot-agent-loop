@@ -1,0 +1,189 @@
+name: Opt-in behavioral evaluation
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
+on:
+  workflow_dispatch:
+    inputs:
+      evaluation_mode:
+        description: Candidate comparison or stochastic baseline A/A calibration
+        required: true
+        default: paired
+        type: choice
+        options:
+          - paired
+          - aa-calibration
+      model:
+        description: Exact Inspect provider/model identifier
+        required: true
+        type: string
+      epochs:
+        description: Independently prepared epochs per case
+        required: true
+        default: "3"
+        type: string
+      time_limit:
+        description: Per-case execution ceiling in seconds (does not change scorer budgets)
+        required: true
+        default: "600"
+        type: string
+      emulate_tools:
+        description: Parse model-generated tool calls when the provider does not return native tool_calls
+        required: true
+        default: false
+        type: boolean
+      confirm_external_run:
+        description: I authorize external model sampling and its cost
+        required: true
+        default: false
+        type: boolean
+
+jobs:
+  behavioral:
+    if: inputs.confirm_external_run
+    runs-on: ubuntu-latest
+    environment: behavioral-evaluation
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install Godot 4.7
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb mesa-vulkan-drivers
+          curl -sSL -o godot.zip \
+            "https://github.com/godotengine/godot-builds/releases/download/4.7-stable/Godot_v4.7-stable_linux.x86_64.zip"
+          unzip -q godot.zip
+          mkdir -p "$HOME/.local/bin"
+          mv Godot_v4.7-stable_linux.x86_64 "$HOME/.local/bin/godot"
+          chmod +x "$HOME/.local/bin/godot"
+          echo "GODOT_BIN=$HOME/.local/bin/godot" >> "$GITHUB_ENV"
+
+      - name: Install pinned uv toolchain
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: evals/inspect/uv.lock
+
+      - name: Install locked dependencies and build candidate
+        run: |
+          npm ci --ignore-scripts
+          npm run build
+          npm run eval:inspect:sync
+
+      - name: Run authorized controlled evaluation
+        env:
+          EVAL_MODE: ${{ inputs.evaluation_mode }}
+          EVAL_MODEL: ${{ inputs.model }}
+          EVAL_EPOCHS: ${{ inputs.epochs }}
+          EVAL_TIME_LIMIT: ${{ inputs.time_limit }}
+          EVAL_EMULATE_TOOLS: ${{ inputs.emulate_tools }}
+          EVAL_PROVIDER_ENV: ${{ secrets.BEHAVIORAL_EVAL_PROVIDER_ENV }}
+        run: |
+          if test -z "${EVAL_PROVIDER_ENV:-}"; then
+            echo "The behavioral-evaluation environment must define BEHAVIORAL_EVAL_PROVIDER_ENV." >&2
+            exit 1
+          fi
+          while IFS= read -r credential || test -n "$credential"; do
+            case "$credential" in
+              ''|'#'*) continue ;;
+              *=*) ;;
+              *)
+                echo "Provider environment entries must use NAME=value." >&2
+                exit 1
+                ;;
+            esac
+            key="${credential%%=*}"
+            value="${credential#*=}"
+            case "$key" in
+              ''|*[!A-Z0-9_]*)
+                echo "Invalid provider environment variable name." >&2
+                exit 1
+                ;;
+            esac
+            export "$key=$value"
+          done <<< "$EVAL_PROVIDER_ENV"
+          unset EVAL_PROVIDER_ENV credential key value
+          emulation_args=()
+          if test "$EVAL_EMULATE_TOOLS" = "true"; then
+            emulation_args+=(--emulate-tools)
+          fi
+          case "$EVAL_MODE" in
+            paired)
+              xvfb-run -a npm run eval:paired -- \
+                --model "$EVAL_MODEL" \
+                --epochs "$EVAL_EPOCHS" \
+                --time-limit "$EVAL_TIME_LIMIT" \
+                "${emulation_args[@]}" \
+                --godot "$GODOT_BIN" \
+                --confirm-external-run \
+                --output evals/reports/paired
+              ;;
+            aa-calibration)
+              xvfb-run -a npm run eval:calibrate -- \
+                --model "$EVAL_MODEL" \
+                --epochs "$EVAL_EPOCHS" \
+                --time-limit "$EVAL_TIME_LIMIT" \
+                "${emulation_args[@]}" \
+                --batches 2 \
+                --godot "$GODOT_BIN" \
+                --confirm-external-run \
+                --output evals/reports/aa-calibration
+              ;;
+            *)
+              echo "Unknown evaluation mode: $EVAL_MODE" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Add bounded report to the job summary
+        if: always()
+        run: |
+          if test -f evals/reports/paired/comparison.md; then
+            cat evals/reports/paired/comparison.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if test -f evals/reports/aa-calibration/calibration.md; then
+            cat evals/reports/aa-calibration/calibration.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Attest the paired decision and immutable run manifest
+        if: always() && inputs.evaluation_mode == 'paired' && hashFiles('evals/reports/paired/comparison.json') != ''
+        uses: actions/attest@v4
+        with:
+          subject-path: |
+            evals/reports/paired/comparison.json
+            evals/reports/paired/run-manifest.json
+
+      - name: Attest stochastic A/A calibration manifests
+        if: always() && inputs.evaluation_mode == 'aa-calibration' && hashFiles('evals/reports/aa-calibration/calibration.json') != ''
+        uses: actions/attest@v4
+        with:
+          subject-path: |
+            evals/reports/aa-calibration/calibration.json
+            evals/reports/aa-calibration/batch-1-comparison.json
+            evals/reports/aa-calibration/batch-2-comparison.json
+
+      - name: Preserve paired reports and access-controlled raw Inspect logs
+        if: always() && inputs.evaluation_mode == 'paired'
+        uses: actions/upload-artifact@v7
+        with:
+          name: paired-behavioral-evaluation
+          path: evals/reports/paired/
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Preserve stochastic A/A reports and raw Inspect logs
+        if: always() && inputs.evaluation_mode == 'aa-calibration'
+        uses: actions/upload-artifact@v7
+        with:
+          name: stochastic-aa-calibration
+          path: evals/reports/aa-calibration/
+          retention-days: 14
+          if-no-files-found: error

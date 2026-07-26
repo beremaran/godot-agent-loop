@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "baselineId": "v1.1.4",
+  "calibrationDate": "2026-07-26",
+  "inputArtifact": {
+    "path": "evals/current-model-status.json",
+    "sha256": "c5b554baeffbc3edc9036a74e9194f88582e598881c6cb8a4c05a409baf3d2aa",
+    "qualification": "historical-server-v1.1.1-replay-only"
+  },
+  "batches": [
+    {
+      "id": "aa-replay-1",
+      "seed": 20260726,
+      "pairs": 9,
+      "taskSuccessDelta": 0,
+      "clustered95PercentInterval": [0, 0],
+      "reportSchemaValid": true
+    },
+    {
+      "id": "aa-replay-2",
+      "seed": 20260727,
+      "pairs": 9,
+      "taskSuccessDelta": 0,
+      "clustered95PercentInterval": [0, 0],
+      "reportSchemaValid": true
+    }
+  ],
+  "evaluatorVariance": {
+    "taskSuccessDifference": 0,
+    "intervalDifference": 0
+  },
+  "modelVariance": {
+    "status": "pending_authorization",
+    "reason": "Measuring stochastic model variance requires two paid/provider-backed three-epoch A/A batches. No model sampling is authorized by deterministic setup or documentation work."
+  },
+  "thresholdPolicy": "Provisional gates remain as documented; they are not tuned from this deterministic replay."
+}

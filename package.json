@@ -47,7 +47,22 @@
     "product:check": "node scripts/sync-product-metadata.js",
     "adapters:sync": "node scripts/sync-agent-adapters.js --write && npm install --package-lock-only --ignore-scripts",
     "adapters:check": "node scripts/sync-agent-adapters.js",
-    "inspector": "npx @modelcontextprotocol/inspector build/index.js",
+    "inspector": "node scripts/run-inspector-cli.mjs node build/index.js --method tools/list",
+    "eval:corpus": "vitest run tests/agent-evaluations.test.ts",
+    "eval:protocol": "npm run build && node scripts/run-protocol-evaluation.mjs",
+    "eval:inspect:sync": "cd evals/inspect && uv sync --frozen",
+    "eval:inspect:check": "cd evals/inspect && uv run godot-agent-loop-eval check",
+    "eval:inspect:smoke": "cd evals/inspect && uv run godot-agent-loop-eval smoke",
+    "eval:inspect": "cd evals/inspect && uv run godot-agent-loop-eval run",
+    "eval:compare": "node scripts/compare-evaluation-results.mjs",
+    "eval:view": "cd evals/inspect && uv run inspect view --log-dir ../reports/inspect",
+    "eval:baseline": "node scripts/prepare-evaluation-baseline.mjs",
+    "eval:smoke": "npm run eval:corpus && npm run eval:protocol && npm run eval:inspect:check",
+    "eval:nightly": "cd evals/inspect && uv run godot-agent-loop-eval run --epochs 3",
+    "eval:release": "cd evals/inspect && uv run godot-agent-loop-eval run --epochs 3",
+    "eval:paired": "node scripts/run-paired-behavioral-evaluation.mjs",
+    "eval:calibrate": "node scripts/run-aa-calibration.mjs",
+    "eval:select": "node scripts/select-evaluation-cases.mjs",
     "prepare": "node scripts/prepare-package.js",
     "check": "npm test && npm run lint && npm run coverage:check",
     "coverage:report": "npm run build && node scripts/generate-coverage-report.js",
@@ -84,6 +99,8 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@modelcontextprotocol/conformance": "0.1.16",
+    "@modelcontextprotocol/inspector-cli": "1.0.0",
     "@types/node": "^20.19.43",
     "@types/pngjs": "^6.0.5",
     "@types/yazl": "^3.3.1",
@@ -92,11 +109,14 @@
     "@vitest/coverage-v8": "^4.1.10",
     "eslint": "^10.7.0",
     "husky": "^9.1.7",
-    "markdownlint-cli2": "^0.23.0",
+    "markdownlint-cli2": "0.23.1",
     "typescript": "^5.3.3",
     "typescript-eslint": "^8.63.0",
     "vitest": "^4.1.10",
     "yazl": "^3.3.1"
+  },
+  "overrides": {
+    "js-yaml": "5.2.2"
   },
   "engines": {
     "node": ">=22.0.0"

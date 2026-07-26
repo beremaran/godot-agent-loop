@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "calibration": "provisional-v2-objective-corpus",
+  "p95Milliseconds": {
+    "local": 1000,
+    "runtime-buffer": 2000,
+    "runtime": 10000,
+    "authoring-session": 15000,
+    "process": 30000,
+    "subprocess": 30000,
+    "godot-cli": 60000,
+    "unknown": 30000
+  },
+  "relativeRegressionLimit": 0.1,
+  "tradeoffTaskSuccessImprovement": 0.05
+}

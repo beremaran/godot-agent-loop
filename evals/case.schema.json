@@ -1,0 +1,270 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/beremaran/godot-agent-loop/blob/main/evals/case.schema.json",
+  "title": "Godot Agent Loop evaluation case set",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "cases"],
+  "properties": {
+    "schemaVersion": {
+      "const": 2
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/case"
+      }
+    }
+  },
+  "$defs": {
+    "nonEmptyStrings": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version",
+        "description",
+        "risk",
+        "releaseGating",
+        "sourceScenarioId",
+        "tags",
+        "fixture",
+        "prompt",
+        "skill",
+        "allowedMutations",
+        "forbiddenMutations",
+        "validToolGroups",
+        "requiredCapabilities",
+        "order",
+        "acceptanceVerifiers",
+        "forbiddenVerifiers",
+        "budgets",
+        "environment",
+        "owner",
+        "motivation"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]+$"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "risk": {
+          "enum": ["critical", "high", "medium", "low"]
+        },
+        "releaseGating": {
+          "type": "boolean"
+        },
+        "sourceScenarioId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tags": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["domain", "backend", "effect", "state", "platform", "taskLength", "surface"],
+          "properties": {
+            "domain": {
+              "type": "string",
+              "minLength": 1
+            },
+            "backend": {
+              "type": "string",
+              "minLength": 1
+            },
+            "effect": {
+              "enum": ["read", "write", "mixed"]
+            },
+            "state": {
+              "type": "string",
+              "minLength": 1
+            },
+            "platform": {
+              "type": "string",
+              "minLength": 1
+            },
+            "taskLength": {
+              "enum": ["short", "medium", "long"]
+            },
+            "surface": {
+              "enum": ["core", "compact", "full"]
+            }
+          }
+        },
+        "fixture": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["builder", "initialState"],
+          "properties": {
+            "builder": {
+              "type": "string",
+              "minLength": 1
+            },
+            "initialState": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1
+        },
+        "skill": {
+          "type": ["string", "null"],
+          "minLength": 1
+        },
+        "allowedMutations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "forbiddenMutations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "validToolGroups": {
+          "$ref": "#/$defs/nonEmptyStrings"
+        },
+        "requiredCapabilities": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/nonEmptyStrings"
+          }
+        },
+        "order": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "string",
+                "minLength": 1
+              }
+            ],
+            "items": false,
+            "minItems": 2,
+            "maxItems": 2
+          }
+        },
+        "acceptanceVerifiers": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/verifier"
+          }
+        },
+        "forbiddenVerifiers": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/verifier"
+          }
+        },
+        "budgets": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["toolCalls", "responseBytes", "wallTimeMs"],
+          "properties": {
+            "toolCalls": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "responseBytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "wallTimeMs": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "environment": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["godot", "renderer", "headed", "unsupportedWhen"],
+          "properties": {
+            "godot": {
+              "type": "string",
+              "minLength": 1
+            },
+            "renderer": {
+              "type": "string",
+              "minLength": 1
+            },
+            "headed": {
+              "type": "boolean"
+            },
+            "unsupportedWhen": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "uniqueItems": true
+            }
+          }
+        },
+        "owner": {
+          "type": "string",
+          "minLength": 1
+        },
+        "motivation": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "verifier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["criterionIndex", "scorer", "evidenceSources", "criterionType"],
+      "properties": {
+        "criterionIndex": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "scorer": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9.-]+$"
+        },
+        "evidenceSources": {
+          "$ref": "#/$defs/nonEmptyStrings"
+        },
+        "criterionType": {
+          "enum": ["objective", "subjective", "unsupported"]
+        }
+      }
+    }
+  }
+}

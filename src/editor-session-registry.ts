@@ -446,7 +446,23 @@ export function canonicalProjectPath(projectPath: string): string {
 }
 
 function processExists(pid: number): boolean {
-  try { process.kill(pid, 0); return true; } catch (error) {
+  try {
+    process.kill(pid, 0);
+    // kill(pid, 0) reports Linux zombies as present even though they can no
+    // longer own an editor bridge. Treat terminal proc states as dead so a
+    // crashed/exiting editor cannot leave a trusted discovery record behind.
+    if (process.platform === 'linux') {
+      try {
+        const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
+        const commandEnd = stat.lastIndexOf(')');
+        const state = commandEnd >= 0 ? stat.slice(commandEnd + 2, commandEnd + 3) : '';
+        if (state === 'Z' || state === 'X') return false;
+      } catch {
+        return false;
+      }
+    }
+    return true;
+  } catch (error) {
     return Boolean(error && typeof error === 'object' && 'code' in error && error.code === 'EPERM');
   }
 }

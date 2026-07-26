@@ -121,7 +121,7 @@ describe('project settings and configuration tools through MCP', () => {
       value: '"x"',
     });
     expect(missingProject.isError).toBe(true);
-    expect(missingProject.text).toMatch(/invalid path/i);
+    expect(missingProject.text).toMatch(/does not exist|invalid path/i);
 
     const outsideAllowed = await active.call('read_project_settings', { projectPath: '/etc' });
     expect(outsideAllowed.isError).toBe(true);

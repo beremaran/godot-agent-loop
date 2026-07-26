@@ -15,13 +15,26 @@
     }
   },
   "$defs": {
+    "latencyGroups": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["samples", "medianMs", "p95Ms"],
+        "properties": {
+          "samples": { "type": "integer", "minimum": 1 },
+          "medianMs": { "type": "number", "minimum": 0 },
+          "p95Ms": { "type": "number", "minimum": 0 }
+        }
+      }
+    },
     "run": {
       "type": "object",
       "additionalProperties": false,
       "required": ["scenarioId", "status"],
       "properties": {
         "scenarioId": { "type": "string", "minLength": 1 },
-        "status": { "enum": ["not_run", "passed", "failed", "blocked"] },
+        "status": { "enum": ["not_run", "passed", "failed", "blocked", "unsupported", "manual", "unobserved"] },
         "reason": { "type": "string", "minLength": 1 },
         "inputs": {
           "type": "object",
@@ -32,13 +45,96 @@
             "client": { "type": "string", "minLength": 1 },
             "clientVersion": { "type": "string", "minLength": 1 },
             "model": { "type": "string", "minLength": 1 },
+            "modelProvider": { "type": "string", "minLength": 1 },
+            "modelBaseUrl": {
+              "anyOf": [
+                { "type": "string", "format": "uri" },
+                { "type": "null" }
+              ]
+            },
             "effort": { "type": "string", "minLength": 1 },
+            "evaluationTimeLimitSeconds": { "type": "integer", "minimum": 1 },
+            "toolCallingMode": { "enum": ["native", "emulated"] },
+            "epoch": { "type": "integer", "minimum": 1 },
             "promptSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
             "skillSha256": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+            "caseSetVersion": { "type": "integer", "minimum": 2 },
+            "caseVersion": { "type": "integer", "minimum": 1 },
+            "caseContractSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+            "fixtureSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+            "serverSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+            "toolInventorySha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+            "packageLockSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+            "godotVersion": { "type": ["string", "null"], "minLength": 1 },
+            "nodeVersion": { "type": "string", "minLength": 1 },
+            "platform": { "type": "string", "minLength": 1 },
+            "architecture": { "type": "string", "minLength": 1 },
+            "osRelease": { "type": "string", "minLength": 1 },
+            "renderer": { "type": "string", "minLength": 1 },
+            "displayServer": { "enum": ["x11", "wayland", "none"] },
+            "environmentStatus": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["status", "requirements", "reasons"],
+              "properties": {
+                "status": { "enum": ["supported", "unsupported"] },
+                "requirements": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["godot", "renderer", "headed", "unsupportedWhen"],
+                  "properties": {
+                    "godot": { "type": "string", "minLength": 1 },
+                    "renderer": { "type": "string", "minLength": 1 },
+                    "headed": { "type": "boolean" },
+                    "unsupportedWhen": {
+                      "type": "array",
+                      "items": { "type": "string", "minLength": 1 }
+                    }
+                  }
+                },
+                "reasons": {
+                  "type": "array",
+                  "items": { "type": "string", "minLength": 1 }
+                }
+              }
+            },
             "serverVersion": { "type": "string", "minLength": 1 },
             "surface": { "enum": ["core", "compact", "full"] },
             "advertisedToolCount": { "type": "integer", "minimum": 1 }
-          }
+          },
+          "allOf": [
+            {
+              "if": {
+                "required": ["caseSetVersion"],
+                "properties": {
+                  "caseSetVersion": { "minimum": 2 }
+                }
+              },
+              "then": {
+                "required": [
+                  "epoch",
+                  "modelProvider",
+                  "modelBaseUrl",
+                  "evaluationTimeLimitSeconds",
+                  "toolCallingMode",
+                  "caseVersion",
+                  "caseContractSha256",
+                  "fixtureSha256",
+                  "serverSha256",
+                  "toolInventorySha256",
+                  "packageLockSha256",
+                  "godotVersion",
+                  "nodeVersion",
+                  "platform",
+                  "architecture",
+                  "osRelease",
+                  "renderer",
+                  "displayServer",
+                  "environmentStatus"
+                ]
+              }
+            }
+          ]
         },
         "metrics": {
           "type": "object",
@@ -48,19 +144,72 @@
             "taskSuccess": { "type": "boolean" },
             "acceptanceCriteriaPassed": { "type": "integer", "minimum": 0 },
             "acceptanceCriteriaTotal": { "type": "integer", "minimum": 1 },
+            "validCallRate": { "type": "number", "minimum": 0, "maximum": 1 },
+            "repairRate": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
             "toolSelectionPrecision": { "type": "number", "minimum": 0, "maximum": 1 },
-            "searchRecallAt1": { "type": "number", "minimum": 0, "maximum": 1 },
-            "searchRecallAt3": { "type": "number", "minimum": 0, "maximum": 1 },
-            "searchRecallAt5": { "type": "number", "minimum": 0, "maximum": 1 },
+            "capabilityRecall": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+            "orderCompliance": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+            "searchRecallAt1": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+            "searchRecallAt3": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+            "searchRecallAt5": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
             "invalidCalls": { "type": "integer", "minimum": 0 },
             "selfCorrections": { "type": "integer", "minimum": 0 },
             "toolCalls": { "type": "integer", "minimum": 0 },
             "elapsedMs": { "type": "integer", "minimum": 0 },
             "responseBytes": { "type": "integer", "minimum": 0 },
+            "redundantCalls": { "type": "integer", "minimum": 0 },
+            "redundantCallRate": { "type": "number", "minimum": 0, "maximum": 1 },
+            "toolLatency": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["byTool", "byBackend"],
+              "properties": {
+                "byTool": { "$ref": "#/$defs/latencyGroups" },
+                "byBackend": { "$ref": "#/$defs/latencyGroups" }
+              }
+            },
+            "budgetCompliance": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["toolCalls", "responseBytes", "wallTime", "limits"],
+              "properties": {
+                "toolCalls": { "type": "boolean" },
+                "responseBytes": { "type": "boolean" },
+                "wallTime": { "type": "boolean" },
+                "limits": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["toolCalls", "responseBytes", "wallTimeMs"],
+                  "properties": {
+                    "toolCalls": { "type": "integer", "minimum": 1 },
+                    "responseBytes": { "type": "integer", "minimum": 1 },
+                    "wallTimeMs": { "type": "integer", "minimum": 1 }
+                  }
+                }
+              }
+            },
             "detachedEditorRuntimeMistakes": { "type": "integer", "minimum": 0 },
             "humanInterventions": { "type": "integer", "minimum": 0 },
             "pauseViolations": { "type": "integer", "minimum": 0 },
             "traceAccuracy": { "type": "number", "minimum": 0, "maximum": 1 },
+            "claimPrecision": { "type": "number", "minimum": 0, "maximum": 1 },
+            "claimRecall": { "type": "number", "minimum": 0, "maximum": 1 },
+            "metricDefinitions": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["numerator", "denominator", "exclusions"],
+                "properties": {
+                  "numerator": { "type": "number", "minimum": 0 },
+                  "denominator": { "type": "number", "minimum": 0 },
+                  "exclusions": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  }
+                }
+              }
+            },
             "cleanupState": {
               "type": "object",
               "additionalProperties": false,
@@ -84,7 +233,9 @@
             "properties": {
               "criterion": { "type": "string", "minLength": 1 },
               "status": { "enum": ["passed", "failed", "blocked", "manual", "unsupported", "unobserved"] },
-              "evidence": { "type": "string", "minLength": 1 }
+              "evidence": { "type": "string", "minLength": 1 },
+              "evidenceId": { "type": "string", "pattern": "^[a-z0-9-]+:(?:acceptance|forbidden):[0-9]+$" },
+              "scorer": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]+$" }
             }
           }
         }
@@ -97,6 +248,15 @@
         {
           "if": { "properties": { "status": { "const": "not_run" } }, "required": ["status"] },
           "then": { "required": ["reason"] }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": { "enum": ["unsupported", "manual", "unobserved"] }
+            },
+            "required": ["status"]
+          },
+          "then": { "required": ["reason", "inputs", "metrics", "criteria"] }
         }
       ]
     }

@@ -50,6 +50,9 @@ Using Cline, Cursor, or another MCP client? See
 - Every current tool and public action is traced to resolving tests in the
   source-derived [coverage report](docs/coverage/coverage-report.md); its counts
   and surface sizes are generated rather than copied into prose.
+- The [evaluation guide](docs/evaluation.md) documents the pinned conformance,
+  Inspector, Inspect AI, real-client, scorer, baseline, and paired-comparison
+  lanes, including exactly which agent and model each lane uses.
 - The complete serial real-Godot matrix is enforced in CI.
 - A cold agent built and independently verified a playable win/lose game with
   zero human corrections, in under seven minutes, using 103 MCP calls and no

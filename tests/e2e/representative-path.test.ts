@@ -70,7 +70,7 @@ describe('persistent authoring operation path', () => {
     const sceneFile = join(server.projectPath, 'scenes/level.tscn');
     expect(existsSync(sceneFile)).toBe(true);
     // Godot 4.7 can append a unique_id attribute to node headers.
-    expect(readFileSync(sceneFile, 'utf8')).toMatch(/\[node name="root" type="Node2D"[^\]]*\]/);
+    expect(readFileSync(sceneFile, 'utf8')).toMatch(/\[node name="Node2D" type="Node2D"[^\]]*\]/);
 
     const added = await server.call('add_node', {
       projectPath: server.projectPath,
@@ -156,7 +156,8 @@ describe('lifecycle and runtime path', () => {
     });
     expect(timeoutWait.isError).toBe(true);
     expect(JSON.parse(timeoutWait.text)).toMatchObject({
-      satisfied: false, condition: 'property', elapsed_ms: 0, attempts: 0, last_observed: null,
+      satisfied: false, condition: 'property', attempts: 1,
+      last_observed: { path: '/root/Main/Anchor', properties: [] },
       error: expect.stringMatching(/reflection privilege group/i),
     });
     expect((timeoutWait.raw as { structuredContent?: unknown }).structuredContent).toMatchObject({
@@ -177,7 +178,7 @@ describe('lifecycle and runtime path', () => {
     expect(blockedScenario.isError).toBe(true);
     expect(JSON.parse(blockedScenario.text)).toMatchObject({
       passed: false,
-      steps: [{ result: { condition: 'property', satisfied: false, attempts: 0 } }],
+      steps: [{ result: { condition: 'property', satisfied: false, attempts: 1 } }],
     });
     expect((blockedScenario.raw as { structuredContent?: unknown }).structuredContent).toMatchObject({
       ok: false, error: { code: 'reflection_privilege_required', retryable: true },

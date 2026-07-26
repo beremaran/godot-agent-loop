@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "baselineId": "v1.1.4",
+  "capturedAt": "2026-07-26T09:09:18.000Z",
+  "package": {
+    "name": "@beremaran/godot-agent-loop",
+    "version": "1.1.4",
+    "registry": "https://registry.npmjs.org",
+    "tarball": "https://registry.npmjs.org/@beremaran/godot-agent-loop/-/godot-agent-loop-1.1.4.tgz",
+    "integrity": "sha512-UBP9/RsTlvFGq0C93lq8SAioB4+bxvLzSij3lhSDtAsgBFd6zDp3GEtCm/SQ+omc/W6sPW6NMK+3UVz7D8dTGg==",
+    "shasum": "6c742fdbe9245cb5d5669a9b0c6aaecee88be068",
+    "sha256": "6734e30669eb576c169c6ce1f714ec2729254b9017988ca3e4cbe831987aacc5",
+    "packedBytes": 292095,
+    "unpackedBytes": 1427166,
+    "entryCount": 82
+  },
+  "caseContract": {
+    "schemaVersion": 2,
+    "caseCount": 9,
+    "path": "evals/cases.json",
+    "sha256": "ff16f8ab10cd9690a8d5e26bf2e16f4cd715aded5d7c7546155aead55c618036",
+    "schemaPath": "evals/case.schema.json",
+    "schemaSha256": "34a5890be3bee52d08a87239510b71a6599b061ca5e1a97e4a05ea2b6365a869"
+  },
+  "controlledCorpusExtension": {
+    "caseCount": 15,
+    "combinedCaseCount": 24,
+    "casesPath": "evals/server-cases.json",
+    "casesSha256": "d26478ba2cadda28c9d743183e9484dafe82efba40c25c8569feed32b7f986a0",
+    "scenariosPath": "evals/server-scenarios.json",
+    "scenariosSha256": "e083388c55d678223ab7e364868cb59f61bd7aa86bdc0d73038d3a29716b82a2"
+  },
+  "evaluationEnvironment": {
+    "inspectVersion": "0.3.249",
+    "pythonMcpVersion": "1.28.1",
+    "uvLockPath": "evals/inspect/uv.lock",
+    "uvLockSha256": "421ffc6c898333b64d31a94f4b02fcfca45db457826e057cf4aa4f56a578a80c",
+    "performanceBudgetsSha256": "1890c5f4e48a79c7f5f8566246ed5f420f897abbdf08d67f2bdfcd341cc320a9",
+    "changeImpactPolicySha256": "51acdbf109a4e2a5526640a570deeb2fca6f27d51a868cb22d29a1e0b6b3986c"
+  },
+  "toolSurface": {
+    "path": "docs/coverage/tool-surface.json",
+    "sha256": "96731003dd775505c2f3a8399fb6f9b63079ff84d2c5019cc45dfd78c4e2387a",
+    "surface": "core",
+    "advertisedToolCount": 42,
+    "fullToolCount": 173
+  },
+  "skills": [
+    {
+      "name": "build-godot-game",
+      "sha256": "d0b3ac6b02019ee302d02e3d6eb752b6056b7c42921f73d0a30825f6ad6c2c04"
+    },
+    {
+      "name": "debug-godot-game",
+      "sha256": "6ef240bedaaaea84bf7d2d7bb777ba130d0d183e85f2528730d6facabcf3d391"
+    },
+    {
+      "name": "ship-godot-game",
+      "sha256": "50c13ab0211a7d4dc6cebbd3a666070a88b78898164339251e897266892566cc"
+    },
+    {
+      "name": "verify-godot-change",
+      "sha256": "c867f3379fe02e8b75e0be1ab3b64f8eb8bb92e9833a1a811f621528d04ee796"
+    }
+  ],
+  "historicalBehavioralEvidence": {
+    "qualification": "starting-point-only",
+    "reason": "The retained result sampled server 1.1.1 and is not a behavioral qualification of package 1.1.4.",
+    "path": "evals/current-model-status.json",
+    "sha256": "c5b554baeffbc3edc9036a74e9194f88582e598881c6cb8a4c05a409baf3d2aa",
+    "runDate": "2026-07-16",
+    "serverVersion": "1.1.1",
+    "client": "codex-cli",
+    "clientVersion": "0.144.5",
+    "model": "gpt-5.6-luna",
+    "effort": "high",
+    "runCount": 9
+  },
+  "recordedEnvironment": {
+    "godotVersion": "4.7.stable.official.5b4e0cb0f",
+    "nodeVersion": "v24.13.0",
+    "platform": "linux",
+    "renderer": "gl_compatibility",
+    "renderingContext": "display"
+  }
+}

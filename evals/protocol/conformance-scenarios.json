@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "package": {
+    "name": "@modelcontextprotocol/conformance",
+    "version": "0.1.16"
+  },
+  "applicable": [
+    "server-initialize",
+    "ping",
+    "tools-list",
+    "server-sse-multiple-streams",
+    "dns-rebinding-protection"
+  ],
+  "notApplicable": [
+    {"id": "logging-set-level", "reason": "The product does not advertise the optional logging capability."},
+    {"id": "completion-complete", "reason": "The product does not advertise the optional completion capability."},
+    {"id": "tools-call-simple-text", "reason": "Requires the conformance-only test_simple_text tool, which is not part of the product registry."},
+    {"id": "tools-call-image", "reason": "Requires the conformance-only test_image_content tool, which is not part of the product registry."},
+    {"id": "tools-call-audio", "reason": "Requires the conformance-only test_audio_content tool, which is not part of the product registry."},
+    {"id": "tools-call-embedded-resource", "reason": "Requires the conformance-only test_embedded_resource tool, which is not part of the product registry."},
+    {"id": "tools-call-mixed-content", "reason": "Requires the conformance-only test_mixed_content tool, which is not part of the product registry."},
+    {"id": "tools-call-with-logging", "reason": "Requires conformance-only logging tools and the optional logging capability."},
+    {"id": "tools-call-error", "reason": "Requires the conformance-only test_error_handling tool, which is not part of the product registry."},
+    {"id": "tools-call-with-progress", "reason": "Requires the conformance-only test_progress tool; product progress is covered by full-path E2E."},
+    {"id": "tools-call-sampling", "reason": "Requires the conformance-only sampling tool and optional client sampling capability."},
+    {"id": "tools-call-elicitation", "reason": "Requires the conformance-only elicitation tool and optional elicitation capability."},
+    {"id": "elicitation-sep1034-defaults", "reason": "The product does not advertise the optional elicitation capability."},
+    {"id": "elicitation-sep1330-enums", "reason": "The product does not advertise the optional elicitation capability."},
+    {"id": "resources-list", "reason": "The product is tools-only and does not advertise resources."},
+    {"id": "resources-read-text", "reason": "The product is tools-only and does not advertise resources."},
+    {"id": "resources-read-binary", "reason": "The product is tools-only and does not advertise resources."},
+    {"id": "resources-templates-read", "reason": "The product is tools-only and does not advertise resource templates."},
+    {"id": "resources-subscribe", "reason": "The product is tools-only and does not advertise resources."},
+    {"id": "resources-unsubscribe", "reason": "The product is tools-only and does not advertise resources."},
+    {"id": "prompts-list", "reason": "The product does not advertise prompts."},
+    {"id": "prompts-get-simple", "reason": "The product does not advertise prompts."},
+    {"id": "prompts-get-with-args", "reason": "The product does not advertise prompts."},
+    {"id": "prompts-get-embedded-resource", "reason": "The product does not advertise prompts or resources."},
+    {"id": "prompts-get-with-image", "reason": "The product does not advertise prompts."}
+  ]
+}

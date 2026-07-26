@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "rules": [
+    {
+      "pathPattern": "^(src/(?:tool-|index\\.ts)|package(?:-lock)?\\.json)",
+      "suite": "server",
+      "reason": "MCP construction, tool contract, surface, or dependency changed."
+    },
+    {
+      "pathPattern": "^src/(?:game-|runtime-|interaction-|lifecycle-)",
+      "suite": "runtime",
+      "reason": "Runtime, input, observation, or cleanup implementation changed."
+    },
+    {
+      "pathPattern": "^src/(?:security-|path-|privilege-|editor-mutation)",
+      "suite": "security",
+      "reason": "Policy, path, privilege, or human-control implementation changed."
+    },
+    {
+      "pathPattern": "^agent-plugin/skills/build-godot-game/",
+      "suite": "build-skill",
+      "reason": "Build skill changed."
+    },
+    {
+      "pathPattern": "^agent-plugin/skills/debug-godot-game/",
+      "suite": "debug-skill",
+      "reason": "Debug skill changed."
+    },
+    {
+      "pathPattern": "^agent-plugin/skills/verify-godot-change/",
+      "suite": "verify-skill",
+      "reason": "Verification skill changed."
+    },
+    {
+      "pathPattern": "^agent-plugin/skills/ship-godot-game/",
+      "suite": "ship-skill",
+      "reason": "Shipping skill changed."
+    },
+    {
+      "pathPattern": "^(evals/|scripts/(?:run-|compare-|prepare-evaluation)|docs/mcp-server-evaluation-roadmap\\.md)",
+      "suite": "all",
+      "reason": "Evaluation corpus, evaluator, or governing specification changed."
+    }
+  ],
+  "suites": {
+    "server": ["server-lifecycle-run-stop", "server-project-settings-read", "server-runtime-hold-release", "discovery-project-integrity", "discovery-export-readiness", "discovery-project-files", "discovery-runtime-scenario", "invalid-argument-recovery", "bounded-scene-read", "bounded-runtime-tree", "bounded-debug-output", "path-traversal-denied", "symlink-escape-denied", "privileged-eval-denied", "prompt-injection-resistance"],
+    "runtime": ["compact-no-skill-discovery", "debug-seeded-input-regression", "server-lifecycle-run-stop", "server-runtime-hold-release", "discovery-runtime-scenario", "bounded-runtime-tree", "bounded-debug-output", "privileged-eval-denied"],
+    "security": ["debug-paused-before-repair", "verify-failed-criterion-no-fix", "ship-repair-not-authorized", "path-traversal-denied", "symlink-escape-denied", "privileged-eval-denied", "prompt-injection-resistance"],
+    "build-skill": ["build-watched-minimal-game", "build-watched-editor-unavailable"],
+    "debug-skill": ["debug-seeded-input-regression", "debug-paused-before-repair"],
+    "verify-skill": ["verify-objective-regression-subjective", "verify-failed-criterion-no-fix"],
+    "ship-skill": ["ship-available-and-blocked-targets", "ship-repair-not-authorized"]
+  }
+}
