@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.5] - 2026-08-01
+
+### Evaluations
+
+- Add a layered MCP qualification framework covering protocol, tool, engine, and
+  agent workflow evidence, with pinned Inspect AI tooling, deterministic
+  scorers, and comparison reports.
+- Add release and CI checks for evaluation corpus integrity, tool coverage,
+  transport equivalence, and Godot compatibility.
+- Keep paid behavioural evaluation as an explicit opt-in workflow rather than a
+  requirement for npm publication.
+
+### Reliability
+
+- Retry editor pause-state checks so transient editor bridge disconnects do not
+  spuriously refuse agent mutations.
+- Retarget project symlinks before updating them to avoid escape races during
+  macOS path canonicalization.
+
+## [1.1.4] - 2026-07-26
+
+### Validation and startup clarity
+
+- Reject fatal Godot startup errors earlier during validation and clarify
+  project validation and status messaging to reduce ambiguous failures.
+- Bound game observations and enforce safe input handling, including held-input
+  and unprivileged property waits.
+- Prevent scene-root name collisions and tighten scenario argument validation.
+- Keep output stable when runtime reflection is unavailable.
+- Omit transient bridge files from project scans only when ownership is clear,
+  so user files remain visible.
+- Improve structured output compatibility and project setting handling.
+
 ## [1.1.3] - 2026-07-19
 
 ### Headless authoring and compatibility
@@ -104,7 +137,9 @@ identity. Full release notes: [`docs/releases/1.0.0.md`](docs/releases/1.0.0.md)
 - Runtime connections are authenticated with a per-session secret; transports
   bind to loopback and retained logs are bounded and redacted.
 
-[Unreleased]: https://github.com/beremaran/godot-agent-loop/compare/v1.1.3...HEAD
+[Unreleased]: https://github.com/beremaran/godot-agent-loop/compare/v1.1.5...HEAD
+[1.1.5]: https://github.com/beremaran/godot-agent-loop/compare/v1.1.4...v1.1.5
+[1.1.4]: https://github.com/beremaran/godot-agent-loop/compare/v1.1.3...v1.1.4
 [1.1.3]: https://github.com/beremaran/godot-agent-loop/compare/v1.1.2...v1.1.3
 [1.1.2]: https://github.com/beremaran/godot-agent-loop/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/beremaran/godot-agent-loop/compare/v1.1.0...v1.1.1

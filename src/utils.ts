@@ -96,11 +96,17 @@ export function validatePath(path: string): boolean {
   return true;
 }
 
+/** Whether GODOT_MCP_ALLOW_UNRESTRICTED explicitly re-enables legacy open mode. */
+function resolveUnrestrictedOptIn(): boolean {
+  return ['1', 'true', 'yes', 'on'].includes((process.env.GODOT_MCP_ALLOW_UNRESTRICTED ?? '').trim().toLowerCase());
+}
+
 /** Centralized filesystem policy for project and project-relative paths. */
 export class PathSecurity {
   private readonly configuredRoots: string[];
   private clientRoots: string[] | null = null;
   private readonly supportsRealpath = Object.keys(fs).includes('realpathSync');
+  private readonly unrestrictedLegacyOptIn = resolveUnrestrictedOptIn();
 
   constructor(
     allowedRoots?: string[],
@@ -120,7 +126,14 @@ export class PathSecurity {
 
   get hasConfiguredRoots(): boolean { return this.configuredRoots.length > 0; }
   get hasClientRootPolicy(): boolean { return this.clientRoots !== null; }
-  get unrestrictedLegacyMode(): boolean { return !this.hasConfiguredRoots && this.clientRoots === null; }
+  /**
+   * Legacy open mode requires an explicit opt-in (GODOT_MCP_ALLOW_UNRESTRICTED).
+   * Without configured roots, an MCP client root policy, or that opt-in, every
+   * path is denied rather than silently allowed.
+   */
+  get unrestrictedLegacyMode(): boolean {
+    return this.unrestrictedLegacyOptIn && !this.hasConfiguredRoots && this.clientRoots === null;
+  }
 
   isProjectPathAllowed(projectPath: string, allowMissing = false): boolean {
     if (!validatePath(projectPath)) return false;
@@ -158,6 +171,10 @@ export class PathSecurity {
   }
 
   private isWithinAllowedRoots(target: string): boolean {
+    if (this.unrestrictedLegacyMode) return true;
+    // Without any configured or client root policy there is no boundary to
+    // enforce; deny rather than silently allow everything.
+    if (!this.hasConfiguredRoots && this.clientRoots === null) return false;
     const configuredAllowed = this.configuredRoots.length === 0
       || this.configuredRoots.some(root => this.isWithin(target, root));
     const clientAllowed = this.clientRoots === null
@@ -166,6 +183,8 @@ export class PathSecurity {
   }
 
   private isExactAllowedRoot(target: string): boolean {
+    if (this.unrestrictedLegacyMode) return true;
+    if (!this.hasConfiguredRoots && this.clientRoots === null) return false;
     const configuredAllowed = this.configuredRoots.length === 0 || this.configuredRoots.includes(target);
     const clientAllowed = this.clientRoots === null || this.clientRoots.includes(target);
     return configuredAllowed && clientAllowed;

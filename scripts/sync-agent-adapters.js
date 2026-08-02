@@ -157,7 +157,7 @@ export function syncAgentAdapters(options = { write, root }) {
   syncJson('.agents/plugins/marketplace.json', codexMarketplace, options);
 
   const expectedPackage = {
-    files: ['build', 'agent-plugin', 'addons/godot_agent_loop', 'product.json', 'scripts/prepare-package.js'],
+    files: ['build', 'agent-plugin', 'addons/godot_agent_loop', 'product.json', 'server.json', 'CHANGELOG.md', 'scripts/prepare-package.js'],
     pi: {
       extensions: ['./agent-plugin/pi/extension.ts'],
       skills: ['./agent-plugin/skills'],

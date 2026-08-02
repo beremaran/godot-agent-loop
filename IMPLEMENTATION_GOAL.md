@@ -1,5 +1,11 @@
 # `/goal` prompt: deliver interactive, editor-native Godot Agent Loop
 
+> **Archived (complete).** The `/goal` work this prompt describes was delivered
+> and is documented through the 1.1.x release notes; TODO.md is fully checked
+> off and preserved as a historical record. The six Codex Pong transcripts it
+> references were not committed to this repository (only
+> `experiments/opencode-qwen/prompt-03.txt` is tracked).
+
 Use the following as the `/goal` prompt for the implementation conversation.
 
 ```text

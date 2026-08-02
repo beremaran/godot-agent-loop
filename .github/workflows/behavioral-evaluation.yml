@@ -45,6 +45,7 @@ jobs:
   behavioral:
     if: inputs.confirm_external_run
     runs-on: ubuntu-latest
+    timeout-minutes: 360
     environment: behavioral-evaluation
     steps:
       - uses: actions/checkout@v6

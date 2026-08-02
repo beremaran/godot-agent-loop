@@ -21,12 +21,14 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     environment: npm
     steps:
       - name: Require the exact publication confirmation
         env:
           CONFIRMATION: ${{ inputs.confirmation }}
-        run: test "$CONFIRMATION" = "publish-@beremaran/godot-agent-loop@1.1.5"
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: test "$CONFIRMATION" = "publish-@beremaran/godot-agent-loop@${RELEASE_TAG#v}"
 
       - uses: actions/checkout@v6
         with:
@@ -80,4 +82,6 @@ jobs:
           npm pack --pack-destination dist
 
       - name: Publish the tested tarball with provenance
-        run: npm publish ./dist/beremaran-godot-agent-loop-1.1.5.tgz --access public --provenance
+        run: |
+          TGZ="$(node -p 'const p=require("./package.json"); p.name.replace(/^@/, "").replace("/", "-") + "-" + p.version + ".tgz"')"
+          npm publish "./dist/$TGZ" --access public --provenance

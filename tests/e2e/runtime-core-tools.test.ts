@@ -321,26 +321,42 @@ describe('runtime mutation tools through MCP', () => {
   it('game_create_timer adds a live Timer node with the requested configuration', async () => {
     const game = await startedGame({ privileged: true });
 
+    // Create the timer without autostart, then wire its timeout to the fixture's
+    // e2e_event signal and start it. Awaiting a Timer's own timeout signal is
+    // unreliable on low-frame-rate virtual displays, so the fire is observed
+    // through the chained e2e_event instead (the same pattern the input suite
+    // relies on).
     const created = await game.call('game_create_timer', {
-      parentPath: '/root/Main', waitTime: 0.05, oneShot: true, autostart: true, name: 'Countdown',
+      parentPath: '/root/Main', waitTime: 0.5, oneShot: true, autostart: false, name: 'Countdown',
     });
     expect(created.isError, created.text).toBe(false);
     expect(payload(created.text)).toMatchObject({
-      path: '/root/Main/Countdown', name: 'Countdown', wait_time: 0.05, one_shot: true, autostart: true,
+      path: '/root/Main/Countdown', name: 'Countdown', wait_time: 0.5, one_shot: true, autostart: false,
     });
 
-    // Independent observation: the Timer exists, is running, and actually fires.
+    // Independent observation: the Timer exists and is configured.
     const running = await engineEval(game, [
       'var timer = get_node("/root/Main/Countdown")',
       'return {"class": timer.get_class(), "stopped": timer.is_stopped(), "one_shot": timer.one_shot}',
     ].join('\n')) as { class: string; stopped: boolean; one_shot: boolean };
     expect(running.class).toBe('Timer');
-    expect(running.stopped).toBe(false);
+    expect(running.stopped).toBe(true);
     expect(running.one_shot).toBe(true);
 
+    // Wire the timeout through to e2e_event and start it; the fire is then
+    // observed through the signal, proving the live Timer actually ran.
+    expect(await engineEval(game, [
+      'var main := get_tree().root.get_node("Main")',
+      'var timer := get_node("/root/Main/Countdown")',
+      'timer.timeout.connect(Callable(main, "emit_e2e_event").bind(7))',
+      'timer.start()',
+      'return true',
+    ].join('\n'))).toBe(true);
     const fired = await game.call('game_await_signal', {
-      nodePath: '/root/Main/Countdown', signalName: 'timeout', timeout: 5,
+      nodePath: '/root/Main', signalName: 'e2e_event', timeout: 10,
     });
+    expect(fired.isError, fired.text).toBe(false);
+    expect(payload(fired.text)).toMatchObject({ signal_name: 'e2e_event', received: true, args: [7] });
     expect(fired.isError, fired.text).toBe(false);
 
     const badParent = await game.call('game_create_timer', { parentPath: '/root/Nowhere' });

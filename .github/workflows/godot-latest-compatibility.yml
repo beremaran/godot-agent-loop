@@ -31,6 +31,7 @@ env:
 jobs:
   discover:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       latest: ${{ steps.release.outputs.latest }}
       known-good: ${{ steps.release.outputs.known-good }}
@@ -76,6 +77,7 @@ jobs:
   test-latest:
     needs: discover
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     name: Test latest (${{ needs.discover.outputs.latest }})
     outputs:
       tests-outcome: ${{ steps.tests.outcome }}

@@ -6,6 +6,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { repoRoot } from './helpers/manifest-sources.js';
+import { advertisedToolDefinitions } from '../src/tool-surface.js';
 
 function json(path: string): unknown {
   return JSON.parse(readFileSync(join(repoRoot, path), 'utf8')) as unknown;
@@ -240,6 +241,7 @@ describe('agent skill evaluation corpus', () => {
       baselineId: 'v1.1.4',
       package: {
         version: '1.1.4',
+        version: '1.1.4',
         integrity: expect.stringMatching(/^sha512-/),
         sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
       },
@@ -263,6 +265,19 @@ describe('agent skill evaluation corpus', () => {
       .toBe(baseline.historicalBehavioralEvidence.sha256);
     for (const skill of baseline.skills) {
       expect(sha256(`agent-plugin/skills/${skill.name}/SKILL.md`), skill.name).toBe(skill.sha256);
+    }
+  });
+
+  it('keeps recorded model evidence current with the shipped core surface', () => {
+    const currentCoreCount = advertisedToolDefinitions().length;
+    expect(currentCoreCount).toBeGreaterThan(0);
+    expect(currentStatus.runs.length).toBeGreaterThan(0);
+    // Historical runs record the surface they were evaluated against. If the
+    // core surface changes, this fails so the evidence is re-run instead of
+    // silently misrepresenting a stale tool set.
+    for (const run of currentStatus.runs) {
+      expect(run.inputs.advertisedToolCount, `${run.scenarioId} core count`)
+        .toBe(currentCoreCount);
     }
   });
 

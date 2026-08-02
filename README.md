@@ -288,8 +288,9 @@ The server listens on `127.0.0.1:9090`. Each MCP server launch generates a
 cryptographic runtime secret, passes it only to the Godot child process, and
 authenticates it during capability negotiation before any runtime command is
 accepted. A manually managed runtime should set the same
-`GODOT_MCP_RUNTIME_SECRET` value in both processes; leaving it unset retains
-legacy unauthenticated behavior and is suitable only for a trusted machine.
+`GODOT_MCP_RUNTIME_SECRET` value in both processes. A runtime without a shared
+secret refuses unauthenticated sessions unless `GODOT_MCP_ALLOW_INSECURE_RUNTIME`
+is set explicitly; use that only on a trusted machine.
 
 Commands that execute arbitrary GDScript, invoke arbitrary node properties or
 methods, mutate scripts, call multiplayer peers, or make HTTP/WebSocket
@@ -309,7 +310,7 @@ the event name, runtime component, numeric session ID, and timestamp.
 | ---------- | ------------- |
 | `GODOT_PATH` | Path to the Godot executable (overrides auto-detection) |
 | `DEBUG` | Set to `"true"` for detailed server-side logging. This also runs the headless operations script with `--debug-godot`, which logs diagnostics and writes a temporary write-access probe file into the project (removed again on every branch). Parameter values are summarized by type and size in both logs, never printed. |
-| `GODOT_MCP_ALLOWED_DIRS` | Optional. Restrict `run_project` to projects under these roots (`;`, `,`, or `:` separated). When unset, any project path is allowed. |
+| `GODOT_MCP_ALLOWED_DIRS` | Optional. Restrict `run_project` to projects under these roots (`;`, `,`, or `:` separated). When unset and no MCP client roots are provided, filesystem access is denied unless `GODOT_MCP_ALLOW_UNRESTRICTED` is set. |
 | `GODOT_MCP_AUTHORING_MODE` | Optional, default `persistent`. `persistent` reuses a headed Godot process and avoids startup cost on each scene or resource call. `headless` opens no helper window and runs each authoring call through its declared one-shot `--headless` subprocess fallback. This does not change the headed `run_project` path. |
 | `GODOT_MCP_RUNTIME_SECRET` | Optional explicit shared runtime secret. The MCP server generates a fresh 256-bit value when omitted and passes it only to Godot processes it launches. Set the same value manually only when connecting to a separately launched runtime. |
 | `GODOT_MCP_EDITOR_START_PAUSED` | Optional, default `false`. Start the editor addon's cooperative lock in human-editing mode so mutating MCP tools are refused until **Resume Agent** is pressed. |
@@ -317,6 +318,8 @@ the event name, runtime component, numeric session ID, and timestamp.
 | `GODOT_MCP_LEGACY_JSON_TEXT` | Optional, default `true`. Set to `false` for clients that read MCP `structuredContent` to omit the extra compatibility JSON text block and reduce repeated output. Bundled adapters set this to `false`. |
 | `GODOT_MCP_PRIVILEGED_GROUPS` | Optional comma-separated least-privilege grants: `reflection`, `code-execution`, and/or `network`. All are denied by default. |
 | `GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS` | Optional, default `false`. Explicitly enable runtime `eval`, arbitrary property/method access, script control, RPC, HTTP, and WebSocket commands for a trusted localhost developer workflow. |
+| `GODOT_MCP_ALLOW_UNRESTRICTED` | Optional, default `false`. Explicitly re-enable the legacy open path mode when neither `GODOT_MCP_ALLOWED_DIRS` nor MCP client roots are configured. Without roots and without this flag, filesystem access is denied. |
+| `GODOT_MCP_ALLOW_INSECURE_RUNTIME` | Optional, default `false`. Set in the Godot runtime process to restore the legacy unauthenticated handshake for a separately launched runtime that cannot receive `GODOT_MCP_RUNTIME_SECRET`. Keep off whenever the runtime can receive the shared secret. |
 
 ### Structured runtime evidence
 

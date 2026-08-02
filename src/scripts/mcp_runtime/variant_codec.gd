@@ -343,8 +343,10 @@ func _decode_typed_wrapper(wrapper: Dictionary, outer_hint: String, depth: int) 
 		})
 	var wrapped: Variant = wrapper.get("value")
 	if wrapper_type == "Resource":
-		if not wrapped is String or not str(wrapped).begins_with("res://") or not ResourceLoader.exists(str(wrapped)):
-			return _fail("invalid_variant_shape", "Resource wrappers require an existing res:// path", {
+		if not wrapped is String or not str(wrapped).begins_with("res://") \
+				or not CommandParams.is_safe_resource_path(str(wrapped)) \
+				or not ResourceLoader.exists(str(wrapped)):
+			return _fail("invalid_variant_shape", "Resource wrappers require an existing res:// path inside the project", {
 				"target_type": "Resource", "accepted_shape": "res://path/to/resource.tres",
 			})
 		return load(str(wrapped))

@@ -63,7 +63,11 @@ func _cmd_audio_play(params: Dictionary) -> void:
 
 	# Optionally load a new stream
 	if params.has("stream"):
-		var stream_path: String = params["stream"]
+		var stream_path: String = str(params["stream"])
+		if not CommandParams.is_safe_resource_path(stream_path):
+			reader.fail("stream must be a res:// or user:// path inside the project", {"param": "stream", "reason": "invalid_value", "value": stream_path})
+			send_params_error(reader)
+			return
 		var stream: AudioStream = load(stream_path) as AudioStream
 		if stream == null:
 			respond({"error": "Failed to load audio stream: %s" % stream_path})
@@ -196,7 +200,7 @@ func _cmd_create_animation(params: Dictionary) -> void:
 					anim.bezier_track_insert_key(idx, time, value)
 				Animation.TYPE_AUDIO:
 					var stream_path: String = CommandParams.json_string(key_data, "stream")
-					if not stream_path.is_empty():
+					if not stream_path.is_empty() and CommandParams.is_safe_resource_path(stream_path):
 						var stream: AudioStream = load(stream_path) as AudioStream
 						if stream != null:
 							@warning_ignore("return_value_discarded")
@@ -319,6 +323,10 @@ func _cmd_animation_tree(params: Dictionary) -> void:
 		"set_param":
 			var param_name: String = CommandParams.json_string(params, "param_name")
 			var param_value: Variant = params.get("param_value", 0)
+			if not _valid_animation_param_name(param_name):
+				reader.fail("param_name is not a valid AnimationTree parameter name", {"param": "param_name", "reason": "invalid_value", "value": param_name})
+				send_params_error(reader)
+				return
 			tree.set("parameters/" + param_name, param_value)
 			respond({"success": true, "action": "set_param", "param": param_name})
 		"get_state":
@@ -561,6 +569,20 @@ func _attenuation_model_name(model: AudioStreamPlayer3D.AttenuationModel) -> Str
 		AudioStreamPlayer3D.ATTENUATION_LOGARITHMIC: return "logarithmic"
 		AudioStreamPlayer3D.ATTENUATION_DISABLED: return "disabled"
 		_: return "inverse"
+
+
+# AnimationTree parameter names are set through the "parameters/" virtual
+# property path, so a crafted name cannot address a real object property. This
+# format check still keeps the write bounded to plausible parameter identifiers.
+func _valid_animation_param_name(value: String) -> bool:
+	if value.is_empty() or value.length() > 128:
+		return false
+	for character: String in value:
+		if character.is_valid_identifier() or (character >= "0" and character <= "9") \
+				or character == "/" or character == "." or character == "-":
+			continue
+		return false
+	return true
 
 
 # ==========================================================================

@@ -471,7 +471,10 @@ export class GodotServer {
       this.rootsInitialized = true;
       if (pathSecurity.unrestrictedLegacyMode && !this.legacyRootsWarningEmitted) {
         this.legacyRootsWarningEmitted = true;
-        console.error('[SERVER] Warning: no MCP client roots or GODOT_MCP_ALLOWED_DIRS are configured; legacy unrestricted path mode is active.');
+        console.error('[SERVER] Warning: legacy unrestricted path mode is active because GODOT_MCP_ALLOW_UNRESTRICTED is set and no MCP client roots or GODOT_MCP_ALLOWED_DIRS are configured.');
+      } else if (!pathSecurity.hasConfiguredRoots && !pathSecurity.unrestrictedLegacyMode && !this.legacyRootsWarningEmitted) {
+        this.legacyRootsWarningEmitted = true;
+        console.error('[SERVER] Warning: no MCP client roots or GODOT_MCP_ALLOWED_DIRS are configured; filesystem access is denied. Configure GODOT_MCP_ALLOWED_DIRS, provide client roots, or set GODOT_MCP_ALLOW_UNRESTRICTED=true to allow all paths.');
       }
       return;
     }

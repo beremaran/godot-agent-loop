@@ -251,8 +251,7 @@ describe('PathSecurity', () => {
     const outsideDirectory = join(workspace, 'outside');
     mkdirSync(project, { recursive: true });
     mkdirSync(outsideDirectory);
-    writeFileSync(join(project, 'project.godot'), '');
-    symlinkSync(outsideDirectory, join(project, 'linked-outside'));
+    writeFileSync(join(project, 'project.godot'), '');    symlinkSync(outsideDirectory, join(project, 'linked-outside'));
 
     const security = new PathSecurity([allowedRoot]);
 
@@ -302,6 +301,57 @@ describe('PathSecurity', () => {
 
     expect(security.canonicalProjectPath(project)).toBeNull();
     expect(resolver).toHaveBeenCalledTimes(2);
+  });
+
+  it('denies all paths by default without roots or an explicit unrestricted opt-in', () => {
+    const workspace = makeTemporaryDirectory();
+    const previous = process.env.GODOT_MCP_ALLOWED_DIRS;
+    const previousOptIn = process.env.GODOT_MCP_ALLOW_UNRESTRICTED;
+    delete process.env.GODOT_MCP_ALLOWED_DIRS;
+    delete process.env.GODOT_MCP_ALLOW_UNRESTRICTED;
+    try {
+      const security = new PathSecurity([]);
+      expect(security.unrestrictedLegacyMode).toBe(false);
+      expect(security.isProjectPathAllowed(workspace)).toBe(false);
+    } finally {
+      if (previous === undefined) delete process.env.GODOT_MCP_ALLOWED_DIRS;
+      else process.env.GODOT_MCP_ALLOWED_DIRS = previous;
+      if (previousOptIn === undefined) delete process.env.GODOT_MCP_ALLOW_UNRESTRICTED;
+      else process.env.GODOT_MCP_ALLOW_UNRESTRICTED = previousOptIn;
+    }
+  });
+
+  it('enables legacy unrestricted mode only when explicitly opted in', () => {
+    const workspace = makeTemporaryDirectory();
+    const previous = process.env.GODOT_MCP_ALLOWED_DIRS;
+    const previousOptIn = process.env.GODOT_MCP_ALLOW_UNRESTRICTED;
+    delete process.env.GODOT_MCP_ALLOWED_DIRS;
+    process.env.GODOT_MCP_ALLOW_UNRESTRICTED = 'true';
+    try {
+      const security = new PathSecurity([]);
+      expect(security.unrestrictedLegacyMode).toBe(true);
+      expect(security.isProjectPathAllowed(workspace)).toBe(true);
+    } finally {
+      if (previous === undefined) delete process.env.GODOT_MCP_ALLOWED_DIRS;
+      else process.env.GODOT_MCP_ALLOWED_DIRS = previous;
+      if (previousOptIn === undefined) delete process.env.GODOT_MCP_ALLOW_UNRESTRICTED;
+      else process.env.GODOT_MCP_ALLOW_UNRESTRICTED = previousOptIn;
+    }
+  });
+
+  it('keeps unrestricted mode off when roots are configured even with the opt-in', () => {
+    const workspace = makeTemporaryDirectory();
+    const allowedRoot = join(workspace, 'allowed');
+    mkdirSync(allowedRoot, { recursive: true });
+    const previousOptIn = process.env.GODOT_MCP_ALLOW_UNRESTRICTED;
+    process.env.GODOT_MCP_ALLOW_UNRESTRICTED = 'true';
+    try {
+      const security = new PathSecurity([allowedRoot]);
+      expect(security.unrestrictedLegacyMode).toBe(false);
+    } finally {
+      if (previousOptIn === undefined) delete process.env.GODOT_MCP_ALLOW_UNRESTRICTED;
+      else process.env.GODOT_MCP_ALLOW_UNRESTRICTED = previousOptIn;
+    }
   });
 });
 

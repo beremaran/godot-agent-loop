@@ -134,9 +134,9 @@ vi.mock('fs', () => {
     readdirSync: vi.fn((dir, options) => {
       if (options?.withFileTypes) {
         return [
-          { name: 'main.tscn', isFile: () => true, isDirectory: () => false },
-          { name: 'player.gd', isFile: () => true, isDirectory: () => false },
-          { name: 'icon.png', isFile: () => true, isDirectory: () => false },
+          { name: 'main.tscn', isFile: () => true, isDirectory: () => false, isSymbolicLink: () => false },
+          { name: 'player.gd', isFile: () => true, isDirectory: () => false, isSymbolicLink: () => false },
+          { name: 'icon.png', isFile: () => true, isDirectory: () => false, isSymbolicLink: () => false },
         ] as any;
       }
       return ['main.tscn', 'player.gd', 'icon.png', 'project.csproj'] as any;

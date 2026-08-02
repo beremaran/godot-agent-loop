@@ -33,6 +33,10 @@ coverage/
 # MCP Registry tokens
 .mcpregistry_*
 
+# Local, machine-specific tool configs (generate with `godot-agent-loop setup opencode`)
+opencode.jsonc
+opencode.json
+
 # Created by https://www.toptal.com/developers/gitignore/api/linux,macos,windows,visualstudiocode,jetbrains+all,node,godot
 # Edit at https://www.toptal.com/developers/gitignore?templates=linux,macos,windows,visualstudiocode,jetbrains+all,node,godot
 

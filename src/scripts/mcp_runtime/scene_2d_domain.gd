@@ -8,6 +8,7 @@ extends "res://mcp_runtime/runtime_domain.gd"
 # with the scene; the accumulated draw commands survive scene changes.
 var _canvas_draw_node: Node2D = null
 var _draw_commands: Array = []
+const MAX_DRAW_COMMANDS: int = 4096
 
 
 # The draw node is parented into the scene, not under this domain, so it would
@@ -246,6 +247,8 @@ func _cmd_canvas_draw(params: Dictionary) -> void:
 		parent.add_child(_canvas_draw_node)
 		_canvas_draw_node.set("draw_commands", _draw_commands)
 	_draw_commands.append({"action": action, "params": params, "color": _color_from(color)})
+	if _draw_commands.size() > MAX_DRAW_COMMANDS:
+		_draw_commands.pop_front()
 	_canvas_draw_node.set("draw_commands", _draw_commands)
 	_canvas_draw_node.queue_redraw()
 	respond({"success": true, "action": action})

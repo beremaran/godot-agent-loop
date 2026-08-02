@@ -191,7 +191,46 @@ func required_resource_path(name: String) -> String:
 	if not (value.begins_with("res://") or value.begins_with("user://")):
 		_fail_param(name, "invalid_value", "%s must be a res:// or user:// path" % name, {"value": value})
 		return ""
+	if not _safe_relative_path(value):
+		_fail_param(name, "invalid_value", "%s must stay within the project" % name, {"value": value})
+		return ""
 	return value
+
+
+func optional_resource_path(name: String, default_value: String = "") -> String:
+	var value: String = optional_string(name, default_value)
+	if failed() or value == default_value:
+		return value
+	if not (value.begins_with("res://") or value.begins_with("user://")):
+		_fail_param(name, "invalid_value", "%s must be a res:// or user:// path" % name, {"value": value})
+		return default_value
+	if not _safe_relative_path(value):
+		_fail_param(name, "invalid_value", "%s must stay within the project" % name, {"value": value})
+		return default_value
+	return value
+
+
+# Rejects resource paths that escape their scheme's root (.. segments, empty
+# relative target, or a target that only contains separators). Static so every
+# load()/ResourceLoader.load() call site can use it without a reader.
+static func is_safe_resource_path(resource_path: String) -> bool:
+	if not (resource_path.begins_with("res://") or resource_path.begins_with("user://")):
+		return false
+	var relative: String = resource_path
+	if relative.begins_with("res://"):
+		relative = relative.trim_prefix("res://")
+	else:
+		relative = relative.trim_prefix("user://")
+	if relative.is_empty():
+		return false
+	var segments: PackedStringArray = relative.replace("\\", "/").split("/", false)
+	return not segments.has("..")
+
+
+# Rejects resource paths that escape their scheme's root (.. segments, empty
+# relative target, or a target that only contains separators).
+func _safe_relative_path(resource_path: String) -> bool:
+	return is_safe_resource_path(resource_path)
 
 
 # --- Variant narrowing at the JSON boundary ---

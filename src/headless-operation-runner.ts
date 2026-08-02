@@ -1,5 +1,6 @@
 import { execFile } from 'child_process';
 import { promisify } from 'util';
+import { isAbsolute } from 'path';
 import { convertCamelToSnakeCase, type OperationParams } from './utils.js';
 import type { DebugLogger } from './godot-executable.js';
 import { GODOT_COMMAND_OPTIONS } from './godot-subprocess.js';
@@ -49,6 +50,9 @@ export class HeadlessOperationRunner {
   constructor(private readonly options: HeadlessOperationRunnerOptions) {}
 
   async execute(operation: string, params: OperationParams, projectPath: string): Promise<HeadlessOperationResult> {
+    if (!projectPath || !isAbsolute(projectPath) || projectPath.startsWith('-')) {
+      throw new Error('Project path must be an absolute path.');
+    }
     const signal = currentExecutionContext()?.signal;
     throwIfCancelled(signal);
     const logDebug = this.options.logDebug ?? (() => undefined);

@@ -7727,7 +7727,7 @@
     {
       "name": "ResourceLoader",
       "bucket": "tooled",
-      "why": "src/scripts/godot_operations.gd, src/scripts/mcp_runtime/rendering_domain.gd, src/scripts/mcp_runtime/scene_3d_domain.gd, src/scripts/mcp_runtime/system_domain.gd, src/scripts/mcp_runtime/variant_codec.gd, src/scripts/validate_script.gd, src/tool-catalog-metadata.ts, addons/godot_agent_loop/plugin.gd",
+      "why": "src/scripts/godot_operations.gd, src/scripts/mcp_runtime/command_params.gd, src/scripts/mcp_runtime/rendering_domain.gd, src/scripts/mcp_runtime/scene_3d_domain.gd, src/scripts/mcp_runtime/system_domain.gd, src/scripts/mcp_runtime/variant_codec.gd, src/scripts/validate_script.gd, src/tool-catalog-metadata.ts, addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": true,
       "is_node": false,

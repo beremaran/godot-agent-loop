@@ -54,7 +54,9 @@ func _cmd_csg(params: Dictionary) -> void:
 				(node as CSGCylinder3D).height = CommandParams.to_float(params["height"])
 		if params.has("material"):
 			var material_path: String = reader.optional_string("material")
-			if not ResourceLoader.exists(material_path):
+			if not CommandParams.is_safe_resource_path(material_path):
+				reader.fail("material must be a res:// or user:// path inside the project", {"param": "material", "reason": "invalid_value", "value": material_path})
+			elif not ResourceLoader.exists(material_path):
 				reader.fail("Material resource not found: %s" % material_path, {"param": "material", "reason": "resource_not_found", "value": material_path})
 			elif not "material" in node:
 				reader.fail("material is not supported by this CSG shape", {"param": "material", "reason": "invalid_value", "csg_type": csg_type})

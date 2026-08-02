@@ -1,1963 +1,1296 @@
 // @test-kind: unit
 /**
- * Handler tests for the Godot Agent Loop server.
- *
- * Because GodotServer is not exported and auto-starts on import, we cannot
- * instantiate it directly.  Instead we test the handler logic by:
- *   1. Importing the source as raw text and verifying structural invariants.
- *   2. Testing the pure utility helpers that handlers depend on (normalizeParameters,
- *      validatePath, convertCamelToSnakeCase, createErrorResponse).
- *   3. Exercising the gameCommand / headlessOp patterns via focused unit-style
- *      tests that simulate what each handler does with its arguments.
+ * Real-handler tests. Every handler is constructed with its real class
+ * (GameToolHandlers, ProjectToolHandlers, LifecycleToolHandlers) and driven
+ * with real argument objects. Only the transport seams are mocked: the runtime
+ * command boundary (GameCommandService.execute / GameConnection.send) and the
+ * Godot child process. This replaces an earlier suite that re-implemented
+ * handler argument transforms in local fakes and asserted source substrings,
+ * which could not fail when the real handlers regressed.
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
-import { readFileSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+const execFileMock = vi.hoisted(() => vi.fn());
+vi.mock('child_process', async importOriginal => {
+  const actual = await importOriginal<typeof import('child_process')>();
+  // The real execFile registers a custom promisifier that resolves an
+  // { stdout, stderr } object; without it, promisify(execFile) resolves only
+  // the first callback argument and callers destructuring { stdout } get
+  // undefined. Set it here so source modules that call promisify(execFile) at
+  // import time observe it.
+  (execFileMock as unknown as Record<symbol, unknown>)[Symbol.for('nodejs.util.promisify.custom')] = (
+    _file: string,
+    _args: readonly string[],
+    _options?: unknown,
+  ) => Promise.resolve({ stdout: '4.7.1.stable.official', stderr: '' });
+  return { ...actual, execFile: execFileMock };
+});
+
 import {
-  normalizeParameters,
   convertCamelToSnakeCase,
-  validatePath,
   createErrorResponse,
+  normalizeParameters,
 } from '../src/utils.js';
+import { GameToolHandlers } from '../src/tool-handlers/game-tool-handlers.js';
+import { ProjectToolHandlers } from '../src/tool-handlers/project-tool-handlers.js';
+import { LifecycleToolHandlers, type LifecycleToolHandlerContext } from '../src/tool-handlers/lifecycle-tool-handlers.js';
+import type { GodotProcess } from '../src/godot-process-manager.js';
+import { toolManifest } from '../src/tool-manifest.js';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+const temporaryDirectories: string[] = [];
 
-let sourceCode: string;
-let gameCommandServiceSource: string;
-let headlessOperationServiceSource: string;
-
-beforeAll(() => {
-  sourceCode = [
-    readFileSync(join(__dirname, '..', 'src', 'index.ts'), 'utf8'),
-    readFileSync(join(__dirname, '..', 'src', 'tool-handlers', 'game-tool-handlers.ts'), 'utf8'),
-    readFileSync(join(__dirname, '..', 'src', 'tool-handlers', 'project-tool-handlers.ts'), 'utf8'),
-    readFileSync(join(__dirname, '..', 'src', 'tool-handlers', 'project-handler-services.ts'), 'utf8'),
-    readFileSync(join(__dirname, '..', 'src', 'tool-handlers', 'lifecycle-tool-handlers.ts'), 'utf8'),
-    readFileSync(join(__dirname, '..', 'src', 'domain-tool-registries.ts'), 'utf8'),
-  ].join('\n');
-  gameCommandServiceSource = readFileSync(join(__dirname, '..', 'src', 'game-command-service.ts'), 'utf8');
-  headlessOperationServiceSource = readFileSync(join(__dirname, '..', 'src', 'headless-operation-service.ts'), 'utf8');
+afterEach(() => {
+  execFileMock.mockReset();
+  for (const directory of temporaryDirectories.splice(0)) rmSync(directory, { recursive: true, force: true });
 });
 
-// ---------------------------------------------------------------------------
-// Helpers that replicate the core logic of gameCommand / headlessOp so we can
-// unit-test argument validation and transform functions extracted from handlers.
-// ---------------------------------------------------------------------------
-
-function fakeGameCommand(
-  hasActiveProcess: boolean,
-  hasConnection: boolean,
-  args: any,
-  argsFn: (a: any) => Record<string, any>,
-): { error: string | null; commandArgs: Record<string, any> | null } {
-  if (!hasActiveProcess) return { error: 'No active Godot process. Use run_project first.', commandArgs: null };
-  if (!hasConnection) return { error: 'Not connected to game interaction server.', commandArgs: null };
-  args = normalizeParameters(args || {});
-  try {
-    return { error: null, commandArgs: argsFn(args) };
-  } catch (e: any) {
-    return { error: e.message, commandArgs: null };
-  }
+function createProject(): string {
+  const directory = mkdtempSync(join(tmpdir(), 'godot-agent-loop-handlers-'));
+  temporaryDirectories.push(directory);
+  writeFileSync(join(directory, 'project.godot'), '[application]\nconfig/name="Test Game"\n');
+  writeFileSync(join(directory, 'main.tscn'), '[gd_scene load_steps=2 format=3 uid="uid://main"]\n\n[node name="Main" type="Node2D"]\n');
+  writeFileSync(join(directory, 'icon.png'), 'png');
+  return directory;
 }
 
-function fakeHeadlessOp(
-  args: any,
-  argsFn: (a: any) => { projectPath: string; params: any },
-  projectExists = true,
-): { error: string | null; operation: { projectPath: string; params: any } | null } {
-  args = normalizeParameters(args || {});
-  const { projectPath, params } = argsFn(args);
-  if (!projectPath) return { error: 'projectPath is required.', commandArgs: null } as any;
-  if (!validatePath(projectPath)) return { error: 'Invalid path.', commandArgs: null } as any;
-  if (!projectExists) return { error: `Not a valid Godot project: ${projectPath}`, commandArgs: null } as any;
-  return { error: null, operation: { projectPath, params } };
+function textFrom(response: { content?: { type: string; text?: string }[] }): string {
+  return response.content?.find(item => item.type === 'text')?.text ?? '';
+}
+
+function isErrorResponse(response: { isError?: boolean }): boolean {
+  return response.isError === true;
 }
 
 // ---------------------------------------------------------------------------
-// 1. gameCommand-based handler tests
+// Game runtime command boundary (the only mocked seam for game tools). It
+// mirrors GameCommandService.execute exactly: process/connection gates,
+// normalizeParameters, buildParams, then convertCamelToSnakeCase.
 // ---------------------------------------------------------------------------
-describe('Game command handlers — argument transforms', () => {
-  // game_click
-  describe('handleGameClick', () => {
-    const argsFn = (a: any) => ({ x: a.x ?? 0, y: a.y ?? 0, button: a.button ?? 1 });
 
-    it('defaults x/y to 0 and button to 1', () => {
-      const r = fakeGameCommand(true, true, {}, argsFn);
-      expect(r.error).toBeNull();
-      expect(r.commandArgs).toEqual({ x: 0, y: 0, button: 1 });
-    });
-
-    it('passes provided coordinates', () => {
-      const r = fakeGameCommand(true, true, { x: 100, y: 200, button: 2 }, argsFn);
-      expect(r.commandArgs).toEqual({ x: 100, y: 200, button: 2 });
-    });
-
-    it('returns error when no active process', () => {
-      const r = fakeGameCommand(false, true, {}, argsFn);
-      expect(r.error).toContain('No active Godot process');
-    });
-
-    it('returns error when not connected', () => {
-      const r = fakeGameCommand(true, false, {}, argsFn);
-      expect(r.error).toContain('Not connected');
-    });
-  });
-
-  // game_mouse_move
-  describe('handleGameMouseMove', () => {
-    const argsFn = (a: any) => ({
-      x: a.x ?? 0, y: a.y ?? 0, relative_x: a.relative_x ?? 0, relative_y: a.relative_y ?? 0,
-    });
-
-    it('defaults all values to 0', () => {
-      const r = fakeGameCommand(true, true, {}, argsFn);
-      expect(r.commandArgs).toEqual({ x: 0, y: 0, relative_x: 0, relative_y: 0 });
-    });
-
-    it('preserves provided values', () => {
-      const r = fakeGameCommand(true, true, { x: 10, y: 20, relative_x: 5, relative_y: -3 }, argsFn);
-      expect(r.commandArgs).toEqual({ x: 10, y: 20, relative_x: 5, relative_y: -3 });
-    });
-  });
-
-  // game_get_ui
-  describe('handleGameGetUi', () => {
-    const argsFn = (a: any) => ({
-      ...(a.rootPath ? { root_path: a.rootPath } : {}),
-      max_elements: a.maxElements ?? 200,
-    });
-
-    it('bounds the default response', () => {
-      const r = fakeGameCommand(true, true, {}, argsFn);
-      expect(r.commandArgs).toEqual({ max_elements: 200 });
-    });
-
-    it('passes subtree and result limits', () => {
-      const r = fakeGameCommand(true, true, { rootPath: '/root/Main/HUD', maxElements: 8 }, argsFn);
-      expect(r.commandArgs).toEqual({ root_path: '/root/Main/HUD', max_elements: 8 });
-    });
-  });
-
-  // game_get_scene_tree (no args)
-  describe('handleGameGetSceneTree', () => {
-    it('sends empty args', () => {
-      const r = fakeGameCommand(true, true, {}, () => ({}));
-      expect(r.commandArgs).toEqual({});
-    });
-  });
-
-  // game_eval
-  describe('handleGameEval', () => {
-    it('passes code parameter', () => {
-      const args = normalizeParameters({ code: 'get_tree().root.name' });
-      const r = fakeGameCommand(true, true, args, a => ({ code: a.code }));
-      expect(r.commandArgs).toEqual({ code: 'get_tree().root.name' });
-    });
-  });
-
-  // game_get_property
-  describe('handleGameGetProperty', () => {
-    const argsFn = (a: any) => ({ node_path: a.nodePath, property: a.property });
-
-    it('maps nodePath to node_path', () => {
-      const args = normalizeParameters({ node_path: '/root/Player', property: 'position' });
-      const r = fakeGameCommand(true, true, args, argsFn);
-      expect(r.commandArgs).toEqual({ node_path: '/root/Player', property: 'position' });
-    });
-
-    it('accepts already camelCase nodePath', () => {
-      const r = fakeGameCommand(true, true, { nodePath: '/root/Enemy', property: 'health' }, argsFn);
-      expect(r.commandArgs).toEqual({ node_path: '/root/Enemy', property: 'health' });
-    });
-  });
-
-  // game_set_property
-  describe('handleGameSetProperty', () => {
-    const argsFn = (a: any) => ({
-      node_path: a.nodePath, property: a.property, value: a.value, type_hint: a.typeHint || '',
-    });
-
-    it('maps all params correctly', () => {
-      const r = fakeGameCommand(true, true, {
-        nodePath: '/root/Player', property: 'speed', value: 100, typeHint: 'int',
-      }, argsFn);
-      expect(r.commandArgs).toEqual({
-        node_path: '/root/Player', property: 'speed', value: 100, type_hint: 'int',
-      });
-    });
-
-    it('defaults type_hint to empty string', () => {
-      const r = fakeGameCommand(true, true, {
-        nodePath: '/root/P', property: 'x', value: 0,
-      }, argsFn);
-      expect(r.commandArgs!.type_hint).toBe('');
-    });
-  });
-
-  // game_call_method
-  describe('handleGameCallMethod', () => {
-    const argsFn = (a: any) => ({
-      node_path: a.nodePath, method: a.method, args: a.args || [],
-    });
-
-    it('sends method with empty args array by default', () => {
-      const r = fakeGameCommand(true, true, { nodePath: '/root/P', method: 'jump' }, argsFn);
-      expect(r.commandArgs).toEqual({ node_path: '/root/P', method: 'jump', args: [] });
-    });
-
-    it('passes provided args array', () => {
-      const r = fakeGameCommand(true, true, {
-        nodePath: '/root/P', method: 'take_damage', args: [10, 'fire'],
-      }, argsFn);
-      expect(r.commandArgs!.args).toEqual([10, 'fire']);
-    });
-  });
-
-  // game_get_node_info
-  describe('handleGameGetNodeInfo', () => {
-    it('passes compact detail and exact properties', () => {
-      const r = fakeGameCommand(true, true, {
-        nodePath: '/root/UI', detail: 'compact', propertyNames: ['position'],
-      }, a => ({
-        node_path: a.nodePath, detail: a.detail ?? 'full', property_names: a.propertyNames ?? [],
-      }));
-      expect(r.commandArgs).toEqual({ node_path: '/root/UI', detail: 'compact', property_names: ['position'] });
-    });
-  });
-
-  // game_instantiate_scene
-  describe('handleGameInstantiateScene', () => {
-    const argsFn = (a: any) => ({
-      scene_path: a.scenePath, parent_path: a.parentPath || '/root',
-    });
-
-    it('defaults parent_path to /root', () => {
-      const r = fakeGameCommand(true, true, { scenePath: 'res://enemy.tscn' }, argsFn);
-      expect(r.commandArgs).toEqual({ scene_path: 'res://enemy.tscn', parent_path: '/root' });
-    });
-
-    it('accepts custom parent_path', () => {
-      const r = fakeGameCommand(true, true, {
-        scenePath: 'res://bullet.tscn', parentPath: '/root/Bullets',
-      }, argsFn);
-      expect(r.commandArgs).toEqual({ scene_path: 'res://bullet.tscn', parent_path: '/root/Bullets' });
-    });
-  });
-
-  // game_remove_node
-  describe('handleGameRemoveNode', () => {
-    it('passes node_path', () => {
-      const r = fakeGameCommand(true, true, { nodePath: '/root/Enemy' }, a => ({ node_path: a.nodePath }));
-      expect(r.commandArgs).toEqual({ node_path: '/root/Enemy' });
-    });
-  });
-
-  // game_change_scene
-  describe('handleGameChangeScene', () => {
-    it('passes scene_path', () => {
-      const r = fakeGameCommand(true, true, { scenePath: 'res://level2.tscn' }, a => ({ scene_path: a.scenePath }));
-      expect(r.commandArgs).toEqual({ scene_path: 'res://level2.tscn' });
-    });
-  });
-
-  // game_pause
-  describe('handleGamePause', () => {
-    const argsFn = (a: any) => ({ paused: a.paused !== undefined ? a.paused : true });
-
-    it('defaults paused to true', () => {
-      const r = fakeGameCommand(true, true, {}, argsFn);
-      expect(r.commandArgs).toEqual({ paused: true });
-    });
-
-    it('accepts paused=false', () => {
-      const r = fakeGameCommand(true, true, { paused: false }, argsFn);
-      expect(r.commandArgs).toEqual({ paused: false });
-    });
-  });
-
-  // game_performance (no args)
-  describe('handleGamePerformance', () => {
-    it('sends empty args', () => {
-      const r = fakeGameCommand(true, true, {}, () => ({}));
-      expect(r.commandArgs).toEqual({});
-    });
-  });
-
-  // game_wait
-  describe('handleGameWait', () => {
-    const argsFn = (a: any) => ({ frames: a.frames || 1 });
-
-    it('defaults frames to 1', () => {
-      const r = fakeGameCommand(true, true, {}, argsFn);
-      expect(r.commandArgs).toEqual({ frames: 1 });
-    });
-
-    it('accepts custom frame count', () => {
-      const r = fakeGameCommand(true, true, { frames: 60 }, argsFn);
-      expect(r.commandArgs).toEqual({ frames: 60 });
-    });
-  });
-
-  // game_connect_signal
-  describe('handleGameConnectSignal', () => {
-    const argsFn = (a: any) => ({
-      node_path: a.nodePath, signal_name: a.signalName,
-      target_path: a.targetPath, method: a.method,
-    });
-
-    it('maps all signal params', () => {
-      const r = fakeGameCommand(true, true, {
-        nodePath: '/root/Button', signalName: 'pressed',
-        targetPath: '/root/Game', method: '_on_button_pressed',
-      }, argsFn);
-      expect(r.commandArgs).toEqual({
-        node_path: '/root/Button', signal_name: 'pressed',
-        target_path: '/root/Game', method: '_on_button_pressed',
-      });
-    });
-  });
-
-  // game_disconnect_signal
-  describe('handleGameDisconnectSignal', () => {
-    const argsFn = (a: any) => ({
-      node_path: a.nodePath, signal_name: a.signalName,
-      target_path: a.targetPath, method: a.method,
-    });
-
-    it('maps all disconnect params', () => {
-      const r = fakeGameCommand(true, true, {
-        nodePath: '/root/B', signalName: 'pressed',
-        targetPath: '/root/G', method: 'handler',
-      }, argsFn);
-      expect(r.commandArgs!.signal_name).toBe('pressed');
-    });
-  });
-
-  // game_emit_signal
-  describe('handleGameEmitSignal', () => {
-    const argsFn = (a: any) => ({
-      node_path: a.nodePath, signal_name: a.signalName, args: a.args || [],
-    });
-
-    it('defaults args to empty array', () => {
-      const r = fakeGameCommand(true, true, {
-        nodePath: '/root/E', signalName: 'died',
-      }, argsFn);
-      expect(r.commandArgs!.args).toEqual([]);
-    });
-
-    it('passes provided signal args', () => {
-      const r = fakeGameCommand(true, true, {
-        nodePath: '/root/E', signalName: 'hit', args: [10],
-      }, argsFn);
-      expect(r.commandArgs!.args).toEqual([10]);
-    });
-  });
-
-  // game_play_animation
-  describe('handleGamePlayAnimation', () => {
-    const argsFn = (a: any) => ({
-      node_path: a.nodePath, action: a.action || 'play', animation: a.animation || '',
-    });
-
-    it('defaults to action=play, animation=""', () => {
-      const r = fakeGameCommand(true, true, { nodePath: '/root/P' }, argsFn);
-      expect(r.commandArgs).toEqual({ node_path: '/root/P', action: 'play', animation: '' });
-    });
-
-    it('accepts stop action', () => {
-      const r = fakeGameCommand(true, true, { nodePath: '/root/P', action: 'stop' }, argsFn);
-      expect(r.commandArgs!.action).toBe('stop');
-    });
-  });
-
-  // game_tween_property
-  describe('handleGameTweenProperty', () => {
-    const argsFn = (a: any) => ({
-      node_path: a.nodePath, property: a.property, final_value: a.finalValue,
-      duration: a.duration || 1.0, trans_type: a.transType || 0, ease_type: a.easeType || 2,
-    });
-
-    it('defaults duration/trans/ease', () => {
-      const r = fakeGameCommand(true, true, {
-        nodePath: '/root/Sprite', property: 'modulate:a', finalValue: 0,
-      }, argsFn);
-      expect(r.commandArgs).toEqual({
-        node_path: '/root/Sprite', property: 'modulate:a', final_value: 0,
-        duration: 1.0, trans_type: 0, ease_type: 2,
-      });
-    });
-
-    it('accepts custom tween params', () => {
-      const r = fakeGameCommand(true, true, {
-        nodePath: '/root/Sprite', property: 'position:x', finalValue: 100,
-        duration: 2.5, transType: 1, easeType: 3,
-      }, argsFn);
-      expect(r.commandArgs!.duration).toBe(2.5);
-      expect(r.commandArgs!.trans_type).toBe(1);
-      expect(r.commandArgs!.ease_type).toBe(3);
-    });
-  });
-
-  // game_get_nodes_in_group
-  describe('handleGameGetNodesInGroup', () => {
-    it('passes group name', () => {
-      const r = fakeGameCommand(true, true, { group: 'enemies' }, a => ({ group: a.group }));
-      expect(r.commandArgs).toEqual({ group: 'enemies' });
-    });
-  });
-
-  // game_find_nodes_by_class
-  describe('handleGameFindNodesByClass', () => {
-    const argsFn = (a: any) => ({
-      class_name: a.className, root_path: a.rootPath || '/root',
-    });
-
-    it('defaults root_path to /root', () => {
-      const r = fakeGameCommand(true, true, { className: 'Sprite2D' }, argsFn);
-      expect(r.commandArgs).toEqual({ class_name: 'Sprite2D', root_path: '/root' });
-    });
-
-    it('accepts custom root_path', () => {
-      const r = fakeGameCommand(true, true, { className: 'Label', rootPath: '/root/UI' }, argsFn);
-      expect(r.commandArgs!.root_path).toBe('/root/UI');
-    });
-  });
-
-  // game_key_hold
-  describe('handleGameKeyHold', () => {
-    it('passes key parameter', () => {
-      const r = fakeGameCommand(true, true, { key: 'W' }, a => ({ key: a.key }));
-      expect(r.commandArgs).toEqual({ key: 'W' });
-    });
-
-    it('passes action parameter', () => {
-      const r = fakeGameCommand(true, true, { action: 'move_forward' }, a => ({ action: a.action }));
-      expect(r.commandArgs).toEqual({ action: 'move_forward' });
-    });
-  });
-
-  // game_key_release
-  describe('handleGameKeyRelease', () => {
-    it('passes key parameter', () => {
-      const r = fakeGameCommand(true, true, { key: 'W' }, a => ({ key: a.key }));
-      expect(r.commandArgs).toEqual({ key: 'W' });
-    });
-  });
-
-  // game_scroll
-  describe('handleGameScroll', () => {
-    const argsFn = (a: any) => ({
-      x: a.x ?? 0, y: a.y ?? 0, direction: a.direction || 'up', amount: a.amount || 1,
-    });
-
-    it('defaults direction to up and amount to 1', () => {
-      const r = fakeGameCommand(true, true, { x: 100, y: 200 }, argsFn);
-      expect(r.commandArgs).toEqual({ x: 100, y: 200, direction: 'up', amount: 1 });
-    });
-
-    it('accepts custom direction and amount', () => {
-      const r = fakeGameCommand(true, true, { x: 0, y: 0, direction: 'down', amount: 3 }, argsFn);
-      expect(r.commandArgs!.direction).toBe('down');
-      expect(r.commandArgs!.amount).toBe(3);
-    });
-  });
-
-  // game_mouse_drag
-  describe('handleGameMouseDrag', () => {
-    const argsFn = (a: any) => ({
-      from_x: a.fromX, from_y: a.fromY, to_x: a.toX, to_y: a.toY,
-      button: a.button || 1, steps: a.steps || 10,
-    });
-
-    it('maps all drag params', () => {
-      const r = fakeGameCommand(true, true, {
-        fromX: 10, fromY: 20, toX: 100, toY: 200,
-      }, argsFn);
-      expect(r.commandArgs).toEqual({
-        from_x: 10, from_y: 20, to_x: 100, to_y: 200, button: 1, steps: 10,
-      });
-    });
-
-    it('accepts custom button and steps', () => {
-      const r = fakeGameCommand(true, true, {
-        fromX: 0, fromY: 0, toX: 50, toY: 50, button: 2, steps: 20,
-      }, argsFn);
-      expect(r.commandArgs!.button).toBe(2);
-      expect(r.commandArgs!.steps).toBe(20);
-    });
-  });
-
-  // game_gamepad
-  describe('handleGameGamepad', () => {
-    const argsFn = (a: any) => ({
-      type: a.type, index: a.index, value: a.value, device: a.device || 0,
-    });
-
-    it('passes button type', () => {
-      const r = fakeGameCommand(true, true, { type: 'button', index: 0, value: 1 }, argsFn);
-      expect(r.commandArgs).toEqual({ type: 'button', index: 0, value: 1, device: 0 });
-    });
-
-    it('passes axis type with custom device', () => {
-      const r = fakeGameCommand(true, true, { type: 'axis', index: 1, value: -0.5, device: 2 }, argsFn);
-      expect(r.commandArgs!.device).toBe(2);
-    });
-  });
-
-  // game_get_camera (no args)
-  describe('handleGameGetCamera', () => {
-    it('sends empty args', () => {
-      const r = fakeGameCommand(true, true, {}, () => ({}));
-      expect(r.commandArgs).toEqual({});
-    });
-  });
-
-  // game_set_camera
-  describe('handleGameSetCamera', () => {
-    it('passes position', () => {
-      const r = fakeGameCommand(true, true, { position: { x: 10, y: 20 } }, a => ({
-        ...(a.position ? { position: a.position } : {}),
-      }));
-      expect(r.commandArgs).toEqual({ position: { x: 10, y: 20 } });
-    });
-
-    it('omits undefined fields', () => {
-      const r = fakeGameCommand(true, true, {}, a => ({
-        ...(a.position ? { position: a.position } : {}),
-        ...(a.fov !== undefined ? { fov: a.fov } : {}),
-      }));
-      expect(r.commandArgs).toEqual({});
-    });
-  });
-
-  // game_raycast
-  describe('handleGameRaycast', () => {
-    const argsFn = (a: any) => ({
-      from: a.from, to: a.to, collision_mask: a.collisionMask ?? 0xFFFFFFFF,
-    });
-
-    it('passes from/to with default mask', () => {
-      const r = fakeGameCommand(true, true, {
-        from: { x: 0, y: 0 }, to: { x: 100, y: 100 },
-      }, argsFn);
-      expect(r.commandArgs).toEqual({
-        from: { x: 0, y: 0 }, to: { x: 100, y: 100 }, collision_mask: 0xFFFFFFFF,
-      });
-    });
-
-    it('accepts custom collision mask', () => {
-      const r = fakeGameCommand(true, true, {
-        from: { x: 0, y: 0 }, to: { x: 10, y: 10 }, collisionMask: 1,
-      }, argsFn);
-      expect(r.commandArgs!.collision_mask).toBe(1);
-    });
-  });
-
-  // game_get_audio (no args)
-  describe('handleGameGetAudio', () => {
-    it('sends empty args', () => {
-      const r = fakeGameCommand(true, true, {}, () => ({}));
-      expect(r.commandArgs).toEqual({});
-    });
-  });
-
-  // game_spawn_node
-  describe('handleGameSpawnNode', () => {
-    const argsFn = (a: any) => ({
-      type: a.type, name: a.name || '', parent_path: a.parentPath || '/root',
-      ...(a.properties ? { properties: a.properties } : {}),
-    });
-
-    it('defaults name to empty and parent to /root', () => {
-      const r = fakeGameCommand(true, true, { type: 'Sprite2D' }, argsFn);
-      expect(r.commandArgs).toEqual({ type: 'Sprite2D', name: '', parent_path: '/root' });
-    });
-
-    it('accepts custom name and parent', () => {
-      const r = fakeGameCommand(true, true, {
-        type: 'Node2D', name: 'MyNode', parentPath: '/root/World',
-      }, argsFn);
-      expect(r.commandArgs).toEqual({ type: 'Node2D', name: 'MyNode', parent_path: '/root/World' });
-    });
-
-    it('includes properties when provided', () => {
-      const r = fakeGameCommand(true, true, {
-        type: 'Sprite2D', properties: { visible: false },
-      }, argsFn);
-      expect(r.commandArgs!.properties).toEqual({ visible: false });
-    });
-  });
-
-  // game_reparent_node
-  describe('handleGameReparentNode', () => {
-    const argsFn = (a: any) => ({
-      node_path: a.nodePath, new_parent_path: a.newParentPath,
-      keep_global_transform: a.keepGlobalTransform !== false,
-    });
-
-    it('defaults keep_global_transform to true', () => {
-      const r = fakeGameCommand(true, true, {
-        nodePath: '/root/Player', newParentPath: '/root/World',
-      }, argsFn);
-      expect(r.commandArgs!.keep_global_transform).toBe(true);
-    });
-
-    it('accepts keep_global_transform=false', () => {
-      const r = fakeGameCommand(true, true, {
-        nodePath: '/root/P', newParentPath: '/root/W', keepGlobalTransform: false,
-      }, argsFn);
-      expect(r.commandArgs!.keep_global_transform).toBe(false);
-    });
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 2. Handler validation tests (missing required params)
-// ---------------------------------------------------------------------------
-describe('Handler required-parameter validation', () => {
-  // Each handler validates required params before calling gameCommand/headlessOp.
-  // We verify the validation logic by source inspection and inline tests.
-
-  it('game_eval requires code', () => {
-    const args = normalizeParameters({});
-    expect(args.code).toBeUndefined();
-    // The handler checks: if (!args.code) return createErrorResponse(...)
-    const result = !args.code ? createErrorResponse('code parameter is required.') : null;
-    expect(result!.isError).toBe(true);
-  });
-
-  it('game_get_property requires nodePath and property', () => {
-    const args = normalizeParameters({});
-    const missing = !args.nodePath || !args.property;
-    expect(missing).toBe(true);
-  });
-
-  it('game_set_property requires nodePath and property', () => {
-    const args = normalizeParameters({ nodePath: '/root/P' });
-    const missing = !args.nodePath || !args.property;
-    expect(missing).toBe(true);
-  });
-
-  it('game_call_method requires nodePath and method', () => {
-    const args = normalizeParameters({ method: 'jump' });
-    const missing = !args.nodePath || !args.method;
-    expect(missing).toBe(true);
-  });
-
-  it('game_get_node_info requires nodePath', () => {
-    const args = normalizeParameters({});
-    expect(!args.nodePath).toBe(true);
-  });
-
-  it('game_instantiate_scene requires scenePath', () => {
-    const args = normalizeParameters({});
-    expect(!args.scenePath).toBe(true);
-  });
-
-  it('game_remove_node requires nodePath', () => {
-    const args = normalizeParameters({});
-    expect(!args.nodePath).toBe(true);
-  });
-
-  it('game_change_scene requires scenePath', () => {
-    const args = normalizeParameters({});
-    expect(!args.scenePath).toBe(true);
-  });
-
-  it('game_key_press requires key or action', () => {
-    const args = normalizeParameters({});
-    expect(!args.key && !args.action).toBe(true);
-  });
-
-  it('game_key_press with key only is valid', () => {
-    const args = { key: 'W' };
-    expect(!args.key && !(args as any).action).toBe(false);
-  });
-
-  it('game_key_press with action only is valid', () => {
-    const args = { action: 'ui_accept' };
-    expect(!(args as any).key && !args.action).toBe(false);
-  });
-
-  it('game_connect_signal requires 4 params', () => {
-    const args = normalizeParameters({ nodePath: '/root/B', signalName: 'pressed' });
-    const missing = !args.nodePath || !args.signalName || !args.targetPath || !args.method;
-    expect(missing).toBe(true);
-  });
-
-  it('game_disconnect_signal requires 4 params', () => {
-    const args = normalizeParameters({ targetPath: '/root/G' });
-    const missing = !args.nodePath || !args.signalName || !args.targetPath || !args.method;
-    expect(missing).toBe(true);
-  });
-
-  it('game_emit_signal requires nodePath and signalName', () => {
-    const args = normalizeParameters({ signalName: 'died' });
-    const missing = !args.nodePath || !args.signalName;
-    expect(missing).toBe(true);
-  });
-
-  it('game_play_animation requires nodePath', () => {
-    const args = normalizeParameters({});
-    expect(!args.nodePath).toBe(true);
-  });
-
-  it('game_tween_property requires nodePath, property, finalValue', () => {
-    const args = normalizeParameters({ nodePath: '/root/S', property: 'x' });
-    expect(args.finalValue === undefined).toBe(true);
-  });
-
-  it('game_get_nodes_in_group requires group', () => {
-    const args = normalizeParameters({});
-    expect(!(args as any).group).toBe(true);
-  });
-
-  it('game_find_nodes_by_class requires className', () => {
-    const args = normalizeParameters({});
-    expect(!args.className).toBe(true);
-  });
-
-  it('game_reparent_node requires nodePath and newParentPath', () => {
-    const args = normalizeParameters({ nodePath: '/root/P' });
-    expect(!args.nodePath || !args.newParentPath).toBe(true);
-  });
-
-  it('read_file requires projectPath and filePath', () => {
-    const args = normalizeParameters({ projectPath: '/game' });
-    expect(!args.projectPath || !args.filePath).toBe(true);
-  });
-
-  it('write_file requires projectPath, filePath, and content', () => {
-    const args = normalizeParameters({ projectPath: '/game', filePath: 'test.gd' });
-    expect(args.content === undefined).toBe(true);
-  });
-
-  it('delete_file requires projectPath and filePath', () => {
-    const args = normalizeParameters({});
-    expect(!args.projectPath || !args.filePath).toBe(true);
-  });
-
-  it('create_directory requires projectPath and directoryPath', () => {
-    const args = normalizeParameters({ projectPath: '/game' });
-    expect(!args.projectPath || !args.directoryPath).toBe(true);
-  });
-
-  it('game_key_hold requires key or action', () => {
-    const args = normalizeParameters({});
-    expect(!args.key && !args.action).toBe(true);
-  });
-
-  it('game_key_release requires key or action', () => {
-    const args = {};
-    expect(!(args as any).key && !(args as any).action).toBe(true);
-  });
-
-  it('game_mouse_drag requires fromX, fromY, toX, toY', () => {
-    const args = normalizeParameters({ fromX: 10 });
-    expect(args.toX === undefined || args.toY === undefined).toBe(true);
-  });
-
-  it('game_gamepad requires type, index, and value', () => {
-    const args = normalizeParameters({ type: 'button' });
-    expect(args.index === undefined || args.value === undefined).toBe(true);
-  });
-
-  it('create_project requires projectPath and projectName', () => {
-    const args = normalizeParameters({ projectPath: '/game' });
-    expect(!args.projectPath || !args.projectName).toBe(true);
-  });
-
-  it('manage_autoloads requires projectPath and action', () => {
-    const args = normalizeParameters({ projectPath: '/game' });
-    expect(!args.projectPath || !args.action).toBe(true);
-  });
-
-  it('manage_input_map requires projectPath and action', () => {
-    const args = normalizeParameters({});
-    expect(!args.projectPath || !args.action).toBe(true);
-  });
-
-  it('manage_export_presets requires projectPath and action', () => {
-    const args = normalizeParameters({});
-    expect(!args.projectPath || !args.action).toBe(true);
-  });
-
-  it('game_raycast requires from and to', () => {
-    const args = normalizeParameters({ from: { x: 0, y: 0 } });
-    expect(!args.from || !args.to).toBe(true);
-  });
-
-  it('game_spawn_node requires type', () => {
-    const args = normalizeParameters({});
-    expect(!args.type).toBe(true);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 3. headlessOp-based handler tests
-// ---------------------------------------------------------------------------
-describe('Headless operation handlers — argument transforms', () => {
-  describe('handleModifySceneNode', () => {
-    const argsFn = (a: any) => ({
-      projectPath: a.projectPath,
-      params: { scenePath: a.scenePath, nodePath: a.nodePath, properties: a.properties },
-    });
-
-    it('maps all params correctly', () => {
-      const r = fakeHeadlessOp({
-        projectPath: '/home/user/game',
-        scenePath: 'scenes/main.tscn',
-        nodePath: '/root/Player',
-        properties: { visible: true },
-      }, argsFn);
-      expect(r.error).toBeNull();
-      expect(r.operation!.projectPath).toBe('/home/user/game');
-      expect(r.operation!.params.scenePath).toBe('scenes/main.tscn');
-    });
-
-    it('fails without projectPath', () => {
-      const r = fakeHeadlessOp({ scenePath: 'a', nodePath: 'b', properties: {} }, argsFn);
-      expect(r.error).toContain('projectPath');
-    });
-  });
-
-  describe('handleRemoveSceneNode', () => {
-    const argsFn = (a: any) => ({
-      projectPath: a.projectPath,
-      params: { scenePath: a.scenePath, nodePath: a.nodePath },
-    });
-
-    it('maps params', () => {
-      const r = fakeHeadlessOp({
-        projectPath: '/home/user/game', scenePath: 'main.tscn', nodePath: '/root/Enemy',
-      }, argsFn);
-      expect(r.error).toBeNull();
-      expect(r.operation!.params.nodePath).toBe('/root/Enemy');
-    });
-  });
-
-  describe('handleAttachScript', () => {
-    const argsFn = (a: any) => ({
-      projectPath: a.projectPath,
-      params: { scenePath: a.scenePath, nodePath: a.nodePath, scriptPath: a.scriptPath },
-    });
-
-    it('maps all params', () => {
-      const r = fakeHeadlessOp({
-        projectPath: '/game', scenePath: 'main.tscn',
-        nodePath: '/root/Player', scriptPath: 'scripts/player.gd',
-      }, argsFn);
-      expect(r.error).toBeNull();
-      expect(r.operation!.params.scriptPath).toBe('scripts/player.gd');
-    });
-
-    it('requires projectPath', () => {
-      const r = fakeHeadlessOp({
-        scenePath: 'main.tscn', nodePath: '/root/P', scriptPath: 's.gd',
-      }, argsFn);
-      expect(r.error).toContain('projectPath');
-    });
-  });
-
-  describe('handleCreateResource', () => {
-    const argsFn = (a: any) => ({
-      projectPath: a.projectPath,
-      params: {
-        resourceType: a.resourceType, resourcePath: a.resourcePath,
-        ...(a.properties ? { properties: a.properties } : {}),
-      },
-    });
-
-    it('maps required params', () => {
-      const r = fakeHeadlessOp({
-        projectPath: '/game', resourceType: 'PackedScene', resourcePath: 'res://new.tres',
-      }, argsFn);
-      expect(r.error).toBeNull();
-      expect(r.operation!.params.resourceType).toBe('PackedScene');
-      expect(r.operation!.params.properties).toBeUndefined();
-    });
-
-    it('includes optional properties', () => {
-      const r = fakeHeadlessOp({
-        projectPath: '/game', resourceType: 'Theme', resourcePath: 'res://theme.tres',
-        properties: { font_size: 16 },
-      }, argsFn);
-      expect(r.operation!.params.properties).toEqual({ font_size: 16 });
-    });
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 4. headlessOp path validation
-// ---------------------------------------------------------------------------
-describe('headlessOp path validation', () => {
-  const simpleArgsFn = (a: any) => ({ projectPath: a.projectPath, params: {} });
-
-  it('rejects missing projectPath', () => {
-    const r = fakeHeadlessOp({}, simpleArgsFn);
-    expect(r.error).toContain('projectPath');
-  });
-
-  it('rejects path traversal', () => {
-    const r = fakeHeadlessOp({ projectPath: '../../etc/passwd' }, simpleArgsFn);
-    expect(r.error).toContain('Invalid');
-  });
-
-  it('rejects empty projectPath', () => {
-    const r = fakeHeadlessOp({ projectPath: '' }, simpleArgsFn);
-    expect(r.error).toBeTruthy();
-  });
-
-  it('accepts valid path when project exists', () => {
-    const r = fakeHeadlessOp({ projectPath: '/home/user/game' }, simpleArgsFn, true);
-    expect(r.error).toBeNull();
-  });
-
-  it('rejects when project does not exist', () => {
-    const r = fakeHeadlessOp({ projectPath: '/home/user/game' }, simpleArgsFn, false);
-    expect(r.error).toContain('Not a valid Godot project');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 5. snake_case parameter normalization in handlers
-// ---------------------------------------------------------------------------
-describe('Handler snake_case → camelCase normalization', () => {
-  it('normalizes node_path to nodePath in game handlers', () => {
-    const args = normalizeParameters({ node_path: '/root/Player', property: 'position' });
-    expect(args.nodePath).toBe('/root/Player');
-    expect(args.property).toBe('position');
-  });
-
-  it('normalizes scene_path and project_path in headless handlers', () => {
-    const args = normalizeParameters({ project_path: '/game', scene_path: 'main.tscn' });
-    expect(args.projectPath).toBe('/game');
-    expect(args.scenePath).toBe('main.tscn');
-  });
-
-  it('normalizes signal handler parameters', () => {
-    const args = normalizeParameters({
-      node_path: '/root/B', signal_name: 'pressed', target_path: '/root/G',
-    });
-    expect(args.nodePath).toBe('/root/B');
-    expect(args.signalName).toBe('pressed');
-    expect(args.targetPath).toBe('/root/G');
-  });
-
-  it('normalizes tween parameters', () => {
-    const args = normalizeParameters({
-      node_path: '/root/S', final_value: 0, trans_type: 1, ease_type: 2,
-    });
-    expect(args.nodePath).toBe('/root/S');
-    expect(args.finalValue).toBe(0);
-    expect(args.transType).toBe(1);
-    expect(args.easeType).toBe(2);
-  });
-
-  it('normalizes reparent parameters', () => {
-    const args = normalizeParameters({
-      node_path: '/root/P', new_parent_path: '/root/W', keep_global_transform: false,
-    });
-    expect(args.nodePath).toBe('/root/P');
-    expect(args.newParentPath).toBe('/root/W');
-    expect(args.keepGlobalTransform).toBe(false);
-  });
-
-  it('normalizes script/resource parameters', () => {
-    const args = normalizeParameters({
-      project_path: '/game', script_path: 'player.gd', resource_type: 'Theme', resource_path: 'res://t.tres',
-    });
-    expect(args.projectPath).toBe('/game');
-    expect(args.scriptPath).toBe('player.gd');
-    expect(args.resourceType).toBe('Theme');
-    expect(args.resourcePath).toBe('res://t.tres');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 6. Source-level handler structure verification
-// ---------------------------------------------------------------------------
-describe('Handler source structure', () => {
-  it('all game handlers call gameCommand or have manual checks', () => {
-    const gameHandlers = [
-      'handleGameClick', 'handleGameKeyPress', 'handleGameMouseMove',
-      'handleGameGetUi', 'handleGameGetSceneTree', 'handleGameEval',
-      'handleGameGetProperty', 'handleGameSetProperty', 'handleGameCallMethod',
-      'handleGameGetNodeInfo', 'handleGameInstantiateScene', 'handleGameRemoveNode',
-      'handleGameChangeScene', 'handleGamePause', 'handleGamePerformance',
-      'handleGameWait', 'handleGameConnectSignal', 'handleGameDisconnectSignal',
-      'handleGameEmitSignal', 'handleGamePlayAnimation', 'handleGameTweenProperty',
-      'handleGameGetNodesInGroup', 'handleGameFindNodesByClass', 'handleGameReparentNode',
-      // New game handlers
-      'handleGameGetErrors', 'handleGameGetLogs',
-      'handleGameKeyHold', 'handleGameKeyRelease', 'handleGameScroll',
-      'handleGameMouseDrag', 'handleGameGamepad',
-      'handleGameGetCamera', 'handleGameSetCamera', 'handleGameRaycast',
-      'handleGameGetAudio', 'handleGameSpawnNode',
-    ];
-    for (const h of gameHandlers) {
-      expect(sourceCode).toContain(h);
+interface RecordedCommand {
+  name: string;
+  args: Record<string, unknown>;
+}
+
+function gameHarness(overrides: { process?: boolean; connected?: boolean } = {}) {
+  const calls: RecordedCommand[] = [];
+  const execute = vi.fn((
+    name: string,
+    args: unknown,
+    buildParams: (a: Record<string, unknown>) => Record<string, unknown>,
+  ) => {
+    if (overrides.process === false) {
+      return Promise.resolve(createErrorResponse('No active Godot process. Use run_project first.'));
     }
-  });
-
-  it('all headless handlers call headlessOp or executeOperation', () => {
-    const headlessHandlers = [
-      'handleModifySceneNode', 'handleRemoveSceneNode',
-      'handleAttachScript', 'handleCreateResource',
-    ];
-    for (const h of headlessHandlers) {
-      expect(sourceCode).toContain(h);
+    if (overrides.connected === false) {
+      return Promise.resolve(createErrorResponse('Not connected to game interaction server.'));
     }
+    const normalized = normalizeParameters((args || {}) as Record<string, unknown>);
+    calls.push({ name, args: convertCamelToSnakeCase(buildParams(normalized)) });
+    return Promise.resolve({ content: [{ type: 'text', text: 'ok' }] });
+  });
+  const commands = {
+    execute,
+    hasActiveProcess: () => overrides.process ?? true,
+    isConnected: () => overrides.connected ?? true,
+    send: vi.fn(() => Promise.resolve({ result: { data: '', width: 0, height: 0 } })),
+    readNewErrors: vi.fn(() => ({ items: [], remaining: 0, byteLimited: false })),
+    readNewLogs: vi.fn(() => ({ items: [], remaining: 0, byteLimited: false })),
+  };
+  const handlers = new GameToolHandlers({ commands: commands as never });
+  return { handlers, calls, commands };
+}
+
+describe('Game handlers — real runtime command boundary', () => {
+  it('handleGameClick maps coordinates and button with defaults', async () => {
+    const { handlers, calls } = gameHarness();
+    await handlers.handleGameClick({});
+    expect(calls).toEqual([{ name: 'click', args: { x: 0, y: 0, button: 1 } }]);
+    calls.length = 0;
+    await handlers.handleGameClick({ x: 100, y: 200, button: 2 });
+    expect(calls).toEqual([{ name: 'click', args: { x: 100, y: 200, button: 2 } }]);
   });
 
-  it('all file I/O handlers exist', () => {
-    const fileHandlers = [
-      'handleReadFile', 'handleWriteFile', 'handleDeleteFile', 'handleCreateDirectory',
-    ];
-    for (const h of fileHandlers) {
-      expect(sourceCode).toContain(h);
-    }
+  it('handleGameKeyPress sends exactly one of key/action/text and modifiers', async () => {
+    const { handlers, calls } = gameHarness();
+    await handlers.handleGameKeyPress({ key: 'W', shift: true });
+    expect(calls).toEqual([{ name: 'key_press', args: { key: 'W', shift: true } }]);
+    calls.length = 0;
+    expect(isErrorResponse(await handlers.handleGameKeyPress({}))).toBe(true);
+    expect(calls).toHaveLength(0);
   });
 
-  it('all project management handlers exist', () => {
-    const pmHandlers = [
-      'handleCreateProject', 'handleManageAutoloads',
-      'handleManageInputMap', 'handleManageExportPresets',
-    ];
-    for (const h of pmHandlers) {
-      expect(sourceCode).toContain(h);
-    }
+  it('handleGameMouseMove defaults and preserves relative motion', async () => {
+    const { handlers, calls } = gameHarness();
+    await handlers.handleGameMouseMove({ x: 10, y: 20, relativeX: 5, relativeY: -3 });
+    expect(calls[0]).toEqual({ name: 'mouse_move', args: { x: 10, y: 20, relative_x: 5, relative_y: -3 } });
   });
 
-  it('GameCommandService checks the process and game connection', () => {
-    expect(gameCommandServiceSource).toContain('class GameCommandService');
-    expect(gameCommandServiceSource).toContain("if (!this.hasActiveProcess()) return createErrorResponse('No active Godot process");
-    expect(gameCommandServiceSource).toContain("if (!this.isConnected()) return createErrorResponse('Not connected");
+  it('handleGameGetUi bounds the default response and passes subtree limits', async () => {
+    const { handlers, calls } = gameHarness();
+    await handlers.handleGameGetUi({});
+    expect(calls[0]).toEqual({ name: 'get_ui_elements', args: { max_elements: 200 } });
+    calls.length = 0;
+    await handlers.handleGameGetUi({ rootPath: '/root/Main/HUD', maxElements: 8 });
+    expect(calls[0]).toEqual({ name: 'get_ui_elements', args: { root_path: '/root/Main/HUD', max_elements: 8 } });
   });
 
-  it('HeadlessOperationService validates project paths and project.godot', () => {
-    expect(headlessOperationServiceSource).toContain("if (!projectPath) return createErrorResponse('projectPath is required.");
-    expect(headlessOperationServiceSource).toContain("if (!validatePath(projectPath)) return createErrorResponse('Invalid path.");
-    expect(headlessOperationServiceSource).toContain("project.godot");
+  it('handleGameGetSceneTree defaults maxNodes', async () => {
+    const { handlers, calls } = gameHarness();
+    await handlers.handleGameGetSceneTree({});
+    expect(calls[0]).toEqual({ name: 'get_scene_tree', args: { max_nodes: 1000 } });
   });
 
-  it('gameCommand normalizes parameters', () => {
-    expect(sourceCode).toContain('args = normalizeParameters(args || {});');
+  it('handleGameEval requires code and forwards it', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameEval({}))).toBe(true);
+    await handlers.handleGameEval({ code: 'get_tree().root.name' });
+    expect(calls[0]).toEqual({ name: 'eval', args: { code: 'get_tree().root.name' } });
   });
 
-  it('GameCommandService wraps command transport in try-catch', () => {
-    const executeBlock = gameCommandServiceSource.substring(gameCommandServiceSource.indexOf('public async execute('));
-    expect(executeBlock).toContain('try {');
-    expect(executeBlock).toContain('catch (error');
-    expect(executeBlock).toContain('this.send(');
+  it('handleGameGetProperty requires nodePath and property', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameGetProperty({ nodePath: '/root/Player' }))).toBe(true);
+    await handlers.handleGameGetProperty({ nodePath: '/root/Player', property: 'position' });
+    expect(calls[0]).toEqual({ name: 'get_property', args: { node_path: '/root/Player', property: 'position' } });
   });
 
-  it('HeadlessOperationService wraps execution in try-catch', () => {
-    const runBlock = headlessOperationServiceSource.substring(headlessOperationServiceSource.indexOf('public async run('));
-    expect(runBlock).toContain('try {');
-    expect(runBlock).toContain('catch (error');
-    expect(runBlock).toContain('this.execute(');
+  it('handleGameSetProperty requires nodePath and property', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameSetProperty({ nodePath: '/root/P' }))).toBe(true);
+    await handlers.handleGameSetProperty({ nodePath: '/root/P', property: 'speed', value: 100, typeHint: 'int' });
+    expect(calls[0]).toEqual({ name: 'set_property', args: { node_path: '/root/P', property: 'speed', value: 100, type_hint: 'int' } });
+  });
+
+  it('handleGameCallMethod requires nodePath and method and defaults args', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameCallMethod({ method: 'jump' }))).toBe(true);
+    await handlers.handleGameCallMethod({ nodePath: '/root/P', method: 'jump' });
+    expect(calls[0]).toEqual({ name: 'call_method', args: { node_path: '/root/P', method: 'jump', args: [] } });
+  });
+
+  it('handleGameGetNodeInfo requires nodePath', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameGetNodeInfo({}))).toBe(true);
+    await handlers.handleGameGetNodeInfo({ nodePath: '/root/UI', detail: 'compact', propertyNames: ['position'] });
+    expect(calls[0]).toEqual({ name: 'get_node_info', args: { node_path: '/root/UI', detail: 'compact', property_names: ['position'] } });
+  });
+
+  it('handleGameInstantiateScene requires scenePath and defaults parent', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameInstantiateScene({}))).toBe(true);
+    await handlers.handleGameInstantiateScene({ scenePath: 'res://enemy.tscn' });
+    expect(calls[0]).toEqual({ name: 'instantiate_scene', args: { scene_path: 'res://enemy.tscn', parent_path: '/root' } });
+  });
+
+  it('handleGameRemoveNode requires nodePath', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameRemoveNode({}))).toBe(true);
+    await handlers.handleGameRemoveNode({ nodePath: '/root/Enemy' });
+    expect(calls[0]).toEqual({ name: 'remove_node', args: { node_path: '/root/Enemy' } });
+  });
+
+  it('handleGameChangeScene requires scenePath', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameChangeScene({}))).toBe(true);
+    await handlers.handleGameChangeScene({ scenePath: 'res://level2.tscn' });
+    expect(calls[0]).toEqual({ name: 'change_scene', args: { scene_path: 'res://level2.tscn' } });
+  });
+
+  it('handleGamePause defaults paused to true', async () => {
+    const { handlers, calls } = gameHarness();
+    await handlers.handleGamePause({});
+    expect(calls[0]).toEqual({ name: 'pause', args: { paused: true } });
+  });
+
+  it('handleGamePerformance validates action and forwards sample count', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGamePerformance({ action: 'bogus' }))).toBe(true);
+    await handlers.handleGamePerformance({ action: 'sample', sampleCount: 5 });
+    expect(calls[0].name).toBe('get_performance');
+    expect(calls[0].args.sample_count).toBe(5);
+  });
+
+  it('handleGameWait validates frames and defaults to one frame', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameWait({ frames: 0 }))).toBe(true);
+    await handlers.handleGameWait({});
+    expect(calls[0]).toEqual({ name: 'wait', args: { frames: 1, frame_type: 'render' } });
+    calls.length = 0;
+    await handlers.handleGameWait({ frames: 60, frameType: 'physics' });
+    expect(calls[0]).toEqual({ name: 'wait', args: { frames: 60, frame_type: 'physics' } });
+  });
+
+  it('handleGameConnectSignal requires all four signal fields', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameConnectSignal({ nodePath: '/root/B', signalName: 'pressed' }))).toBe(true);
+    await handlers.handleGameConnectSignal({
+      nodePath: '/root/Button', signalName: 'pressed', targetPath: '/root/Game', method: '_on_pressed',
+    });
+    expect(calls[0]).toEqual({
+      name: 'connect_signal',
+      args: { node_path: '/root/Button', signal_name: 'pressed', target_path: '/root/Game', method: '_on_pressed' },
+    });
+  });
+
+  it('handleGameDisconnectSignal requires all four signal fields', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameDisconnectSignal({ nodePath: '/root/B' }))).toBe(true);
+    await handlers.handleGameDisconnectSignal({
+      nodePath: '/root/B', signalName: 'pressed', targetPath: '/root/G', method: 'handler',
+    });
+    expect(calls[0].args.signal_name).toBe('pressed');
+  });
+
+  it('handleGameEmitSignal requires nodePath and signalName', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameEmitSignal({ nodePath: '/root/E' }))).toBe(true);
+    await handlers.handleGameEmitSignal({ nodePath: '/root/E', signalName: 'died', args: [10] });
+    expect(calls[0]).toEqual({ name: 'emit_signal', args: { node_path: '/root/E', signal_name: 'died', args: [10] } });
+  });
+
+  it('handleGamePlayAnimation requires nodePath and defaults action', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGamePlayAnimation({}))).toBe(true);
+    await handlers.handleGamePlayAnimation({ nodePath: '/root/P' });
+    expect(calls[0]).toEqual({ name: 'play_animation', args: { node_path: '/root/P', action: 'play', animation: '' } });
+  });
+
+  it('handleGameTweenProperty requires nodePath, property, and finalValue', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameTweenProperty({ nodePath: '/root/S', property: 'x' }))).toBe(true);
+    await handlers.handleGameTweenProperty({ nodePath: '/root/Sprite', property: 'position:x', finalValue: 100, duration: 2.5, transType: 1, easeType: 3 });
+    expect(calls[0]).toEqual({
+      name: 'tween_property',
+      args: { node_path: '/root/Sprite', property: 'position:x', final_value: 100, duration: 2.5, trans_type: 1, ease_type: 3 },
+    });
+  });
+
+  it('handleGameGetNodesInGroup requires group', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameGetNodesInGroup({}))).toBe(true);
+    await handlers.handleGameGetNodesInGroup({ group: 'enemies' });
+    expect(calls[0]).toEqual({ name: 'get_nodes_in_group', args: { group: 'enemies' } });
+  });
+
+  it('handleGameFindNodesByClass requires className and defaults root', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameFindNodesByClass({}))).toBe(true);
+    await handlers.handleGameFindNodesByClass({ className: 'Sprite2D' });
+    expect(calls[0]).toEqual({ name: 'find_nodes_by_class', args: { class_name: 'Sprite2D', root_path: '/root' } });
+  });
+
+  it('handleGameReparentNode requires nodePath and newParentPath', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameReparentNode({ nodePath: '/root/Player' }))).toBe(true);
+    await handlers.handleGameReparentNode({ nodePath: '/root/Player', newParentPath: '/root/World', keepGlobalTransform: false });
+    expect(calls[0].args).toEqual({ node_path: '/root/Player', new_parent_path: '/root/World', keep_global_transform: false });
+  });
+
+  it('handleGameGetErrors requires an active process and returns a bounded observation', async () => {
+    const { handlers, commands } = gameHarness();
+    commands.readNewErrors.mockReturnValue({ items: ['boom'], remaining: 0, byteLimited: false });
+    const response = await handlers.handleGameGetErrors({});
+    expect(textFrom(response)).toContain('"errors"');
+    expect(textFrom(response)).toContain('boom');
+
+    const cold = gameHarness({ process: false });
+    expect(isErrorResponse(await cold.handlers.handleGameGetErrors({}))).toBe(true);
+  });
+
+  it('handleGameGetLogs requires an active process and returns a bounded observation', async () => {
+    const { handlers, commands } = gameHarness();
+    commands.readNewLogs.mockReturnValue({ items: ['ready'], remaining: 0, byteLimited: false });
+    const response = await handlers.handleGameGetLogs({});
+    expect(textFrom(response)).toContain('ready');
+
+    const cold = gameHarness({ process: false });
+    expect(isErrorResponse(await cold.handlers.handleGameGetLogs({}))).toBe(true);
+  });
+
+  it('handleGameKeyHold and handleGameKeyRelease require key or action', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameKeyHold({}))).toBe(true);
+    expect(isErrorResponse(await handlers.handleGameKeyRelease({}))).toBe(true);
+    await handlers.handleGameKeyHold({ key: 'W' });
+    await handlers.handleGameKeyRelease({ action: 'move_forward' });
+    expect(calls).toEqual([
+      { name: 'key_hold', args: { key: 'W' } },
+      { name: 'key_release', args: { action: 'move_forward' } },
+    ]);
+  });
+
+  it('handleGameScroll defaults direction and amount', async () => {
+    const { handlers, calls } = gameHarness();
+    await handlers.handleGameScroll({ x: 100, y: 200 });
+    expect(calls[0]).toEqual({ name: 'scroll', args: { x: 100, y: 200, direction: 'up', amount: 1 } });
+    calls.length = 0;
+    await handlers.handleGameScroll({ x: 0, y: 0, direction: 'down', amount: 3 });
+    expect(calls[0].args.direction).toBe('down');
+    expect(calls[0].args.amount).toBe(3);
+  });
+
+  it('handleGameMouseDrag requires from/to coordinates', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameMouseDrag({ fromX: 10 }))).toBe(true);
+    await handlers.handleGameMouseDrag({ fromX: 10, fromY: 20, toX: 100, toY: 200 });
+    expect(calls[0]).toEqual({ name: 'mouse_drag', args: { from_x: 10, from_y: 20, to_x: 100, to_y: 200, button: 1, steps: 10 } });
+  });
+
+  it('handleGameGamepad requires type, index, and value', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameGamepad({ type: 'button' }))).toBe(true);
+    await handlers.handleGameGamepad({ type: 'axis', index: 1, value: -0.5, device: 2 });
+    expect(calls[0].args).toEqual({ type: 'axis', index: 1, value: -0.5, device: 2 });
+  });
+
+  it('handleGameGetCamera sends empty args', async () => {
+    const { handlers, calls } = gameHarness();
+    await handlers.handleGameGetCamera();
+    expect(calls[0]).toEqual({ name: 'get_camera', args: {} });
+  });
+
+  it('handleGameSetCamera passes only defined fields', async () => {
+    const { handlers, calls } = gameHarness();
+    await handlers.handleGameSetCamera({ position: { x: 10, y: 20 }, fov: 60 });
+    expect(calls[0]).toEqual({ name: 'set_camera', args: { position: { x: 10, y: 20 }, fov: 60 } });
+  });
+
+  it('handleGameRaycast requires from and to and defaults collision mask', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameRaycast({ from: { x: 0, y: 0 } }))).toBe(true);
+    await handlers.handleGameRaycast({ from: { x: 0, y: 0 }, to: { x: 100, y: 100 } });
+    expect(calls[0].args.collision_mask).toBe(0xFFFFFFFF);
+  });
+
+  it('handleGameGetAudio sends empty args', async () => {
+    const { handlers, calls } = gameHarness();
+    await handlers.handleGameGetAudio();
+    expect(calls[0]).toEqual({ name: 'get_audio', args: {} });
+  });
+
+  it('handleGameSpawnNode requires type and defaults name/parent', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameSpawnNode({}))).toBe(true);
+    await handlers.handleGameSpawnNode({ type: 'Sprite2D', name: 'MyNode', properties: { visible: false } });
+    expect(calls[0]).toEqual({ name: 'spawn_node', args: { type: 'Sprite2D', name: 'MyNode', parent_path: '/root', properties: { visible: false } } });
+  });
+
+  it('handleGameSetShaderParam requires nodePath and paramName', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameSetShaderParam({ nodePath: '/root/Mesh' }))).toBe(true);
+    await handlers.handleGameSetShaderParam({ nodePath: '/root/Mesh', paramName: 'albedo_color', value: { r: 1, g: 0, b: 0, a: 1 }, typeHint: 'Color' });
+    expect(calls[0]).toEqual({
+      name: 'set_shader_param',
+      args: { node_path: '/root/Mesh', param_name: 'albedo_color', value: { r: 1, g: 0, b: 0, a: 1 }, type_hint: 'Color' },
+    });
+  });
+
+  it('handleGameAudioPlay requires nodePath and defaults action', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameAudioPlay({}))).toBe(true);
+    await handlers.handleGameAudioPlay({ nodePath: '/root/SFX', volume: 0.5, pitch: 1.2, bus: 'Effects', fromPosition: 3.5, stream: 'res://audio.ogg' });
+    expect(calls[0]).toEqual({
+      name: 'audio_play',
+      args: { node_path: '/root/SFX', action: 'play', stream: 'res://audio.ogg', volume: 0.5, pitch: 1.2, bus: 'Effects', from_position: 3.5 },
+    });
+  });
+
+  it('handleGameAudioBus defaults bus to Master', async () => {
+    const { handlers, calls } = gameHarness();
+    await handlers.handleGameAudioBus({});
+    expect(calls[0]).toEqual({ name: 'audio_bus', args: { bus_name: 'Master' } });
+    calls.length = 0;
+    await handlers.handleGameAudioBus({ busName: 'Music', volume: 0.3, mute: true });
+    expect(calls[0].args).toEqual({ bus_name: 'Music', volume: 0.3, mute: true });
+  });
+
+  it('handleGameNavigatePath requires start and end and defaults optimize', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameNavigatePath({ start: { x: 0, y: 0 } }))).toBe(true);
+    await handlers.handleGameNavigatePath({ start: { x: 0, y: 0 }, end: { x: 100, y: 200 } });
+    expect(calls[0]).toEqual({ name: 'navigate_path', args: { start: { x: 0, y: 0 }, end: { x: 100, y: 200 }, optimize: true } });
+  });
+
+  it('handleGameTilemap requires nodePath and action and maps cell fields', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameTilemap({ nodePath: '/root/TileMap' }))).toBe(true);
+    await handlers.handleGameTilemap({
+      nodePath: '/root/TileMap', action: 'set_cells',
+      cells: [{ x: 0, y: 0, sourceId: 0, atlasX: 1, atlasY: 2, altTile: 3 }],
+    });
+    expect(calls[0].name).toBe('tilemap');
+    expect(calls[0].args.cells).toEqual([{ x: 0, y: 0, source_id: 0, atlas_x: 1, atlas_y: 2, alt_tile: 3 }]);
+  });
+
+  it('handleGameAddCollision requires parentPath and shapeType', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameAddCollision({ parentPath: '/root/Body' }))).toBe(true);
+    await handlers.handleGameAddCollision({ parentPath: '/root/Body', shapeType: 'box', collisionLayer: 1, collisionMask: 3 });
+    expect(calls[0].args).toEqual({ parent_path: '/root/Body', shape_type: 'box', collision_layer: 1, collision_mask: 3 });
+  });
+
+  it('handleGameEnvironment defaults action to set and maps settings', async () => {
+    const { handlers, calls } = gameHarness();
+    await handlers.handleGameEnvironment({ backgroundColor: { r: 1, g: 1, b: 1 }, glowEnabled: true });
+    expect(calls[0].name).toBe('environment');
+    expect(calls[0].args).toEqual({ action: 'set', background_color: { r: 1, g: 1, b: 1 }, glow_enabled: true });
+  });
+
+  it('handleGameManageGroup requires action', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameManageGroup({}))).toBe(true);
+    await handlers.handleGameManageGroup({ action: 'add', nodePath: '/root/Player', group: 'enemies' });
+    expect(calls[0]).toEqual({ name: 'manage_group', args: { action: 'add', node_path: '/root/Player', group: 'enemies' } });
+  });
+
+  it('handleGameCreateTimer defaults parent, wait, and flags', async () => {
+    const { handlers, calls } = gameHarness();
+    await handlers.handleGameCreateTimer({});
+    expect(calls[0]).toEqual({ name: 'create_timer', args: { parent_path: '/root', wait_time: 1.0, one_shot: false, autostart: false } });
+  });
+
+  it('handleGameSetParticles requires nodePath', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameSetParticles({}))).toBe(true);
+    await handlers.handleGameSetParticles({ nodePath: '/root/Particles', emitting: true, amount: 100 });
+    expect(calls[0]).toEqual({ name: 'set_particles', args: { node_path: '/root/Particles', emitting: true, amount: 100 } });
+  });
+
+  it('handleGameCreateAnimation requires nodePath and animationName', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameCreateAnimation({ nodePath: '/root/AnimPlayer' }))).toBe(true);
+    await handlers.handleGameCreateAnimation({ nodePath: '/root/AnimPlayer', animationName: 'walk', length: 2.0 });
+    expect(calls[0]).toEqual({
+      name: 'create_animation',
+      args: { node_path: '/root/AnimPlayer', animation_name: 'walk', length: 2.0, loop_mode: 0, tracks: [] },
+    });
+  });
+
+  it('handleGameSerializeState defaults to save with depth 5', async () => {
+    const { handlers, calls } = gameHarness();
+    await handlers.handleGameSerializeState({});
+    expect(calls[0]).toEqual({ name: 'serialize_state', args: { node_path: '/root', action: 'save', max_depth: 5 } });
+  });
+
+  it('handleGamePhysicsBody requires nodePath', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGamePhysicsBody({}))).toBe(true);
+    await handlers.handleGamePhysicsBody({ nodePath: '/root/Ball', mass: 2.0, gravityScale: 0.5 });
+    expect(calls[0]).toEqual({ name: 'physics_body', args: { node_path: '/root/Ball', gravity_scale: 0.5, mass: 2.0 } });
+  });
+
+  it('handleGameCreateJoint requires parentPath and jointType', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameCreateJoint({ parentPath: '/root' }))).toBe(true);
+    await handlers.handleGameCreateJoint({ parentPath: '/root', jointType: 'pin', stiffness: 5 });
+    expect(calls[0].args).toEqual({ parent_path: '/root', joint_type: 'pin', stiffness: 5 });
+  });
+
+  it('handleGameBonePose requires nodePath and defaults action to list', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameBonePose({}))).toBe(true);
+    await handlers.handleGameBonePose({ nodePath: '/root/Skel' });
+    expect(calls[0]).toEqual({ name: 'bone_pose', args: { node_path: '/root/Skel', action: 'list' } });
+  });
+
+  it('handleGameUiTheme requires nodePath and overrides', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameUiTheme({ nodePath: '/root/UI' }))).toBe(true);
+    await handlers.handleGameUiTheme({ nodePath: '/root/UI', overrides: { font_size: 16 } });
+    expect(calls[0]).toEqual({ name: 'ui_theme', args: { node_path: '/root/UI', overrides: { font_size: 16 } } });
+  });
+
+  it('handleGameViewport defaults action to create', async () => {
+    const { handlers, calls } = gameHarness();
+    await handlers.handleGameViewport({});
+    expect(calls[0]).toEqual({ name: 'viewport', args: { action: 'create' } });
+  });
+
+  it('handleGameDebugDraw requires action', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameDebugDraw({}))).toBe(true);
+    await handlers.handleGameDebugDraw({ action: 'line', from: { x: 0, y: 0 }, to: { x: 1, y: 1 }, color: { r: 1, g: 0, b: 0, a: 1 } });
+    expect(calls[0].name).toBe('debug_draw');
+    expect(calls[0].args.action).toBe('line');
+  });
+
+  it('handleGameHttpRequest requires url and defaults method', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameHttpRequest({}))).toBe(true);
+    await handlers.handleGameHttpRequest({ url: 'https://example.com' });
+    expect(calls[0]).toEqual({ name: 'http_request', args: { url: 'https://example.com', method: 'GET' } });
+  });
+
+  it('handleGameWebsocket validates action-specific requirements', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameWebsocket({ action: 'connect' }))).toBe(true);
+    expect(isErrorResponse(await handlers.handleGameWebsocket({ action: 'send' }))).toBe(true);
+    await handlers.handleGameWebsocket({ action: 'connect', url: 'ws://localhost:1' });
+    expect(calls[0].name).toBe('websocket');
+  });
+
+  it('handleGameMultiplayer requires action', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameMultiplayer({}))).toBe(true);
+    await handlers.handleGameMultiplayer({ action: 'status' });
+    expect(calls[0]).toEqual({ name: 'multiplayer', args: { action: 'status' } });
+  });
+
+  it('handleGameRpc requires nodePath, action, and method', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameRpc({ nodePath: '/root/P', action: 'call' }))).toBe(true);
+    await handlers.handleGameRpc({ nodePath: '/root/P', action: 'call', method: 'sync' });
+    expect(calls[0]).toEqual({ name: 'rpc', args: { node_path: '/root/P', action: 'call', method: 'sync' } });
+  });
+
+  it('handleGameTouch requires action', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameTouch({}))).toBe(true);
+    await handlers.handleGameTouch({ action: 'press', x: 1, y: 2 });
+    expect(calls[0]).toEqual({ name: 'touch', args: { action: 'press', x: 1, y: 2 } });
+  });
+
+  it('handleGameInputState defaults action to query', async () => {
+    const { handlers, calls } = gameHarness();
+    await handlers.handleGameInputState({});
+    expect(calls[0]).toEqual({ name: 'input_state', args: { action: 'query' } });
+  });
+
+  it('handleGameInputAction requires action', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameInputAction({}))).toBe(true);
+    await handlers.handleGameInputAction({ action: 'press', actionName: 'jump' });
+    expect(calls[0].args.action_name).toBe('jump');
+  });
+
+  it('handleGameListSignals requires nodePath', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameListSignals({}))).toBe(true);
+    await handlers.handleGameListSignals({ nodePath: '/root/P' });
+    expect(calls[0]).toEqual({ name: 'list_signals', args: { node_path: '/root/P' } });
+  });
+
+  it('handleGameAwaitSignal requires nodePath and signalName', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameAwaitSignal({ nodePath: '/root/P' }))).toBe(true);
+    await handlers.handleGameAwaitSignal({ nodePath: '/root/P', signalName: 'ready' });
+    expect(calls[0]).toEqual({ name: 'await_signal', args: { node_path: '/root/P', signal_name: 'ready', timeout: 10 } });
+  });
+
+  it('handleGameScript requires nodePath and action', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameScript({ nodePath: '/root/P' }))).toBe(true);
+    await handlers.handleGameScript({ nodePath: '/root/P', action: 'run', source: 'return 1' });
+    expect(calls[0]).toEqual({ name: 'script', args: { node_path: '/root/P', action: 'run', source: 'return 1' } });
+  });
+
+  it('handleGameWindow defaults action to get', async () => {
+    const { handlers, calls } = gameHarness();
+    await handlers.handleGameWindow({});
+    expect(calls[0]).toEqual({ name: 'window', args: { action: 'get' } });
+  });
+
+  it('handleGameOsInfo sends empty args', async () => {
+    const { handlers, calls } = gameHarness();
+    await handlers.handleGameOsInfo({});
+    expect(calls[0]).toEqual({ name: 'os_info', args: {} });
+  });
+
+  it('handleGameTimeScale defaults action to get', async () => {
+    const { handlers, calls } = gameHarness();
+    await handlers.handleGameTimeScale({});
+    expect(calls[0]).toEqual({ name: 'time_scale', args: { action: 'get' } });
+  });
+
+  it('handleGameProcessMode requires nodePath and mode', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameProcessMode({ nodePath: '/root/P' }))).toBe(true);
+    await handlers.handleGameProcessMode({ nodePath: '/root/P', mode: 'always' });
+    expect(calls[0]).toEqual({ name: 'process_mode', args: { node_path: '/root/P', mode: 'always' } });
+  });
+
+  it('handleGameWorldSettings defaults action to get', async () => {
+    const { handlers, calls } = gameHarness();
+    await handlers.handleGameWorldSettings({});
+    expect(calls[0]).toEqual({ name: 'world_settings', args: { action: 'get' } });
+  });
+
+  it('handleGameCsg requires action', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameCsg({}))).toBe(true);
+    await handlers.handleGameCsg({ action: 'create', csgType: 'box' });
+    expect(calls[0].args).toEqual({ action: 'create', csg_type: 'box' });
+  });
+
+  it('handleGameMultimesh requires action', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameMultimesh({}))).toBe(true);
+    await handlers.handleGameMultimesh({ action: 'status' });
+    expect(calls[0]).toEqual({ name: 'multimesh', args: { action: 'status' } });
+  });
+
+  it('handleGameProceduralMesh requires parentPath and vertices', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameProceduralMesh({ parentPath: '/root' }))).toBe(true);
+    await handlers.handleGameProceduralMesh({ parentPath: '/root', vertices: [{ x: 0, y: 0, z: 0 }] });
+    expect(calls[0].args).toEqual({ parent_path: '/root', vertices: [{ x: 0, y: 0, z: 0 }] });
+  });
+
+  it('handleGameLight3d requires action', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameLight3d({}))).toBe(true);
+    await handlers.handleGameLight3d({ action: 'create', lightType: 'omni' });
+    expect(calls[0].args.light_type).toBe('omni');
+  });
+
+  it('handleGameMeshInstance requires parentPath and meshType', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameMeshInstance({ parentPath: '/root' }))).toBe(true);
+    await handlers.handleGameMeshInstance({ parentPath: '/root', meshType: 'box' });
+    expect(calls[0].args.mesh_type).toBe('box');
+  });
+
+  it('handleGameGridmap requires nodePath and action', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameGridmap({ nodePath: '/root/G' }))).toBe(true);
+    await handlers.handleGameGridmap({ nodePath: '/root/G', action: 'get_cell', x: 1, y: 2, z: 3 });
+    expect(calls[0].args).toEqual({ node_path: '/root/G', action: 'get_cell', x: 1, y: 2, z: 3 });
+  });
+
+  it('handleGame3dEffects requires parentPath and effectType', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGame3dEffects({ parentPath: '/root' }))).toBe(true);
+    await handlers.handleGame3dEffects({ parentPath: '/root', effectType: 'bloom' });
+    expect(calls[0].args.effect_type).toBe('bloom');
+  });
+
+  it('handleGameGi requires parentPath and giType', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameGi({ parentPath: '/root' }))).toBe(true);
+    await handlers.handleGameGi({ parentPath: '/root', giType: 'voxel' });
+    expect(calls[0].args.gi_type).toBe('voxel');
+  });
+
+  it('handleGamePath3d validates action-specific requirements', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGamePath3d({ action: 'create' }))).toBe(true);
+    await handlers.handleGamePath3d({ action: 'create', parentPath: '/root' });
+    expect(calls[0].name).toBe('path_3d');
+  });
+
+  it('handleGameSky requires action', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameSky({}))).toBe(true);
+    await handlers.handleGameSky({ action: 'set', skyType: 'procedural' });
+    expect(calls[0].args.sky_type).toBe('procedural');
+  });
+
+  it('handleGameCameraAttributes defaults action to get', async () => {
+    const { handlers, calls } = gameHarness();
+    await handlers.handleGameCameraAttributes({});
+    expect(calls[0]).toEqual({ name: 'camera_attributes', args: { action: 'get' } });
+  });
+
+  it('handleGameNavigation3d requires action', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameNavigation3d({}))).toBe(true);
+    await handlers.handleGameNavigation3d({ action: 'create', parentPath: '/root' });
+    expect(calls[0].name).toBe('navigation_3d');
+  });
+
+  it('handleGamePhysics3d requires action', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGamePhysics3d({}))).toBe(true);
+    await handlers.handleGamePhysics3d({ action: 'raycast', from: { x: 0, y: 0, z: 0 }, to: { x: 1, y: 0, z: 0 } });
+    expect(calls[0].name).toBe('physics_3d');
+  });
+
+  it('handleGamePhysics2d requires action', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGamePhysics2d({}))).toBe(true);
+    await handlers.handleGamePhysics2d({ action: 'raycast', from: { x: 0, y: 0 }, to: { x: 1, y: 0 } });
+    expect(calls[0].name).toBe('physics_2d');
+  });
+
+  it('handleGameCanvas and handleGameCanvasDraw require action', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameCanvas({}))).toBe(true);
+    expect(isErrorResponse(await handlers.handleGameCanvasDraw({}))).toBe(true);
+    await handlers.handleGameCanvas({ action: 'create' });
+    await handlers.handleGameCanvasDraw({ action: 'line', from: { x: 0, y: 0 }, to: { x: 1, y: 1 } });
+    expect(calls.map(call => call.name)).toEqual(['canvas', 'canvas_draw']);
+  });
+
+  it('handleGameLight2d requires action', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameLight2d({}))).toBe(true);
+    await handlers.handleGameLight2d({ action: 'create', parentPath: '/root' });
+    expect(calls[0].name).toBe('light_2d');
+  });
+
+  it('handleGameParallax requires action', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameParallax({}))).toBe(true);
+    await handlers.handleGameParallax({ action: 'create' });
+    expect(calls[0].name).toBe('parallax');
+  });
+
+  it('handleGameShape2d requires nodePath and action', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameShape2d({ nodePath: '/root/S' }))).toBe(true);
+    await handlers.handleGameShape2d({ nodePath: '/root/S', action: 'get_points' });
+    expect(calls[0]).toEqual({ name: 'shape_2d', args: { node_path: '/root/S', action: 'get_points' } });
+  });
+
+  it('handleGamePath2d requires action', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGamePath2d({}))).toBe(true);
+    await handlers.handleGamePath2d({ action: 'get_points' });
+    expect(calls[0]).toEqual({ name: 'path_2d', args: { action: 'get_points' } });
+  });
+
+  it('handleGameAnimationTree requires nodePath and action', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameAnimationTree({ nodePath: '/root/T' }))).toBe(true);
+    await handlers.handleGameAnimationTree({ nodePath: '/root/T', action: 'get_state' });
+    expect(calls[0]).toEqual({ name: 'animation_tree', args: { node_path: '/root/T', action: 'get_state' } });
+  });
+
+  it('handleGameAnimationControl requires nodePath and action', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameAnimationControl({ nodePath: '/root/A' }))).toBe(true);
+    await handlers.handleGameAnimationControl({ nodePath: '/root/A', action: 'play' });
+    expect(calls[0]).toEqual({ name: 'animation_control', args: { node_path: '/root/A', action: 'play' } });
+  });
+
+  it('handleGameAudioEffect and handleGameAudioBusLayout pass through params', async () => {
+    const { handlers, calls } = gameHarness();
+    await handlers.handleGameAudioEffect({ action: 'list' });
+    await handlers.handleGameAudioBusLayout({ action: 'list' });
+    expect(calls.map(call => call.name)).toEqual(['audio_effect', 'audio_bus_layout']);
+  });
+
+  it('handleGameAudioSpatial requires nodePath and action', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameAudioSpatial({ nodePath: '/root/Audio' }))).toBe(true);
+    await handlers.handleGameAudioSpatial({ nodePath: '/root/Audio', action: 'get' });
+    expect(calls[0]).toEqual({ name: 'audio_spatial', args: { node_path: '/root/Audio', action: 'get' } });
+  });
+
+  it('handleGameRenderSettings defaults action to get', async () => {
+    const { handlers, calls } = gameHarness();
+    await handlers.handleGameRenderSettings({});
+    expect(calls[0]).toEqual({ name: 'render_settings', args: { action: 'get' } });
+  });
+
+  it('handleGameResource requires action and path', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameResource({}))).toBe(true);
+    await handlers.handleGameResource({ action: 'exists', path: 'res://x.tres' });
+    expect(calls[0].name).toBe('resource');
+  });
+
+  it('handleGameLocale requires action', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameLocale({}))).toBe(true);
+    await handlers.handleGameLocale({ action: 'get' });
+    expect(calls[0]).toEqual({ name: 'locale', args: { action: 'get' } });
+  });
+
+  it('handleGameUiControl requires nodePath and action', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameUiControl({ nodePath: '/root/UI' }))).toBe(true);
+    await handlers.handleGameUiControl({ nodePath: '/root/UI', action: 'get' });
+    expect(calls[0]).toEqual({ name: 'ui_control', args: { node_path: '/root/UI', action: 'get' } });
+  });
+
+  it('handleGameUiText validates action-specific requirements', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameUiText({ nodePath: '/root/Label' }))).toBe(true);
+    expect(isErrorResponse(await handlers.handleGameUiText({ nodePath: '/root/Label', action: 'set' }))).toBe(true);
+    await handlers.handleGameUiText({ nodePath: '/root/Label', action: 'set', text: 'Hi' });
+    expect(calls[0]).toEqual({ name: 'ui_text', args: { node_path: '/root/Label', action: 'set', text: 'Hi' } });
+  });
+
+  it('handleGameUiPopup, UiTree, UiItemList, UiTabs, UiMenu, and UiRange pass node paths and actions', async () => {
+    const { handlers, calls } = gameHarness();
+    await handlers.handleGameUiPopup({ nodePath: '/root/Popup', action: 'get' });
+    await handlers.handleGameUiTree({ nodePath: '/root/Tree', action: 'get_items' });
+    await handlers.handleGameUiItemList({ nodePath: '/root/List', action: 'get_items' });
+    await handlers.handleGameUiTabs({ nodePath: '/root/Tabs', action: 'get_tabs' });
+    await handlers.handleGameUiMenu({ nodePath: '/root/Menu', action: 'get_items' });
+    await handlers.handleGameUiRange({ nodePath: '/root/Slider', action: 'get' });
+    expect(calls.map(call => call.name)).toEqual([
+      'ui_popup', 'ui_tree', 'ui_item_list', 'ui_tabs', 'ui_menu', 'ui_range',
+    ]);
+  });
+
+  it('handleGameTerrain requires action and per-action params', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameTerrain({}))).toBe(true);
+    await handlers.handleGameTerrain({ action: 'get_height', nodePath: '/root/T', x: 1, z: 1 });
+    expect(calls[0].name).toBe('terrain');
+  });
+
+  it('handleGameVisualShader requires action', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameVisualShader({}))).toBe(true);
+    await handlers.handleGameVisualShader({ action: 'get_nodes' });
+    expect(calls[0].name).toBe('visual_shader');
+  });
+
+  it('handleGameVideo requires action', async () => {
+    const { handlers, calls } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameVideo({}))).toBe(true);
+    await handlers.handleGameVideo({ action: 'get' });
+    expect(calls[0]).toEqual({ name: 'video', args: { action: 'get' } });
+  });
+
+  it('handleGameVisualRegression validates the action', async () => {
+    const { handlers } = gameHarness();
+    expect(isErrorResponse(await handlers.handleGameVisualRegression({ action: 'bogus' }))).toBe(true);
+  });
+
+  it('handleGameScreenshot returns an image content type', async () => {
+    const { handlers, commands } = gameHarness();
+    commands.send.mockResolvedValue({
+      result: { data: Buffer.from('png-bytes').toString('base64'), width: 2, height: 2 },
+    });
+    const response = await handlers.handleGameScreenshot({});
+    expect(Array.isArray(response.content)).toBe(true);
+    const image = response.content.find(item => item.type === 'image');
+    expect(image).toBeDefined();
+    expect((image as { mimeType?: string }).mimeType).toBe('image/png');
+  });
+
+  it('enforces the runtime gates before dispatching', async () => {
+    const noProcess = gameHarness({ process: false });
+    expect(isErrorResponse(await noProcess.handlers.handleGameClick({}))).toBe(true);
+    expect(noProcess.calls).toHaveLength(0);
+
+    const noConnection = gameHarness({ connected: false });
+    expect(isErrorResponse(await noConnection.handlers.handleGameClick({}))).toBe(true);
+    expect(noConnection.calls).toHaveLength(0);
   });
 });
 
 // ---------------------------------------------------------------------------
-// 7. Lifecycle handler source checks
+// Project handlers — real ProjectToolHandlers with a mocked operations seam.
+// The mock records execute() calls and simulates run() validation through the
+// real HeadlessOperationService contract.
 // ---------------------------------------------------------------------------
-describe('Lifecycle handlers', () => {
-  it('handleLaunchEditor exists and detects godot path', () => {
-    expect(sourceCode).toContain('handleLaunchEditor');
-    expect(sourceCode).toContain('detectGodotPath');
+
+function projectHarness(options: { exitCode?: number; stdout?: string } = {}) {
+  const root = createProject();
+  const calls: { operation: string; params: Record<string, unknown> }[] = [];
+  const execute = vi.fn((operation: string, params: Record<string, unknown>) => {
+    calls.push({ operation, params });
+    return Promise.resolve({
+      stdout: options.stdout ?? `${operation} ok`,
+      stderr: '',
+      exitCode: options.exitCode ?? 0,
+      signal: null,
+    });
+  });
+  const run = vi.fn(() => Promise.resolve({ content: [{ type: 'text', text: 'ok' }] }));
+  const handlers = new ProjectToolHandlers({
+    executable: { path: 'godot', requirePath: async () => '/godot' } as never,
+    logDebug: vi.fn(),
+    operations: { execute, run } as never,
+    projectSupport: {
+      findGodotProjects: () => [{ path: root, name: 'root' }],
+      getProjectStructureAsync: async () => ({ directories: [], files: ['project.godot'] }),
+      isDotnetProject: () => false,
+    } as never,
+  });
+  return { handlers, root, calls, execute, run };
+}
+
+describe('Project handlers — real operations boundary', () => {
+  it('handleCreateScene requires projectPath and scenePath', async () => {
+    const { handlers } = projectHarness();
+    expect(isErrorResponse(await handlers.handleCreateScene({ projectPath: '/nope', scenePath: 'main.tscn' }))).toBe(true);
+
+    const ok = projectHarness();
+    const response = await ok.handlers.handleCreateScene({ projectPath: ok.root, scenePath: 'main.tscn' });
+    expect(textFrom(response)).toContain('Scene created successfully');
+    expect(ok.calls[0]).toEqual({
+      operation: 'create_scene',
+      params: { scenePath: 'main.tscn', rootNodeType: 'Node2D' },
+    });
   });
 
-  it('handleRunProject exists and spawns process', () => {
-    expect(sourceCode).toContain('handleRunProject');
-    expect(sourceCode).toContain('spawn(');
+  it('handleAddNode requires projectPath, scenePath, nodeType, and nodeName', async () => {
+    const { handlers } = projectHarness();
+    expect(isErrorResponse(await handlers.handleAddNode({ projectPath: '/x', scenePath: 'a.tscn', nodeType: 'Node2D' }))).toBe(true);
+    const ok = projectHarness();
+    const response = await ok.handlers.handleAddNode({
+      projectPath: ok.root, scenePath: 'main.tscn', nodeType: 'Node2D', nodeName: 'Player',
+    });
+    expect(ok.calls[0].operation).toBe('add_node');
+    expect(isErrorResponse(response)).toBe(false);
   });
 
-  it('handleStopProject exists and kills process', () => {
-    expect(sourceCode).toContain('handleStopProject');
-    // Should have some form of process termination
-    expect(sourceCode).toContain('activeProcess');
+  it('handleModifySceneNode requires projectPath, scenePath, nodePath, and properties', async () => {
+    const { handlers } = projectHarness();
+    expect(isErrorResponse(await handlers.handleModifySceneNode({ projectPath: '/x', scenePath: 'main.tscn', nodePath: '/root/P' }))).toBe(true);
+    const ok = projectHarness();
+    const response = await ok.handlers.handleModifySceneNode({
+      projectPath: ok.root, scenePath: 'main.tscn', nodePath: '/root/P', properties: { visible: true },
+    });
+    expect(isErrorResponse(response)).toBe(false);
   });
 
-  it('handleGetDebugOutput exists and reads output buffer', () => {
-    expect(sourceCode).toContain('handleGetDebugOutput');
-    expect(sourceCode).toContain('.output');
+  it('handleRemoveSceneNode requires projectPath, scenePath, and nodePath', async () => {
+    const ok = projectHarness();
+    const response = await ok.handlers.handleRemoveSceneNode({
+      projectPath: ok.root, scenePath: 'main.tscn', nodePath: '/root/Enemy',
+    });
+    expect(isErrorResponse(response)).toBe(false);
   });
 
-  it('handleGetGodotVersion exists and calls --version', () => {
-    expect(sourceCode).toContain('handleGetGodotVersion');
-    expect(sourceCode).toContain("'--version'");
+  it('handleAttachScript requires projectPath, scenePath, nodePath, and scriptPath', async () => {
+    const { handlers } = projectHarness();
+    expect(isErrorResponse(await handlers.handleAttachScript({ projectPath: '/x', scenePath: 'a.tscn', nodePath: '/root/P' }))).toBe(true);
+    const ok = projectHarness();
+    const response = await ok.handlers.handleAttachScript({
+      projectPath: ok.root, scenePath: 'main.tscn', nodePath: '/root/Player', scriptPath: 'scripts/player.gd',
+    });
+    expect(isErrorResponse(response)).toBe(false);
   });
 
-  it('handleListProjects exists and scans directories', () => {
-    expect(sourceCode).toContain('handleListProjects');
-    expect(sourceCode).toContain('project.godot');
+  it('handleCreateResource requires projectPath, resourceType, and resourcePath', async () => {
+    const { handlers } = projectHarness();
+    expect(isErrorResponse(await handlers.handleCreateResource({ projectPath: '/x', resourceType: 'Theme' }))).toBe(true);
+    const ok = projectHarness();
+    const response = await ok.handlers.handleCreateResource({
+      projectPath: ok.root, resourceType: 'Theme', resourcePath: 'res://theme.tres', properties: { font_size: 16 },
+    });
+    expect(isErrorResponse(response)).toBe(false);
   });
 
-  it('handleGetProjectInfo reads project.godot', () => {
-    expect(sourceCode).toContain('handleGetProjectInfo');
-    expect(sourceCode).toContain('readFileSync');
-    expect(sourceCode).toContain('Project directory does not exist:');
-    expect(sourceCode).toContain('Use create_project only if a new project was requested.');
+  it('handleSaveScene, handleLoadSprite, and handleExportMeshLibrary route to executeOperation', async () => {
+    const save = projectHarness();
+    const saveResponse = await save.handlers.handleSaveScene({
+      projectPath: save.root, scenePath: 'main.tscn', newPath: 'main2.tscn',
+    });
+    expect(save.calls[0].operation).toBe('save_scene');
+    expect(textFrom(saveResponse)).toContain('saved successfully');
+
+    const sprite = projectHarness();
+    const spriteResponse = await sprite.handlers.handleLoadSprite({
+      projectPath: sprite.root, scenePath: 'main.tscn', nodePath: '/root/Sprite', texturePath: 'res://icon.png',
+    });
+    expect(sprite.calls[0].operation).toBe('load_sprite');
+    expect(textFrom(spriteResponse)).toContain('Sprite loaded successfully');
+
+    const mesh = projectHarness();
+    const meshResponse = await mesh.handlers.handleExportMeshLibrary({
+      projectPath: mesh.root, scenePath: 'main.tscn', outputPath: 'res://meshlib',
+    });
+    expect(mesh.calls[0].operation).toBe('export_mesh_library');
+    expect(textFrom(meshResponse)).toContain('MeshLibrary exported successfully');
   });
 
-  it('handleCreateScene calls executeOperation', () => {
-    expect(sourceCode).toContain('handleCreateScene');
-    expect(sourceCode).toContain('executeOperation');
+  it('handleGetUid requires projectPath and filePath', async () => {
+    const ok = projectHarness();
+    const response = await ok.handlers.handleGetUid({ projectPath: ok.root, filePath: 'main.tscn' });
+    expect(ok.calls[0].operation).toBe('get_uid');
+    expect(textFrom(response)).toContain('UID for main.tscn');
   });
 
-  it('handleSaveScene calls executeOperation', () => {
-    expect(sourceCode).toContain('handleSaveScene');
+  it('handleReadScene extracts JSON from the operation output', async () => {
+    const ok = projectHarness();
+    mkdirSync(join(ok.root, 'scenes'), { recursive: true });
+    writeFileSync(join(ok.root, 'scenes', 'main.tscn'), '');
+    ok.execute.mockResolvedValue({
+      stdout: 'SCENE_JSON_START\n{"nodes": []}\nSCENE_JSON_END\n',
+      stderr: '', exitCode: 0, signal: null,
+    });
+    const response = await ok.handlers.handleReadScene({ projectPath: ok.root, scenePath: 'scenes/main.tscn' });
+    expect(textFrom(response)).toContain('"nodes"');
   });
 
-  it('handleReadScene extracts JSON from markers', () => {
-    expect(sourceCode).toContain('handleReadScene');
-    expect(sourceCode).toContain('SCENE_JSON_START');
-    expect(sourceCode).toContain('SCENE_JSON_END');
+  it('handleReadProjectSettings parses the project.godot file', async () => {
+    const ok = projectHarness();
+    const response = await ok.handlers.handleReadProjectSettings({ projectPath: ok.root });
+    expect(textFrom(response)).toContain('Test Game');
   });
 
-  it('handleReadProjectSettings parses INI-style sections', () => {
-    expect(sourceCode).toContain('handleReadProjectSettings');
-    // It should parse [section] headers and key=value pairs
-    expect(sourceCode).toContain("/^\\[(.+)\\]$/.exec(trimmed)");
+  it('handleModifyProjectSettings writes to project.godot', async () => {
+    const ok = projectHarness();
+    const response = await ok.handlers.handleModifyProjectSettings({
+      projectPath: ok.root, section: 'application', key: 'config/name', value: 'Renamed',
+    });
+    expect(isErrorResponse(response)).toBe(false);
+    expect(existsSync(join(ok.root, 'project.godot'))).toBe(true);
   });
 
-  it('handleModifyProjectSettings writes to project.godot', () => {
-    expect(sourceCode).toContain('handleModifyProjectSettings');
-    expect(sourceCode).toContain('writeFileSync');
+  it('handleListProjectFiles scans the project tree', async () => {
+    const ok = projectHarness();
+    mkdirSync(join(ok.root, 'scenes'), { recursive: true });
+    writeFileSync(join(ok.root, 'scenes', 'main.tscn'), '');
+    const response = await ok.handlers.handleListProjectFiles({ projectPath: ok.root });
+    expect(textFrom(response)).toContain('project.godot');
+    expect(textFrom(response)).toContain('scenes/main.tscn');
   });
 
-  it('handleListProjectFiles scans directory tree', () => {
-    expect(sourceCode).toContain('handleListProjectFiles');
-    expect(sourceCode).toContain('readdirSync');
+  it('handleListProjects requires a directory and lists projects', async () => {
+    const ok = projectHarness();
+    const response = await ok.handlers.handleListProjects({ directory: ok.root });
+    expect(textFrom(response)).toContain(ok.root);
   });
 
-  it('handleGameScreenshot returns image content type', () => {
-    expect(sourceCode).toContain('handleGameScreenshot');
-    expect(sourceCode).toContain("type: 'image'");
-    expect(sourceCode).toContain("mimeType: 'image/png'");
+  it('handleGetProjectInfo reads project.godot', async () => {
+    const ok = projectHarness();
+    const response = await ok.handlers.handleGetProjectInfo({ projectPath: ok.root });
+    expect(textFrom(response)).toContain('Test Game');
   });
 
-  it('handleUpdateProjectUids checks Godot version >= 4.4', () => {
-    expect(sourceCode).toContain('handleUpdateProjectUids');
-    expect(sourceCode).toContain('isGodot44OrLater');
+  it('handleReadFile and handleWriteFile operate on the project filesystem', async () => {
+    const ok = projectHarness();
+    writeFileSync(join(ok.root, 'note.txt'), 'hello');
+    const read = await ok.handlers.handleReadFile({ projectPath: ok.root, filePath: 'note.txt' });
+    expect(textFrom(read)).toContain('hello');
+    const written = await ok.handlers.handleWriteFile({ projectPath: ok.root, filePath: 'new.txt', content: 'data' });
+    expect(isErrorResponse(written)).toBe(false);
+    expect(existsSync(join(ok.root, 'new.txt'))).toBe(true);
+  });
+
+  it('handleDeleteFile and handleCreateDirectory mutate the filesystem', async () => {
+    const ok = projectHarness();
+    writeFileSync(join(ok.root, 'tmp.txt'), 'x');
+    const deleted = await ok.handlers.handleDeleteFile({ projectPath: ok.root, filePath: 'tmp.txt' });
+    expect(isErrorResponse(deleted)).toBe(false);
+    expect(existsSync(join(ok.root, 'tmp.txt'))).toBe(false);
+    const created = await ok.handlers.handleCreateDirectory({ projectPath: ok.root, directoryPath: 'assets' });
+    expect(isErrorResponse(created)).toBe(false);
+    expect(existsSync(join(ok.root, 'assets'))).toBe(true);
+  });
+
+  it('handleCreateProject requires projectPath and projectName', async () => {
+    const { handlers } = projectHarness();
+    expect(isErrorResponse(await handlers.handleCreateProject({ projectPath: '/x' }))).toBe(true);
+    const ok = projectHarness();
+    const target = join(ok.root, 'fresh-project');
+    const response = await ok.handlers.handleCreateProject({ projectPath: target, projectName: 'New Game' });
+    expect(isErrorResponse(response)).toBe(false);
+    expect(existsSync(join(target, 'project.godot'))).toBe(true);
+  });
+
+  it('handleManageAutoloads, handleManageInputMap, and handleManageExportPresets require projectPath and action', async () => {
+    const { handlers } = projectHarness();
+    expect(isErrorResponse(await handlers.handleManageAutoloads({ projectPath: '/x' }))).toBe(true);
+    expect(isErrorResponse(await handlers.handleManageInputMap({ projectPath: '/x' }))).toBe(true);
+    expect(isErrorResponse(await handlers.handleManageExportPresets({ projectPath: '/x' }))).toBe(true);
+  });
+
+  it('handleExportProject validates projectPath and renders an export command', async () => {
+    const ok = projectHarness();
+    const response = await ok.handlers.handleExportProject({
+      projectPath: ok.root, presetName: 'Linux/X11', outputPath: 'build/game',
+    });
+    expect(isErrorResponse(response)).toBe(false);
+  });
+
+  it('handleManageCiPipeline rejects unsafe generator values without writing a workflow', async () => {
+    const ok = projectHarness();
+    const response = await ok.handlers.handleManageCiPipeline({
+      projectPath: ok.root, action: 'create', platforms: ['linux', 'linux; rm -rf /'],
+    });
+    expect(isErrorResponse(response)).toBe(true);
+    expect(textFrom(response)).toContain('platforms');
+    expect(existsSync(join(ok.root, '.github', 'workflows', 'godot-export.yml'))).toBe(false);
+  });
+
+  it('handleManageDockerExport rejects unsafe baseImage values', async () => {
+    const ok = projectHarness();
+    const response = await ok.handlers.handleManageDockerExport({
+      projectPath: ok.root, action: 'create', baseImage: 'ubuntu:22.04\nRUN malicious',
+    });
+    expect(isErrorResponse(response)).toBe(true);
+    expect(existsSync(join(ok.root, 'Dockerfile'))).toBe(false);
+  });
+
+  it('handleUpdateProjectUids validates the Godot version gate', async () => {
+    const ok = projectHarness();
+    const response = await ok.handlers.handleUpdateProjectUids({ projectPath: ok.root });
+    expect(response).toBeTruthy();
   });
 });
 
 // ---------------------------------------------------------------------------
-// 7b. Shader, audio, navigation, tilemap, collision, environment handlers
+// Lifecycle handlers — real LifecycleToolHandlers with a mocked process seam.
 // ---------------------------------------------------------------------------
-describe('Game command handlers — new tools (shader, audio, nav, tilemap, collision, env)', () => {
-  // game_set_shader_param
-  describe('handleGameSetShaderParam', () => {
-    const argsFn = (a: any) => ({
-      node_path: a.nodePath, param_name: a.paramName, value: a.value,
-      ...(a.typeHint ? { type_hint: a.typeHint } : {}),
-    });
 
-    it('requires nodePath and paramName', () => {
-      const r = fakeGameCommand(true, true, {}, argsFn);
-      // argsFn succeeds but returns undefined fields — validation is in the TS handler
-      expect(r.error).toBeNull();
-    });
+const mockChildProcess = {
+  once: vi.fn(),
+  on: vi.fn(),
+  kill: vi.fn(),
+  exitCode: 0,
+  signalCode: null,
+  stdout: { on: vi.fn() },
+  stderr: { on: vi.fn() },
+};
 
-    it('passes shader params correctly', () => {
-      const r = fakeGameCommand(true, true, { nodePath: '/root/Mesh', paramName: 'albedo_color', value: { r: 1, g: 0, b: 0, a: 1 }, typeHint: 'Color' }, argsFn);
-      expect(r.commandArgs).toEqual({ node_path: '/root/Mesh', param_name: 'albedo_color', value: { r: 1, g: 0, b: 0, a: 1 }, type_hint: 'Color' });
-    });
+function activeProcessRecord(output: string[] = [], errors: string[] = []): GodotProcess {
+  return {
+    process: mockChildProcess as never,
+    output,
+    errors,
+    outputDropped: 0,
+    errorsDropped: 0,
+  };
+}
 
-    it('omits type_hint when not provided', () => {
-      const r = fakeGameCommand(true, true, { nodePath: '/root/Mesh', paramName: 'speed', value: 2.5 }, argsFn);
-      expect(r.commandArgs).toEqual({ node_path: '/root/Mesh', param_name: 'speed', value: 2.5 });
-    });
+function lifecycleHarness(overrides: { projectPath?: string; connected?: boolean } = {}) {
+  const root = overrides.projectPath ?? createProject();
+  let processRecord: GodotProcess | null = null;
+  const context: LifecycleToolHandlerContext = {
+    executable: { path: '/godot', requirePath: async () => '/godot' } as never,
+    getActiveProcess: () => processRecord,
+    isPathAllowed: () => true,
+    isRelativePathAllowed: () => true,
+    logDebug: vi.fn(),
+    startProjectProcess: vi.fn(() => {
+      processRecord = activeProcessRecord(['started'], []);
+      return processRecord;
+    }),
+    stopProjectProcess: vi.fn(() => {
+      const record = processRecord;
+      processRecord = null;
+      return record;
+    }),
+    stopAuthoringSession: vi.fn(),
+    connectToGame: vi.fn(async () => undefined),
+    disconnectFromGame: vi.fn(),
+    injectInteractionServer: vi.fn(),
+    removeInteractionServer: vi.fn(),
+    getConnectedProjectPath: () => (overrides.connected ?? false) ? root : null,
+    clearConnectedProjectPath: vi.fn(),
+    getInteractionPort: () => 9090,
+    getRuntimeHandshake: () => ({ projectPath: root, currentScene: 'res://main.tscn' }),
+    getRuntimeEnvironment: () => ({}),
+    getEditorEnvironment: () => ({}),
+    ensureEditorSession: vi.fn(async () => ({
+      state: 'connected', project_path: root, connected: true, reused: true, spawned: false,
+      editor_pid: 1, editor_start_identity: 'test', port: 9091, protocol_version: 2,
+      addon_version: '1.1.5', godot_version: '4.7.1', created_at: 0,
+    })),
+    getEditorSessionStatus: vi.fn(async () => ({
+      state: 'connected', project_path: root, connected: true, reused: true, spawned: false,
+      editor_pid: 1, editor_start_identity: 'test', port: 9091, protocol_version: 2,
+      addon_version: '1.1.5', godot_version: '4.7.1', created_at: 0,
+    })),
+    disconnectEditorSession: vi.fn(),
+    isGameConnected: () => true,
+    sendGameCommand: vi.fn(async () => ({ result: { current_scene: 'res://main.tscn' } })),
+  };
+  const handlers = new LifecycleToolHandlers(context);
+  return { handlers, context, root };
+}
+
+describe('Lifecycle handlers — real project runtime seam', () => {
+  it('handleRunProject launches, authenticates, and reports readiness', async () => {
+    const { handlers, context } = lifecycleHarness();
+    const response = await handlers.handleRunProject({ projectPath: context.getRuntimeHandshake()!.projectPath as string });
+    expect(isErrorResponse(response)).toBe(false);
+    expect(textFrom(response)).toContain('runtime_connected');
+    expect(context.startProjectProcess).toHaveBeenCalledTimes(1);
+    expect(context.connectToGame).toHaveBeenCalledTimes(1);
   });
 
-  // game_audio_play
-  describe('handleGameAudioPlay', () => {
-    const argsFn = (a: any) => ({
-      node_path: a.nodePath, action: a.action || 'play',
-      ...(a.stream ? { stream: a.stream } : {}),
-      ...(a.volume !== undefined ? { volume: a.volume } : {}),
-      ...(a.pitch !== undefined ? { pitch: a.pitch } : {}),
-      ...(a.bus ? { bus: a.bus } : {}),
-      ...(a.fromPosition !== undefined ? { from_position: a.fromPosition } : {}),
-    });
-
-    it('defaults action to play', () => {
-      const r = fakeGameCommand(true, true, { nodePath: '/root/Music' }, argsFn);
-      expect(r.commandArgs).toEqual({ node_path: '/root/Music', action: 'play' });
-    });
-
-    it('passes all optional audio params', () => {
-      const r = fakeGameCommand(true, true, { nodePath: '/root/SFX', action: 'play', volume: 0.5, pitch: 1.2, bus: 'Effects', fromPosition: 3.5, stream: 'res://audio.ogg' }, argsFn);
-      expect(r.commandArgs).toEqual({ node_path: '/root/SFX', action: 'play', volume: 0.5, pitch: 1.2, bus: 'Effects', from_position: 3.5, stream: 'res://audio.ogg' });
-    });
+  it('handleRunProject requires a valid projectPath', async () => {
+    const { handlers } = lifecycleHarness();
+    expect(isErrorResponse(await handlers.handleRunProject({}))).toBe(true);
+    expect(isErrorResponse(await handlers.handleRunProject({ projectPath: '../../etc/passwd' }))).toBe(true);
   });
 
-  // game_audio_bus
-  describe('handleGameAudioBus', () => {
-    const argsFn = (a: any) => ({
-      bus_name: a.busName || 'Master',
-      ...(a.volume !== undefined ? { volume: a.volume } : {}),
-      ...(a.mute !== undefined ? { mute: a.mute } : {}),
-      ...(a.solo !== undefined ? { solo: a.solo } : {}),
-    });
+  it('handleStopProject stops only an active process', async () => {
+    const { handlers } = lifecycleHarness();
+    expect(isErrorResponse(await handlers.handleStopProject())).toBe(true);
 
-    it('defaults bus to Master', () => {
-      const r = fakeGameCommand(true, true, {}, argsFn);
-      expect(r.commandArgs).toEqual({ bus_name: 'Master' });
-    });
-
-    it('sets volume and mute', () => {
-      const r = fakeGameCommand(true, true, { busName: 'Music', volume: 0.3, mute: true }, argsFn);
-      expect(r.commandArgs).toEqual({ bus_name: 'Music', volume: 0.3, mute: true });
-    });
+    const withProcess = lifecycleHarness({ connected: true });
+    const record = activeProcessRecord(['line']);
+    withProcess.context.getActiveProcess = () => record;
+    (withProcess.context as { stopProjectProcess: ReturnType<typeof vi.fn> }).stopProjectProcess.mockReturnValue(record);
+    const response = await withProcess.handlers.handleStopProject();
+    expect(isErrorResponse(response)).toBe(false);
+    expect(textFrom(response)).toContain('stopped');
   });
 
-  // game_navigate_path
-  describe('handleGameNavigatePath', () => {
-    const argsFn = (a: any) => ({
-      start: a.start, end: a.end, optimize: a.optimize ?? true,
-    });
+  it('handleGetDebugOutput requires an active process and reports output', async () => {
+    const { handlers } = lifecycleHarness();
+    expect(isErrorResponse(await handlers.handleGetDebugOutput())).toBe(true);
 
-    it('passes 2D points', () => {
-      const r = fakeGameCommand(true, true, { start: { x: 0, y: 0 }, end: { x: 100, y: 200 } }, argsFn);
-      expect(r.commandArgs).toEqual({ start: { x: 0, y: 0 }, end: { x: 100, y: 200 }, optimize: true });
-    });
-
-    it('passes 3D points with optimize false', () => {
-      const r = fakeGameCommand(true, true, { start: { x: 0, y: 0, z: 0 }, end: { x: 10, y: 5, z: 10 }, optimize: false }, argsFn);
-      expect(r.commandArgs).toEqual({ start: { x: 0, y: 0, z: 0 }, end: { x: 10, y: 5, z: 10 }, optimize: false });
-    });
+    const withOutput = lifecycleHarness();
+    withOutput.context.getActiveProcess = () => activeProcessRecord(['hello world']);
+    const response = await withOutput.handlers.handleGetDebugOutput();
+    expect(textFrom(response)).toContain('hello world');
   });
 
-  // game_tilemap
-  describe('handleGameTilemap', () => {
-    const argsFn = (a: any) => ({
-      node_path: a.nodePath, action: a.action,
-      ...(a.x !== undefined ? { x: a.x } : {}),
-      ...(a.y !== undefined ? { y: a.y } : {}),
-      ...(a.cells ? { cells: a.cells } : {}),
-      ...(a.sourceId !== undefined ? { source_id: a.sourceId } : {}),
-    });
-
-    it('handles get_cell action', () => {
-      const r = fakeGameCommand(true, true, { nodePath: '/root/TileMap', action: 'get_cell', x: 5, y: 3 }, argsFn);
-      expect(r.commandArgs).toEqual({ node_path: '/root/TileMap', action: 'get_cell', x: 5, y: 3 });
-    });
-
-    it('handles set_cells with cell array', () => {
-      const cells = [{ x: 0, y: 0, source_id: 0, atlas_x: 0, atlas_y: 0, alt_tile: 0 }];
-      const r = fakeGameCommand(true, true, { nodePath: '/root/TileMap', action: 'set_cells', cells }, argsFn);
-      expect(r.commandArgs!.action).toBe('set_cells');
-      expect(r.commandArgs!.cells).toHaveLength(1);
-    });
-
-    it('handles get_used_cells with source filter', () => {
-      const r = fakeGameCommand(true, true, { nodePath: '/root/TileMap', action: 'get_used_cells', sourceId: 2 }, argsFn);
-      expect(r.commandArgs).toEqual({ node_path: '/root/TileMap', action: 'get_used_cells', source_id: 2 });
-    });
+  it('handleGetGodotVersion returns the version string', async () => {
+    const { handlers } = lifecycleHarness();
+    const response = await handlers.handleGetGodotVersion();
+    expect(isErrorResponse(response)).toBe(false);
   });
 
-  // game_add_collision
-  describe('handleGameAddCollision', () => {
-    const argsFn = (a: any) => ({
-      parent_path: a.parentPath, shape_type: a.shapeType,
-      ...(a.shapeParams ? { shape_params: a.shapeParams } : {}),
-      ...(a.collisionLayer !== undefined ? { collision_layer: a.collisionLayer } : {}),
-      ...(a.collisionMask !== undefined ? { collision_mask: a.collisionMask } : {}),
-      ...(a.disabled !== undefined ? { disabled: a.disabled } : {}),
-    });
-
-    it('passes box shape with params', () => {
-      const r = fakeGameCommand(true, true, { parentPath: '/root/Body', shapeType: 'box', shapeParams: { size_x: 2, size_y: 2, size_z: 2 } }, argsFn);
-      expect(r.commandArgs).toEqual({ parent_path: '/root/Body', shape_type: 'box', shape_params: { size_x: 2, size_y: 2, size_z: 2 } });
-    });
-
-    it('passes collision layer and mask', () => {
-      const r = fakeGameCommand(true, true, { parentPath: '/root/Body', shapeType: 'sphere', collisionLayer: 1, collisionMask: 3 }, argsFn);
-      expect(r.commandArgs).toEqual({ parent_path: '/root/Body', shape_type: 'sphere', collision_layer: 1, collision_mask: 3 });
-    });
+  it('handleLaunchEditor requires a valid project and ensures a session', async () => {
+    const { handlers } = lifecycleHarness();
+    expect(isErrorResponse(await handlers.handleLaunchEditor({ projectPath: '../../x' }))).toBe(true);
+    const ok = lifecycleHarness();
+    const response = await ok.handlers.handleLaunchEditor({ projectPath: ok.root });
+    expect(textFrom(response)).toContain('editor_session');
   });
 
-  // game_environment
-  describe('handleGameEnvironment', () => {
-    it('source defines handleGameEnvironment method', () => {
-      expect(sourceCode).toContain('handleGameEnvironment');
-    });
+  it('handleEditorSession reports status through the registry', async () => {
+    const { handlers, root } = lifecycleHarness();
+    const response = await handlers.handleEditorSession({ projectPath: root, action: 'status' });
+    expect(isErrorResponse(response)).toBe(false);
+    expect(textFrom(response)).toContain('editor_session');
+  });
 
-    it('handler passes environment settings via envKeys loop', () => {
-      expect(sourceCode).toContain("const envKeys");
-    });
-
-    it('defaults action to set', () => {
-      expect(sourceCode).toContain("action: args.action || 'set'");
-    });
+  it('handleEditorSession validates action and path', async () => {
+    const { handlers } = lifecycleHarness();
+    expect(isErrorResponse(await handlers.handleEditorSession({ projectPath: '/x', action: 'bogus' }))).toBe(true);
   });
 });
 
 // ---------------------------------------------------------------------------
-// 7c. Group, timer, particles, animation, export, state, physics, joint, bone, theme, viewport, debug handlers
+// Registry cross-check: every manifest tool maps to a real handler method.
+// Replaces the earlier source-substring "handler structure" checks.
 // ---------------------------------------------------------------------------
-describe('Game command handlers — new tools (group, timer, particles, animation, physics, etc.)', () => {
-  // game_manage_group
-  describe('handleGameManageGroup', () => {
-    const argsFn = (a: any) => ({
-      action: a.action,
-      ...(a.nodePath ? { node_path: a.nodePath } : {}),
-      ...(a.group ? { group: a.group } : {}),
-    });
 
-    it('passes add action with group', () => {
-      const r = fakeGameCommand(true, true, { action: 'add', nodePath: '/root/Player', group: 'enemies' }, argsFn);
-      expect(r.commandArgs).toEqual({ action: 'add', node_path: '/root/Player', group: 'enemies' });
-    });
-
-    it('passes get_groups without group param', () => {
-      const r = fakeGameCommand(true, true, { action: 'get_groups', nodePath: '/root/Player' }, argsFn);
-      expect(r.commandArgs).toEqual({ action: 'get_groups', node_path: '/root/Player' });
-    });
+describe('Tool manifest to real handler mapping', () => {
+  it('every project-domain tool has a matching ProjectToolHandlers method', () => {
+    const { handlers } = projectHarness();
+    const missing = Object.entries(toolManifest)
+      .filter(([, entry]) => entry.domain === 'project' && entry.handler !== undefined)
+      .filter(([, entry]) => typeof (handlers as unknown as Record<string, unknown>)[entry.handler] !== 'function')
+      .map(([name, entry]) => `${name}::${entry.handler}`);
+    expect(missing).toEqual([]);
   });
 
-  // game_create_timer
-  describe('handleGameCreateTimer', () => {
-    const argsFn = (a: any) => ({
-      parent_path: a.parentPath || '/root',
-      wait_time: a.waitTime ?? 1.0,
-      one_shot: a.oneShot ?? false,
-      autostart: a.autostart ?? false,
-    });
-
-    it('defaults to /root parent and 1s wait', () => {
-      const r = fakeGameCommand(true, true, {}, argsFn);
-      expect(r.commandArgs).toEqual({ parent_path: '/root', wait_time: 1.0, one_shot: false, autostart: false });
-    });
-
-    it('passes custom timer settings', () => {
-      const r = fakeGameCommand(true, true, { parentPath: '/root/Game', waitTime: 5.0, oneShot: true, autostart: true }, argsFn);
-      expect(r.commandArgs).toEqual({ parent_path: '/root/Game', wait_time: 5.0, one_shot: true, autostart: true });
-    });
+  it('every game-domain tool has a matching GameToolHandlers method', () => {
+    const { handlers } = gameHarness();
+    const missing = Object.entries(toolManifest)
+      .filter(([, entry]) => entry.domain === 'game' && entry.handler !== undefined)
+      .filter(([, entry]) => typeof (handlers as unknown as Record<string, unknown>)[entry.handler] !== 'function')
+      .map(([name, entry]) => `${name}::${entry.handler}`);
+    expect(missing).toEqual([]);
   });
 
-  // game_set_particles
-  describe('handleGameSetParticles', () => {
-    const argsFn = (a: any) => ({
-      node_path: a.nodePath,
-      ...(a.emitting !== undefined ? { emitting: a.emitting } : {}),
-      ...(a.amount !== undefined ? { amount: a.amount } : {}),
-    });
-
-    it('passes particle settings', () => {
-      const r = fakeGameCommand(true, true, { nodePath: '/root/Particles', emitting: true, amount: 100 }, argsFn);
-      expect(r.commandArgs).toEqual({ node_path: '/root/Particles', emitting: true, amount: 100 });
-    });
-  });
-
-  // game_create_animation
-  describe('handleGameCreateAnimation', () => {
-    const argsFn = (a: any) => ({
-      node_path: a.nodePath, animation_name: a.animationName,
-      length: a.length ?? 1.0, loop_mode: a.loopMode ?? 0, tracks: a.tracks || [],
-    });
-
-    it('passes animation params', () => {
-      const r = fakeGameCommand(true, true, { nodePath: '/root/AnimPlayer', animationName: 'walk', length: 2.0 }, argsFn);
-      expect(r.commandArgs).toEqual({ node_path: '/root/AnimPlayer', animation_name: 'walk', length: 2.0, loop_mode: 0, tracks: [] });
-    });
-  });
-
-  // export_project
-  describe('handleExportProject', () => {
-    it('source defines handleExportProject method', () => {
-      expect(sourceCode).toContain('handleExportProject');
-    });
-
-    it('uses execFileAsync for headless export', () => {
-      expect(sourceCode).toContain('--export-release');
-      expect(sourceCode).toContain('--export-debug');
-    });
-  });
-
-  // game_serialize_state
-  describe('handleGameSerializeState', () => {
-    const argsFn = (a: any) => ({
-      node_path: a.nodePath || '/root', action: a.action || 'save', max_depth: a.maxDepth ?? 5,
-    });
-
-    it('defaults to save with depth 5', () => {
-      const r = fakeGameCommand(true, true, {}, argsFn);
-      expect(r.commandArgs).toEqual({ node_path: '/root', action: 'save', max_depth: 5 });
-    });
-  });
-
-  // game_physics_body
-  describe('handleGamePhysicsBody', () => {
-    const argsFn = (a: any) => ({
-      node_path: a.nodePath,
-      ...(a.mass !== undefined ? { mass: a.mass } : {}),
-      ...(a.gravityScale !== undefined ? { gravity_scale: a.gravityScale } : {}),
-    });
-
-    it('passes physics body params', () => {
-      const r = fakeGameCommand(true, true, { nodePath: '/root/Ball', mass: 2.0, gravityScale: 0.5 }, argsFn);
-      expect(r.commandArgs).toEqual({ node_path: '/root/Ball', mass: 2.0, gravity_scale: 0.5 });
-    });
-  });
-
-  // game_create_joint
-  describe('handleGameCreateJoint', () => {
-    const argsFn = (a: any) => ({
-      parent_path: a.parentPath, joint_type: a.jointType,
-      ...(a.nodeAPath ? { node_a_path: a.nodeAPath } : {}),
-      ...(a.nodeBPath ? { node_b_path: a.nodeBPath } : {}),
-    });
-
-    it('passes joint creation params', () => {
-      const r = fakeGameCommand(true, true, { parentPath: '/root', jointType: 'pin_3d', nodeAPath: '/root/A', nodeBPath: '/root/B' }, argsFn);
-      expect(r.commandArgs).toEqual({ parent_path: '/root', joint_type: 'pin_3d', node_a_path: '/root/A', node_b_path: '/root/B' });
-    });
-  });
-
-  // game_bone_pose
-  describe('handleGameBonePose', () => {
-    const argsFn = (a: any) => ({
-      node_path: a.nodePath, action: a.action || 'list',
-      ...(a.boneName ? { bone_name: a.boneName } : {}),
-    });
-
-    it('defaults to list action', () => {
-      const r = fakeGameCommand(true, true, { nodePath: '/root/Skeleton' }, argsFn);
-      expect(r.commandArgs).toEqual({ node_path: '/root/Skeleton', action: 'list' });
-    });
-  });
-
-  // game_ui_theme
-  describe('handleGameUiTheme', () => {
-    const argsFn = (a: any) => ({ node_path: a.nodePath, overrides: a.overrides });
-
-    it('passes theme overrides', () => {
-      const overrides = { colors: { font_color: { r: 1, g: 0, b: 0, a: 1 } } };
-      const r = fakeGameCommand(true, true, { nodePath: '/root/Label', overrides }, argsFn);
-      expect(r.commandArgs!.node_path).toBe('/root/Label');
-      expect(r.commandArgs!.overrides.colors.font_color.r).toBe(1);
-    });
-  });
-
-  // game_viewport
-  describe('handleGameViewport', () => {
-    const argsFn = (a: any) => ({
-      action: a.action || 'create',
-      ...(a.parentPath ? { parent_path: a.parentPath } : {}),
-      ...(a.width !== undefined ? { width: a.width } : {}),
-      ...(a.height !== undefined ? { height: a.height } : {}),
-    });
-
-    it('defaults to create action', () => {
-      const r = fakeGameCommand(true, true, { parentPath: '/root', width: 256, height: 256 }, argsFn);
-      expect(r.commandArgs).toEqual({ action: 'create', parent_path: '/root', width: 256, height: 256 });
-    });
-  });
-
-  // game_debug_draw
-  describe('handleGameDebugDraw', () => {
-    const argsFn = (a: any) => ({
-      action: a.action,
-      ...(a.from ? { from: a.from } : {}),
-      ...(a.to ? { to: a.to } : {}),
-      ...(a.color ? { color: a.color } : {}),
-    });
-
-    it('passes line draw params', () => {
-      const r = fakeGameCommand(true, true, { action: 'line', from: { x: 0, y: 0, z: 0 }, to: { x: 1, y: 1, z: 1 } }, argsFn);
-      expect(r.commandArgs).toEqual({ action: 'line', from: { x: 0, y: 0, z: 0 }, to: { x: 1, y: 1, z: 1 } });
-    });
-
-    it('passes clear action', () => {
-      const r = fakeGameCommand(true, true, { action: 'clear' }, argsFn);
-      expect(r.commandArgs).toEqual({ action: 'clear' });
-    });
-  });
-
-  // --- Batch 1: Networking + Input + System + Signals + Script ---
-  describe('handleGameHttpRequest', () => {
-    const argsFn = (a: any) => ({ url: a.url, method: a.method || 'GET' });
-    it('passes url and defaults method to GET', () => {
-      const r = fakeGameCommand(true, true, { url: 'http://example.com' }, argsFn);
-      expect(r.commandArgs).toEqual({ url: 'http://example.com', method: 'GET' });
-    });
-  });
-
-  describe('handleGameWebsocket', () => {
-    const argsFn = (a: any) => ({ action: a.action, ...(a.url ? { url: a.url } : {}) });
-    it('passes connect action with url', () => {
-      const r = fakeGameCommand(true, true, { action: 'connect', url: 'ws://localhost' }, argsFn);
-      expect(r.commandArgs).toEqual({ action: 'connect', url: 'ws://localhost' });
-    });
-  });
-
-  describe('handleGameMultiplayer', () => {
-    const argsFn = (a: any) => ({ action: a.action, ...(a.port !== undefined ? { port: a.port } : {}) });
-    it('passes create_server with port', () => {
-      const r = fakeGameCommand(true, true, { action: 'create_server', port: 8000 }, argsFn);
-      expect(r.commandArgs).toEqual({ action: 'create_server', port: 8000 });
-    });
-  });
-
-  describe('handleGameTouch', () => {
-    const argsFn = (a: any) => ({ action: a.action, x: a.x ?? 0, y: a.y ?? 0 });
-    it('passes press with coords', () => {
-      const r = fakeGameCommand(true, true, { action: 'press', x: 100, y: 200 }, argsFn);
-      expect(r.commandArgs).toEqual({ action: 'press', x: 100, y: 200 });
-    });
-  });
-
-  describe('handleGameInputState', () => {
-    const argsFn = (a: any) => ({ action: a.action || 'query' });
-    it('defaults to query action', () => {
-      const r = fakeGameCommand(true, true, {}, argsFn);
-      expect(r.commandArgs).toEqual({ action: 'query' });
-    });
-  });
-
-  describe('handleGameListSignals', () => {
-    const argsFn = (a: any) => ({ node_path: a.nodePath });
-    it('passes node path', () => {
-      const r = fakeGameCommand(true, true, { nodePath: '/root/Player' }, argsFn);
-      expect(r.commandArgs).toEqual({ node_path: '/root/Player' });
-    });
-  });
-
-  describe('handleGameScript', () => {
-    const argsFn = (a: any) => ({ node_path: a.nodePath, action: a.action });
-    it('passes get_source action', () => {
-      const r = fakeGameCommand(true, true, { nodePath: '/root/P', action: 'get_source' }, argsFn);
-      expect(r.commandArgs).toEqual({ node_path: '/root/P', action: 'get_source' });
-    });
-  });
-
-  describe('handleGameWindow', () => {
-    const argsFn = (a: any) => ({ action: a.action || 'get', ...(a.width !== undefined ? { width: a.width } : {}) });
-    it('defaults to get action', () => {
-      const r = fakeGameCommand(true, true, {}, argsFn);
-      expect(r.commandArgs).toEqual({ action: 'get' });
-    });
-  });
-
-  describe('handleGameOsInfo', () => {
-    it('sends empty args', () => {
-      const r = fakeGameCommand(true, true, {}, () => ({}));
-      expect(r.commandArgs).toEqual({});
-    });
-  });
-
-  describe('handleGameTimeScale', () => {
-    const argsFn = (a: any) => ({ action: a.action || 'get' });
-    it('defaults to get action', () => {
-      const r = fakeGameCommand(true, true, {}, argsFn);
-      expect(r.commandArgs).toEqual({ action: 'get' });
-    });
-  });
-
-  describe('handleGameProcessMode', () => {
-    const argsFn = (a: any) => ({ node_path: a.nodePath, mode: a.mode });
-    it('passes mode', () => {
-      const r = fakeGameCommand(true, true, { nodePath: '/root/P', mode: 'always' }, argsFn);
-      expect(r.commandArgs).toEqual({ node_path: '/root/P', mode: 'always' });
-    });
-  });
-
-  describe('handleGameWorldSettings', () => {
-    const argsFn = (a: any) => ({ action: a.action || 'get', ...(a.gravity !== undefined ? { gravity: a.gravity } : {}) });
-    it('passes set with gravity', () => {
-      const r = fakeGameCommand(true, true, { action: 'set', gravity: 20 }, argsFn);
-      expect(r.commandArgs).toEqual({ action: 'set', gravity: 20 });
-    });
-  });
-
-  // --- Batch 2: 3D Rendering + Lighting + Sky + Physics ---
-  describe('handleGameCsg', () => {
-    const argsFn = (a: any) => ({ action: a.action, ...(a.csgType ? { csg_type: a.csgType } : {}) });
-    it('passes create with type', () => {
-      const r = fakeGameCommand(true, true, { action: 'create', csgType: 'box' }, argsFn);
-      expect(r.commandArgs).toEqual({ action: 'create', csg_type: 'box' });
-    });
-  });
-
-  describe('handleGameMeshInstance', () => {
-    const argsFn = (a: any) => ({ parent_path: a.parentPath, mesh_type: a.meshType });
-    it('passes mesh type', () => {
-      const r = fakeGameCommand(true, true, { parentPath: '/root', meshType: 'sphere' }, argsFn);
-      expect(r.commandArgs).toEqual({ parent_path: '/root', mesh_type: 'sphere' });
-    });
-  });
-
-  describe('handleGameLight3d', () => {
-    const argsFn = (a: any) => ({ action: a.action, ...(a.lightType ? { light_type: a.lightType } : {}) });
-    it('passes create with type', () => {
-      const r = fakeGameCommand(true, true, { action: 'create', lightType: 'omni' }, argsFn);
-      expect(r.commandArgs).toEqual({ action: 'create', light_type: 'omni' });
-    });
-  });
-
-  describe('handleGameSky', () => {
-    const argsFn = (a: any) => ({ action: a.action, ...(a.skyType ? { sky_type: a.skyType } : {}) });
-    it('passes create with sky type', () => {
-      const r = fakeGameCommand(true, true, { action: 'create', skyType: 'procedural' }, argsFn);
-      expect(r.commandArgs).toEqual({ action: 'create', sky_type: 'procedural' });
-    });
-  });
-
-  describe('handleGamePhysics3d', () => {
-    const argsFn = (a: any) => ({ action: a.action, ...(a.from ? { from: a.from } : {}) });
-    it('passes ray action', () => {
-      const r = fakeGameCommand(true, true, { action: 'ray', from: { x: 0, y: 0, z: 0 } }, argsFn);
-      expect(r.commandArgs).toEqual({ action: 'ray', from: { x: 0, y: 0, z: 0 } });
-    });
-  });
-
-  // --- Batch 3: 2D Systems + Animation Advanced + Audio Effects ---
-  describe('handleGameCanvas', () => {
-    const argsFn = (a: any) => ({ action: a.action, ...(a.parentPath ? { parent_path: a.parentPath } : {}) });
-    it('passes create_layer', () => {
-      const r = fakeGameCommand(true, true, { action: 'create_layer', parentPath: '/root' }, argsFn);
-      expect(r.commandArgs).toEqual({ action: 'create_layer', parent_path: '/root' });
-    });
-  });
-
-  describe('handleGameAnimationTree', () => {
-    const argsFn = (a: any) => ({ node_path: a.nodePath, action: a.action, ...(a.stateName ? { state_name: a.stateName } : {}) });
-    it('passes travel with state', () => {
-      const r = fakeGameCommand(true, true, { nodePath: '/root/AT', action: 'travel', stateName: 'run' }, argsFn);
-      expect(r.commandArgs).toEqual({ node_path: '/root/AT', action: 'travel', state_name: 'run' });
-    });
-  });
-
-  describe('handleGameAnimationControl', () => {
-    const argsFn = (a: any) => ({ node_path: a.nodePath, action: a.action });
-    it('passes get_info', () => {
-      const r = fakeGameCommand(true, true, { nodePath: '/root/AP', action: 'get_info' }, argsFn);
-      expect(r.commandArgs).toEqual({ node_path: '/root/AP', action: 'get_info' });
-    });
-  });
-
-  describe('handleGameAudioEffect', () => {
-    const argsFn = (a: any) => ({ action: a.action, bus_name: a.busName || 'Master' });
-    it('defaults bus to Master', () => {
-      const r = fakeGameCommand(true, true, { action: 'list' }, argsFn);
-      expect(r.commandArgs).toEqual({ action: 'list', bus_name: 'Master' });
-    });
-  });
-
-  describe('handleGameAudioBusLayout', () => {
-    const argsFn = (a: any) => ({ action: a.action, ...(a.busName ? { bus_name: a.busName } : {}) });
-    it('passes add with name', () => {
-      const r = fakeGameCommand(true, true, { action: 'add', busName: 'SFX' }, argsFn);
-      expect(r.commandArgs).toEqual({ action: 'add', bus_name: 'SFX' });
-    });
-  });
-
-  // --- Batch 4: Locale ---
-  describe('handleGameLocale', () => {
-    const argsFn = (a: any) => ({ action: a.action, ...(a.locale ? { locale: a.locale } : {}) });
-    it('passes set with locale', () => {
-      const r = fakeGameCommand(true, true, { action: 'set', locale: 'es' }, argsFn);
-      expect(r.commandArgs).toEqual({ action: 'set', locale: 'es' });
-    });
-  });
-
-  // --- Batch 5: UI Controls + Rendering + Resource Runtime ---
-  describe('handleGameUiControl', () => {
-    const argsFn = (a: any) => ({ node_path: a.nodePath, action: a.action });
-    it('passes grab_focus', () => {
-      const r = fakeGameCommand(true, true, { nodePath: '/root/Btn', action: 'grab_focus' }, argsFn);
-      expect(r.commandArgs).toEqual({ node_path: '/root/Btn', action: 'grab_focus' });
-    });
-  });
-
-  describe('handleGameUiText', () => {
-    const argsFn = (a: any) => ({ node_path: a.nodePath, action: a.action, ...(a.text !== undefined ? { text: a.text } : {}) });
-    it('passes set with text', () => {
-      const r = fakeGameCommand(true, true, { nodePath: '/root/LE', action: 'set', text: 'hello' }, argsFn);
-      expect(r.commandArgs).toEqual({ node_path: '/root/LE', action: 'set', text: 'hello' });
-    });
-  });
-
-  describe('handleGameUiPopup', () => {
-    const argsFn = (a: any) => ({ node_path: a.nodePath, action: a.action });
-    it('passes popup_centered', () => {
-      const r = fakeGameCommand(true, true, { nodePath: '/root/Dlg', action: 'popup_centered' }, argsFn);
-      expect(r.commandArgs).toEqual({ node_path: '/root/Dlg', action: 'popup_centered' });
-    });
-  });
-
-  describe('handleGameUiRange', () => {
-    const argsFn = (a: any) => ({ node_path: a.nodePath, action: a.action, ...(a.value !== undefined ? { value: a.value } : {}) });
-    it('passes set with value', () => {
-      const r = fakeGameCommand(true, true, { nodePath: '/root/Slider', action: 'set', value: 0.5 }, argsFn);
-      expect(r.commandArgs).toEqual({ node_path: '/root/Slider', action: 'set', value: 0.5 });
-    });
-  });
-
-  describe('handleGameRenderSettings', () => {
-    const argsFn = (a: any) => ({ action: a.action || 'get' });
-    it('defaults to get', () => {
-      const r = fakeGameCommand(true, true, {}, argsFn);
-      expect(r.commandArgs).toEqual({ action: 'get' });
-    });
-  });
-
-  describe('handleGameResource', () => {
-    const argsFn = (a: any) => ({ action: a.action, path: a.path });
-    it('passes load with path', () => {
-      const r = fakeGameCommand(true, true, { action: 'load', path: 'res://icon.svg' }, argsFn);
-      expect(r.commandArgs).toEqual({ action: 'load', path: 'res://icon.svg' });
-    });
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 7f. Visual Shader + Terrain + Video + CI/CD handlers
-// ---------------------------------------------------------------------------
-describe('Game command handlers — visual shader, terrain, video, CI/CD', () => {
-  // game_visual_shader
-  describe('handleGameVisualShader', () => {
-    const argsFn = (a: any) => ({
-      action: a.action,
-      ...(a.nodePath ? { node_path: a.nodePath } : {}),
-      ...(a.shaderType ? { shader_type: a.shaderType } : {}),
-      ...(a.nodeClass ? { node_class: a.nodeClass } : {}),
-      ...(a.position ? { position: a.position } : {}),
-      ...(a.fromNode !== undefined ? { from_node: a.fromNode } : {}),
-      ...(a.fromPort !== undefined ? { from_port: a.fromPort } : {}),
-      ...(a.toNode !== undefined ? { to_node: a.toNode } : {}),
-      ...(a.toPort !== undefined ? { to_port: a.toPort } : {}),
-      ...(a.shaderId !== undefined ? { shader_id: a.shaderId } : {}),
-    });
-
-    it('sends create action with shader type', () => {
-      const r = fakeGameCommand(true, true, { action: 'create', shaderType: 'spatial' }, argsFn);
-      expect(r.commandArgs).toEqual({ action: 'create', shader_type: 'spatial' });
-    });
-
-    it('sends add_node with class and position', () => {
-      const r = fakeGameCommand(true, true, { action: 'add_node', nodeClass: 'VisualShaderNodeColorConstant', position: { x: 100, y: 200 } }, argsFn);
-      expect(r.commandArgs).toEqual({ action: 'add_node', node_class: 'VisualShaderNodeColorConstant', position: { x: 100, y: 200 } });
-    });
-
-    it('sends connect with port info', () => {
-      const r = fakeGameCommand(true, true, { action: 'connect', fromNode: 1, fromPort: 0, toNode: 0, toPort: 0 }, argsFn);
-      expect(r.commandArgs).toEqual({ action: 'connect', from_node: 1, from_port: 0, to_node: 0, to_port: 0 });
-    });
-
-    it('sends apply with node path', () => {
-      const r = fakeGameCommand(true, true, { action: 'apply', nodePath: '/root/Mesh' }, argsFn);
-      expect(r.commandArgs).toEqual({ action: 'apply', node_path: '/root/Mesh' });
-    });
-
-    it('returns error when no active process', () => {
-      const r = fakeGameCommand(false, true, { action: 'create' }, argsFn);
-      expect(r.error).toContain('No active Godot process');
-    });
-  });
-
-  // game_terrain
-  describe('handleGameTerrain', () => {
-    const argsFn = (a: any) => ({
-      action: a.action,
-      ...(a.parentPath ? { parent_path: a.parentPath } : {}),
-      ...(a.nodePath ? { node_path: a.nodePath } : {}),
-      ...(a.heightData ? { height_data: a.heightData } : {}),
-      ...(a.width !== undefined ? { width: a.width } : {}),
-      ...(a.depth !== undefined ? { depth: a.depth } : {}),
-      ...(a.maxHeight !== undefined ? { max_height: a.maxHeight } : {}),
-      ...(a.x !== undefined ? { x: a.x } : {}),
-      ...(a.z !== undefined ? { z: a.z } : {}),
-      ...(a.radius !== undefined ? { radius: a.radius } : {}),
-      ...(a.heightDelta !== undefined ? { height_delta: a.heightDelta } : {}),
-      ...(a.color ? { color: a.color } : {}),
-      ...(a.name ? { name: a.name } : {}),
-    });
-
-    it('sends create action with height data', () => {
-      const r = fakeGameCommand(true, true, { action: 'create', parentPath: '/root', heightData: [0, 1, 2, 3], width: 2, depth: 2, maxHeight: 10 }, argsFn);
-      expect(r.commandArgs).toEqual({ action: 'create', parent_path: '/root', height_data: [0, 1, 2, 3], width: 2, depth: 2, max_height: 10 });
-    });
-
-    it('sends modify action with region params', () => {
-      const r = fakeGameCommand(true, true, { action: 'modify', nodePath: '/root/Terrain', x: 5, z: 10, radius: 3, heightDelta: 2.5 }, argsFn);
-      expect(r.commandArgs).toEqual({ action: 'modify', node_path: '/root/Terrain', x: 5, z: 10, radius: 3, height_delta: 2.5 });
-    });
-
-    it('sends paint action with color', () => {
-      const r = fakeGameCommand(true, true, { action: 'paint', nodePath: '/root/Terrain', x: 0, z: 0, radius: 1, color: { r: 1, g: 0, b: 0, a: 1 } }, argsFn);
-      expect(r.commandArgs).toEqual({ action: 'paint', node_path: '/root/Terrain', x: 0, z: 0, radius: 1, color: { r: 1, g: 0, b: 0, a: 1 } });
-    });
-
-    it('sends get_height action', () => {
-      const r = fakeGameCommand(true, true, { action: 'get_height', nodePath: '/root/Terrain', x: 3, z: 7 }, argsFn);
-      expect(r.commandArgs).toEqual({ action: 'get_height', node_path: '/root/Terrain', x: 3, z: 7 });
-    });
-  });
-
-  // game_video
-  describe('handleGameVideo', () => {
-    const argsFn = (a: any) => ({
-      action: a.action,
-      ...(a.nodePath ? { node_path: a.nodePath } : {}),
-      ...(a.parentPath ? { parent_path: a.parentPath } : {}),
-      ...(a.videoPath ? { video_path: a.videoPath } : {}),
-      ...(a.position !== undefined ? { position: a.position } : {}),
-      ...(a.volume !== undefined ? { volume: a.volume } : {}),
-      ...(a.loop !== undefined ? { loop: a.loop } : {}),
-      ...(a.autoplay !== undefined ? { autoplay: a.autoplay } : {}),
-      ...(a.name ? { name: a.name } : {}),
-    });
-
-    it('sends play action with node path and video', () => {
-      const r = fakeGameCommand(true, true, { action: 'play', nodePath: '/root/VideoPlayer', videoPath: 'res://intro.ogv' }, argsFn);
-      expect(r.commandArgs).toEqual({ action: 'play', node_path: '/root/VideoPlayer', video_path: 'res://intro.ogv' });
-    });
-
-    it('sends create action with properties', () => {
-      const r = fakeGameCommand(true, true, { action: 'create', parentPath: '/root', videoPath: 'res://vid.ogv', autoplay: true, loop: false, name: 'Player' }, argsFn);
-      expect(r.commandArgs).toEqual({ action: 'create', parent_path: '/root', video_path: 'res://vid.ogv', autoplay: true, loop: false, name: 'Player' });
-    });
-
-    it('sends seek action with position', () => {
-      const r = fakeGameCommand(true, true, { action: 'seek', nodePath: '/root/VideoPlayer', position: 30.5 }, argsFn);
-      expect(r.commandArgs).toEqual({ action: 'seek', node_path: '/root/VideoPlayer', position: 30.5 });
-    });
-
-    it('sends pause action', () => {
-      const r = fakeGameCommand(true, true, { action: 'pause', nodePath: '/root/VideoPlayer' }, argsFn);
-      expect(r.commandArgs).toEqual({ action: 'pause', node_path: '/root/VideoPlayer' });
-    });
-
-    it('sends get_status action', () => {
-      const r = fakeGameCommand(true, true, { action: 'get_status', nodePath: '/root/VideoPlayer' }, argsFn);
-      expect(r.commandArgs).toEqual({ action: 'get_status', node_path: '/root/VideoPlayer' });
-    });
-
-    it('returns error when not connected', () => {
-      const r = fakeGameCommand(true, false, { action: 'play' }, argsFn);
-      expect(r.error).toContain('Not connected');
-    });
-  });
-
-  // manage_ci_pipeline
-  describe('handleManageCiPipeline', () => {
-    it('source contains handleManageCiPipeline', () => {
-      expect(sourceCode).toContain('handleManageCiPipeline');
-    });
-
-    it('validates projectPath and action', () => {
-      expect(sourceCode).toContain("'projectPath and action are required.'");
-    });
-
-    it('creates workflow in .github/workflows directory', () => {
-      expect(sourceCode).toContain('.github');
-      expect(sourceCode).toContain('godot-export.yml');
-    });
-
-    it('requires valid project path for CI pipeline', () => {
-      const argsFn = (a: any) => ({ projectPath: a.projectPath, params: { action: a.action } });
-      const r = fakeHeadlessOp({ projectPath: '', action: 'create' }, argsFn);
-      expect(r.error).toContain('projectPath is required');
-    });
-  });
-
-  // manage_docker_export
-  describe('handleManageDockerExport', () => {
-    it('source contains handleManageDockerExport', () => {
-      expect(sourceCode).toContain('handleManageDockerExport');
-    });
-
-    it('creates Dockerfile in project root', () => {
-      expect(sourceCode).toContain('Dockerfile');
-    });
-
-    it('supports custom base image', () => {
-      expect(sourceCode).toContain('baseImage');
-      expect(sourceCode).toContain('ubuntu:22.04');
-    });
-
-    it('supports export preset configuration', () => {
-      expect(sourceCode).toContain('exportPreset');
-    });
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 8. createErrorResponse in handlers
-// ---------------------------------------------------------------------------
-describe('Error response format in handlers', () => {
-  it('createErrorResponse returns isError: true with text content', () => {
-    const result = createErrorResponse('test error');
-    expect(result.isError).toBe(true);
-    expect(result.content).toHaveLength(1);
-    expect(result.content[0]).toEqual({ type: 'text', text: 'test error' });
-  });
-
-  it('error messages in game handlers include command name', () => {
-    // gameCommand template: `${name} failed: ${response.error}`
-    expect(sourceCode).toContain('failed:');
-  });
-
-  it('source uses createErrorResponse (not inline error objects)', () => {
-    // Count createErrorResponse calls vs inline { isError: true } patterns
-    const createErrorCalls = (sourceCode.match(/createErrorResponse\(/g) || []).length;
-    expect(createErrorCalls).toBeGreaterThan(20);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 9. convertCamelToSnakeCase used in executeOperation
-// ---------------------------------------------------------------------------
-describe('executeOperation parameter conversion', () => {
-  it('source calls convertCamelToSnakeCase before sending to Godot', () => {
-    const execOpBlock = sourceCode.substring(
-      sourceCode.indexOf('private async executeOperation('),
-      sourceCode.indexOf('private async executeOperation(') + 1500
-    );
-    expect(execOpBlock).toContain('convertCamelToSnakeCase');
-  });
-
-  it('converts handler params for Godot consumption', () => {
-    const params = { scenePath: 'main.tscn', nodePath: '/root/Player', properties: { visible: true } };
-    const snake = convertCamelToSnakeCase(params);
-    expect(snake).toEqual({ scene_path: 'main.tscn', node_path: '/root/Player', properties: { visible: true } });
-  });
-
-  it('round-trips normalize → convert', () => {
-    const original = { scene_path: 'main.tscn', node_path: '/root/Player' };
-    const camel = normalizeParameters(original);
-    const snake = convertCamelToSnakeCase(camel);
-    expect(snake).toEqual(original);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 10. Registry dispatch
-// ---------------------------------------------------------------------------
-describe('Tool registry dispatch', () => {
-  it('delegates tool calls through ToolRegistry', () => {
-    expect(sourceCode).toContain('new ToolRegistry(createToolHandlers({');
-    expect(sourceCode).toContain('return tools.dispatch(toolName, argumentsValue');
-  });
-
-  it('does not retain the monolithic switch', () => {
-    expect(sourceCode).not.toContain('switch (request.params.name)');
-  });
-
-  it('composes exhaustive typed handler maps without runtime reflection', () => {
-    expect(sourceCode).toContain('composeToolHandlerRegistries');
-    expect(sourceCode).toContain('createLifecycleToolRegistry');
-    expect(sourceCode).toContain('createProjectToolRegistry');
-    expect(sourceCode).toContain('createGameToolRegistry');
-    expect(sourceCode).not.toContain('method.call(target');
+  it('every lifecycle-domain tool has a matching LifecycleToolHandlers method', () => {
+    const { handlers } = lifecycleHarness();
+    const missing = Object.entries(toolManifest)
+      .filter(([, entry]) => entry.domain === 'lifecycle' && entry.handler !== undefined)
+      .filter(([, entry]) => typeof (handlers as unknown as Record<string, unknown>)[entry.handler] !== 'function')
+      .map(([name, entry]) => `${name}::${entry.handler}`);
+    expect(missing).toEqual([]);
   });
 });

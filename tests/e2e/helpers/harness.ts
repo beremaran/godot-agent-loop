@@ -60,16 +60,33 @@ export function resolveGodotBinary(): string {
 
 export function freePort(): Promise<number> {
   return new Promise((resolve, reject) => {
-    const server = createServer();
-    server.listen(0, '127.0.0.1', () => {
-      const address = server.address();
-      if (address === null || typeof address === 'string') {
-        reject(new Error('Could not allocate a port'));
-        return;
-      }
-      server.close(() => { resolve(address.port); });
-    });
-    server.on('error', reject);
+    const allocate = (attempt: number): void => {
+      const server = createServer();
+      const fail = (error: unknown): void => {
+        if (attempt < 5) allocate(attempt + 1);
+        else reject(error instanceof Error ? error : new Error(String(error)));
+      };
+      server.once('error', fail);
+      server.listen(0, '127.0.0.1', () => {
+        const address = server.address();
+        if (address === null || typeof address === 'string') {
+          server.close();
+          fail(new Error('Could not allocate a port'));
+          return;
+        }
+        const port = address.port;
+        // Confirm the port is actually free again after release. This closes the
+        // window where a parallel test grabs the port between our close() and
+        // resolution; the remaining race to the child's bind() is unavoidable
+        // without server-side retry, so callers still treat bind as best-effort.
+        server.close(() => {
+          const probe = createServer();
+          probe.once('error', () => { probe.close(); fail(new Error(`Port ${port} re-taken before handoff`)); });
+          probe.listen(port, '127.0.0.1', () => { probe.close(() => { resolve(port); }); });
+        });
+      });
+    };
+    allocate(0);
   });
 }
 
@@ -280,8 +297,24 @@ export function writeOgvFixture(projectPath: string, relativePath: string): void
  * covered separately through manage_import_pipeline.
  */
 export async function importProjectResources(projectPath: string): Promise<void> {
-  await execFileAsync(resolveGodotBinary(), ['--headless', '--path', projectPath, '--import'], { timeout: 60_000 })
-    .catch(() => undefined); // --import exits non-zero on some versions even after importing.
+  const errorLine = /^\s*(ERROR|SCRIPT ERROR|ERROR:|Parse Error|Failed to)/m;
+  const result = await execFileAsync(
+    resolveGodotBinary(), ['--headless', '--path', projectPath, '--import'], { timeout: 60_000 },
+  ).catch((error: unknown) => {
+    const execError = error as { stdout?: string; stderr?: string; code?: string | number; signal?: unknown };
+    // --import exits non-zero on some Godot versions even after importing, so a
+    // non-zero exit alone is not a failure. Only spawn/timeout failures and
+    // explicit error lines indicate a broken import; anything else is surfaced
+    // as a warning so a flaky fixture is not silently masked.
+    const stderr = execError.stderr ?? '';
+    if (execError.code === 'ENOENT' || (error instanceof Error && 'killed' in error) || errorLine.test(stderr)) {
+      throw new Error(`Godot --import failed for ${projectPath}:\n${stderr || String(error)}`);
+    }
+    return { stdout: execError.stdout ?? '', stderr };
+  });
+  if (errorLine.test(result.stderr)) {
+    throw new Error(`Godot --import reported errors for ${projectPath}:\n${result.stderr}`);
+  }
 }
 
 export interface E2EServer {

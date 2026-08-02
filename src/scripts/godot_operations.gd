@@ -337,6 +337,13 @@ func _param_string(params: Dictionary, key: String, default_value: String = "") 
         return value
     return str(value)
 
+# Scene-file connection lines embed these values inside a quoted attribute.
+# Rejecting the characters that could break out of the attribute or the line
+# prevents a value from injecting arbitrary text into the scene file.
+func _valid_connection_field(value: String) -> bool:
+    return not value.contains('"') and not value.contains("[") and not value.contains("]") \
+        and not value.contains("\n") and not value.contains("\r")
+
 func _param_dictionary(params: Dictionary, key: String) -> Dictionary:
     var value: Variant = params.get(key, {})
     if value is Dictionary:
@@ -1550,6 +1557,9 @@ func manage_scene_signals(params: Dictionary) -> OperationResult:
         var source_path: String = _param_string(params, "source_path", ".")
         var target_path: String = _param_string(params, "target_path", ".")
         var method: String = _param_string(params, "method")
+        if not _valid_connection_field(signal_name) or not _valid_connection_field(source_path) \
+                or not _valid_connection_field(target_path) or not _valid_connection_field(method):
+            return _fail("Connection fields must not contain quotes, brackets, or newlines")
         var conn_line: String = '[connection signal="%s" from="%s" to="%s" method="%s"]' % [signal_name, source_path, target_path, method]
         content += "\n" + conn_line + "\n"
         var file := FileAccess.open(full_path, FileAccess.WRITE)

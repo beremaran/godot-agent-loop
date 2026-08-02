@@ -40,10 +40,12 @@ class RuntimeSession:
 	var authenticated: bool = false
 	var request_correlation_id: String = ""
 	var request_started_msec: int = 0
+	var last_activity_msec: int = 0
 
 	func _init(session_id: int, session_peer: StreamPeerTCP) -> void:
 		id = session_id
 		peer = session_peer
+		last_activity_msec = Time.get_ticks_msec()
 
 
 class CommandDescriptor:
@@ -75,6 +77,7 @@ const DEFAULT_PORT: int = 9090
 const PORT_ENVIRONMENT_VARIABLE: String = "GODOT_MCP_RUNTIME_PORT"
 const SECRET_ENVIRONMENT_VARIABLE: String = "GODOT_MCP_RUNTIME_SECRET"
 const DISABLED_ENVIRONMENT_VARIABLE: String = "GODOT_MCP_RUNTIME_DISABLED"
+const INSECURE_ENVIRONMENT_VARIABLE: String = "GODOT_MCP_ALLOW_INSECURE_RUNTIME"
 # The listen port. Exported for editor configuration; when the game process is
 # started by the MCP server, GODOT_MCP_RUNTIME_PORT overrides it so parallel
 # sessions (and the E2E harness) each get an isolated loopback port.
@@ -90,10 +93,16 @@ const ERROR_PRIVILEGED_COMMAND_DISABLED: int = PrivilegedCommandPolicy.ERROR_COD
 const ERROR_AUTHENTICATION_REQUIRED: int = -32008
 
 # The MCP launcher supplies a fresh secret through the child environment. An
-# empty value retains compatibility for a user-managed runtime, but every
-# MCP-owned launch authenticates before any command is accepted.
+# empty value refuses unauthenticated sessions unless the operator explicitly
+# opts in to the legacy insecure mode; every MCP-owned launch authenticates
+# before any command is accepted.
 @export var runtime_secret: String = ""
 @export var allow_privileged_commands: bool = false
+# Legacy escape hatch: serve handshakes without a secret. Off by default so a
+# locally reachable process cannot control a game whose runtime never received
+# a shared secret. Keep off unless a separately launched runtime genuinely has
+# no way to receive GODOT_MCP_RUNTIME_SECRET.
+@export var allow_insecure_runtime: bool = false
 
 # These limits are exports so a project can tune its local developer runtime
 # without changing the protocol implementation. Values include JSON framing.
@@ -105,6 +114,11 @@ const ERROR_AUTHENTICATION_REQUIRED: int = -32008
 @export var max_response_bytes: int = 8 * 1024 * 1024
 @export var max_screenshot_pixels: int = 16 * 1024 * 1024
 @export var max_screenshot_png_bytes: int = 6 * 1024 * 1024
+# A locally reachable peer can otherwise hold sockets and a pinned single-flight
+# request forever. Session limits are generous enough for legitimate clients.
+@export var max_sessions: int = 8
+@export var session_idle_timeout_ms: int = 60 * 1000
+const MAX_WAIT_FRAMES: int = 60 * 60 * 5
 const MAX_UI_OBSERVATION_ELEMENTS: int = 1000
 const MAX_UI_OBSERVATION_TEXT_CHARS: int = 4096
 # Command registry: maps a runtime command name to its CommandDescriptor.
@@ -118,6 +132,7 @@ var _codec: VariantCodec
 var _privileged_policy: PrivilegedCommandPolicy
 var _profile_active: bool = false
 var _profile_samples: Array[Dictionary] = []
+const MAX_PROFILE_SAMPLES: int = 10000
 # Set only by godot_operations.gd when it owns the process main loop. Regular
 # injected game runs publish the command names but do not advertise or execute
 # project-file authoring commands.
@@ -129,6 +144,11 @@ func _ready() -> void:
 	_codec = VariantCodec.new(max_json_nesting_depth, max_json_collection_items)
 	_privileged_policy = PrivilegedCommandPolicy.new()
 	runtime_secret = _resolve_runtime_secret()
+	if runtime_secret.is_empty():
+		if _insecure_legacy_allowed():
+			push_warning("McpInteractionServer: Serving without a runtime secret (legacy insecure mode). Every local process that can reach the port controls this runtime.")
+		else:
+			push_warning("McpInteractionServer: No %s configured; unauthenticated sessions are refused. Set the same secret in the MCP server and this process, or set %s=true to restore the legacy insecure mode." % [SECRET_ENVIRONMENT_VARIABLE, INSECURE_ENVIRONMENT_VARIABLE])
 	_register_domains()
 	_register_commands()
 	# A one-shot authoring fallback can run while the real game owns this
@@ -164,6 +184,24 @@ func _resolve_runtime_secret() -> String:
 	return configured if not configured.is_empty() else runtime_secret
 
 
+func _insecure_legacy_allowed() -> bool:
+	return allow_insecure_runtime or OS.get_environment(INSECURE_ENVIRONMENT_VARIABLE) == "true"
+
+
+# Constant-time comparison: both digests are fixed 64-character hashes, so the
+# length check leaks nothing and the loop never exits early on a mismatch.
+func _secret_matches(provided: String, expected: String) -> bool:
+	var expected_hash: String = expected.sha256_text()
+	var provided_hash: String = provided.sha256_text()
+	if expected_hash.length() != provided_hash.length():
+		return false
+	var mismatch: int = 0
+	for i in expected_hash.length():
+		if expected_hash[i] != provided_hash[i]:
+			mismatch += 1
+	return mismatch == 0
+
+
 func _process(_delta: float) -> void:
 	if _server == null:
 		return
@@ -173,16 +211,33 @@ func _process(_delta: float) -> void:
 	while _server.is_connection_available():
 		var new_client: StreamPeerTCP = _server.take_connection()
 		if new_client != null:
+			if _sessions.size() >= max_sessions:
+				print("McpInteractionServer: Rejecting connection: session limit reached (%d)" % max_sessions)
+				_reject_and_close_session(RuntimeSession.new(_next_session_id, new_client),
+					"Server session limit reached", {"limit": max_sessions})
+				_next_session_id += 1
+				continue
 			var session: RuntimeSession = RuntimeSession.new(_next_session_id, new_client)
 			_sessions[session.id] = session
 			_next_session_id += 1
 			print("McpInteractionServer: Client connected (session %d)" % session.id)
+
+	var now_msec: int = Time.get_ticks_msec()
+	if _active_session != null and not _active_session.connected and _active_session.request_running:
+		# A client that disconnects mid-request must not wedge the single-flight
+		# server. Cancellable handlers observe this flag on their next yield and
+		# release the busy slot.
+		_active_session.cancellation_requested = true
 
 	for session_id: Variant in _sessions.keys():
 		var session_value: Variant = _sessions.get(session_id)
 		if not session_value is RuntimeSession:
 			continue
 		var session: RuntimeSession = session_value
+		if session != _active_session and session.connected \
+				and now_msec - session.last_activity_msec > session_idle_timeout_ms:
+			_reject_and_close_session(session, "Session idle timeout", {"idle_timeout_ms": session_idle_timeout_ms})
+			continue
 		_poll_session(session)
 		if not session.connected and session != _active_session:
 			@warning_ignore("return_value_discarded")
@@ -207,6 +262,7 @@ func _poll_session(session: RuntimeSession) -> void:
 
 	var available: int = session.peer.get_available_bytes()
 	if available > 0:
+		session.last_activity_msec = Time.get_ticks_msec()
 		var remaining_capacity: int = max_receive_buffer_bytes - session.buffer.size()
 		if remaining_capacity <= 0:
 			_reject_and_close_session(session, "Receive buffer exceeds the configured limit", {"limit_bytes": max_receive_buffer_bytes})
@@ -523,11 +579,19 @@ func _handle_handshake(session: RuntimeSession, req_id: Variant, params: Diction
 	if params.get("protocolVersion", "") != PROTOCOL_VERSION:
 		_send_error(session, req_id, -32002, "Unsupported protocol version", {"supported": PROTOCOL_VERSION})
 		return
-	if not session.authenticated and not runtime_secret.is_empty() and params.get("secret", "") != runtime_secret:
-		_audit_event("authentication_failed", session)
-		_send_error(session, req_id, ERROR_AUTHENTICATION_REQUIRED,
-			"Runtime session authentication failed", {"reason": "authentication_failed"})
-		return
+	if not session.authenticated:
+		if runtime_secret.is_empty():
+			if not _insecure_legacy_allowed():
+				_audit_event("authentication_failed", session)
+				_send_error(session, req_id, ERROR_AUTHENTICATION_REQUIRED,
+					"Runtime session authentication failed",
+					{"reason": "no_shared_secret"})
+				return
+		elif not _secret_matches(str(params.get("secret", "")), runtime_secret):
+			_audit_event("authentication_failed", session)
+			_send_error(session, req_id, ERROR_AUTHENTICATION_REQUIRED,
+				"Runtime session authentication failed", {"reason": "authentication_failed"})
+			return
 	session.authenticated = true
 	_audit_event("authentication_succeeded", session)
 	var capabilities: Array[String] = _privileged_policy.capabilities(CAPABILITIES, allow_privileged_commands)
@@ -938,6 +1002,8 @@ func _cmd_get_performance(params: Dictionary) -> void:
 		samples.append(current)
 		if _profile_active:
 			_profile_samples.append(current)
+			if _profile_samples.size() > MAX_PROFILE_SAMPLES:
+				_profile_samples.pop_front()
 		if index + 1 < sample_count:
 			await get_tree().process_frame
 	var result: Dictionary = samples[0].duplicate(true)
@@ -1075,6 +1141,7 @@ func _metric_int(value: Variant) -> int:
 func _cmd_wait(params: Dictionary) -> void:
 	var reader := CommandParams.new(params)
 	var frames: int = reader.optional_int("frames", 1, 1)
+	frames = mini(frames, MAX_WAIT_FRAMES)
 	var frame_type: String = reader.optional_enum("frame_type", "render", ["render", "physics"])
 	if _params_invalid(reader):
 		return
@@ -1084,7 +1151,7 @@ func _cmd_wait(params: Dictionary) -> void:
 			await get_tree().physics_frame
 		else:
 			await get_tree().process_frame
-		if _active_session != null and _active_session.cancellation_requested:
+		if _active_session == null or not _active_session.connected or _active_session.cancellation_requested:
 			_send_response({})
 			return
 	_send_response({"success": true, "waited_frames": frames, "frame_type": "physics" if use_physics else "render"})

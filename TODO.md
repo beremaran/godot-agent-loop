@@ -1,5 +1,13 @@
 # Interactive editor and agent workflow roadmap
 
+> **Archived (complete).** Every item below is marked done and was delivered
+> through the 1.1.x release line (editor-native sessions, synchronization,
+> transactions, trace replay, verification tooling, agent skills, and release
+> gates). This file is preserved as a historical roadmap; it is no longer a
+> forward-looking source of truth. The "six Pong-building transcripts" it
+> references were not committed to this repository (only
+> `experiments/opencode-qwen/prompt-03.txt` is tracked).
+
 This roadmap turns the findings from the six Pong-building transcripts into
 product work. The MCP loop successfully produced and tested a playable game,
 but it behaved primarily as a headless file and runtime automation system. It

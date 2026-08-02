@@ -33,7 +33,7 @@ Every MCP tool flows through a chain where each layer is cross-validated by test
 - `src/tool-definitions.ts` — name + JSON schema for all tools.
 - `src/tool-manifest.ts` — one entry per tool: domain, handler method, backend, action list, privilege flag. Typed as `Record<ToolName, ...>` so completeness is a compile-time fact; `tests/tool-manifest.test.ts` cross-checks entries against schema enums, GDScript action declarations, and handler dispatch, so a new action cannot ship without appearing here.
 - `src/domain-tool-registries.ts` — dispatches to the three handler classes in `src/tool-handlers/`: lifecycle (processes/editor), project (files, scenes, headless ops), game (runtime interaction).
-- `src/tool-surface.ts` — the advertised surface. Default is a compact ~39-tool "core" set; `GODOT_MCP_TOOL_SURFACE=full` advertises everything. The `godot_tools` meta-tool searches/describes/dispatches the full catalog either way. Size budgets (bytes/token/count) are constants here and enforced by tests.
+- `src/tool-surface.ts` — the advertised surface. Default is a compact 42-tool "core" set; `GODOT_MCP_TOOL_SURFACE=full` advertises everything. The `godot_catalog` tool searches/describes the full catalog and `godot_call` dispatches it by name either way. Size budgets (bytes/token/count) are constants here and enforced by tests.
 
 ### Backends (how a tool reaches Godot)
 
@@ -44,11 +44,11 @@ Declared per-tool in the manifest (`ToolBackend` in `src/tool-manifest.ts`):
 - `runtime` / `runtime-buffer` — JSON-RPC over loopback TCP to `src/scripts/mcp_interaction_server.gd` running inside the game; domain command implementations live in `src/scripts/mcp_runtime/*.gd`. The runtime executes ONE command at a time (a concurrent command gets error -32001).
 - `process`, `godot-cli`, `local` — process management, direct CLI invocations, and pure-TypeScript tools.
 
-The editor bridge (`addons/godot_agent_loop` + `src/editor-plugin-installer.ts`, `editor-connection.ts`) is installed transiently for MCP-owned editor sessions and cleaned up afterward. `src/editor-mutation-guard.ts` implements the human "Pause Agent" lock.
+The editor bridge (`addons/godot_agent_loop` + `src/editor-plugin-installer.ts`, `editor-connection.ts`) is the persistent, editor-native attachment used as the primary setup; MCP-owned sessions install it transiently and clean it up afterward. `src/editor-mutation-guard.ts` implements the human "Pause Agent" lock.
 
 ### Security defaults
 
-Privileged runtime groups (reflection, code execution, networking) are denied by default; opt in via `GODOT_MCP_PRIVILEGED_GROUPS` / `GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS`. Runtime connections are authenticated with `GODOT_MCP_RUNTIME_SECRET` (random if unset). Other knobs: `GODOT_MCP_RUNTIME_PORT` (default 9090; both ends inherit it), `GODOT_MCP_RUN_HEADLESS=true`, `DEBUG=true`.
+Privileged runtime groups (reflection, code execution, networking) are denied by default; opt in via `GODOT_MCP_PRIVILEGED_GROUPS` / `GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS`. Runtime connections are authenticated with `GODOT_MCP_RUNTIME_SECRET` (random if unset); a runtime without a secret refuses handshakes unless `GODOT_MCP_ALLOW_INSECURE_RUNTIME=true`. Filesystem access requires `GODOT_MCP_ALLOWED_DIRS` or MCP client roots; `GODOT_MCP_ALLOW_UNRESTRICTED=true` restores the legacy open mode. Other knobs: `GODOT_MCP_RUNTIME_PORT` (default 9090; both ends inherit it), `GODOT_MCP_AUTHORING_MODE`, `GODOT_MCP_TOOL_SURFACE`, `DEBUG=true`.
 
 ## Testing conventions
 

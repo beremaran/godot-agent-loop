@@ -757,6 +757,9 @@ func _cmd_video(params: Dictionary) -> void:
 		var vp: VideoStreamPlayer = VideoStreamPlayer.new()
 		var video_path: String = params.get("video_path", "")
 		if not video_path.is_empty():
+			if not CommandParams.is_safe_resource_path(video_path):
+				respond({"error": "video_path must be a res:// or user:// path inside the project: %s" % video_path})
+				return
 			if not ResourceLoader.exists(video_path):
 				respond({"error": "Video resource not found: %s" % video_path})
 				return

@@ -39,6 +39,8 @@
     "agent-plugin",
     "addons/godot_agent_loop",
     "product.json",
+    "server.json",
+    "CHANGELOG.md",
     "scripts/prepare-package.js"
   ],
   "scripts": {
@@ -66,7 +68,8 @@
     "prepare": "node scripts/prepare-package.js",
     "check": "npm test && npm run lint && npm run coverage:check",
     "coverage:report": "npm run build && node scripts/generate-coverage-report.js",
-    "coverage:check": "npm run build && node scripts/generate-coverage-report.js --check && npm run coverage:engine -- --check",
+    "coverage:unit": "vitest run --coverage",
+    "coverage:check": "npm run build && npm run coverage:unit && node scripts/generate-coverage-report.js --check && npm run coverage:engine -- --check",
     "coverage:engine": "node scripts/engine-surface-audit.js",
     "benchmark:loop": "npm run build && node scripts/benchmark-authoring-loop.mjs && npm run coverage:report",
     "watch": "tsc --watch",

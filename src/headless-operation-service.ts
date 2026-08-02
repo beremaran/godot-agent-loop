@@ -1,5 +1,5 @@
 import { existsSync } from 'fs';
-import { join } from 'path';
+import { isAbsolute, join } from 'path';
 
 import type { AuthoringMode } from './authoring-mode.js';
 import { createErrorResponse, errorMessage, validatePath, PathSecurity, type OperationParams, type ToolResponse } from './utils.js';
@@ -18,6 +18,12 @@ export class HeadlessOperationService {
   ) {}
 
   public async execute(operation: string, params: OperationParams, projectPath: string): Promise<HeadlessOperationResult> {
+    if (!projectPath || !isAbsolute(projectPath) || projectPath.startsWith('-')) {
+      throw new Error('Project path must be an absolute path.');
+    }
+    if (!this.pathsAreSafe(projectPath, params)) {
+      throw new Error('A project-relative path escapes the project root.');
+    }
     const backend = authoringBackendForOperation(operation);
     if (backend && this.authoringSession && this.authoringMode === 'persistent') {
       try {
@@ -31,6 +37,7 @@ export class HeadlessOperationService {
 
   public async run(operation: string, projectPath: string, params: OperationParams): Promise<ToolResponse> {
     if (!projectPath) return createErrorResponse('projectPath is required.');
+    if (!isAbsolute(projectPath) || projectPath.startsWith('-')) return createErrorResponse('Project path must be an absolute path.');
     if (!validatePath(projectPath)) return createErrorResponse('Invalid path.');
     if (!this.pathSecurity.isProjectPathAllowed(projectPath)) return createErrorResponse('Project path is outside the allowed roots.');
     if (!existsSync(join(projectPath, 'project.godot')))

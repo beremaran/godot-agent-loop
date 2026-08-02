@@ -159,14 +159,20 @@ export class InteractionServerInstaller {
     return reaped;
   }
 
-  /** Deletes the script, its .uid sidecar, and the domain scripts; returns what existed. */
+  /**
+   * Deletes the script, its .uid sidecar, and the domain scripts; returns what
+   * existed. Only files byte-identical to the shipped sources are removed;
+   * user-modified or user-added files under mcp_runtime remain user-visible.
+   */
   private removeInstalledArtifacts(projectPath: string): string[] {
     const removed: string[] = [];
     const destinationScript = join(projectPath, DESTINATION_SCRIPT_NAME);
-    if (existsSync(destinationScript)) {
+    if (existsSync(destinationScript) && this.fileMatchesShippedSource(destinationScript)) {
       unlinkSync(destinationScript);
       removed.push(destinationScript);
       this.logDebug('Deleted interaction server script from project');
+    } else if (existsSync(destinationScript)) {
+      this.logDebug(`Preserving modified interaction server script: ${destinationScript}`);
     }
     const uidFile = `${destinationScript}.uid`;
     if (existsSync(uidFile)) {
@@ -176,12 +182,60 @@ export class InteractionServerInstaller {
     }
     const runtimeDir = join(projectPath, RUNTIME_DIR_NAME);
     if (existsSync(runtimeDir)) {
-      // Removes the domain scripts and any .uid files Godot generated beside them.
-      rmSync(runtimeDir, { recursive: true, force: true });
-      removed.push(runtimeDir);
-      this.logDebug('Deleted interaction server domain scripts from project');
+      const sourceRuntime = join(dirname(this.options.sourceScriptPath), RUNTIME_DIR_NAME);
+      for (const rel of this.shippedRuntimeFiles(sourceRuntime)) {
+        const installed = join(runtimeDir, rel);
+        if (existsSync(installed) && this.filesMatch(installed, join(sourceRuntime, rel))) {
+          unlinkSync(installed);
+          removed.push(join(RUNTIME_DIR_NAME, rel));
+        }
+        const generatedUid = `${installed}.uid`;
+        if (existsSync(generatedUid)) {
+          unlinkSync(generatedUid);
+          removed.push(`${RUNTIME_DIR_NAME}/${rel}.uid`);
+        }
+      }
+      this.pruneEmptyDirectory(runtimeDir);
+      this.logDebug('Removed owned interaction server domain scripts from project');
     }
     return removed;
+  }
+
+  /** Relative paths of every shipped file under a source directory tree. */
+  private shippedRuntimeFiles(sourceRuntime: string): string[] {
+    if (!existsSync(sourceRuntime)) return [];
+    const files: string[] = [];
+    const visit = (directory: string, prefix: string): void => {
+      for (const entry of readdirSync(directory, { withFileTypes: true })) {
+        const full = join(directory, entry.name);
+        const rel = join(prefix, entry.name);
+        if (entry.isDirectory()) visit(full, rel);
+        else if (entry.isFile()) files.push(rel);
+      }
+    };
+    visit(sourceRuntime, '');
+    return files;
+  }
+
+  /** Removes a directory tree once none of its files survive cleanup. */
+  private pruneEmptyDirectory(directory: string): void {
+    if (!existsSync(directory)) return;
+    let hasContent = false;
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      if (entry.isSymbolicLink()) {
+        // Never follow or delete user symlinks; they count as content.
+        hasContent = true;
+        continue;
+      }
+      const full = join(directory, entry.name);
+      if (entry.isDirectory()) {
+        this.pruneEmptyDirectory(full);
+        if (existsSync(full)) hasContent = true;
+      } else {
+        hasContent = true;
+      }
+    }
+    if (!hasContent) rmSync(directory, { recursive: true, force: true });
   }
 
   /** Appends the sentinel-delimited autoload block, preserving any user-owned override.cfg content. */

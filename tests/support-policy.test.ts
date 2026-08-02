@@ -81,7 +81,9 @@ describe('Godot support policy', () => {
     expect(workflow).toContain('sha256sum --check --strict');
     expect(workflow).toContain('mkdir -p dist');
     expect(workflow).toContain('npm pack --pack-destination dist');
-    expect(workflow).toContain(`npm publish ./dist/beremaran-godot-agent-loop-${packageJson.version}.tgz --access public --provenance`);
+    expect(workflow).toContain('TGZ="$(node -p \'const p=require("./package.json"); p.name.replace(/^@/, "").replace("/", "-") + "-" + p.version + ".tgz"\')"');
+    expect(workflow).not.toContain(`npm publish ./dist/beremaran-godot-agent-loop-${packageJson.version}.tgz --access public --provenance`);
+    expect(workflow).toContain('npm publish "./dist/$TGZ" --access public --provenance');
     expect(workflow).not.toContain(`npm publish dist/beremaran-godot-agent-loop-${packageJson.version}.tgz`);
     expect(workflow).toContain('id-token: write');
     expect(workflow).toContain('runs-on: ubuntu-latest');
