@@ -127,7 +127,7 @@ describe('Game handlers — real runtime command boundary', () => {
 
   it('handleGameMouseMove defaults and preserves relative motion', async () => {
     const { handlers, calls } = gameHarness();
-    await handlers.handleGameMouseMove({ x: 10, y: 20, relativeX: 5, relativeY: -3 });
+    await handlers.handleGameMouseMove({ x: 10, y: 20, relative_x: 5, relative_y: -3 });
     expect(calls[0]).toEqual({ name: 'mouse_move', args: { x: 10, y: 20, relative_x: 5, relative_y: -3 } });
   });
 

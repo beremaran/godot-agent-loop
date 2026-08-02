@@ -136,7 +136,7 @@ export class GameToolHandlers {
 
   public async handleGameMouseMove(args: ToolArguments) {
     return this.context.commands.execute('mouse_move', args, a => ({
-      x: a.x ?? 0, y: a.y ?? 0, relative_x: a.relativeX ?? 0, relative_y: a.relativeY ?? 0,
+      x: a.x ?? 0, y: a.y ?? 0, relative_x: a.relative_x ?? 0, relative_y: a.relative_y ?? 0,
     }));
   }
 
