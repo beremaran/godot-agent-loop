@@ -67,6 +67,8 @@
     "eval:select": "node scripts/select-evaluation-cases.mjs",
     "prepare": "node scripts/prepare-package.js",
     "check": "npm test && npm run lint && npm run coverage:check",
+    "check:fast": "npm run lint && npm run typecheck",
+    "typecheck": "tsc --noEmit",
     "coverage:report": "npm run build && node scripts/generate-coverage-report.js",
     "coverage:unit": "vitest run --coverage",
     "coverage:check": "npm run build && npm run coverage:unit && node scripts/generate-coverage-report.js --check && npm run coverage:engine -- --check",

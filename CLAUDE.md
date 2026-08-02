@@ -17,7 +17,8 @@ npm run test:e2e       # full-path MCP E2E (builds first, needs a Godot binary, 
 npm run build && npx vitest run --config vitest.e2e.config.ts tests/e2e/observers.test.ts  # single E2E file
 npm run test:godot     # Godot-side suites (typecheck, validate-script, headless ops, runtime, launch demo)
 npm run lint           # eslint + markdownlint; npm run lint:md:fix auto-fixes markdown
-npm run check          # test + lint + coverage:check — this is what the Husky pre-commit hook runs
+npm run check          # test + lint + coverage:check — full gate, used by CI and release validation
+npm run check:fast     # lint + tsc --noEmit — what the Husky pre-commit hook runs (~seconds)
 npm run coverage:report  # regenerate docs/coverage/coverage-report.md after coverage changes
 npm run inspector      # MCP Inspector against build/index.js
 ```
@@ -52,7 +53,7 @@ Privileged runtime groups (reflection, code execution, networking) are denied by
 
 ## Testing conventions
 
-- **Coverage traceability is enforced.** `docs/coverage/tool-coverage.json` records each tool's verification level and per-action test references (`file::needle`); `tests/tool-coverage.test.ts` validates it and `npm run coverage:check` (part of `check` and the pre-commit hook) fails if `docs/coverage/coverage-report.md` is stale. When you change tool coverage, update the JSON and run `npm run coverage:report` before committing.
+- **Coverage traceability is enforced.** `docs/coverage/tool-coverage.json` records each tool's verification level and per-action test references (`file::needle`); `tests/tool-coverage.test.ts` validates it and `npm run coverage:check` (part of `check` and CI) fails if `docs/coverage/coverage-report.md` is stale. When you change tool coverage, update the JSON and run `npm run coverage:report` before committing.
 - **Godot suites gate on clean engine output.** Every `tests/godot/` suite appends raw Godot output to a log and fails on unexpected `ERROR/WARNING/leak` diagnostics (`assert_clean_godot_log` in `tests/godot/godot-bin.sh`). A diagnostic may only be tolerated via `tests/godot/allowed-godot-output.tsv`, and only with a reason, issue/test reference, owner, and expiry.
 - **E2E harness** (`tests/e2e/helpers/harness.ts`): spawns `build/index.js` over stdio, drives it with the official MCP SDK client, and gives each test an isolated temp project, free runtime port, XDG-isolated user dir, and a leaked-process assertion at teardown. E2E tests require `npm run build` first (the npm scripts do this).
 - `tests/source-guardrails.test.ts` enforces GDScript source rules (e.g. scoped `@warning_ignore` only, no raw socket/transport internals outside designated files) — if it fails, fix the source, don't loosen the test.

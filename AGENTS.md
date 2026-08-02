@@ -18,7 +18,10 @@ Documentation and generated coverage reports live in `docs/`. Treat `build/`,
   metadata.
 - `npm run watch` recompiles TypeScript while developing.
 - `npm test` runs the Vitest unit and contract suite.
-- `npm run check` runs tests, ESLint, Markdown linting, and coverage audits.
+- `npm run check` runs tests, ESLint, Markdown linting, and coverage audits
+  (full gate; used by CI and release validation).
+- `npm run check:fast` runs ESLint, Markdown linting, and a no-emit
+  TypeScript check; this is the Husky pre-commit gate.
 - `npm run test:e2e` builds and runs full MCP-to-Godot tests serially.
 - `npm run test:godot` runs GDScript type checks and headless integration suites.
   Real-engine commands require `GODOT_BIN`, `GODOT_PATH`, or `godot4`/`godot`
@@ -39,9 +42,9 @@ must also pass `npm run lint:md`.
 Name tests `*.test.ts` and place E2E coverage in `tests/e2e/`. Add focused tests
 for every behavior change, including validation and failure paths. Changes to
 tools should preserve manifest, handler, protocol, and coverage-report
-consistency. Run `npm run check` before committing; run the relevant Godot and
-E2E suites when engine behavior changes. Godot 4.7 is both the compatibility
-floor and primary target.
+consistency. The Husky pre-commit gate runs `npm run check:fast` (lint plus
+no-emit typecheck); run the relevant Godot and E2E suites when engine behavior
+changes. Godot 4.7 is both the compatibility floor and primary target.
 
 ## Commit & Pull Request Guidelines
 

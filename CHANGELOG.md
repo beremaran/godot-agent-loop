@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Developer Experience
+
+- Make the pre-commit hook a fast gate (`npm run check:fast`: lint plus a
+  no-emit TypeScript check) instead of the multi-minute `npm run check`, and
+  keep the full gate for CI and release validation.
+- Let `npm run coverage:engine -- --check` skip with a warning instead of
+  failing when `GODOT_BIN` is unset, so environment absence no longer rejects
+  commits or local checks.
+
 ## [1.1.5] - 2026-08-01
 
 ### Evaluations

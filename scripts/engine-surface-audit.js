@@ -273,6 +273,10 @@ function render(version, api, rows) {
 
 const godotBin = process.env.GODOT_BIN;
 if (!godotBin) {
+  if (process.argv.includes('--check')) {
+    console.warn('GODOT_BIN is not set; skipping the engine-surface audit. Install Godot to verify it.');
+    process.exit(0);
+  }
   console.error('GODOT_BIN is not set; cannot dump the engine API.');
   process.exit(1);
 }
