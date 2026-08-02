@@ -53,6 +53,10 @@ func _parse_synthetic_mouse_motion(event: InputEventMouseMotion) -> void:
 	var was_accumulated: bool = Input.use_accumulated_input
 	Input.use_accumulated_input = false
 	Input.parse_input_event(event)
+	# Agile input flushing can still queue non-accumulated events. Flush while
+	# accumulation is disabled so an OS event cannot merge with this one after
+	# the setting is restored.
+	Input.flush_buffered_events()
 	Input.use_accumulated_input = was_accumulated
 
 
