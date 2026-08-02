@@ -12,6 +12,7 @@ import {
   assertNoLeakedGodotProcesses, findProcesses, killGodotProcesses, repoRoot,
   resolveGodotBinary, startServer, type E2EServer,
 } from './helpers/harness.js';
+import { e2eHeadless } from './helpers/e2e-headless.js';
 
 let server: E2EServer | null = null;
 let editorChild: ChildProcess | null = null;
@@ -145,7 +146,7 @@ func _apply_state() -> void:
 			print("LOSE")
 `;
 
-describe('golden cold-agent game build', () => {
+describe.skipIf(e2eHeadless)('golden cold-agent game build', () => {
   it('replays the distilled agent build and independently proves authoring, input, state, rendering, and cleanup', async () => {
     const liveRun = JSON.parse(readFileSync(join(repoRoot, 'docs/coverage/golden-agent-run.json'), 'utf8')) as {
       result: { outcome: string; verifiedStates: string[] };

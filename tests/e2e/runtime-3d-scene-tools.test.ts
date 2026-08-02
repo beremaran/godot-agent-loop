@@ -1,6 +1,7 @@
 // @test-kind: e2e
 import { afterEach, describe, expect, it } from 'vitest';
 import { startServer, type E2EServer } from './helpers/harness.js';
+import { e2eHeadless } from './helpers/e2e-headless.js';
 
 /**
  * Full-path E2E coverage for the 3D scene-system tools (CSG, MultiMesh,
@@ -130,27 +131,41 @@ describe('3D scene-system tools through MCP', () => {
 
     // Instance transforms live in the rendering server's buffer, so their
     // availability independently proves this suite has the required renderer.
+    // Godot's headless dummy renderer allocates no buffer, which the runtime
+    // reports through the structured instance_buffer_unavailable contract.
     const instanceDataAvailable = await engineEval(game, [
       'var mm = get_node("/root/Main/Forest").multimesh',
       'return not mm.buffer.is_empty()',
     ].join('\n')) as boolean;
-    expect(instanceDataAvailable).toBe(true);
+    expect(instanceDataAvailable).toBe(!e2eHeadless);
 
-    const placed = await game.call('game_multimesh', {
-      action: 'set_instance', nodePath: '/root/Main/Forest', index: 2,
-      transform: { origin: { x: 7, y: 0, z: -3 } },
-    });
+    if (e2eHeadless) {
+      const unavailable = await game.call('game_multimesh', {
+        action: 'set_instance', nodePath: '/root/Main/Forest', index: 2,
+        transform: { origin: { x: 7, y: 0, z: -3 } },
+      });
+      expect(unavailable.isError).toBe(true);
+      expect(unavailable.text).toMatch(/instance_buffer_unavailable|instance data is unavailable/i);
+      const headlessInfo = await game.call('game_multimesh', { action: 'get_info', nodePath: '/root/Main/Forest' });
+      expect(headlessInfo.isError, headlessInfo.text).toBe(false);
+      expect(payload(headlessInfo.text)).toMatchObject({ count: 4, instance_data_available: false });
+    } else {
+      const placed = await game.call('game_multimesh', {
+        action: 'set_instance', nodePath: '/root/Main/Forest', index: 2,
+        transform: { origin: { x: 7, y: 0, z: -3 } },
+      });
 
-    expect(placed.isError, placed.text).toBe(false);
-    expect(payload(placed.text)).toMatchObject({ index: 2 });
-    expect(await engineEval(game, [
-      'var origin = get_node("/root/Main/Forest").multimesh.get_instance_transform(2).origin',
-      'return [origin.x, origin.y, origin.z]',
-    ].join('\n'))).toEqual([7, 0, -3]);
+      expect(placed.isError, placed.text).toBe(false);
+      expect(payload(placed.text)).toMatchObject({ index: 2 });
+      expect(await engineEval(game, [
+        'var origin = get_node("/root/Main/Forest").multimesh.get_instance_transform(2).origin',
+        'return [origin.x, origin.y, origin.z]',
+      ].join('\n'))).toEqual([7, 0, -3]);
 
-    const info = await game.call('game_multimesh', { action: 'get_info', nodePath: '/root/Main/Forest' });
-    expect(info.isError, info.text).toBe(false);
-    expect(payload(info.text)).toMatchObject({ count: 4, instance_data_available: instanceDataAvailable });
+      const info = await game.call('game_multimesh', { action: 'get_info', nodePath: '/root/Main/Forest' });
+      expect(info.isError, info.text).toBe(false);
+      expect(payload(info.text)).toMatchObject({ count: 4, instance_data_available: instanceDataAvailable });
+    }
 
     // An out-of-range index is a structured error, not an engine crash.
     const outOfRange = await game.call('game_multimesh', {

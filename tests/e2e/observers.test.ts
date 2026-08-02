@@ -1,6 +1,7 @@
 // @test-kind: e2e
 import { afterEach, describe, expect, it } from 'vitest';
 import { startServer, type E2EServer } from './helpers/harness.js';
+import { e2eHeadless } from './helpers/e2e-headless.js';
 
 /**
  * Phase 1 independent observers that the representative suite does not yet
@@ -143,7 +144,7 @@ describe('log observer', () => {
   });
 });
 
-describe('screenshot observer', () => {
+describe.skipIf(e2eHeadless)('screenshot observer', () => {
   it('returns a decodable PNG from the required rendering context', async () => {
     const game = await startedGame();
     const result = await game.call('game_screenshot');

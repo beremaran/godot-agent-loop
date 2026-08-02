@@ -4,6 +4,7 @@ import { PNG } from 'pngjs';
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { startServer, type E2EServer } from './helpers/harness.js';
+import { e2eHeadless } from './helpers/e2e-headless.js';
 
 /**
  * Full-path E2E coverage for the runtime engine-state tools: pause, time scale,
@@ -171,7 +172,7 @@ describe('runtime engine-state tools through MCP', () => {
     expect(negative.isError).toBe(true);
   });
 
-  it('game_window reports the viewport and applies size changes', async () => {
+  it.skipIf(e2eHeadless)('game_window reports the viewport and applies size changes', async () => {
     const game = await startedGame({ privileged: true });
 
     const initial = await game.call('game_window', { action: 'get' });
@@ -361,7 +362,7 @@ describe('runtime engine-state tools through MCP', () => {
     expect(missingRoot.isError).toBe(true);
   });
 
-  it('game_screenshot returns a decodable PNG from the required rendering context', async () => {
+  it.skipIf(e2eHeadless)('game_screenshot returns a decodable PNG from the required rendering context', async () => {
     const requireRenderedPixels = process.env.GODOT_MCP_RENDER_TEST === '1';
     const game = await startedGame({ privileged: true });
 
@@ -403,7 +404,7 @@ describe('runtime engine-state tools through MCP', () => {
     }
   });
 
-  it('game_visual_regression retains baseline, diff, tolerance, mask, and renderer evidence', async () => {
+  it.skipIf(e2eHeadless)('game_visual_regression retains baseline, diff, tolerance, mask, and renderer evidence', async () => {
     const game = await startedGame({ privileged: true });
     const baseline = await game.call('game_visual_regression', {
       action: 'capture_baseline', baselinePath: 'artifacts/baseline.png',

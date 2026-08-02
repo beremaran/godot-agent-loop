@@ -15,6 +15,7 @@ import {
   startServer,
   type E2EServer,
 } from './helpers/harness.js';
+import { e2eHeadless } from './helpers/e2e-headless.js';
 
 const retainedRoots = new Set<string>();
 
@@ -39,7 +40,9 @@ function installPersistentAddon(projectPath: string): void {
 
 function startNormalEditor(projectPath: string): { child: ChildProcess; diagnostics: string[] } {
   const diagnostics: string[] = [];
-  const child = spawn(resolveGodotBinary(), ['--editor', '--path', projectPath], {
+  const args = ['--editor', '--path', projectPath];
+  if (e2eHeadless) args.unshift('--headless');
+  const child = spawn(resolveGodotBinary(), args, {
     env: { ...process.env, GODOT_MCP_EDITOR_START_PAUSED: 'false' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });

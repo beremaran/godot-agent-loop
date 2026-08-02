@@ -44,6 +44,7 @@ import { EditorPluginInstaller, type EditorPluginInstallation } from './editor-p
 import { PRIVILEGED_RUNTIME_GROUPS, type PrivilegedRuntimeGroup } from './runtime-protocol.js';
 import { AuthoringSessionManager } from './authoring-session-manager.js';
 import { resolveAuthoringMode } from './authoring-mode.js';
+import { resolveHeadlessMode } from './headless-mode.js';
 import { EditorMutationGuard } from './editor-mutation-guard.js';
 import { SERVER_INSTRUCTIONS } from './server-instructions.js';
 import { advertisedToolDefinitions } from './tool-surface.js';
@@ -228,6 +229,7 @@ export class GodotServer {
   constructor(config?: GodotServerConfig) {
     // Apply configuration if provided
     let debugMode = DEBUG_MODE;
+    const headlessMode = resolveHeadlessMode();
     const authoringMode = resolveAuthoringMode();
     this.executableValidator = new GodotExecutableValidator(message => { this.logDebug(message); });
     this.executable = new GodotExecutableService(
@@ -286,7 +288,10 @@ export class GodotServer {
       logDebug: message => { this.logDebug(message); },
       // A running user game owns the installed runtime artifacts. Authoring
       // calls use their declared subprocess fallback until that process stops.
-      canStart: () => this.activeProcess === null,
+      // Headless mode additionally never starts the windowed persistent
+      // session; authoring still routes through a connected editor session
+      // (launched headless) and otherwise falls back to one-shot --headless.
+      canStart: () => this.activeProcess === null && !headlessMode,
       onLifecycleEvent: event => { this.forwardEditorActivity(event); },
       onProjectWrite: event => {
         return this.editorSync.enqueue(event);
@@ -324,6 +329,7 @@ export class GodotServer {
       getActiveProcess: () => this.activeProcess,
       isPathAllowed: projectPath => pathSecurity.isProjectPathAllowed(projectPath),
       isRelativePathAllowed: (projectPath, relativePath) => pathSecurity.isRelativePathAllowed(projectPath, relativePath),
+      isHeadless: () => headlessMode,
       logDebug: message => { this.logDebug(message); },
       startProjectProcess: (executable, args, onExit, env) => {
         return this.processManager.start({

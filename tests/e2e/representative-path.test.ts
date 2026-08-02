@@ -9,6 +9,7 @@ import {
   startServer,
   type E2EServer,
 } from './helpers/harness.js';
+import { e2eHeadless } from './helpers/e2e-headless.js';
 
 /**
  * Phase 1 representative full-path coverage: every architectural seam of
@@ -203,12 +204,12 @@ describe('lifecycle and runtime path', () => {
           condition: { condition: 'node', nodePath: '/root/Main/Anchor' },
         },
         { type: 'performance' },
-        { type: 'screenshot' },
+        ...(e2eHeadless ? [] : [{ type: 'screenshot' }]),
       ],
     });
     expect(scenario.isError, scenario.text).toBe(false);
     expect(JSON.parse(scenario.text)).toMatchObject({
-      name: 'Representative compound evidence', passed: true, step_count: 6,
+      name: 'Representative compound evidence', passed: true, step_count: e2eHeadless ? 5 : 6,
       teardown: { attempted: true, time_scale_restored: true },
     });
     const scenarioStepKinds = ['input', 'wait', 'observe', 'assert', 'screenshot', 'performance'];

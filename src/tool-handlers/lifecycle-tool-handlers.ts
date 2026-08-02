@@ -41,6 +41,7 @@ export interface LifecycleToolHandlerContext {
   getActiveProcess: () => GodotProcess | null;
   isPathAllowed: (projectPath: string) => boolean;
   isRelativePathAllowed: (projectPath: string, relativePath: string) => boolean;
+  isHeadless: () => boolean;
   logDebug: (message: string) => void;
   startProjectProcess: (executable: string, args: string[], onExit: () => void, env?: NodeJS.ProcessEnv) => GodotProcess;
   stopProjectProcess: () => GodotProcess | null;
@@ -268,6 +269,10 @@ export class LifecycleToolHandlers {
       const editorPlugin = this.context.installEditorPlugin?.(args.projectPath);
       installedPlugin = editorPlugin ?? null;
       const editorArgs = ['-e', '--path', args.projectPath];
+      if (this.context.isHeadless()) {
+        editorArgs.unshift('--headless');
+        this.context.logDebug('GODOT_MCP_HEADLESS is set; launching the editor without a window');
+      }
       const editorProcess = spawn(godotPath, editorArgs, {
         stdio: 'pipe', env: { ...process.env, ...this.context.getRuntimeEnvironment(), ...(this.context.getEditorEnvironment?.() ?? {}) },
       });
@@ -438,6 +443,10 @@ export class LifecycleToolHandlers {
         ...(mode === 'deterministic' ? deterministicSessionArguments() : realtimeSessionArguments()),
         '--path', args.projectPath,
       ];
+      if (this.context.isHeadless()) {
+        commandArgs.unshift('--headless');
+        this.context.logDebug('GODOT_MCP_HEADLESS is set; running the project without a window');
+      }
       if (args.scene && this.context.isRelativePathAllowed(args.projectPath, args.scene)) commandArgs.push(args.scene);
 
       this.context.logDebug(`Running Godot project: ${args.projectPath}`);

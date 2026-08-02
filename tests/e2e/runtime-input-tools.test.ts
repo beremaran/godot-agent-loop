@@ -1,6 +1,7 @@
 // @test-kind: e2e
 import { afterEach, describe, expect, it } from 'vitest';
 import { startServer, type E2EServer } from './helpers/harness.js';
+import { e2eHeadless } from './helpers/e2e-headless.js';
 
 let server: E2EServer | null = null;
 
@@ -146,7 +147,11 @@ describe('runtime G+ input tools through MCP', () => {
       x: 31, y: 41, relative_x: -3, relative_y: 5,
     })).isError).toBe(false);
     expect(await groupContains(game, 'mouse-motion-31-41-mask-0')).toBe(true);
-    expect(await groupContains(game, 'mouse-relative--3-5')).toBe(true);
+    if (!e2eHeadless) {
+      // Godot's Input singleton recomputes event.relative from its own mouse
+      // tracking, which does not advance under the headless display driver.
+      expect(await groupContains(game, 'mouse-relative--3-5')).toBe(true);
+    }
     for (const [direction, button] of [['up', 4], ['down', 5], ['left', 6], ['right', 7]] as const) {
       expect((await game.call('game_scroll', { x: 9, y: 10, direction, amount: 2 })).isError).toBe(false);
       expect(await groupContains(game, `mouse-button-${button}-pressed-9-10`)).toBe(true);
@@ -285,21 +290,37 @@ describe('runtime G+ input tools through MCP', () => {
       mouse_buttons: { 1: false },
     });
 
-    const warped = await game.call('game_input_state', { action: 'warp_mouse', x: 21, y: 22 });
-    expect(warped.isError, warped.text).toBe(false);
-    expect(payload(warped.text)).toMatchObject({ action: 'warp_mouse', position: { x: 21, y: 22 } });
+    if (e2eHeadless) {
+      // warp_mouse and non-visible mouse modes are declared unavailable with
+      // the headless display driver; the runtime reports them as structured
+      // unsupported_display errors instead of pretending they applied.
+      const warped = await game.call('game_input_state', { action: 'warp_mouse', x: 21, y: 22 });
+      expect(warped.isError).toBe(true);
+      expect(warped.text).toMatch(/unavailable with the headless display driver/i);
+      const hidden = await game.call('game_input_state', { action: 'set_mouse_mode', mouseMode: 'captured' });
+      expect(hidden.isError).toBe(true);
+      expect(hidden.text).toMatch(/unavailable with the headless display driver/i);
+      const visibleMode = await game.call('game_input_state', {
+        action: 'set_mouse_mode', mouseMode: 'visible',
+      });
+      expect(visibleMode.isError, visibleMode.text).toBe(false);
+    } else {
+      const warped = await game.call('game_input_state', { action: 'warp_mouse', x: 21, y: 22 });
+      expect(warped.isError, warped.text).toBe(false);
+      expect(payload(warped.text)).toMatchObject({ action: 'warp_mouse', position: { x: 21, y: 22 } });
 
-    for (const mouseMode of ['hidden', 'captured', 'confined'] as const) {
-      const changed = await game.call('game_input_state', { action: 'set_mouse_mode', mouseMode });
-      expect(changed.isError, changed.text).toBe(false);
-      expect(payload(changed.text)).toMatchObject({ action: 'set_mouse_mode', mode: mouseMode });
-      const observed = await game.call('game_input_state');
-      expect(payload(observed.text)).toMatchObject({ mouse_mode: mouseMode });
+      for (const mouseMode of ['hidden', 'captured', 'confined'] as const) {
+        const changed = await game.call('game_input_state', { action: 'set_mouse_mode', mouseMode });
+        expect(changed.isError, changed.text).toBe(false);
+        expect(payload(changed.text)).toMatchObject({ action: 'set_mouse_mode', mode: mouseMode });
+        const observed = await game.call('game_input_state');
+        expect(payload(observed.text)).toMatchObject({ mouse_mode: mouseMode });
+      }
+      const restored = await game.call('game_input_state', {
+        action: 'set_mouse_mode', mouseMode: 'visible',
+      });
+      expect(restored.isError, restored.text).toBe(false);
     }
-    const restored = await game.call('game_input_state', {
-      action: 'set_mouse_mode', mouseMode: 'visible',
-    });
-    expect(restored.isError, restored.text).toBe(false);
 
     const invalidMode = await game.call('game_input_state', {
       action: 'set_mouse_mode', mouseMode: 'invalid',

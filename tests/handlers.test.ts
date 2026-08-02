@@ -15,6 +15,7 @@ import { join } from 'path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const execFileMock = vi.hoisted(() => vi.fn());
+const spawnMock = vi.hoisted(() => vi.fn(() => ({ on: vi.fn(), kill: vi.fn(), exitCode: null, signalCode: null })));
 vi.mock('child_process', async importOriginal => {
   const actual = await importOriginal<typeof import('child_process')>();
   // The real execFile registers a custom promisifier that resolves an
@@ -27,7 +28,7 @@ vi.mock('child_process', async importOriginal => {
     _args: readonly string[],
     _options?: unknown,
   ) => Promise.resolve({ stdout: '4.7.1.stable.official', stderr: '' });
-  return { ...actual, execFile: execFileMock };
+  return { ...actual, execFile: execFileMock, spawn: spawnMock };
 });
 
 import {
@@ -1156,6 +1157,7 @@ function lifecycleHarness(overrides: { projectPath?: string; connected?: boolean
     getActiveProcess: () => processRecord,
     isPathAllowed: () => true,
     isRelativePathAllowed: () => true,
+    isHeadless: () => false,
     logDebug: vi.fn(),
     startProjectProcess: vi.fn(() => {
       processRecord = activeProcessRecord(['started'], []);
@@ -1209,6 +1211,44 @@ describe('Lifecycle handlers — real project runtime seam', () => {
     const { handlers } = lifecycleHarness();
     expect(isErrorResponse(await handlers.handleRunProject({}))).toBe(true);
     expect(isErrorResponse(await handlers.handleRunProject({ projectPath: '../../etc/passwd' }))).toBe(true);
+  });
+
+  it('handleRunProject stays headed by default', async () => {
+    const { handlers, context, root } = lifecycleHarness();
+    const response = await handlers.handleRunProject({ projectPath: root });
+    expect(isErrorResponse(response)).toBe(false);
+    const args = (context.startProjectProcess as ReturnType<typeof vi.fn>).mock.calls[0][1] as string[];
+    expect(args[0]).not.toBe('--headless');
+  });
+
+  it('handleRunProject prepends --headless when headless mode is enabled', async () => {
+    const { handlers, context, root } = lifecycleHarness();
+    context.isHeadless = () => true;
+    const response = await handlers.handleRunProject({ projectPath: root });
+    expect(isErrorResponse(response)).toBe(false);
+    const args = (context.startProjectProcess as ReturnType<typeof vi.fn>).mock.calls[0][1] as string[];
+    expect(args[0]).toBe('--headless');
+    expect(args).toContain('--path');
+  });
+
+  it('handleLaunchEditor prepends --headless to the editor process when headless mode is enabled', async () => {
+    spawnMock.mockClear();
+    const { handlers, context, root } = lifecycleHarness();
+    context.isHeadless = () => true;
+    let ensureCalls = 0;
+    context.ensureEditorSession = vi.fn(async () => {
+      ensureCalls += 1;
+      if (ensureCalls === 1) return null;
+      return {
+        state: 'connected', project_path: root, connected: true, reused: false, spawned: false,
+        editor_pid: 7, editor_start_identity: '7:1', port: 32001, protocol_version: 2,
+        addon_version: '1.1.5', godot_version: '4.7.1', created_at: 0,
+      };
+    });
+    const response = await handlers.handleLaunchEditor({ projectPath: root });
+    expect(isErrorResponse(response)).toBe(false);
+    expect(spawnMock).toHaveBeenCalledOnce();
+    expect(spawnMock.mock.calls[0][1]).toEqual(expect.arrayContaining(['--headless', '-e']));
   });
 
   it('handleStopProject stops only an active process', async () => {

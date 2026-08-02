@@ -8,6 +8,7 @@ import {
   writePngFixture,
   type E2EServer,
 } from './helpers/harness.js';
+import { e2eHeadless } from './helpers/e2e-headless.js';
 
 /**
  * Phase 2/6c: the 16 authoring (godot_operations.gd) tools through the complete
@@ -39,10 +40,17 @@ describe('scene authoring', () => {
     const defaulted = await call('create_scene', { scenePath: 'scenes/level.tscn' });
     expect(defaulted.isError, defaulted.text).toBe(false);
     expect(projectFile('scenes/level.tscn')).toMatch(/type="Node2D"/);
-    // The persistent backend keeps its generated runtime installation alive
-    // between operations; the one-shot subprocess path never creates this.
-    expect(existsSync(join(server.projectPath, 'override.cfg'))).toBe(true);
-    expect(existsSync(join(server.projectPath, 'mcp_runtime'))).toBe(true);
+    if (e2eHeadless) {
+      // Headless mode never starts the windowed persistent session, so the
+      // one-shot subprocess path is used and no runtime installation appears.
+      expect(existsSync(join(server.projectPath, 'override.cfg'))).toBe(false);
+      expect(existsSync(join(server.projectPath, 'mcp_runtime'))).toBe(false);
+    } else {
+      // The persistent backend keeps its generated runtime installation alive
+      // between operations; the one-shot subprocess path never creates this.
+      expect(existsSync(join(server.projectPath, 'override.cfg'))).toBe(true);
+      expect(existsSync(join(server.projectPath, 'mcp_runtime'))).toBe(true);
+    }
 
     const explicit = await call('create_scene', { scenePath: 'scenes/space.tscn', rootNodeType: 'Node3D' });
     expect(explicit.isError, explicit.text).toBe(false);

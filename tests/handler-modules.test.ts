@@ -244,6 +244,7 @@ describe('LifecycleToolHandlers', () => {
       getActiveProcess: () => null,
       isPathAllowed: () => true,
       isRelativePathAllowed: () => true,
+      isHeadless: () => false,
       logDebug: vi.fn(),
       startProjectProcess: vi.fn(),
       stopProjectProcess: vi.fn(),

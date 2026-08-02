@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { assertNoLeakedGodotProcesses, startServer, type E2EServer } from './helpers/harness.js';
+import { e2eHeadless } from './helpers/e2e-headless.js';
 
 let server: E2EServer | null = null;
 
@@ -55,7 +56,7 @@ describe('compound verification workflow through MCP', () => {
     await assertNoLeakedGodotProcesses(server.root);
   });
 
-  it('captures bounded screenshot evidence', async () => {
+  it.skipIf(e2eHeadless)('captures bounded screenshot evidence', async () => {
     server = await startServer();
     const result = await server.call('verify_project', {
       projectPath: server.projectPath, captureScreenshot: true,

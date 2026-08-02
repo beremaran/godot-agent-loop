@@ -371,6 +371,9 @@ export async function startServer(options: StartServerOptions = {}): Promise<E2E
       GODOT_MCP_RUNTIME_PORT: String(runtimePort),
       GODOT_MCP_ALLOWED_DIRS: project.root,
       GODOT_MCP_TOOL_SURFACE: options.toolSurface ?? 'full',
+      // The SDK's default env inheritance is a small whitelist, so the product
+      // headless switch must be forwarded explicitly to the server process.
+      ...(process.env.GODOT_MCP_HEADLESS === '1' ? { GODOT_MCP_HEADLESS: '1' } : {}),
       // Isolate user:// so parallel/leftover state cannot bleed between tests.
       XDG_DATA_HOME: join(userDataDir, 'data'),
       XDG_CONFIG_HOME: join(userDataDir, 'config'),
