@@ -307,7 +307,7 @@ lines.push(`| Session-starting edit p95 | ${formatMs(loopLatency.summary.session
 lines.push('');
 lines.push(`**Headline:** warm commands cut operation p95 by ${loopLatency.summary.warmCommandP95ReductionPercent.toFixed(1)}%, but the current`);
 lines.push(`split edit/run lifecycle makes the complete cycle ${(-loopLatency.summary.medianReductionPercent).toFixed(1)}% slower than the`);
-lines.push('one-shot baseline because it pays a headed session startup before and after the');
+lines.push('one-shot baseline because it pays a persistent session startup before and after the');
 lines.push('running-game process. The persistent transport is fast once warm; preserving that');
 lines.push('warm main loop across run/observe is the remaining latency requirement. The current');
 lines.push('budgets cap this transitional regression and protect warm-command and startup latency.');

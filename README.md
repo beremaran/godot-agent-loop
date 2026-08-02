@@ -311,8 +311,8 @@ the event name, runtime component, numeric session ID, and timestamp.
 | `GODOT_PATH` | Path to the Godot executable (overrides auto-detection) |
 | `DEBUG` | Set to `"true"` for detailed server-side logging. This also runs the headless operations script with `--debug-godot`, which logs diagnostics and writes a temporary write-access probe file into the project (removed again on every branch). Parameter values are summarized by type and size in both logs, never printed. |
 | `GODOT_MCP_ALLOWED_DIRS` | Optional. Restrict `run_project` to projects under these roots (`;`, `,`, or `:` separated). When unset and no MCP client roots are provided, filesystem access is denied unless `GODOT_MCP_ALLOW_UNRESTRICTED` is set. |
-| `GODOT_MCP_AUTHORING_MODE` | Optional, default `persistent`. `persistent` reuses a headed Godot process and avoids startup cost on each scene or resource call. `headless` opens no helper window and runs each authoring call through its declared one-shot `--headless` subprocess fallback. This does not change the headed `run_project` path. |
-| `GODOT_MCP_HEADLESS` | Optional, default `false`. Set to `true` (or `1`) to run every MCP-owned Godot process — `run_project`, `launch_editor`, and the persistent authoring session — with Godot's `--headless` flag so no window opens. Rendering-dependent operations such as screenshots fail fast with a headed-display remediation; intended for CI and headless workstations. The E2E suite honors it too: `GODOT_MCP_HEADLESS=1 npm run test:e2e` skips its pixel assertions, which stay covered by the virtual-display renderer jobs. |
+| `GODOT_MCP_AUTHORING_MODE` | Optional, default `persistent`. `persistent` reuses a windowless (`--headless`) Godot process and avoids startup cost on each scene or resource call. `headless` starts no persistent process at all and runs each authoring call through its declared one-shot `--headless` subprocess fallback. Neither mode opens a helper window; the headed `run_project` game window is unaffected. |
+| `GODOT_MCP_HEADLESS` | Optional, default `false`. Set to `true` (or `1`) to run `run_project` and `launch_editor` with Godot's `--headless` flag so no window opens. The persistent authoring session is already windowless by design. Rendering-dependent operations such as screenshots fail fast with a headed-display remediation; intended for CI and headless workstations. The E2E suite honors it too: `GODOT_MCP_HEADLESS=1 npm run test:e2e` skips its pixel assertions, which stay covered by the virtual-display renderer jobs. |
 | `GODOT_MCP_RUNTIME_SECRET` | Optional explicit shared runtime secret. The MCP server generates a fresh 256-bit value when omitted and passes it only to Godot processes it launches. Set the same value manually only when connecting to a separately launched runtime. |
 | `GODOT_MCP_EDITOR_START_PAUSED` | Optional, default `false`. Start the editor addon's cooperative lock in human-editing mode so mutating MCP tools are refused until **Resume Agent** is pressed. |
 | `GODOT_MCP_TOOL_SURFACE` | Optional, default `core`. `compact` is a compatibility alias for `core`; `full` advertises the complete static catalog. Unknown values are rejected. Use `godot_catalog` plus `godot_call` for hidden tools; the combined `godot_tools` alias is deprecated through the 1.x release line. |
@@ -350,9 +350,10 @@ queries instead of receiving partial unlabelled data.
 The server uses three bounded execution paths:
 
 1. **Scene and resource authoring** - `GODOT_MCP_AUTHORING_MODE=persistent`
-   reuses a headed, deterministic Godot main loop and avoids engine startup cost
-   per edit. `GODOT_MCP_AUTHORING_MODE=headless` creates no helper window and
-   sends each call to its declared one-shot `--headless` subprocess fallback.
+   reuses a windowless, deterministic Godot main loop (`--headless`) and avoids
+   engine startup cost per edit. `GODOT_MCP_AUTHORING_MODE=headless` starts no
+   persistent process and sends each call to its declared one-shot `--headless`
+   subprocess fallback.
 
 2. **Running-game socket** - `run_project` launches the user's game headed and
    injects the authenticated `mcp_interaction_server.gd` autoload through

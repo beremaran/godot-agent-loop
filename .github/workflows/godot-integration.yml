@@ -99,7 +99,7 @@ jobs:
         run: tests/godot/run-validate-script.sh
 
       - name: Run every operation against a fixture project
-        run: xvfb-run -a tests/godot/run-headless-operations.sh
+        run: tests/godot/run-headless-operations.sh
 
       - name: Run the runtime server integration tests
         run: tests/godot/run-integration-tests.sh

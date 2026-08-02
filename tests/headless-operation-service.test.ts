@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { resolveAuthoringMode, type AuthoringMode } from '../src/authoring-mode.js';
 import { HeadlessOperationService } from '../src/headless-operation-service.js';
 import type { HeadlessOperationResult, HeadlessOperationRunner } from '../src/headless-operation-runner.js';
-import { AuthoringSessionUnavailableError, RenderingContextUnavailableError, type AuthoringSessionManager } from '../src/authoring-session-manager.js';
+import { AuthoringSessionUnavailableError, type AuthoringSessionManager } from '../src/authoring-session-manager.js';
 
 const projects: string[] = [];
 
@@ -120,13 +120,13 @@ describe('HeadlessOperationService authoring routing', () => {
     expect(response).toEqual(sessionResult);
   });
 
-  it('does not hide a missing rendering context behind the subprocess fallback', async () => {
+  it('does not hide unexpected session startup failures behind the subprocess fallback', async () => {
     const session = {
-      execute: async () => { throw new RenderingContextUnavailableError(); },
+      execute: async () => { throw new Error('startup exploded'); },
     };
     await expect(makeService(
       { stdout: 'must not run', stderr: '', exitCode: 0, signal: null }, session,
-    ).execute('create_scene', {}, makeProject())).rejects.toThrow(/Xvfb|DISPLAY/);
+    ).execute('create_scene', {}, makeProject())).rejects.toThrow('startup exploded');
   });
 });
 

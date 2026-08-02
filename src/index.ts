@@ -288,9 +288,10 @@ export class GodotServer {
       logDebug: message => { this.logDebug(message); },
       // A running user game owns the installed runtime artifacts. Authoring
       // calls use their declared subprocess fallback until that process stops.
-      // Headless mode additionally never starts the windowed persistent
-      // session; authoring still routes through a connected editor session
-      // (launched headless) and otherwise falls back to one-shot --headless.
+      // The session is windowless by design (--headless): authoring operations
+      // are pure scene/resource manipulation and never require a rendering
+      // context. Headless mode additionally skips even that process and runs
+      // every authoring call through its one-shot --headless fallback.
       canStart: () => this.activeProcess === null && !headlessMode,
       onLifecycleEvent: event => { this.forwardEditorActivity(event); },
       onProjectWrite: event => {

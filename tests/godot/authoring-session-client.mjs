@@ -2,10 +2,10 @@ import { createConnection } from 'node:net';
 
 /* global clearTimeout, process, setTimeout */
 
-const [, , portText, secret, mode = 'headed'] = process.argv;
+const [, , portText, secret, mode = 'full'] = process.argv;
 const port = Number(portText);
-if (!Number.isInteger(port) || port < 1 || !secret || !['headed', 'expect-no-render'].includes(mode)) {
-  throw new Error('Usage: node authoring-session-client.mjs <port> <secret> [headed|expect-no-render]');
+if (!Number.isInteger(port) || port < 1 || !secret || !['full', 'expect-no-render'].includes(mode)) {
+  throw new Error('Usage: node authoring-session-client.mjs <port> <secret> [full|expect-no-render]');
 }
 
 let buffer = '';
@@ -95,10 +95,10 @@ if (mode === 'expect-no-render') {
   socket.end();
   process.exitCode = 0;
 } else {
-  if (!handshake.result.capabilities.includes('rendering-context')) {
-    throw new Error(`Rendering capability missing: ${JSON.stringify(handshake)}`);
-  }
-
+  // The persistent authoring session is windowless (--headless) by design:
+  // authoring operations are pure scene/resource manipulation, so a rendering
+  // context is neither advertised nor required. The deterministic main loop
+  // still serves the harness-owned game commands below.
   const timing = await request('godot.runtime.time_scale', { action: 'get' });
   if (timing.error || timing.result.time_scale !== 1 || timing.result.fixed_fps !== 60) {
     throw new Error(`Deterministic session timing is invalid: ${JSON.stringify(timing)}`);

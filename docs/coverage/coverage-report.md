@@ -83,7 +83,7 @@ Recorded on 4.7.stable.official.5b4e0cb0f / linux / AMD Ryzen 7 7800X3D 8-Core P
 
 **Headline:** warm commands cut operation p95 by 93.5%, but the current
 split edit/run lifecycle makes the complete cycle 40.3% slower than the
-one-shot baseline because it pays a headed session startup before and after the
+one-shot baseline because it pays a persistent session startup before and after the
 running-game process. The persistent transport is fast once warm; preserving that
 warm main loop across run/observe is the remaining latency requirement. The current
 budgets cap this transitional regression and protect warm-command and startup latency.

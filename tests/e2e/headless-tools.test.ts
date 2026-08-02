@@ -41,7 +41,7 @@ describe('scene authoring', () => {
     expect(defaulted.isError, defaulted.text).toBe(false);
     expect(projectFile('scenes/level.tscn')).toMatch(/type="Node2D"/);
     if (e2eHeadless) {
-      // Headless mode never starts the windowed persistent session, so the
+      // Headless mode never starts the persistent session, so the
       // one-shot subprocess path is used and no runtime installation appears.
       expect(existsSync(join(server.projectPath, 'override.cfg'))).toBe(false);
       expect(existsSync(join(server.projectPath, 'mcp_runtime'))).toBe(false);

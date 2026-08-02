@@ -8,12 +8,10 @@ import type { InteractionServerInstaller } from './interaction-server-installer.
 import type { AuthoringSessionToolBackend } from './tool-manifest.js';
 import { convertCamelToSnakeCase, errorMessage, type OperationParams } from './utils.js';
 import { deterministicSessionArguments, deterministicSessionEnvironment } from './session-timing.js';
-import { RENDERING_CONTEXT_CAPABILITY } from './runtime-protocol.js';
 import { currentExecutionContext, isAbortError, throwIfCancelled } from './execution-context.js';
 
 interface AuthoringConnection {
   readonly isConnected: boolean;
-  supportsCapability(capability: string): boolean;
   connect(projectPath: string, isProcessActive: () => boolean, signal?: AbortSignal): Promise<void>;
   disconnect(): void;
   send(command: string, params?: Record<string, unknown>, timeoutMs?: number, signal?: AbortSignal): Promise<GameResponse>;
@@ -65,14 +63,6 @@ export class AuthoringSessionUnavailableError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'AuthoringSessionUnavailableError';
-  }
-}
-
-/** A headed session could not reach a real or virtual desktop renderer. */
-export class RenderingContextUnavailableError extends Error {
-  constructor(message = 'Headed authoring session requires a reachable rendering context. Set DISPLAY or WAYLAND_DISPLAY on Linux, or run under a virtual display such as Xvfb.') {
-    super(message);
-    this.name = 'RenderingContextUnavailableError';
   }
 }
 
@@ -219,9 +209,14 @@ export class AuthoringSessionManager {
       const generation = ++this.generation;
       const state: AuthoringSessionState = { projectPath, ownedInstallation, connection, generation };
       this.current = state;
+      // The session is windowless by design. Every authoring operation is
+      // pure scene/resource manipulation that runs identically under
+      // `--headless` (the one-shot subprocess fallback already proves it), so
+      // the persistent session must never open or depend on a desktop window.
       this.processManager.start({
         executable,
         args: [
+          '--headless',
           ...deterministicSessionArguments(),
           '--path', projectPath, '--script', this.options.operationsScriptPath, '--serve-authoring',
         ],
@@ -241,19 +236,13 @@ export class AuthoringSessionManager {
       if (signal) await connection.connect(projectPath, isActive, signal);
       else await connection.connect(projectPath, isActive);
       if (!connection.isConnected) {
-        throw new RenderingContextUnavailableError(
-          'Headed authoring session exited before its renderer became reachable. Set DISPLAY or WAYLAND_DISPLAY on Linux, or run under a virtual display such as Xvfb.',
-        );
-      }
-      if (!connection.supportsCapability(RENDERING_CONTEXT_CAPABILITY)) {
-        throw new RenderingContextUnavailableError();
+        throw new Error('Godot exited or the authoring JSON-RPC endpoint did not become reachable');
       }
       this.logDebug(`Started authoring session for ${projectPath} on port ${port}`);
     } catch (error: unknown) {
       if (this.current) this.stop();
       else if (ownedInstallation) this.options.installer.remove(projectPath, true);
       if (isAbortError(error)) throw error;
-      if (error instanceof RenderingContextUnavailableError) throw error;
       throw new AuthoringSessionUnavailableError(`Could not start authoring session: ${errorMessage(error)}`);
     }
   }

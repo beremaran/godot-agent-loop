@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Windowless authoring
+
+- Spawn the persistent authoring session with Godot's `--headless` flag so MCP
+  authoring no longer leaves a visible `<project> (DEBUG)` helper window open
+  for the server's lifetime (#29). Authoring operations are pure
+  scene/resource manipulation and never required a rendering context, so the
+  session is now windowless by design.
+
 ### Developer Experience
 
 - Make the pre-commit hook a fast gate (`npm run check:fast`: lint plus a
