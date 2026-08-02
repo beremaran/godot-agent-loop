@@ -40,6 +40,7 @@ export default tseslint.config(
       'coverage/**',
       'evals/cache/**',
       'evals/cold-model-runner.mjs',
+      'evals/fixture-snapshot.mjs',
       'evals/cold-model/**',
       'evals/inspect/.venv/**',
       'node_modules/**',
