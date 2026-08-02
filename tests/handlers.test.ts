@@ -1182,12 +1182,12 @@ function lifecycleHarness(overrides: { projectPath?: string; connected?: boolean
     ensureEditorSession: vi.fn(async () => ({
       state: 'connected', project_path: root, connected: true, reused: true, spawned: false,
       editor_pid: 1, editor_start_identity: 'test', port: 9091, protocol_version: 2,
-      addon_version: '1.1.5', godot_version: '4.7.1', created_at: 0,
+      addon_version: '1.1.6', godot_version: '4.7.1', created_at: 0,
     })),
     getEditorSessionStatus: vi.fn(async () => ({
       state: 'connected', project_path: root, connected: true, reused: true, spawned: false,
       editor_pid: 1, editor_start_identity: 'test', port: 9091, protocol_version: 2,
-      addon_version: '1.1.5', godot_version: '4.7.1', created_at: 0,
+      addon_version: '1.1.6', godot_version: '4.7.1', created_at: 0,
     })),
     disconnectEditorSession: vi.fn(),
     isGameConnected: () => true,
@@ -1242,7 +1242,7 @@ describe('Lifecycle handlers — real project runtime seam', () => {
       return {
         state: 'connected', project_path: root, connected: true, reused: false, spawned: false,
         editor_pid: 7, editor_start_identity: '7:1', port: 32001, protocol_version: 2,
-        addon_version: '1.1.5', godot_version: '4.7.1', created_at: 0,
+        addon_version: '1.1.6', godot_version: '4.7.1', created_at: 0,
       };
     });
     const response = await handlers.handleLaunchEditor({ projectPath: root });

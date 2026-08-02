@@ -7,13 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Windowless authoring
+## [1.1.6] - 2026-08-02
+
+### Authoring
 
 - Spawn the persistent authoring session with Godot's `--headless` flag so MCP
   authoring no longer leaves a visible `<project> (DEBUG)` helper window open
   for the server's lifetime (#29). Authoring operations are pure
   scene/resource manipulation and never required a rendering context, so the
   session is now windowless by design.
+
+### Input
+
+- Map `game_mouse_move` relative deltas from the schema-declared
+  `relative_x`/`relative_y` arguments instead of dropped camelCase names, so
+  synthetic mouse motion delivers the caller's movement to the game.
+- Flush synthetic mouse motion immediately while input accumulation is
+  disabled, so a buffered OS event cannot merge with and transform the
+  caller-supplied deltas.
 
 ### Developer Experience
 
@@ -29,6 +40,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Release validation reuses its own build through `npm run check:built`
   (lint plus `coverage:verify`), so the publish workflow no longer builds or
   tests the same sources twice (#30).
+
+### E2E stability
+
+- Stabilize Godot input and resource fixtures, share MCP servers across E2E
+  cases, and measure per-server startup overhead.
 
 ## [1.1.5] - 2026-08-01
 
@@ -160,7 +176,8 @@ identity. Full release notes: [`docs/releases/1.0.0.md`](docs/releases/1.0.0.md)
 - Runtime connections are authenticated with a per-session secret; transports
   bind to loopback and retained logs are bounded and redacted.
 
-[Unreleased]: https://github.com/beremaran/godot-agent-loop/compare/v1.1.5...HEAD
+[Unreleased]: https://github.com/beremaran/godot-agent-loop/compare/v1.1.6...HEAD
+[1.1.6]: https://github.com/beremaran/godot-agent-loop/compare/v1.1.5...v1.1.6
 [1.1.5]: https://github.com/beremaran/godot-agent-loop/compare/v1.1.4...v1.1.5
 [1.1.4]: https://github.com/beremaran/godot-agent-loop/compare/v1.1.3...v1.1.4
 [1.1.3]: https://github.com/beremaran/godot-agent-loop/compare/v1.1.2...v1.1.3

@@ -9,7 +9,7 @@ const PERSISTENT_PLUGIN_NAME = 'godot_agent_loop';
 const TRANSIENT_PLUGIN_NAME = 'godot_agent_loop_transient';
 const OWNERSHIP_FILE = '.godot-agent-loop-owned.json';
 const OWNERSHIP_ID = 'godot-agent-loop-server';
-const EDITOR_BRIDGE_VERSION = '1.1.5';
+const EDITOR_BRIDGE_VERSION = '1.1.6';
 
 interface OwnershipMarker {
   owner: typeof OWNERSHIP_ID;
