@@ -1,6 +1,0 @@
-# Copied in by tests/godot/run-integration-tests.sh; the source of truth is
-# src/scripts/mcp_interaction_server.gd and src/scripts/mcp_runtime/.
-mcp_interaction_server.gd
-mcp_interaction_server.gd.uid
-mcp_runtime/
-variant-codec-corpus.json

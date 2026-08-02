@@ -1,7 +1,0 @@
-# Copied in by tests/godot/run-typecheck.sh; the source of truth is
-# src/scripts/.
-godot_operations.gd
-godot_operations.gd.uid
-validate_script.gd
-validate_script.gd.uid
-.godot/

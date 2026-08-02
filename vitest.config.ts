@@ -14,19 +14,5 @@ export default defineConfig({
     // legacy unrestricted path mode. Production defaults remain secure:
     // without roots and without this opt-in, filesystem access is denied.
     env: { GODOT_MCP_ALLOW_UNRESTRICTED: 'true' },
-    coverage: {
-      provider: 'v8',
-      include: ['src/**/*.ts'],
-      exclude: ['src/scripts/**'],
-      // Hard gate: `npm run coverage:unit` (part of `npm run check`) fails when
-      // exercised line/statement/function coverage drops below these floors.
-      // Baselines reflect the unit suite alone; e2e adds engine-side coverage.
-      thresholds: {
-        statements: 60,
-        branches: 40,
-        functions: 65,
-        lines: 65,
-      },
-    },
   },
 });

@@ -75,11 +75,8 @@ must not be mixed into one comparison.
 
 The repository is substantially ahead of a greenfield evaluation effort:
 
-- `npm run check`, Godot integration suites, and MCP-to-Godot E2E tests cover
-  contracts and real-engine behavior.
-- The generated
-  [coverage inventory](coverage/coverage-report.md) maps every public tool and
-  action to resolving tests.
+- `npm run check` and the retained MCP-to-Godot E2E smoke suite cover selected
+  contracts and representative real-engine behavior.
 - The current surface contains 173 tools, while the default `core` surface
   advertises 42 tools and reduces serialized tool-definition bytes by 94.93%.
 - [The cold-model corpus](../evals/scenarios.json) contains nine primary and

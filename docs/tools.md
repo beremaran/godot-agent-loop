@@ -6,9 +6,6 @@ and describes the complete catalog; `godot_call` executes one hidden tool after
 inspection. Set `GODOT_MCP_TOOL_SURFACE=full` to advertise the complete static
 catalog. The former `compact` surface name aliases `core` during migration.
 
-Per-tool verification status, action inventories, and test references are
-published in the generated [coverage report](coverage/coverage-report.md).
-
 ## Calling contract
 
 Every advertised tool has a human title, closed input schema where applicable,

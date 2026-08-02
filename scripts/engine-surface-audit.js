@@ -2,8 +2,7 @@
 /**
  * Audits the MCP tool surface against the engine's own class list.
  *
- * Unlike docs/coverage/coverage-report.md, whose denominators come from our
- * own sources, the denominator here is produced by Godot itself
+ * The denominator here is produced by Godot itself
  * (`--dump-extension-api`). A class we never thought to support still appears,
  * so the gap list can grow when the engine grows and we stand still.
  *
@@ -147,9 +146,7 @@ function classify(api, references) {
     } else if (cls.api_type === 'editor') {
       // The dump marks many of these is_instantiable, but that is an editor-side
       // fact: in a running game ClassDB.instantiate() returns null for them, so
-      // game_eval cannot reach them however constructible they look here. Proven
-      // by tests/e2e/engine-reach.test.ts, which failed on
-      // EditorExportPlatformAndroid when this branch was missing.
+      // game_eval cannot reach them however constructible they look here.
       bucket = 'gap';
       why = 'editor-context class: not constructible in a running game, and no tool reaches it';
     } else if (cls.is_instantiable) {
@@ -231,13 +228,12 @@ function render(version, api, rows) {
     '`RefCounted`, `Node`) rather than target with a named tool. Read it as "we',
     'mention this class", not "we have a first-class affordance for it".',
     '',
-    '### Reachable is a claim, not a measurement',
+    '### Reachable is an architectural classification',
     '',
     'The `reachable` bucket asserts that `game_eval` and `add_node` can drive any',
-    'ClassDB-instantiable class. That assertion is only worth what the evidence',
-    'behind it is worth: `tests/e2e/engine-reach.test.ts` samples untooled classes',
-    'from this bucket and drives them end to end. Classes it has not sampled are',
-    'reachable in principle, not in evidence.',
+    'ClassDB-instantiable class. The retained smoke suite does not sample arbitrary',
+    'untooled classes from this bucket, so treat them as reachable in principle,',
+    'not as current end-to-end evidence.',
     '',
     '## Out of scope',
     '',

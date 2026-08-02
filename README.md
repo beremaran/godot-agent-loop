@@ -6,14 +6,11 @@ An MCP automation loop for Godot 4.
 
 [![npm version](https://img.shields.io/npm/v/%40beremaran%2Fgodot-agent-loop)](https://www.npmjs.com/package/@beremaran/godot-agent-loop)
 [![Godot integration tests](https://github.com/beremaran/godot-agent-loop/actions/workflows/godot-integration.yml/badge.svg)](https://github.com/beremaran/godot-agent-loop/actions/workflows/godot-integration.yml)
-<!-- generated-coverage-badge:start -->
-[![E2E tools: 173/173](https://img.shields.io/badge/E2E_tools-173%2F173-brightgreen)](docs/coverage/coverage-report.md)
-<!-- generated-coverage-badge:end -->
 [![MCP Server](https://badge.mcpx.dev?type=server 'MCP Server')](https://modelcontextprotocol.io/introduction)
 [![Made with Godot](https://img.shields.io/badge/Made%20with-Godot-478CBF?style=flat&logo=godot%20engine&logoColor=white)](https://godotengine.org)
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg 'MIT License')](LICENSE)
 
-Other integrations give agents tools. Godot Agent Loop gives them a tested
+Other integrations give agents tools. Godot Agent Loop gives them a
 feedback loop to author, run, observe, playtest, and independently verify Godot
 games:
 
@@ -47,17 +44,14 @@ Using Cline, Cursor, or another MCP client? See
 
 ## Proof before claims
 
-- Every current tool and public action is traced to resolving tests in the
-  source-derived [coverage report](docs/coverage/coverage-report.md); its counts
-  and surface sizes are generated rather than copied into prose.
 - The [evaluation guide](docs/evaluation.md) documents the pinned conformance,
   Inspector, Inspect AI, real-client, scorer, baseline, and paired-comparison
   lanes, including exactly which agent and model each lane uses.
-- The complete serial real-Godot matrix is enforced in CI.
+- A retained representative real-Godot path is enforced in CI.
 - A cold agent built and independently verified a playable win/lose game with
   zero human corrections, in under seven minutes, using 103 MCP calls and no
   built-in tools; see the [launch evidence](docs/launch/launch-evidence.md) and
-  [deterministic acceptance record](docs/golden-agent-acceptance.md).
+  [recorded launch evidence](docs/launch/launch-evidence.md).
 - Privileged reflection, code execution, and networking groups are denied by
   default, and the editor provides a human **Pause Agent** control.
 
@@ -101,9 +95,7 @@ builds, and unbounded engine control are not claimed. Details in the
 
 The full inventory—runtime interaction, scene authoring, project management,
 verification, 2D/3D rendering, audio, UI, networking, and more—lives in
-[docs/tools.md](docs/tools.md). Per-tool verification status and test references
-are in the generated
-[coverage report](docs/coverage/coverage-report.md).
+[docs/tools.md](docs/tools.md).
 
 ## Requirements
 
@@ -129,8 +121,8 @@ than new features.
 
 | Area | Status | Evidence or limitation |
 | --- | --- | --- |
-| Linux headed (desktop or Xvfb), Godot 4.7 | Verified in CI | Full MCP E2E under Xvfb, direct runtime, subprocess operations, and strict script parsing |
-| GDScript project and running-game workflows | Verified for advertised tools | See the generated [coverage report](docs/coverage/coverage-report.md) |
+| Linux headed (desktop or Xvfb), Godot 4.7 | Verified in CI | Retained MCP E2E under Xvfb covers representative authoring, runtime, editor attachment, and teardown paths |
+| GDScript project and running-game workflows | Representative coverage retained | Scene creation, runtime mutation, process ownership, security, and editor discovery remain in the E2E smoke suite |
 | Privileged runtime commands | Opt-in only | Disabled by default; intended for trusted localhost development |
 | Godot .NET/C# | Scaffold, compile, and editor-load verification | Godot .NET 4.7 with .NET SDK 8 |
 | Linux exports | Release/debug template export and smoke-run verification | Godot 4.7 installed templates; other targets are not claimed |
@@ -375,21 +367,18 @@ The server uses three bounded execution paths:
 | `src/tool-handlers/` | Lifecycle, project, and game handler implementations |
 | `src/scripts/godot_operations.gd` | Persistent and one-shot GDScript operations runner |
 | `src/scripts/mcp_interaction_server.gd` | TCP interaction server autoload |
-| `tests/` | Vitest unit, E2E, and Godot suites |
+| `tests/` | Retained Vitest unit and MCP-to-Godot smoke suites |
 
 ## Testing
 
-The project uses Vitest plus direct Godot and full MCP-to-Godot suites. The
-source-derived tool, action, command, and suite inventory is published in the
-[coverage report](docs/coverage/coverage-report.md).
+The project uses Vitest for a deliberately small unit and MCP-to-Godot smoke
+suite.
 
 ```bash
-npm run check       # lint, build, and coverage drift (unit suite runs exactly once)
+npm run check       # lint, build, and retained unit suite
 npm run test:e2e    # built MCP server through a real client and Godot
 npm run test:e2e:docker # same suite inside a containerized xvfb+Godot 4.7 environment,
                         # so no Godot windows open on the host; use -- to pass file filters
-npm run test:golden-agent # cold-agent game build acceptance gate
-npm run test:godot  # strict parsing, subprocess operations, runtime protocol
 npm run test:watch  # watch mode
 ```
 

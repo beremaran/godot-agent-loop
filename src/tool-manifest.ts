@@ -33,9 +33,8 @@ export interface ToolManifestEntry {
   readonly backend: ToolBackend;
   /**
    * Every public action the tool accepts, or null for single-action tools.
-   * Cross-checked against schema enums, GDScript action declarations, and
-   * handler dispatch by tests/tool-manifest.test.ts so a new action cannot
-   * ship without appearing here (and in the coverage inventory).
+   * Keep this list aligned with schema enums, GDScript action declarations,
+   * and handler dispatch when changing a multi-action tool.
    */
   readonly actions: readonly string[] | null;
   /** True when the schema's `action` field is data (an InputMap action name), not a mode selector. */
@@ -45,9 +44,8 @@ export interface ToolManifestEntry {
 }
 
 /**
- * Machine-readable traceability manifest: one entry per advertised MCP tool.
- * The Record key type makes completeness and uniqueness a compile-time fact,
- * and tests/tool-manifest.test.ts verifies every mapping against the sources.
+ * Machine-readable routing manifest: one entry per advertised MCP tool.
+ * The Record key type makes completeness and uniqueness a compile-time fact.
  */
 export const toolManifest: Record<ToolName, ToolManifestEntry> = {
   godot_catalog: {

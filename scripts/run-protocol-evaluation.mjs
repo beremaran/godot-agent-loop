@@ -107,7 +107,6 @@ function summaryMarkdown(report) {
     '',
     `- Conformance: ${report.summary.conformancePassed}/${report.summary.conformanceTotal} applicable scenarios passed`,
     `- Inspector: ${report.inspector.status === 0 ? '3/3 checks passed' : 'failed'} (${report.inspector.toolCount ?? 0} tools)`,
-    `- HTTP/stdin equivalence: enforced separately by \`tests/e2e/transport-equivalence.test.ts\``,
     '',
     '| Scenario | Status | Time |',
     '| --- | --- | ---: |',
@@ -196,7 +195,6 @@ try {
       kind: 'ephemeral-loopback-streamable-http',
       url: ready.url,
       productionTransport: 'stdio',
-      equivalenceTest: 'tests/e2e/transport-equivalence.test.ts',
     },
     conformance,
     inspector: {

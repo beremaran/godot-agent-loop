@@ -6,8 +6,8 @@ scenario to passed.
 
 - `skill-trigger-cases.json` contains positive and negative prompts for the four
   non-overlapping build, debug, verify, and ship trigger boundaries.
-- `automated-cases.json` registers runnable Vitest commands, their exact scope,
-  and what they cannot establish.
+- `automated-cases.json` registers the retained adapter smoke command, its exact
+  scope, and what it cannot establish.
 - `scenarios.json` marks the compatibility-alias no-skill scenario plus primary
   and edge scenarios for every shipped skill as `external-cold-model`.
 - `result.schema.json` requires the client, client version, model, effort, prompt
@@ -19,10 +19,9 @@ scenario to passed.
   criteria and 58/58 total acceptance/forbidden-condition checks, with zero
   human interventions, zero pause violations, and clean teardown in every run.
 
-The deterministic golden MCP replay and the commands in `automated-cases.json`
-remain valuable capability, packaging, compatibility, and cleanup coverage, but
-they neither select a skill nor sample a fresh model and therefore do not satisfy
-the external cold-model evaluation gate.
+The command in `automated-cases.json` remains useful compatibility and cleanup
+coverage, but it neither selects a skill nor samples a fresh model and therefore
+does not satisfy the external cold-model evaluation gate.
 
 ## Recording a run
 

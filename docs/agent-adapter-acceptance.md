@@ -6,10 +6,8 @@ retain the tool counts and versions observed at that time.
 
 ## Automated MCP path
 
-`tests/agent-plugin.test.ts` validates the generated Claude Code, Codex,
-OpenCode, and Pi metadata. `tests/e2e/agent-adapter-smoke.test.ts` then exercises
-the shared MCP configuration contract and the real Pi forwarding path against
-the built server. The current contract:
+`tests/e2e/agent-adapter-smoke.test.ts` exercises the real Pi forwarding path
+against the built server. The retained contract:
 
 1. completes the MCP initialization handshake;
 2. receives the generated `core` surface rather than a hand-maintained count;
@@ -21,18 +19,7 @@ the built server. The current contract:
 The Pi case loads the shipped TypeScript extension through a fake Pi lifecycle,
 then uses its dynamically registered tools. This proves Pi does not statically
 register the full catalog and that `session_shutdown` closes the stdio client.
-Adapter compatibility smoke covers canonical `core` plus the `compact` alias;
-`tests/e2e/progressive-disclosure.test.ts` separately proves that an old client
-can still call unadvertised `godot_tools search`, `describe`, and `call` on the
-core server during the 1.x migration window.
-
-`tests/agent-package-layout.test.ts` creates and extracts an npm archive with
-lifecycle scripts disabled, proves that all four canonical skills, OpenAI
-interfaces, and Claude/Codex/MCP/Pi adapter files are byte-identical, then runs
-the packed OpenCode installer and checks its installed inventory and `core`
-environment. Evaluation automation is registered separately from external
-cold-model status, which remains explicitly `not_run` until a deliberate model
-execution is recorded.
+Evaluation automation is registered separately from external cold-model status.
 
 ## Historical native client packaging
 

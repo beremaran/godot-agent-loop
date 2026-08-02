@@ -36,13 +36,12 @@ so it also catches base classes we merely reference as types (`Object`,
 `RefCounted`, `Node`) rather than target with a named tool. Read it as "we
 mention this class", not "we have a first-class affordance for it".
 
-### Reachable is a claim, not a measurement
+### Reachable is an architectural classification
 
 The `reachable` bucket asserts that `game_eval` and `add_node` can drive any
-ClassDB-instantiable class. That assertion is only worth what the evidence
-behind it is worth: `tests/e2e/engine-reach.test.ts` samples untooled classes
-from this bucket and drives them end to end. Classes it has not sampled are
-reachable in principle, not in evidence.
+ClassDB-instantiable class. The retained smoke suite does not sample arbitrary
+untooled classes from this bucket, so treat them as reachable in principle,
+not as current end-to-end evidence.
 
 ## Out of scope
 

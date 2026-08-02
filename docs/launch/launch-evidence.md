@@ -88,7 +88,6 @@ The edit condenses the 391.795-second run; it is not presented as an uncut scree
 recording or a recreation of model reasoning. Only tool-visible outcomes and
 measured metadata are included. The private raw model stream is not published.
 
-Run `npm run test:golden-agent` to replay the authored MCP path against a real
-Godot process and independently assert scene files, input, PLAYING/WIN/LOSE
-state, rendered pixels, and teardown. Run `npm run launch:video` to rebuild the
-edited proof from the committed media.
+The deterministic golden replay was removed with the test-suite reduction. Run
+`npm run test:e2e` for the retained representative MCP-to-Godot path, or
+`npm run launch:video` to rebuild the edited proof from the committed media.

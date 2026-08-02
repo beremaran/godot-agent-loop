@@ -7,7 +7,7 @@
 #
 # Usage:
 #   scripts/run-e2e-docker.sh                        # full suite
-#   scripts/run-e2e-docker.sh -- tests/e2e/project-config-tools.test.ts
+#   scripts/run-e2e-docker.sh -- tests/e2e/representative-path.test.ts
 #   GODOT_MCP_E2E_RENDERER=forward_plus GODOT_MCP_RENDER_TEST=1 scripts/run-e2e-docker.sh
 #
 # The repository is mounted read-write (build output and coverage land in the

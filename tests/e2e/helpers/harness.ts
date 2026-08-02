@@ -23,7 +23,7 @@ const execFileAsync = promisify(execFile);
 
 export const repoRoot = fileURLToPath(new URL('../../..', import.meta.url));
 
-/** Resolve the Godot binary the same way tests/godot/godot-bin.sh does. */
+/** Resolve the Godot binary from the supported environment and PATH inputs. */
 export function resolveGodotBinary(): string {
   const fromEnv = process.env.GODOT_BIN;
   if (fromEnv) return fromEnv;

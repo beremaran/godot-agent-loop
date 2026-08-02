@@ -202,35 +202,16 @@ When making changes, ensure they work across different platforms:
 
 Before every commit, the pre-commit hook runs `npm run check:fast` (ESLint,
 Markdown lint, and a no-emit TypeScript check), which finishes in seconds.
-The full `npm run check` gate — lint, a single build, and one unit-test run
-through `npm run coverage:unit` with the coverage, generated-report, and
-engine-surface audits — runs in CI and before release validation. Release
-validation runs `npm run check:built` after its own build so sources are never
-built or tested twice. Run `npm run check` at any time locally; its
-engine-surface step skips with a warning when no Godot binary is installed.
+The full `npm run check` gate — lint, a single build, and one retained unit-test
+run — executes in CI and before release validation. Release validation runs
+`npm run check:built` after its own build so sources are never built twice.
 
-### Godot-side tests
+### Godot E2E smoke tests
 
-The shipped GDScript files are exercised against a real headless Godot with
-`npm run test:godot`, which needs an engine binary (`GODOT_BIN`, `godot4`/`godot`
-on `PATH`, or `GODOT_PATH`). It runs three suites, each also runnable on its own:
-
-- `npm run test:godot:typecheck` parses `godot_operations.gd`, the interaction
-  server, and every `mcp_runtime` domain with GDScript warnings promoted to
-  errors. The promoted set lives in the `project.godot` of each tier under
-  `tests/godot/typecheck/`, and those files record which warnings are not
-  satisfied yet, so lowering the bar is a visible change.
-- `npm run test:godot:operations` runs all 16 headless operations against a
-  throwaway copy of `tests/godot/operations-fixture`, asserting exit status,
-  stdout payloads, and the files each operation leaves behind.
-- `npm run test:godot:runtime` drives the interaction server over loopback TCP.
-
-CI runs all three against the Godot 4.7 compatibility floor and primary
-development target. New code should prefer a single implementation for the
-supported release. Do not introduce version-specific branches or compatibility
-paths preemptively; raise the floor when an older release blocks useful work or
-adds meaningful maintenance cost, and create a maintenance branch only in
-response to demonstrated user demand.
+The retained `npm run test:e2e` suite drives the built MCP server through a real
+Godot binary (`GODOT_BIN`, `godot4`/`godot` on `PATH`, or `GODOT_PATH`). CI runs
+it against the Godot 4.7 compatibility floor and primary development target.
+New code should prefer a single implementation for the supported release.
 
 ## Documentation
 

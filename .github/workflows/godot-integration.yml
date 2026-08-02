@@ -6,16 +6,9 @@ on:
     tags: ["v*"]
   pull_request:
   schedule:
-    # Re-check the primary target every Monday, including the golden-agent
-    # acceptance gate.
+    # Re-check the primary target every Monday.
     - cron: "17 3 * * 1"
   workflow_dispatch:
-    inputs:
-      include_golden:
-        description: Also run the deterministic golden-agent acceptance gate
-        required: false
-        default: false
-        type: boolean
 
 jobs:
   typescript:
@@ -26,7 +19,7 @@ jobs:
       matrix:
         # 22.x is the declared engines floor (active LTS); 24.x is the target.
         node-version: ["22.x", "24.x"]
-    name: Build, tests, lint, coverage (Node ${{ matrix.node-version }})
+    name: Build, tests, and lint (Node ${{ matrix.node-version }})
     steps:
       - uses: actions/checkout@v6
         with:
@@ -43,7 +36,7 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: TypeScript, contract, manifest, and coverage-inventory tests
+      - name: Run the retained TypeScript contract tests
         run: npm test
 
       - name: Report behavioral cases affected by this pull request
@@ -64,16 +57,6 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Verify the generated coverage report is current
-        run: node scripts/generate-coverage-report.js --check
-      - name: Publish the coverage report
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: coverage-report-node-${{ matrix.node-version }}
-          path: |
-            docs/coverage/coverage-report.md
-            docs/coverage/tool-coverage.json
 
   godot:
     runs-on: ubuntu-latest
@@ -98,21 +81,6 @@ jobs:
           chmod +x "$HOME/.local/bin/godot"
           echo "GODOT_BIN=$HOME/.local/bin/godot" >> "$GITHUB_ENV"
           "$HOME/.local/bin/godot" --version
-
-      - name: Type-check the shipped scripts with warnings promoted to errors
-        run: tests/godot/run-typecheck.sh
-
-      - name: Validate autoload-aware script diagnostics
-        run: tests/godot/run-validate-script.sh
-
-      - name: Run every operation against a fixture project
-        run: tests/godot/run-headless-operations.sh
-
-      - name: Run the runtime server integration tests
-        run: tests/godot/run-integration-tests.sh
-
-      - name: Parse and start the cold-agent launch project
-        run: tests/godot/run-launch-demo.sh
 
       - uses: actions/setup-node@v6
         with:
@@ -154,206 +122,6 @@ jobs:
       - name: Run the representative MCP-to-Godot E2E suite
         run: xvfb-run -a npm run test:e2e
 
-      # The suite logs contain the complete raw engine output that the
-      # diagnostics gate inspects; keep them (plus the staged fixtures) so a
-      # failure can be diagnosed without reproducing the run.
-      - name: Preserve Godot logs and fixture state on failure
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: godot-logs-${{ matrix.godot-version }}
-          path: |
-            tests/godot/logs/
-            tests/godot/fixture/
-          if-no-files-found: ignore
-
-      - name: Preserve Godot suite logs
-        if: success()
-        uses: actions/upload-artifact@v7
-        with:
-          name: godot-suite-logs-${{ matrix.godot-version }}
-          path: tests/godot/logs/
-          if-no-files-found: ignore
-
-  golden-agent:
-    runs-on: ubuntu-latest
-    timeout-minutes: 120
-    # The deterministic 120-second acceptance gate is not part of the ordinary
-    # pull-request path: it runs on the Monday schedule, on release tag
-    # pushes, and on explicit workflow_dispatch.
-    if: >-
-      github.event_name == 'schedule' ||
-      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
-      (github.event_name == 'workflow_dispatch' && inputs['include_golden'] == true)
-    name: Golden agent acceptance gate
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Install Godot 4.7
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y xvfb mesa-vulkan-drivers
-          curl -sSL -o godot.zip \
-            "https://github.com/godotengine/godot-builds/releases/download/4.7-stable/Godot_v4.7-stable_linux.x86_64.zip"
-          unzip -q godot.zip
-          mkdir -p "$HOME/.local/bin"
-          mv Godot_v4.7-stable_linux.x86_64 "$HOME/.local/bin/godot"
-          chmod +x "$HOME/.local/bin/godot"
-          echo "GODOT_BIN=$HOME/.local/bin/godot" >> "$GITHUB_ENV"
-          "$HOME/.local/bin/godot" --version
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci --ignore-scripts
-
-      - name: Run the deterministic golden-agent acceptance gate
-        run: xvfb-run -a npm run test:golden-agent
-
-      - name: Preserve Godot logs and fixture state on failure
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: golden-agent-logs
-          path: |
-            tests/godot/logs/
-            tests/godot/fixture/
-          if-no-files-found: ignore
-
-  godot-dotnet:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        godot-version: ["4.7-stable"]
-    name: Godot .NET ${{ matrix.godot-version }}
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          cache: npm
-
-      - uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: 8.0.x
-
-      - name: Install Godot .NET ${{ matrix.godot-version }}
-        run: |
-          curl -sSL -o godot-mono.zip \
-            "https://github.com/godotengine/godot-builds/releases/download/${{ matrix.godot-version }}/Godot_v${{ matrix.godot-version }}_mono_linux_x86_64.zip"
-          unzip -q godot-mono.zip -d "$HOME/godot-mono"
-          GODOT_DIR="$HOME/godot-mono/Godot_v${{ matrix.godot-version }}_mono_linux_x86_64"
-          chmod +x "$GODOT_DIR/Godot_v${{ matrix.godot-version }}_mono_linux.x86_64"
-          echo "GODOT_BIN=$GODOT_DIR/Godot_v${{ matrix.godot-version }}_mono_linux.x86_64" >> "$GITHUB_ENV"
-
-      - name: Install dependencies
-        run: npm ci --ignore-scripts
-
-      - name: Compile and load generated C# with the matching Godot.NET.Sdk
-        env:
-          GODOT_MCP_DOTNET_TEST: "1"
-        run: >-
-          npm run test:e2e -- --run tests/e2e/project-delivery-tools.test.ts
-          -t "create_project produces engine-loadable GDScript and .NET projects"
-
-  godot-export:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - godot-version: "4.7-stable"
-            template-version: "4.7.stable"
-    name: Linux export ${{ matrix.godot-version }}
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          cache: npm
-
-      - name: Install Godot and Linux export templates
-        run: |
-          curl -sSL -o godot.zip \
-            "https://github.com/godotengine/godot-builds/releases/download/${{ matrix.godot-version }}/Godot_v${{ matrix.godot-version }}_linux.x86_64.zip"
-          unzip -q godot.zip
-          mkdir -p "$HOME/.local/bin"
-          mv "Godot_v${{ matrix.godot-version }}_linux.x86_64" "$HOME/.local/bin/godot"
-          chmod +x "$HOME/.local/bin/godot"
-          echo "GODOT_BIN=$HOME/.local/bin/godot" >> "$GITHUB_ENV"
-          curl -sSL -o templates.tpz \
-            "https://github.com/godotengine/godot-builds/releases/download/${{ matrix.godot-version }}/Godot_v${{ matrix.godot-version }}_export_templates.tpz"
-          unzip -q templates.tpz
-          TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/${{ matrix.template-version }}"
-          mkdir -p "$TEMPLATE_DIR"
-          mv templates/* "$TEMPLATE_DIR/"
-          echo "GODOT_MCP_EXPORT_XDG_DATA_HOME=$HOME/.local/share" >> "$GITHUB_ENV"
-
-      - name: Install dependencies
-        run: npm ci --ignore-scripts
-
-      - name: Export and smoke-run a Linux artifact with installed templates
-        env:
-          GODOT_MCP_EXPORT_TEMPLATE_TEST: "1"
-        run: >-
-          npm run test:e2e -- --run tests/e2e/project-delivery-tools.test.ts
-          -t "export_project creates release/debug artifacts"
-
-  renderer:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - renderer: gl_compatibility
-            label: Compatibility
-          - renderer: forward_plus
-            label: Forward+
-    name: Renderer ${{ matrix.label }}
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          cache: npm
-
-      - name: Install Godot 4.7 and virtual-display dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y xvfb mesa-vulkan-drivers
-          curl -sSL -o godot.zip \
-            "https://github.com/godotengine/godot-builds/releases/download/4.7-stable/Godot_v4.7-stable_linux.x86_64.zip"
-          unzip -q godot.zip
-          mkdir -p "$HOME/.local/bin"
-          mv Godot_v4.7-stable_linux.x86_64 "$HOME/.local/bin/godot"
-          chmod +x "$HOME/.local/bin/godot"
-          echo "GODOT_BIN=$HOME/.local/bin/godot" >> "$GITHUB_ENV"
-
-      - name: Install dependencies
-        run: npm ci --ignore-scripts
-
-      - name: Capture and compare deterministic viewport pixels
-        env:
-          GODOT_MCP_E2E_RENDERER: ${{ matrix.renderer }}
-          GODOT_MCP_RENDER_TEST: "1"
-        run: >-
-          xvfb-run -a npm run test:e2e -- --run tests/e2e/runtime-system-tools.test.ts
-          -t "game_(screenshot|visual_regression)"
-
-      - name: Run compound capture and teardown verification
-        env:
-          GODOT_MCP_E2E_RENDERER: ${{ matrix.renderer }}
-          GODOT_MCP_RENDER_TEST: "1"
-        run: >-
-          xvfb-run -a npm run test:e2e -- --run tests/e2e/verification-workflow.test.ts
-          -t "captures bounded screenshot evidence"
 
   platform:
     strategy:

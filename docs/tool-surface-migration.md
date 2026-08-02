@@ -41,21 +41,13 @@ client capabilities. Omitting them preserves the bounded legacy path. When
 present, roots narrow workspace access, progress reports bounded milestones, and
 cancellation requests safe teardown.
 
-## Automated compatibility coverage
+## Retained compatibility coverage
 
-- `tests/tool-surface.test.ts` covers `core`, the `compact` alias, `full`, unknown
-  mode rejection, titles, and annotations without asserting a hand-maintained
-  count.
-- `tests/e2e/progressive-disclosure.test.ts` runs legacy `godot_tools` search,
-  describe, and call against a core server where that compatibility tool is no
-  longer advertised.
-- `tests/tool-results.test.ts` checks equivalent text-only and structured result
-  consumption.
-- `tests/utils.test.ts` covers configured roots with absent, empty, and populated
-  client roots; `tests/index.test.ts` covers calls with and without progress and
-  cancellation metadata.
-- `tests/agent-plugin.test.ts` checks Pi's top-level title, annotation-title, and
-  raw-name display precedence.
+- `tests/index.test.ts` covers initialization and representative tool calls.
+- `tests/tool-schema-parity.test.ts` checks the retained schema/manifest parity
+  contract.
+- `tests/e2e/agent-adapter-smoke.test.ts` covers catalog filtering, hidden calls,
+  Pi forwarding, and teardown through a real MCP client.
 
 These deterministic cases do not replace native-client or external cold-model
 evidence. Removal of `compact` or `godot_tools` is intentionally deferred to a

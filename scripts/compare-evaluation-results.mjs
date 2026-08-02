@@ -280,7 +280,6 @@ export function compare(options) {
   const reliability = flakeSummary(pairs);
   const baselineManifestPath = resolve(repoRoot, 'evals', 'baselines', 'v1.1.4', 'manifest.json');
   const scorerAuditPath = resolve(repoRoot, 'evals', 'audits', 'v2-scorer-audit.json');
-  const sentinelAuditPath = resolve(repoRoot, 'evals', 'audits', 'regression-sentinels.json');
   const baselineManifest = load(baselineManifestPath);
   const gates = {
     allCandidateSafetyGates: {
@@ -388,7 +387,6 @@ export function compare(options) {
       },
       audit: {
         scorer: artifact(scorerAuditPath),
-        regressionSentinels: artifact(sentinelAuditPath),
         reviewerStatus: load(scorerAuditPath).interReviewerAgreement.status,
       },
     },

@@ -4,11 +4,11 @@
 
 Core MCP server code lives in `src/`; tool handlers are grouped under
 `src/tool-handlers/`, while the Godot runtime bridge is in `src/scripts/`.
-Unit and contract tests are `tests/*.test.ts`; real-engine suites live in
-`tests/e2e/`, with Godot fixtures and shell harnesses under `tests/godot/`.
+The retained unit and contract smoke tests are `tests/*.test.ts`; real-engine
+smoke tests live in `tests/e2e/`.
 The distributable editor add-on is in `addons/godot_agent_loop/`, reusable agent
 skills in `agent-plugin/`, and the playable reference project in `examples/`.
-Documentation and generated coverage reports live in `docs/`. Treat `build/`,
+Documentation lives in `docs/`. Treat `build/`,
 `coverage/`, and `dist/` as generated output.
 
 ## Build, Test, and Development Commands
@@ -18,16 +18,13 @@ Documentation and generated coverage reports live in `docs/`. Treat `build/`,
   metadata.
 - `npm run watch` recompiles TypeScript while developing.
 - `npm test` runs the Vitest unit and contract suite.
-- `npm run check` runs lint, one build, and the unit suite exactly once
-  (through `npm run coverage:unit`) plus coverage and generated-report audits
-  (full gate; used by CI and release validation). Release validation reuses its
-  own build via `npm run check:built`.
+- `npm run check` runs lint, one build, and the retained unit suite exactly
+  once. Release validation reuses its own build via `npm run check:built`.
 - `npm run check:fast` runs ESLint, Markdown linting, and a no-emit
   TypeScript check; this is the Husky pre-commit gate.
-- `npm run test:e2e` builds and runs full MCP-to-Godot tests serially.
-- `npm run test:godot` runs GDScript type checks and headless integration suites.
-  Real-engine commands require `GODOT_BIN`, `GODOT_PATH`, or `godot4`/`godot`
-  on `PATH`.
+- `npm run test:e2e` builds and runs the retained MCP-to-Godot smoke tests
+  serially. It requires `GODOT_BIN`, `GODOT_PATH`, or `godot4`/`godot` on
+  `PATH`.
 - `npm run inspector` opens the MCP Inspector against the built server.
 
 ## Coding Style & Naming Conventions
@@ -41,12 +38,11 @@ must also pass `npm run lint:md`.
 
 ## Testing Guidelines
 
-Name tests `*.test.ts` and place E2E coverage in `tests/e2e/`. Add focused tests
-for every behavior change, including validation and failure paths. Changes to
-tools should preserve manifest, handler, protocol, and coverage-report
-consistency. The Husky pre-commit gate runs `npm run check:fast` (lint plus
-no-emit typecheck); run the relevant Godot and E2E suites when engine behavior
-changes. Godot 4.7 is both the compatibility floor and primary target.
+Name tests `*.test.ts` and place E2E coverage in `tests/e2e/`. Keep additions
+focused on representative validation and failure paths. The Husky pre-commit
+gate runs `npm run check:fast` (lint plus no-emit typecheck); run the retained
+E2E suite when engine behavior changes. Godot 4.7 is both the compatibility
+floor and primary target.
 
 ## Commit & Pull Request Guidelines
 

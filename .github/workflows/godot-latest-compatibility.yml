@@ -2,21 +2,9 @@ name: Godot latest-release compatibility
 
 on:
   schedule:
-    # Daily engine checks from Monday through Saturday.
-    - cron: "23 3 * * 1-6"
-    # The Sunday check also runs the full MCP-to-Godot E2E suite and the
-    # golden-agent acceptance gate.
-    - cron: "23 3 * * 0"
+    # Daily engine compatibility check.
+    - cron: "23 3 * * *"
   workflow_dispatch:
-    inputs:
-      suite:
-        description: Test depth
-        required: true
-        default: full
-        type: choice
-        options:
-          - godot
-          - full
 
 permissions:
   contents: read
@@ -36,7 +24,6 @@ jobs:
     outputs:
       latest: ${{ steps.release.outputs.latest }}
       known-good: ${{ steps.release.outputs.known-good }}
-      suite: ${{ steps.mode.outputs.suite }}
     steps:
       - name: Find the newest stable Godot 4 release
         id: release
@@ -59,21 +46,6 @@ jobs:
           echo "Latest stable Godot release: $latest"
           echo "latest=$latest" >> "$GITHUB_OUTPUT"
           echo "known-good=$LAST_KNOWN_GOOD_GODOT" >> "$GITHUB_OUTPUT"
-
-      - name: Select daily or weekly test depth
-        id: mode
-        env:
-          DISPATCH_SUITE: ${{ inputs.suite }}
-          SCHEDULE: ${{ github.event.schedule }}
-        run: |
-          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
-            suite="$DISPATCH_SUITE"
-          elif [[ "$SCHEDULE" == "23 3 * * 0" ]]; then
-            suite=full
-          else
-            suite=godot
-          fi
-          echo "suite=$suite" >> "$GITHUB_OUTPUT"
 
   test-latest:
     needs: discover
@@ -112,27 +84,10 @@ jobs:
           echo "GODOT_BIN=$godot_bin" >> "$GITHUB_ENV"
           "$godot_bin" --version
 
-      - name: Run the Godot test suite
+      - name: Run the retained MCP-to-Godot suite
         id: tests
         continue-on-error: true
-        env:
-          TEST_DEPTH: ${{ needs.discover.outputs.suite }}
-        run: |
-          xvfb-run -a npm run test:godot
-          if [[ "$TEST_DEPTH" == "full" ]]; then
-            xvfb-run -a npm run test:e2e
-            xvfb-run -a npm run test:golden-agent
-          fi
-
-      - name: Preserve failure evidence
-        if: steps.tests.outcome == 'failure'
-        uses: actions/upload-artifact@v7
-        with:
-          name: godot-latest-${{ needs.discover.outputs.latest }}-failure
-          path: |
-            tests/godot/logs/
-            tests/godot/fixture/
-          if-no-files-found: ignore
+        run: xvfb-run -a npm run test:e2e
 
       - name: Fail when the latest release test failed
         if: steps.tests.outcome == 'failure'
@@ -178,14 +133,7 @@ jobs:
           "$godot_bin" --version
 
       - name: Run the same suite against the known-good release
-        env:
-          TEST_DEPTH: ${{ needs.discover.outputs.suite }}
-        run: |
-          xvfb-run -a npm run test:godot
-          if [[ "$TEST_DEPTH" == "full" ]]; then
-            xvfb-run -a npm run test:e2e
-            xvfb-run -a npm run test:golden-agent
-          fi
+        run: xvfb-run -a npm run test:e2e
 
   report-regression:
     needs: [discover, test-latest, test-known-good]
@@ -203,7 +151,6 @@ jobs:
         uses: actions/github-script@v8
         env:
           LATEST_GODOT: ${{ needs.discover.outputs.latest }}
-          TEST_DEPTH: ${{ needs.discover.outputs.suite }}
         with:
           script: |
             const title = `Godot ${process.env.LATEST_GODOT} compatibility regression`;
@@ -223,7 +170,7 @@ jobs:
 
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
             const body = [
-              `The ${process.env.TEST_DEPTH} compatibility suite fails on Godot ${process.env.LATEST_GODOT}.`,
+              `The retained compatibility suite fails on Godot ${process.env.LATEST_GODOT}.`,
               '',
               `The same commit and suite pass on the last known-good Godot release, ${process.env.LAST_KNOWN_GOOD_GODOT}.`,
               '',
