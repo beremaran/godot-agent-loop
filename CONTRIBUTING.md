@@ -202,10 +202,12 @@ When making changes, ensure they work across different platforms:
 
 Before every commit, the pre-commit hook runs `npm run check:fast` (ESLint,
 Markdown lint, and a no-emit TypeScript check), which finishes in seconds.
-The full `npm run check` gate — unit tests, coverage audits, and the
-engine-surface audit — runs in CI and before release validation. Run
-`npm run check` at any time locally; its engine-surface step skips with a
-warning when no Godot binary is installed.
+The full `npm run check` gate — lint, a single build, and one unit-test run
+through `npm run coverage:unit` with the coverage, generated-report, and
+engine-surface audits — runs in CI and before release validation. Release
+validation runs `npm run check:built` after its own build so sources are never
+built or tested twice. Run `npm run check` at any time locally; its
+engine-surface step skips with a warning when no Godot binary is installed.
 
 ### Godot-side tests
 

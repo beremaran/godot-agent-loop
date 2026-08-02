@@ -17,7 +17,8 @@ npm run test:e2e       # full-path MCP E2E (builds first, needs a Godot binary, 
 npm run build && npx vitest run --config vitest.e2e.config.ts tests/e2e/observers.test.ts  # single E2E file
 npm run test:godot     # Godot-side suites (typecheck, validate-script, headless ops, runtime, launch demo)
 npm run lint           # eslint + markdownlint; npm run lint:md:fix auto-fixes markdown
-npm run check          # test + lint + coverage:check — full gate, used by CI and release validation
+npm run check          # lint + coverage:check — full gate: builds once and runs the unit suite once (via coverage:unit); used by CI and release validation
+npm run check:built    # lint + coverage:verify — same gate assuming a fresh build; what release validation runs after its own build
 npm run check:fast     # lint + tsc --noEmit — what the Husky pre-commit hook runs (~seconds)
 npm run coverage:report  # regenerate docs/coverage/coverage-report.md after coverage changes
 npm run inspector      # MCP Inspector against build/index.js

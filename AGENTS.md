@@ -18,8 +18,10 @@ Documentation and generated coverage reports live in `docs/`. Treat `build/`,
   metadata.
 - `npm run watch` recompiles TypeScript while developing.
 - `npm test` runs the Vitest unit and contract suite.
-- `npm run check` runs tests, ESLint, Markdown linting, and coverage audits
-  (full gate; used by CI and release validation).
+- `npm run check` runs lint, one build, and the unit suite exactly once
+  (through `npm run coverage:unit`) plus coverage and generated-report audits
+  (full gate; used by CI and release validation). Release validation reuses its
+  own build via `npm run check:built`.
 - `npm run check:fast` runs ESLint, Markdown linting, and a no-emit
   TypeScript check; this is the Husky pre-commit gate.
 - `npm run test:e2e` builds and runs full MCP-to-Godot tests serially.

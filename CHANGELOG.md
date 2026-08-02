@@ -23,6 +23,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Let `npm run coverage:engine -- --check` skip with a warning instead of
   failing when `GODOT_BIN` is unset, so environment absence no longer rejects
   commits or local checks.
+- Run the unit suite exactly once in the full gate: `npm run check` now runs
+  lint plus `coverage:check` (whose `coverage:unit` is the single test
+  execution) instead of `npm test` followed by the same suite under coverage.
+  Release validation reuses its own build through `npm run check:built`
+  (lint plus `coverage:verify`), so the publish workflow no longer builds or
+  tests the same sources twice (#30).
 
 ## [1.1.5] - 2026-08-01
 

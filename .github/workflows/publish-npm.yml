@@ -74,7 +74,7 @@ jobs:
         run: npm ci --ignore-scripts
 
       - name: Build, then recheck TypeScript, contracts, lint, and generated evidence
-        run: npm run build && npm run check
+        run: npm run build && npm run check:built
 
       - name: Build the exact npm tarball
         run: |
