@@ -90,6 +90,7 @@
     "lint:md": "markdownlint-cli2 \"**/*.md\" \"#node_modules\"",
     "lint:md:fix": "markdownlint-cli2 --fix \"**/*.md\" \"#node_modules\"",
     "test:e2e": "npm run build && vitest run --config vitest.e2e.config.ts",
+    "test:e2e:docker": "bash scripts/run-e2e-docker.sh",
     "test:golden-agent": "npm run build && vitest run --config vitest.e2e.config.ts tests/e2e/golden-agent-game.test.ts",
     "assetlib:pack": "node scripts/build-assetlib-archive.js",
     "assetlib:preview": "node scripts/capture-addon-preview.js",

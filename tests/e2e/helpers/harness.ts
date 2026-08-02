@@ -10,6 +10,7 @@ import { StdioClientTransport, getDefaultEnvironment } from '@modelcontextprotoc
 import { ListRootsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { toolDefinitions } from '../../../src/tool-definitions.js';
 import { validateAgainstSchema } from '../../../src/tool-argument-validation.js';
+import { e2eMetrics } from './e2e-metrics.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -100,6 +101,18 @@ export function createTempProject(options: TempProjectOptions = {}): { root: str
   const root = mkdtempSync(join(tmpdir(), 'godot-agent-loop-e2e-'));
   const projectPath = join(root, options.name ?? 'project');
   mkdirSync(projectPath, { recursive: true });
+  writeFixtureProject(projectPath);
+  e2eMetrics.projectsCreated += 1;
+  return { root, projectPath };
+}
+
+/**
+ * Writes the standard runnable fixture (project.godot, main.gd, main.tscn)
+ * into an existing project directory. Shared by createTempProject() and the
+ * shared-server fixture's per-case subprojects so every E2E project observes
+ * the same engine hooks.
+ */
+export function writeFixtureProject(projectPath: string): void {
   const renderer = process.env.GODOT_MCP_E2E_RENDERER;
   writeFileSync(join(projectPath, 'project.godot'), [
     'config_version=5',
@@ -222,7 +235,6 @@ export function createTempProject(options: TempProjectOptions = {}): { root: str
     'gravity_scale = 0.0',
     '',
   ].join('\n'));
-  return { root, projectPath };
 }
 
 /** A 1x1 PNG for texture fixtures; written rather than committed to keep fixtures text-only. */
@@ -352,6 +364,7 @@ export interface ClientRootsController {
 }
 
 export async function startServer(options: StartServerOptions = {}): Promise<E2EServer> {
+  e2eMetrics.mcpServerStarts += 1;
   const project = options.project ?? createTempProject();
   const runtimePort = await freePort();
   const godotBinary = resolveGodotBinary();
@@ -418,6 +431,8 @@ export async function startServer(options: StartServerOptions = {}): Promise<E2E
 
   const call: E2EServer['call'] = async (name, args = {}) => {
     const result = await client.callTool({ name, arguments: args });
+    if (name === 'run_project' && result.isError !== true) e2eMetrics.gameLaunches += 1;
+    if (name === 'stop_project' && result.isError !== true) e2eMetrics.gameStops += 1;
     const content = (result.content ?? []) as { type: string; text?: string }[];
     const definition = toolDefinitions.find(tool => tool.name === name);
     if (!definition?.outputSchema) throw new Error(`No advertised output schema for E2E tool ${name}`);

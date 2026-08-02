@@ -1,37 +1,31 @@
 // @test-kind: e2e
-import { afterEach, describe, expect, it } from 'vitest';
-import {
-  createTempProject, importProjectResources, startServer, writeOgvFixture, type E2EServer,
-} from './helpers/harness.js';
+import { describe, expect, it } from 'vitest';
+import { importProjectResources, writeOgvFixture, type E2EServer } from './helpers/harness.js';
+import { useSharedServer } from './helpers/shared-server.js';
 
 /**
  * Full-path E2E coverage for the camera, shader, particle, viewport, render,
  * sky, GI, and video tools. The fixture scene has no camera, so each test spawns
  * the camera it needs through the public tools and then confirms the result by
  * reading engine state back, never by trusting the mutating response.
+ *
+ * One MCP server is shared by the whole suite; every case runs its own fresh
+ * subproject through a real engine launch, and the shared fixture stops the
+ * engine and reaps all Godot processes between cases.
  */
 
-let server: E2EServer | null = null;
-
-afterEach(async () => {
-  if (server) {
-    const active = server;
-    server = null;
-    await active.close();
-  }
-});
+const fixture = useSharedServer({ allowPrivileged: true });
 
 function payload(text: string): unknown {
   return JSON.parse(text) as unknown;
 }
 
-async function startedGame(project?: { root: string; projectPath: string }): Promise<E2EServer> {
-  // These tools are unprivileged; game_eval is the privileged *observer*.
-  server = await startServer({ allowPrivileged: true, project });
-  const started = await server.call('run_project', { projectPath: server.projectPath });
+/** Launch the current case's project and wait for the live runtime connection. */
+async function startGame(): Promise<E2EServer> {
+  const started = await fixture.server.call('run_project', { projectPath: fixture.project.projectPath });
   expect(started.isError, started.text).toBe(false);
-  await server.waitForGameConnection();
-  return server;
+  await fixture.server.waitForGameConnection();
+  return fixture.server;
 }
 
 async function engineEval(game: E2EServer, code: string): Promise<unknown> {
@@ -51,7 +45,7 @@ async function spawnCamera3D(game: E2EServer): Promise<void> {
 
 describe('camera tools through MCP', () => {
   it('game_get_camera reports no camera, then the active Camera2D after one is added', async () => {
-    const game = await startedGame();
+    const game = await startGame();
 
     const none = await game.call('game_get_camera');
     expect(none.isError).toBe(true);
@@ -70,7 +64,7 @@ describe('camera tools through MCP', () => {
   });
 
   it('game_set_camera moves the active Camera2D and its zoom', async () => {
-    const game = await startedGame();
+    const game = await startGame();
     await game.call('game_spawn_node', { type: 'Camera2D', name: 'Eye2D', parentPath: '/root/Main' });
 
     const set = await game.call('game_set_camera', {
@@ -95,7 +89,7 @@ describe('camera tools through MCP', () => {
   });
 
   it('game_set_camera drives a Camera3D position, rotation, and fov', async () => {
-    const game = await startedGame();
+    const game = await startGame();
     await spawnCamera3D(game);
 
     const set = await game.call('game_set_camera', {
@@ -121,7 +115,7 @@ describe('camera tools through MCP', () => {
   });
 
   it('game_camera_attributes get/set round-trips depth of field and exposure', async () => {
-    const game = await startedGame();
+    const game = await startGame();
 
     const noCamera = await game.call('game_camera_attributes', { action: 'get' });
     expect(noCamera.isError).toBe(true);
@@ -169,11 +163,11 @@ describe('camera tools through MCP', () => {
 
 describe('shader, particle, and viewport tools through MCP', () => {
   it('game_set_shader_param writes a uniform on a real ShaderMaterial', async () => {
-    const game = await startedGame();
+    const game = await startGame();
 
     // Author the shader through the public tool, then attach it to a sprite.
     const shader = await game.call('manage_shader', {
-      projectPath: game.projectPath,
+      projectPath: fixture.project.projectPath,
       shaderPath: 'tint.gdshader',
       action: 'create',
       source: 'shader_type canvas_item;\n\nuniform vec4 tint : source_color = vec4(1.0);\nuniform float strength = 0.0;\n\nvoid fragment() {\n\tCOLOR = tint * strength;\n}\n',
@@ -214,7 +208,7 @@ describe('shader, particle, and viewport tools through MCP', () => {
   });
 
   it('game_set_particles configures a GPUParticles2D and its process material', async () => {
-    const game = await startedGame();
+    const game = await startGame();
     await game.call('game_spawn_node', { type: 'GPUParticles2D', name: 'Sparks', parentPath: '/root/Main' });
 
     const configured = await game.call('game_set_particles', {
@@ -268,7 +262,7 @@ describe('shader, particle, and viewport tools through MCP', () => {
   });
 
   it('game_viewport create/configure/get manages a real SubViewport', async () => {
-    const game = await startedGame();
+    const game = await startGame();
 
     const created = await game.call('game_viewport', {
       action: 'create', parentPath: '/root/Main', name: 'Mirror',
@@ -314,7 +308,7 @@ describe('shader, particle, and viewport tools through MCP', () => {
   });
 
   it('game_render_settings get/set drives the real viewport', async () => {
-    const game = await startedGame();
+    const game = await startGame();
 
     const initial = await game.call('game_render_settings', { action: 'get' });
     expect(initial.isError, initial.text).toBe(false);
@@ -346,7 +340,7 @@ describe('shader, particle, and viewport tools through MCP', () => {
 
 describe('sky, global illumination, and video tools through MCP', () => {
   it('game_sky creates a procedural sky on the world environment', async () => {
-    const game = await startedGame();
+    const game = await startGame();
 
     const created = await game.call('game_sky', {
       action: 'create', skyType: 'procedural',
@@ -379,7 +373,7 @@ describe('sky, global illumination, and video tools through MCP', () => {
   });
 
   it('game_gi creates each supported global illumination node', async () => {
-    const game = await startedGame();
+    const game = await startGame();
 
     const voxel = await game.call('game_gi', {
       parentPath: '/root/Main', giType: 'voxel_gi', name: 'Voxels', size: { x: 4, y: 5, z: 6 },
@@ -414,10 +408,9 @@ describe('sky, global illumination, and video tools through MCP', () => {
   });
 
   it('game_video drives a real Theora stream through every action', async () => {
-    const project = createTempProject();
-    writeOgvFixture(project.projectPath, 'clip.ogv');
-    await importProjectResources(project.projectPath);
-    const game = await startedGame(project);
+    writeOgvFixture(fixture.project.projectPath, 'clip.ogv');
+    await importProjectResources(fixture.project.projectPath);
+    const game = await startGame();
 
     const created = await game.call('game_video', {
       action: 'create', parentPath: '/root/Main', videoPath: 'res://clip.ogv', name: 'Movie', volume: 0.5,

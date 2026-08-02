@@ -386,10 +386,19 @@ source-derived tool, action, command, and suite inventory is published in the
 ```bash
 npm run check       # lint, build, and coverage drift (unit suite runs exactly once)
 npm run test:e2e    # built MCP server through a real client and Godot
+npm run test:e2e:docker # same suite inside a containerized xvfb+Godot 4.7 environment,
+                        # so no Godot windows open on the host; use -- to pass file filters
 npm run test:golden-agent # cold-agent game build acceptance gate
 npm run test:godot  # strict parsing, subprocess operations, runtime protocol
 npm run test:watch  # watch mode
 ```
+
+Every `npm run test:e2e` run ends with an `[e2e-metrics]` summary of wall-clock
+time and MCP/Godot startup counts, so suite overhead can be compared across
+runs and CI jobs. The containerized runner (`scripts/run-e2e-docker.sh`, image
+built from `tests/e2e/docker/Dockerfile`) mirrors the primary Godot 4.7 CI job:
+Ubuntu + xvfb + the official Godot build, with `node_modules` kept in a named
+volume so the host install is never touched.
 
 The shipped build, debug, verify, and ship skill scenarios are versioned under
 `evals/`. Their committed status is intentionally `not_run` until a deliberate

@@ -11,6 +11,10 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['tests/e2e/**/*.test.ts'],
+    // Logs per-file startup counters and prints a run summary (wall clock and
+    // MCP/Godot startup counts) so CI can compare infrastructure overhead.
+    setupFiles: ['tests/e2e/helpers/e2e-setup.ts'],
+    reporters: ['default', 'tests/e2e/helpers/e2e-metrics-reporter.ts'],
     // Real engine processes: generous timeouts, and one file at a time so
     // process/port bookkeeping stays deterministic.
     testTimeout: 120_000,
