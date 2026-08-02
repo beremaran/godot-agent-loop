@@ -46,8 +46,10 @@ describe('runtime resource tools through MCP', () => {
       'albedo_texture = ExtResource("1_texture")',
       '',
     ].join('\n'));
-    writeFileSync(join(fixtures, 'corrupt.tres'), 'this is not a Godot resource\n');
     await importProjectResources(project.projectPath);
+    // Keep the intentionally malformed fixture out of Godot's import pass;
+    // this test exercises its runtime load failure below.
+    writeFileSync(join(fixtures, 'corrupt.tres'), 'this is not a Godot resource\n');
 
     server = await startServer({ project, allowPrivileged: true });
     const started = await server.call('run_project', { projectPath: project.projectPath });

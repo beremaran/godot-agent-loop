@@ -46,6 +46,16 @@ func _release_all_held() -> void:
 	_held_keys.clear()
 
 
+# Synthetic mouse motion must not be merged with a real OS motion event that
+# happens to be buffered in the same frame. Otherwise Godot can change the
+# relative movement supplied by the MCP caller before the game observes it.
+func _parse_synthetic_mouse_motion(event: InputEventMouseMotion) -> void:
+	var was_accumulated: bool = Input.use_accumulated_input
+	Input.use_accumulated_input = false
+	Input.parse_input_event(event)
+	Input.use_accumulated_input = was_accumulated
+
+
 func register_commands() -> void:
 	register_command("click", _cmd_click)
 	register_command("key_press", _cmd_key_press)
@@ -296,7 +306,7 @@ func _cmd_mouse_move(params: Dictionary) -> void:
 	event.position = Vector2(x, y)
 	event.global_position = Vector2(x, y)
 	event.relative = Vector2(relative_x, relative_y)
-	Input.parse_input_event(event)
+	_parse_synthetic_mouse_motion(event)
 
 	respond({"success": true, "position": {"x": x, "y": y}})
 
@@ -337,7 +347,7 @@ func _cmd_mouse_drag(params: Dictionary) -> void:
 		move_event.global_position = current_pos
 		move_event.relative = (to_pos - from_pos) / float(steps)
 		move_event.button_mask = _mouse_button_mask(button) as MouseButtonMask
-		Input.parse_input_event(move_event)
+		_parse_synthetic_mouse_motion(move_event)
 
 	# Release at end position
 	var release_event: InputEventMouseButton = InputEventMouseButton.new()
