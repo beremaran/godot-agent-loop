@@ -310,6 +310,7 @@ func _cmd_mouse_move(params: Dictionary) -> void:
 	event.position = Vector2(x, y)
 	event.global_position = Vector2(x, y)
 	event.relative = Vector2(relative_x, relative_y)
+	event.screen_relative = Vector2(relative_x, relative_y)
 	_parse_synthetic_mouse_motion(event)
 
 	respond({"success": true, "position": {"x": x, "y": y}})
@@ -349,7 +350,9 @@ func _cmd_mouse_drag(params: Dictionary) -> void:
 		var move_event: InputEventMouseMotion = InputEventMouseMotion.new()
 		move_event.position = current_pos
 		move_event.global_position = current_pos
-		move_event.relative = (to_pos - from_pos) / float(steps)
+		var relative: Vector2 = (to_pos - from_pos) / float(steps)
+		move_event.relative = relative
+		move_event.screen_relative = relative
 		move_event.button_mask = _mouse_button_mask(button) as MouseButtonMask
 		_parse_synthetic_mouse_motion(move_event)
 

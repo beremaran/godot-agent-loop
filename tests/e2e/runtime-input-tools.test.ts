@@ -147,11 +147,9 @@ describe('runtime G+ input tools through MCP', () => {
       x: 31, y: 41, relative_x: -3, relative_y: 5,
     })).isError).toBe(false);
     expect(await groupContains(game, 'mouse-motion-31-41-mask-0')).toBe(true);
-    if (!e2eHeadless) {
-      // Godot's Input singleton recomputes event.relative from its own mouse
-      // tracking, which does not advance under the headless display driver.
-      expect(await groupContains(game, 'mouse-relative--3-5')).toBe(true);
-    }
+    // screen_relative is the raw MCP delta; Godot may transform relative into
+    // viewport coordinates before delivering it to the scene.
+    expect(await groupContains(game, 'mouse-screen-relative--3-5')).toBe(true);
     for (const [direction, button] of [['up', 4], ['down', 5], ['left', 6], ['right', 7]] as const) {
       expect((await game.call('game_scroll', { x: 9, y: 10, direction, amount: 2 })).isError).toBe(false);
       expect(await groupContains(game, `mouse-button-${button}-pressed-9-10`)).toBe(true);

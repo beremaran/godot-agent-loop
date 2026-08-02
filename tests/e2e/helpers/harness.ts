@@ -170,6 +170,7 @@ export function writeFixtureProject(projectPath: string): void {
     '\t\tvar motion := event as InputEventMouseMotion',
     '\t\tadd_to_group("mouse-motion-%s-%s-mask-%s" % [roundi(motion.position.x), roundi(motion.position.y), motion.button_mask])',
     '\t\tadd_to_group("mouse-relative-%s-%s" % [roundi(motion.relative.x), roundi(motion.relative.y)])',
+    '\t\tadd_to_group("mouse-screen-relative-%s-%s" % [roundi(motion.screen_relative.x), roundi(motion.screen_relative.y)])',
     '\telif event is InputEventKey:',
     '\t\tvar key := event as InputEventKey',
     '\t\tvar state := "pressed" if key.pressed else "released"',
