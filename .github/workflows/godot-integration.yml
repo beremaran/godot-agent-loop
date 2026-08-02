@@ -6,9 +6,16 @@ on:
     tags: ["v*"]
   pull_request:
   schedule:
-    # Re-check the primary target every Monday.
+    # Re-check the primary target every Monday, including the golden-agent
+    # acceptance gate.
     - cron: "17 3 * * 1"
   workflow_dispatch:
+    inputs:
+      include_golden:
+        description: Also run the deterministic golden-agent acceptance gate
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   typescript:
@@ -144,7 +151,7 @@ jobs:
           path: evals/reports/protocol/
           if-no-files-found: error
 
-      - name: Run the full MCP-to-Godot E2E suite, including the golden agent gate
+      - name: Run the representative MCP-to-Godot E2E suite
         run: xvfb-run -a npm run test:e2e
 
       # The suite logs contain the complete raw engine output that the
@@ -166,6 +173,54 @@ jobs:
         with:
           name: godot-suite-logs-${{ matrix.godot-version }}
           path: tests/godot/logs/
+          if-no-files-found: ignore
+
+  golden-agent:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    # The deterministic 120-second acceptance gate is not part of the ordinary
+    # pull-request path: it runs on the Monday schedule, on release tag
+    # pushes, and on explicit workflow_dispatch.
+    if: >-
+      github.event_name == 'schedule' ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' && inputs['include_golden'] == true)
+    name: Golden agent acceptance gate
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Godot 4.7
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb mesa-vulkan-drivers
+          curl -sSL -o godot.zip \
+            "https://github.com/godotengine/godot-builds/releases/download/4.7-stable/Godot_v4.7-stable_linux.x86_64.zip"
+          unzip -q godot.zip
+          mkdir -p "$HOME/.local/bin"
+          mv Godot_v4.7-stable_linux.x86_64 "$HOME/.local/bin/godot"
+          chmod +x "$HOME/.local/bin/godot"
+          echo "GODOT_BIN=$HOME/.local/bin/godot" >> "$GITHUB_ENV"
+          "$HOME/.local/bin/godot" --version
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Run the deterministic golden-agent acceptance gate
+        run: xvfb-run -a npm run test:golden-agent
+
+      - name: Preserve Godot logs and fixture state on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: golden-agent-logs
+          path: |
+            tests/godot/logs/
+            tests/godot/fixture/
           if-no-files-found: ignore
 
   godot-dotnet:

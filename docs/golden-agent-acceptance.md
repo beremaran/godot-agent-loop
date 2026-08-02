@@ -51,9 +51,14 @@ persistent-addon files, and clean discovery-record removal. The macOS/Godot
 4.7.1 evidence is recorded in
 [`coverage/interactive-golden-agent-run.json`](coverage/interactive-golden-agent-run.json).
 
-`npm run test:golden-agent` runs the focused gate. The test is also part of
-`npm run test:e2e`, which CI runs on Godot 4.7; it cannot be skipped
-or quarantined under the repository's E2E metadata policy.
+`npm run test:golden-agent` runs the focused gate. It is excluded from the
+ordinary `npm run test:e2e` run, so pull requests and pushes get the fast
+representative MCP suite. The golden gate runs on Godot 4.7 in the Godot
+integration workflow on the Monday schedule, on release tag pushes, and on
+explicit `workflow_dispatch` with `include_golden: true`, and it is part of
+the Sunday full compatibility pass against the latest stable release. The gate
+is never skipped or quarantined inside the suite; it is simply invoked only by
+those acceptance paths.
 
 The release gate intentionally does not call a hosted model. Model availability,
 sampling, credentials, and cost are nondeterministic release inputs. The live run

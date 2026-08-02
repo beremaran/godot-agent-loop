@@ -266,6 +266,9 @@ lines.push('Kinds are declared per suite with `@test-kind` and validated by');
 lines.push('`tests/test-metadata.test.ts`; "integration" always means a real Godot');
 lines.push('engine, never a mocked transport.');
 lines.push('');
+lines.push('The authoring evidence tiers and their ownership matrix are documented');
+lines.push('in [`evidence-ownership.md`](evidence-ownership.md).');
+lines.push('');
 lines.push('| Kind | Suites |');
 lines.push('| --- | --- |');
 const suiteFiles = [

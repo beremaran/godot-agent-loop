@@ -55,6 +55,9 @@ Kinds are declared per suite with `@test-kind` and validated by
 `tests/test-metadata.test.ts`; "integration" always means a real Godot
 engine, never a mocked transport.
 
+The authoring evidence tiers and their ownership matrix are documented
+in [`evidence-ownership.md`](evidence-ownership.md).
+
 | Kind | Suites |
 | --- | --- |
 | unit | `tests/authoring-session-client.test.ts`, `tests/authoring-session-manager.test.ts`, `tests/dotnet.test.ts`, `tests/editor-authoring-router.test.ts`, `tests/editor-connection.test.ts`, `tests/editor-mutation-guard.test.ts`, `tests/editor-plugin-installer.test.ts`, `tests/editor-session-registry.test.ts`, `tests/editor-sync-queue.test.ts`, `tests/game-connection.test.ts`, `tests/godot-executable.test.ts`, `tests/godot-process-manager.test.ts`, `tests/handler-modules.test.ts`, `tests/handlers.test.ts`, `tests/headless-mode.test.ts`, `tests/headless-operation-runner.test.ts`, `tests/headless-operation-service.test.ts`, `tests/index.test.ts`, `tests/input-map-merge.test.ts`, `tests/interaction-server-installer.test.ts`, `tests/lifecycle-trace.test.ts`, `tests/observation-result.test.ts`, `tests/opencode-setup.test.ts`, `tests/prepare-package.test.ts`, `tests/project-lifecycle-execution.test.ts`, `tests/project-support.test.ts`, `tests/session-timing.test.ts`, `tests/tool-argument-validation.test.ts`, `tests/tool-registry.test.ts`, `tests/tool-results.test.ts`, `tests/transient-artifact-filtering.test.ts`, `tests/utils.test.ts`, `tests/validate-script.test.ts` |

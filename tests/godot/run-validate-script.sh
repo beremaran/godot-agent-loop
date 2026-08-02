@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 # @test-kind: integration
-# Proves the shipped validation runner resolves multiple project autoloads and
-# forces a fresh engine compile when the same target file changes.
+# Authoritative home for the autoload-resolution and fresh-recompile validator
+# regression (see docs/coverage/evidence-ownership.md): proves the shipped
+# validation runner resolves multiple project autoloads and forces a fresh
+# engine compile when the same target file changes. The MCP E2E layer instead
+# covers the structured error payload contract through the public boundary
+# (tests/e2e/project-config-tools.test.ts).
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

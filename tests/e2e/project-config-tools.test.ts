@@ -640,23 +640,15 @@ describe('project file and script tools through MCP', () => {
     expect(absent.text).toMatch(/does not exist/i);
   });
 
-  it('validate_script resolves multiple autoloads and still performs a fresh real compile', async () => {
+  it('validate_script reports a fresh structured compile for a rewritten source through MCP', async () => {
     const active = fixture.server;
     await active.call('write_file', {
       projectPath: fixture.project.projectPath,
       filePath: 'first_autoload.gd',
       content: 'extends Node\n\nfunc value() -> int:\n\treturn 20\n',
     });
-    await active.call('write_file', {
-      projectPath: fixture.project.projectPath,
-      filePath: 'second_autoload.gd',
-      content: 'extends Node\n\nfunc value() -> int:\n\treturn 22\n',
-    });
     expect((await active.call('manage_autoloads', {
       projectPath: fixture.project.projectPath, action: 'add', name: 'FirstAutoload', path: 'res://first_autoload.gd',
-    })).isError).toBe(false);
-    expect((await active.call('manage_autoloads', {
-      projectPath: fixture.project.projectPath, action: 'add', name: 'SecondAutoload', path: 'res://second_autoload.gd',
     })).isError).toBe(false);
 
     const scriptPath = 'scripts/autoload_consumer.gd';
@@ -666,7 +658,7 @@ describe('project file and script tools through MCP', () => {
       content: [
         'extends Node',
         '',
-        'var combined: int = FirstAutoload.value() + SecondAutoload.value()',
+        'var combined: int = FirstAutoload.value()',
         '',
       ].join('\n'),
     });
@@ -675,14 +667,17 @@ describe('project file and script tools through MCP', () => {
     expect(payload(valid.text)).toMatchObject({ valid: true, errorCount: 0 });
 
     // Rewrite the same path so a stale ResourceCache entry could conceal the
-    // regression. The validator must recompile and report this genuine error.
+    // regression. This layer proves the MCP contract: the fresh real compile
+    // surfaces as a structured error payload (file and line) through the
+    // public boundary. The multiple-autoload and fresh-recompile engine
+    // behavior is owned by tests/godot/run-validate-script.sh.
     await active.call('write_file', {
       projectPath: fixture.project.projectPath,
       filePath: scriptPath,
       content: [
         'extends Node',
         '',
-        'var combined: int = FirstAutoload.value() + SecondAutoload.value()',
+        'var combined: int = FirstAutoload.value()',
         'var broken: int = "not an integer"',
         '',
       ].join('\n'),

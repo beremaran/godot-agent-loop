@@ -4,7 +4,8 @@ on:
   schedule:
     # Daily engine checks from Monday through Saturday.
     - cron: "23 3 * * 1-6"
-    # The Sunday check also runs the full MCP-to-Godot E2E suite.
+    # The Sunday check also runs the full MCP-to-Godot E2E suite and the
+    # golden-agent acceptance gate.
     - cron: "23 3 * * 0"
   workflow_dispatch:
     inputs:
@@ -120,6 +121,7 @@ jobs:
           xvfb-run -a npm run test:godot
           if [[ "$TEST_DEPTH" == "full" ]]; then
             xvfb-run -a npm run test:e2e
+            xvfb-run -a npm run test:golden-agent
           fi
 
       - name: Preserve failure evidence
@@ -182,6 +184,7 @@ jobs:
           xvfb-run -a npm run test:godot
           if [[ "$TEST_DEPTH" == "full" ]]; then
             xvfb-run -a npm run test:e2e
+            xvfb-run -a npm run test:golden-agent
           fi
 
   report-regression:
