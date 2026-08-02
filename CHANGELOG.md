@@ -34,12 +34,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Let `npm run coverage:engine -- --check` skip with a warning instead of
   failing when `GODOT_BIN` is unset, so environment absence no longer rejects
   commits or local checks.
-- Run the unit suite exactly once in the full gate: `npm run check` now runs
-  lint plus `coverage:check` (whose `coverage:unit` is the single test
-  execution) instead of `npm test` followed by the same suite under coverage.
-  Release validation reuses its own build through `npm run check:built`
-  (lint plus `coverage:verify`), so the publish workflow no longer builds or
-  tests the same sources twice (#30).
+- Reduce the automated suite from 1,041 runnable Vitest cases to 83 focused
+  smoke cases: 60 unit/contract cases and 23 real-engine E2E cases. The retained
+  paths cover server startup, registry/schema parity, authoring and editor
+  connections, process ownership, adapters, and cross-platform execution.
+- Remove the obsolete per-tool coverage inventory, direct Godot runners, and
+  deterministic golden replay. `npm run check` now runs lint, one build, and the
+  retained unit suite; release validation reuses its own build.
 
 ### E2E stability
 
