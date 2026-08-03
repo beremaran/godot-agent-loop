@@ -17,6 +17,7 @@ export interface EditorAuthoringRouterOptions {
     params: Record<string, unknown>,
     timeoutMs: number,
   ): Promise<Record<string, unknown>>;
+  inputKeycodeFor?: (key: string) => number | undefined;
 }
 
 interface EditorTransactionRequest extends Record<string, unknown> {
@@ -28,6 +29,17 @@ interface EditorTransactionRequest extends Record<string, unknown> {
   focus_path?: string;
 }
 
+interface ProjectSettingsRequest extends Record<string, unknown> {
+  name: string;
+  settings: EditorProjectSetting[];
+}
+
+export interface EditorProjectSetting {
+  section: string;
+  key: string;
+  value: unknown;
+}
+
 /** Maps legacy authoring commands onto atomic, undoable editor transactions. */
 export class EditorAuthoringRouter {
   constructor(private readonly options: EditorAuthoringRouterOptions) {}
@@ -37,8 +49,11 @@ export class EditorAuthoringRouter {
     params: OperationParams,
     projectPath: string,
   ): Promise<EditorAuthoringAttempt> {
-    const resourceRequest = editorResourceTransactionFor(command, params);
-    const request = resourceRequest ?? editorTransactionFor(command, params);
+    const projectSettingsRequest = editorProjectSettingsFor(command, params, this.options.inputKeycodeFor);
+    const resourceRequest = projectSettingsRequest === null
+      ? editorResourceTransactionFor(command, params)
+      : null;
+    const request = projectSettingsRequest ?? resourceRequest ?? editorTransactionFor(command, params);
     if (!request) {
       return {
         handled: false,
@@ -61,11 +76,19 @@ export class EditorAuthoringRouter {
     try {
       const response = await this.options.send(
         projectPath,
-        resourceRequest ? 'resource_transaction' : 'transaction',
+        projectSettingsRequest ? 'project_settings' : resourceRequest ? 'resource_transaction' : 'transaction',
         request,
         30_000,
       );
       if (typeof response.error === 'string' && response.error.length > 0) {
+        // The addon predates this bridge command and never executed the
+        // request, so the declared file-backed fallback stays safe.
+        if (projectSettingsRequest && response.error === 'unknown_command') {
+          return {
+            handled: false,
+            fallbackReason: 'The attached editor addon does not support project_settings; using the declared authoring fallback',
+          };
+        }
         return failedAttempt(`Editor transaction failed: ${response.error}`, response);
       }
       if (response.success !== true) {
@@ -132,6 +155,62 @@ function failedAttempt(message: string, details?: Record<string, unknown>): Edit
       signal: null,
     },
   };
+}
+
+function editorProjectSettingsFor(
+  command: string,
+  params: OperationParams,
+  inputKeycodeFor?: (key: string) => number | undefined,
+): ProjectSettingsRequest | null {
+  if (command === 'modify_project_settings') {
+    const section = stringParam(params, 'section');
+    const key = stringParam(params, 'key');
+    if (!section || !key || !('value' in params)) return null;
+    return {
+      name: `Modify ${section}/${key}`,
+      settings: [{ section, key, value: params.value }],
+    };
+  }
+  if (command === 'set_main_scene') {
+    const scenePath = stringParam(params, 'scenePath');
+    if (!scenePath) return null;
+    return {
+      name: 'Set main scene',
+      settings: [{ section: 'application', key: 'run/main_scene', value: toResourcePath(scenePath) }],
+    };
+  }
+  if (command === 'manage_input_map') {
+    const action = stringParam(params, 'action');
+    if (action === 'add') {
+      const actionName = stringParam(params, 'actionName');
+      if (!actionName) return null;
+      const key = stringParam(params, 'key');
+      const keycode = key === undefined ? undefined : inputKeycodeFor?.(key);
+      if (key !== undefined && (keycode === undefined || keycode === 0)) return null;
+      return {
+        name: `Add input action ${actionName}`,
+        settings: [{
+          section: 'input',
+          key: actionName,
+          value: {
+            deadzone: typeof params.deadzone === 'number' ? params.deadzone : 0.5,
+            events: keycode === undefined
+              ? []
+              : [{ type: 'InputEventKey', physical_keycode: keycode }],
+          },
+        }],
+      };
+    }
+    if (action === 'remove') {
+      const actionName = stringParam(params, 'actionName');
+      if (!actionName) return null;
+      return {
+        name: `Remove input action ${actionName}`,
+        settings: [{ section: 'input', key: actionName, value: null }],
+      };
+    }
+  }
+  return null;
 }
 
 function editorTransactionFor(command: string, params: OperationParams): EditorTransactionRequest | null {

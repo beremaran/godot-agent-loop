@@ -30,11 +30,11 @@ var _last_filesystem_sync: Dictionary = {}
 var _saved_history_versions: Dictionary = {}
 const MAX_ACTIVITY_ENTRIES: int = 200
 const PROTOCOL_VERSION: String = "2"
-const ADDON_VERSION: String = "1.1.6"
+const ADDON_VERSION: String = "1.2.0"
 const SESSION_DIRECTORY: String = ".godot/godot_agent_loop"
 const SESSION_FILE: String = "editor-session.json"
 const PAUSE_BLOCKED_COMMANDS: Array[String] = [
-	"filesystem_changed", "transaction", "resource_transaction", "select", "save", "reload",
+	"filesystem_changed", "transaction", "resource_transaction", "project_settings", "select", "save", "reload",
 	"open_scene", "set_property", "rename_node", "undo", "redo",
 ]
 
@@ -171,6 +171,8 @@ func _dispatch(command: String, raw_params: Variant) -> Dictionary:
 			return await _editor_transaction(params)
 		"resource_transaction":
 			return _editor_resource_transaction(params)
+		"project_settings":
+			return _editor_project_settings(params)
 		"select":
 			return _select(params)
 		"save":
@@ -203,7 +205,7 @@ func _dispatch(command: String, raw_params: Variant) -> Dictionary:
 			var redo_history: UndoRedo = redo_manager.get_history_undo_redo(_last_history_id)
 			return {"success": redo_history.redo(), "action": "redo"}
 		_:
-			return {"error": "unknown_command", "allowed": ["inspect", "activity", "driver_state", "filesystem_changed", "transaction", "resource_transaction", "select", "save", "reload", "open_scene", "set_property", "rename_node", "undo", "redo"]}
+			return {"error": "unknown_command", "allowed": ["inspect", "activity", "driver_state", "filesystem_changed", "transaction", "resource_transaction", "project_settings", "select", "save", "reload", "open_scene", "set_property", "rename_node", "undo", "redo"]}
 
 func _handshake(raw_params: Variant) -> Dictionary:
 	var params: Dictionary = raw_params if raw_params is Dictionary else {}
@@ -900,6 +902,142 @@ func _editor_resource_transaction(params: Dictionary) -> Dictionary:
 			"independently_reloaded": true,
 		},
 	}
+
+func _editor_project_settings(params: Dictionary) -> Dictionary:
+	if _driver_paused:
+		return {"error": "paused", "state": "paused"}
+	var changes_variant: Variant = params.get("settings", [])
+	if not changes_variant is Array:
+		return {"error": "settings_must_be_array"}
+	var changes: Array = changes_variant
+	if changes.is_empty() or changes.size() > 64:
+		return {"error": "settings_must_contain_1_to_64_items"}
+	var applied: Array[Dictionary] = []
+	for index: int in changes.size():
+		var change_variant: Variant = changes[index]
+		if not change_variant is Dictionary:
+			return {"error": "invalid_setting_entry", "operation_index": index}
+		var change: Dictionary = change_variant
+		var section: String = str(change.get("section", "")).strip_edges()
+		var key: String = str(change.get("key", "")).strip_edges()
+		if section.is_empty() or key.is_empty():
+			return {"error": "section_and_key_required", "operation_index": index}
+		var setting_name: String = "%s/%s" % [section, key]
+		if not _is_allowed_project_setting_name(setting_name):
+			return {"error": "invalid_setting_name", "setting_name": setting_name, "operation_index": index}
+		var requested: Variant = change.get("value")
+		var before: Variant = ProjectSettings.get_setting(setting_name, null)
+		var after: Variant = _decode_project_setting_value(requested)
+		if after != null:
+			after = _coerce_project_setting_value(after, before)
+			if section == "input" and after is Dictionary:
+				var input_result: Dictionary = _merge_input_action_events(setting_name, after)
+				after = input_result.get("action", after)
+		ProjectSettings.set_setting(setting_name, after)
+		applied.append({
+			"section": section, "key": key, "setting_name": setting_name,
+			"before": before, "after": after, "removed": after == null,
+		})
+	var save_error: Error = ProjectSettings.save()
+	if save_error != OK:
+		return {"error": "project_settings_save_failed", "error_code": save_error}
+	var readback: Dictionary = {}
+	for applied_entry: Dictionary in applied:
+		var setting_name: String = str(applied_entry.get("setting_name", ""))
+		if ProjectSettings.has_setting(setting_name):
+			readback[setting_name] = str(ProjectSettings.get_setting(setting_name))
+	var project_file: String = ProjectSettings.globalize_path("res://project.godot")
+	return {
+		"success": true,
+		"backend": "editor",
+		"setting_count": applied.size(),
+		"settings": applied,
+		"saved": true,
+		"undo_recorded": false,
+		"observed_target_state": {
+			"resource_path": "res://project.godot",
+			"project_file": project_file,
+			"mtime": FileAccess.get_modified_time(project_file),
+			"readback": readback,
+			"independently_reloaded": true,
+		},
+	}
+
+func _is_allowed_project_setting_name(setting_name: String) -> bool:
+	if setting_name.is_empty() or setting_name.begins_with("/") or setting_name.ends_with("/"):
+		return false
+	if setting_name.contains(".."):
+		return false
+	return true
+
+func _decode_project_setting_value(value: Variant) -> Variant:
+	if value is bool or value is int or value is float:
+		return value
+	if value is String:
+		var text: String = (value as String).strip_edges()
+		if text == "true" or text == "false":
+			return text == "true"
+		if text.is_valid_int():
+			return text.to_int()
+		if text.is_valid_float():
+			return text.to_float()
+	return value
+
+func _coerce_project_setting_value(value: Variant, current: Variant) -> Variant:
+	match typeof(current):
+		TYPE_INT:
+			if value is int:
+				return value
+			if value is float:
+				return roundi(value)
+			return value
+		TYPE_FLOAT:
+			if value is float:
+				return value
+			if value is int:
+				return float(value)
+			return value
+		TYPE_STRING:
+			if value is String:
+				return value
+			return str(value)
+	return value
+
+func _merge_input_action_events(setting_name: String, requested: Dictionary) -> Dictionary:
+	var existing_variant: Variant = ProjectSettings.get_setting(setting_name, null)
+	var existing: Dictionary = existing_variant if existing_variant is Dictionary else {}
+	var deadzone: float = _variant_float(requested.get("deadzone", 0.5))
+	if existing.has("deadzone"):
+		deadzone = _variant_float(existing.get("deadzone", deadzone))
+	var events: Array = existing.get("events", []) if existing.has("events") and existing["events"] is Array else []
+	var events_added: int = 0
+	var duplicates: int = 0
+	for event_variant: Variant in requested.get("events", []):
+		if not event_variant is Dictionary:
+			continue
+		var event_dict: Dictionary = event_variant
+		if str(event_dict.get("type", "")) != "InputEventKey":
+			continue
+		var keycode: int = _variant_int(event_dict.get("physical_keycode", 0))
+		if keycode == 0:
+			continue
+		var duplicated: bool = false
+		for existing_event: Variant in events:
+			if existing_event is InputEventKey and (existing_event as InputEventKey).physical_keycode == keycode:
+				duplicated = true
+				break
+		if duplicated:
+			duplicates += 1
+			continue
+		var input_event := InputEventKey.new()
+		input_event.device = -1
+		input_event.physical_keycode = keycode as Key
+		events.append(input_event)
+		events_added += 1
+	var action: Dictionary = {"deadzone": deadzone}
+	if not events.is_empty():
+		action["events"] = events
+	return {"action": action, "events_added": events_added, "duplicates": duplicates}
 
 func _is_supported_editor_resource_type(resource_type: String) -> bool:
 	if resource_type.is_empty() or not ClassDB.class_exists(resource_type) or not ClassDB.can_instantiate(resource_type):

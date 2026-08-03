@@ -198,6 +198,7 @@ export class GodotServer {
     send: (projectPath, command, params, timeoutMs) => this.editorSessions.send(
       projectPath, command, params, timeoutMs,
     ),
+    inputKeycodeFor: key => this.projectSupport.keyNameToScancode(key),
   });
   private readonly editorMutationGuard = new EditorMutationGuard(
     (projectPath, command, params, timeoutMs, signal) => this.editorSessions.send(
@@ -324,6 +325,7 @@ export class GodotServer {
       projectSupport: this.projectSupport,
       pathSecurity,
       ownedTransientFiles: projectPath => this.interactionServerInstaller.ownedTransientFiles(projectPath),
+      editorAuthoring: this.editorAuthoring,
     });
     this.lifecycleToolHandlers = new LifecycleToolHandlers({
       executable: this.executable,

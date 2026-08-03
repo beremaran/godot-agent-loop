@@ -54,7 +54,12 @@ refused before dispatch. Observation, held-input release, stop, cleanup, and a
 human-initiated **Resume Agent** remain available. The lock defaults to
 agent-driving and does not affect unattended use when no editor is open. Setup,
 uninstall, security, protocol migration, and all session states are documented in the
-[interaction architecture](architecture/editor-interaction.md).
+[interaction architecture](architecture/editor-interaction.md). When an editor
+session is attached, project.godot mutations (`modify_project_settings`,
+`set_main_scene`, and `manage_input_map` add/remove) are applied through
+`ProjectSettings` inside the editor and saved by the editor itself, so the editor
+never prompts to reload the file from disk; without an attached editor they use
+the declared file-backed fallback.
 
 ## Project Management
 

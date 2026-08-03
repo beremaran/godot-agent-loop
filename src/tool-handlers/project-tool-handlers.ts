@@ -21,6 +21,7 @@ import type { ProjectSupport } from '../project-support.js';
 import type { GodotExecutableService } from '../godot-executable.js';
 import type { HeadlessOperationService } from '../headless-operation-service.js';
 import type { HeadlessOperationResult } from '../headless-operation-runner.js';
+import type { EditorAuthoringRouter } from '../editor-authoring-router.js';
 import { GODOT_VERSION_OPTIONS } from '../godot-subprocess.js';
 import { currentExecutionContext, isAbortError } from '../execution-context.js';
 import {
@@ -117,6 +118,7 @@ export interface ProjectToolHandlerContext {
   projectSupport: ProjectSupport;
   pathSecurity?: PathSecurity;
   ownedTransientFiles?: (projectPath: string) => ReadonlySet<string>;
+  editorAuthoring?: EditorAuthoringRouter;
 }
 
 interface ProjectOperationApi {
@@ -187,6 +189,22 @@ export class ProjectToolHandlers {
     const resolved = this.context.pathSecurity.resolveProjectPath(projectPath, relativePath);
     if (!resolved) throw new Error(`Path is outside the project: ${relativePath}`);
     return resolved;
+  }
+
+  /** Routes project.godot mutations through the attached editor when supported. */
+  private async tryEditorProjectMutation(command: string, args: ToolArguments): Promise<ToolResponse | null> {
+    const router = this.context.editorAuthoring;
+    if (!router || !args.projectPath) return null;
+    const attempt = await router.tryExecute(command, args, args.projectPath);
+    if (!attempt.handled || !attempt.result) return null;
+    const result = attempt.result;
+    if (result.exitCode !== 0 || (result.stderr ?? '').length > 0) {
+      return {
+        content: [{ type: 'text', text: result.stderr || `Editor transaction failed with exit code ${result.exitCode}` }],
+        isError: true,
+      };
+    }
+    return { content: [{ type: 'text', text: result.stdout }] };
   }
 
   /** Converts the runner's structured process status into a tool error. */
@@ -896,6 +914,11 @@ export class ProjectToolHandlers {
    */
 
   public async handleModifyProjectSettings(args: ToolArguments) {
+    args = normalizeParameters(args || {});
+    if (!args.projectPath || !args.section || !args.key || args.value === undefined)
+      return createErrorResponse('projectPath, section, key, and value are required.');
+    const editorResult = await this.tryEditorProjectMutation('modify_project_settings', args);
+    if (editorResult) return editorResult;
     return this.configuration.modify(args);
   }
 
@@ -1133,6 +1156,10 @@ export class ProjectToolHandlers {
     if (!existsSync(projectFile))
       return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
     try {
+      if (args.action !== 'list') {
+        const editorResult = await this.tryEditorProjectMutation('manage_input_map', args);
+        if (editorResult) return editorResult;
+      }
       let content = readFileSync(projectFile, 'utf8');
       if (args.action === 'list') {
         const actions: Record<string, string> = {};
@@ -1546,6 +1573,8 @@ export class ProjectToolHandlers {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !args.scenePath) return createErrorResponse('projectPath and scenePath are required.');
     if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath)) return createErrorResponse('Invalid path.');
+    const editorResult = await this.tryEditorProjectMutation('set_main_scene', args);
+    if (editorResult) return editorResult;
     const projectFile = join(args.projectPath, 'project.godot');
     if (!existsSync(projectFile)) return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
     try {
