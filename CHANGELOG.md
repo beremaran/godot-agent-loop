@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-08-03
+
+### Editor
+
+- Route project.godot mutations through the attached editor bridge while an
+  editor session is connected: `modify_project_settings`, `set_main_scene`, and
+  `manage_input_map` add/remove now apply through `ProjectSettings` inside the
+  editor and persist with the editor's own save, so the editor never reports
+  `project.godot` as modified on disk and no "reload from disk?" prompt appears
+  while the agent works.
+- Add the additive `project_settings` editor bridge command. The addon decodes
+  each JSON entry, preserves the existing setting's Variant type, merges
+  `InputEventKey` events into the in-memory input action with physical keycode
+  deduplication, and erases settings with a null value. Editor protocol `2` is
+  unchanged; addons that predate the command fall back to the declared
+  file-backed implementation.
+
 ## [1.1.6] - 2026-08-02
 
 ### Authoring
