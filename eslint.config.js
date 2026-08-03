@@ -38,6 +38,7 @@ export default tseslint.config(
     ignores: [
       'build/**',
       'coverage/**',
+      'godot-docs/**',
       'evals/cache/**',
       'evals/cold-model-runner.mjs',
       'evals/fixture-snapshot.mjs',
