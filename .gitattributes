@@ -1,0 +1,7 @@
+# Apply this as the repository-root .gitattributes on the dedicated AssetLib
+# download commit. Keeping it off the release tag preserves the complete GitHub
+# source archive while AssetLib's commit archive contains only this addon.
+/** export-ignore
+/addons !export-ignore
+/addons/godot_agent_loop !export-ignore
+/addons/godot_agent_loop/** !export-ignore
