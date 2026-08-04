@@ -32,15 +32,14 @@ Every MCP tool flows through this chain:
 
 - `src/tool-definitions.ts` — name + JSON schema for all tools.
 - `src/tool-manifest.ts` — one entry per tool: domain, handler method, backend, action list, privilege flag. Typed as `Record<ToolName, ...>` so completeness is a compile-time fact.
-- `src/domain-tool-registries.ts` — dispatches to the three handler classes in `src/tool-handlers/`: lifecycle (processes/editor), project (files, scenes, headless ops), game (runtime interaction).
-- `src/tool-surface.ts` — the advertised surface. Default is a compact 42-tool "core" set; `GODOT_MCP_TOOL_SURFACE=full` advertises everything. The `godot_catalog` tool searches/describes the full catalog and `godot_call` dispatches it by name either way. Size budgets (bytes/token/count) are constants here.
+- `src/domain-tool-registries.ts` — dispatches to the three handler classes in `src/tool-handlers/`: lifecycle (processes/editor), project (validation, imports, integrity, .NET, add-ons, exports), game (runtime interaction).
+- `src/tool-surface.ts` — the advertised surface. Default is a lean 20-tool `core` set covering the author → validate → run → observe → interact → assert loop; `GODOT_MCP_TOOL_SURFACE=full` advertises the complete 64-tool catalog. The `godot_catalog` tool searches/describes the full catalog and `godot_call` dispatches a hidden tool by name either way. Size budgets (bytes/token/count) are constants here.
 
 ### Backends (how a tool reaches Godot)
 
 Declared per-tool in the manifest (`ToolBackend` in `src/tool-manifest.ts`):
 
-- `subprocess` — one headless operation dispatched to `src/scripts/godot_operations.gd` via the Godot CLI.
-- `authoring-session` — persistent authoring loop command, with a declared subprocess fallback.
+- `subprocess` — one-shot headless Godot CLI invocations (for example `src/scripts/validate_script.gd` for GDScript checks).
 - `runtime` / `runtime-buffer` — JSON-RPC over loopback TCP to `src/scripts/mcp_interaction_server.gd` running inside the game; domain command implementations live in `src/scripts/mcp_runtime/*.gd`. The runtime executes ONE command at a time (a concurrent command gets error -32001).
 - `process`, `godot-cli`, `local` — process management, direct CLI invocations, and pure-TypeScript tools.
 
@@ -48,9 +47,13 @@ The editor bridge (`addons/godot_agent_loop` + `src/editor-plugin-installer.ts`,
 
 ### Security defaults
 
-Privileged runtime groups (reflection, code execution, networking) are denied by default; opt in via `GODOT_MCP_PRIVILEGED_GROUPS` / `GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS`. Runtime connections are authenticated with `GODOT_MCP_RUNTIME_SECRET` (random if unset); a runtime without a secret refuses handshakes unless `GODOT_MCP_ALLOW_INSECURE_RUNTIME=true`. Filesystem access requires `GODOT_MCP_ALLOWED_DIRS` or MCP client roots; `GODOT_MCP_ALLOW_UNRESTRICTED=true` restores the legacy open mode. Other knobs: `GODOT_MCP_RUNTIME_PORT` (default 9090; both ends inherit it), `GODOT_MCP_AUTHORING_MODE`, `GODOT_MCP_TOOL_SURFACE`, `DEBUG=true`.
+Privileged runtime groups (reflection, code execution) are denied by default; opt in via `GODOT_MCP_PRIVILEGED_GROUPS` / `GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS`. Runtime connections are authenticated with `GODOT_MCP_RUNTIME_SECRET` (random if unset); a runtime without a secret refuses handshakes unless `GODOT_MCP_ALLOW_INSECURE_RUNTIME=true`. Filesystem access requires `GODOT_MCP_ALLOWED_DIRS` or MCP client roots; `GODOT_MCP_ALLOW_UNRESTRICTED=true` restores the legacy open mode. Other knobs: `GODOT_MCP_RUNTIME_PORT` (default 9090; both ends inherit it), `GODOT_MCP_TOOL_SURFACE`, `DEBUG=true`.
+
+### Lean surface (August 2026)
+
+The tool surface was deliberately reduced from 173 to 64 tools; the advertised `core` is 20 tools. Do not reach for tools from the removed categories — file CRUD, project listing/creation, scene-authoring primitives, project-settings wrappers, CI/export scaffolds, and subsystem runtime wrappers (UI, audio, physics, terrain, GI, animation, networking, and similar) were deleted. Coding agents author `.gd`/`.tscn`/`.tres`/`project.godot` with their own file tools and use `editor_transaction` in watched mode; capabilities beyond the core are reached through `godot_catalog` + `godot_call`. Privilege groups now cover reflection and code-execution only (network commands were deleted).
 
 ## Testing conventions
 
-- **Retained unit suite.** Keep additions focused on the server lifecycle, tool registry/schema parity, authoring session, process manager, and editor connection contracts already represented under `tests/`.
+- **Retained unit suite.** Keep additions focused on the server lifecycle, tool registry/schema parity, process manager, and editor connection contracts already represented under `tests/`.
 - **E2E harness** (`tests/e2e/helpers/harness.ts`): spawns `build/index.js` over stdio, drives it with the official MCP SDK client, and gives each test an isolated temp project, free runtime port, XDG-isolated user dir, and a leaked-process assertion at teardown. E2E tests require `npm run build` first (the npm scripts do this).

@@ -45,7 +45,6 @@ export interface LifecycleToolHandlerContext {
   logDebug: (message: string) => void;
   startProjectProcess: (executable: string, args: string[], onExit: () => void, env?: NodeJS.ProcessEnv) => GodotProcess;
   stopProjectProcess: () => GodotProcess | null;
-  stopAuthoringSession?: () => void;
   connectToGame: (projectPath: string, signal?: AbortSignal) => Promise<void>;
   disconnectFromGame: () => void;
   injectInteractionServer: (projectPath: string) => void;
@@ -156,7 +155,7 @@ export class LifecycleToolHandlers {
   public async handleGodotCall(args: ToolArguments): Promise<ToolResponse> {
     args = normalizeParameters(args || {});
     if (typeof args.toolName !== 'string') return createErrorResponse('toolName is required for godot_call.');
-    if (['godot_catalog', 'godot_call', 'godot_tools'].includes(args.toolName)) {
+    if (['godot_catalog', 'godot_call'].includes(args.toolName)) {
       return createErrorResponse('godot_call cannot recursively call a dispatcher.');
     }
     if (!this.context.dispatchTool) return createErrorResponse('Expanded tool dispatch is unavailable.');
@@ -167,29 +166,6 @@ export class LifecycleToolHandlers {
         outcome: isAbortError(error) ? 'cancelled' : 'failure',
       });
     }
-  }
-
-  public async handleGodotTools(args: ToolArguments): Promise<ToolResponse> {
-    args = normalizeParameters(args || {});
-    if (args.action === 'search') {
-      return this.handleGodotCatalog(args);
-    }
-    if (args.action === 'describe') {
-      if (typeof args.toolName !== 'string') return createErrorResponse('toolName is required for godot_tools describe.');
-      const tool = describeCatalogTool(args.toolName, 'full');
-      if (!tool) return createErrorResponse(`Unknown Godot tool: ${args.toolName}`);
-      return { content: [{ type: 'text', text: JSON.stringify({
-        definition: tool.definition,
-        domain: tool.domain,
-        backend: tool.backendDetails,
-        privileged: tool.privilege === 'required',
-      }, null, 2) }] };
-    }
-    if (args.action === 'call') {
-      if (typeof args.toolName !== 'string') return createErrorResponse('toolName is required for godot_tools call.');
-      return this.handleGodotCall(args);
-    }
-    return createErrorResponse('action must be search, describe, or call.');
   }
 
   public async handleLaunchEditor(args: ToolArguments) {
@@ -411,11 +387,8 @@ export class LifecycleToolHandlers {
       if (!existsSync(join(args.projectPath, 'project.godot')))
         return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
 
-      // The game and authoring harness both depend on the generated runtime
-      // installation. Give the user-facing run exclusive ownership before it
-      // injects and launches the project.
-      this.context.stopAuthoringSession?.();
-
+      // The generated runtime installation must have exclusive ownership
+      // before the user-facing run injects and launches the project.
       if (this.context.getActiveProcess()) {
         this.context.logDebug('Killing existing Godot process before starting a new one');
         this.processGeneration += 1;

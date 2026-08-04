@@ -71,16 +71,23 @@ files in the repository.
 
 ```text
 godot-agent-loop/
-├── src/             # Source code
-│   └── index.ts     # Main server implementation
-├── build/           # Compiled JavaScript (generated)
-├── tests/           # Test files (future)
-├── examples/        # Example Godot projects (future)
-├── LICENSE          # MIT License
-├── README.md        # Documentation
-├── CONTRIBUTING.md  # Contribution guidelines
-├── package.json     # Project configuration
-└── tsconfig.json    # TypeScript configuration
+├── src/                     # Source code
+│   ├── tool-handlers/       # MCP tool handler classes
+│   └── scripts/             # Godot runtime bridge (GDScript)
+├── tests/                   # Unit and contract tests
+│   └── e2e/                 # Real-engine smoke tests
+├── docs/                    # Documentation and metadata schemas
+├── addons/godot_agent_loop/ # Distributable Godot editor add-on
+├── agent-plugin/            # Reusable agent skills and adapters
+├── examples/                # Playable reference project
+├── evals/                   # Model evaluation harness and baselines
+├── scripts/                 # Build, audit, and packaging scripts
+├── build/                   # Compiled JavaScript (generated)
+├── LICENSE                  # MIT License
+├── README.md                # Documentation
+├── CONTRIBUTING.md          # Contribution guidelines
+├── package.json             # Project configuration
+└── tsconfig.json            # TypeScript configuration
 ```
 
 ### Code Style
@@ -107,15 +114,26 @@ For debugging the MCP server:
 
 ### Adding New Tools
 
-When adding new tools to the MCP server:
+The tool surface is defined in three files that must stay in lock-step; the
+registry composition enforces completeness and uniqueness at startup:
 
-1. Define the tool in the `setupToolHandlers` method
-2. Create a handler method for the tool
-3. Add proper input validation and error handling
-4. Update the README.md with documentation for the new tool
-5. Update the Features section in the README.md
-6. Update the autoApprove section in the configuration examples
-7. Add tests for the new functionality
+1. **`src/tool-definitions.ts`** — add a `ToolDefinition` (`name`,
+   `description`, and `inputSchema`) to `rawToolDefinitions`. This is the
+   schema clients see.
+2. **`src/domain-tool-registries.ts`** — register a handler method in the
+   owning domain registry (`createLifecycleToolRegistry`,
+   `createProjectToolRegistry`, or `createGameToolRegistry`).
+3. **`src/tool-manifest.ts`** — add a `ToolManifestEntry` with the handler
+   class, `backend`, `actions`, and `privileged` routing to `toolManifest`.
+
+`composeToolHandlerRegistries` rejects a handler that is missing, unknown, or
+registered twice, so the three files cannot drift silently. Also add catalog
+metadata in `src/tool-catalog-metadata.ts`, document the tool, and add tests
+for the new functionality.
+
+For a runtime-routed tool (one that sends a JSON-RPC command to the running
+game), also mirror the command in `src/runtime-protocol.ts` and the GDScript
+runtime registry under `src/scripts/mcp_runtime/`.
 
 #### Recently Added Tools
 
@@ -125,64 +143,48 @@ The following tools have been recently added:
   - Analyzes project structure
   - Returns information about scenes, scripts, and assets
   - Helps LLMs understand the organization of Godot projects
-  
-- **capture_screenshot**: Takes a screenshot of a running Godot project
+
+- **game_screenshot**: Captures a PNG preview of a running Godot project
   - Requires an active Godot process
-  - Saves the screenshot to the specified path
+  - Returns dimensions, a digest, and an optional retained temp artifact
   - Useful for visual debugging and feedback
 
-Example:
+Example definition in `src/tool-definitions.ts`:
 
 ```typescript
-// In setupToolHandlers
 {
-  name: 'your_new_tool',
-  description: 'Description of what your tool does',
+  name: 'game_screenshot',
+  description: 'Capture a PNG preview with dimensions, digest, and optional temp artifact',
   inputSchema: {
     type: 'object',
     properties: {
-      param1: {
-        type: 'string',
-        description: 'Description of parameter 1',
-      },
+      retainArtifact: { type: 'boolean', description: 'Retain a PNG in the system temp artifact directory. Default: false' },
     },
-    required: ['param1'],
+    required: [],
   },
 }
-
-// Add handler method
-private async handleYourNewTool(args: any) {
-  // Validate input
-  if (!args.param1) {
-    return this.createErrorResponse(
-      'Parameter 1 is required',
-      ['Provide a valid value for parameter 1']
-    );
-  }
-
-  try {
-    // Implement tool functionality
-    // ...
-
-    return {
-      content: [
-        {
-          type: 'text',
-          text: 'Result of your tool',
-        },
-      ],
-    };
-  } catch (error: any) {
-    return this.createErrorResponse(
-      `Failed to execute tool: ${error?.message || 'Unknown error'}`,
-      [
-        'Possible solution 1',
-        'Possible solution 2'
-      ]
-    );
-  }
-}
 ```
+
+Registration in `src/domain-tool-registries.ts`:
+
+```typescript
+'game_screenshot': args => handlers.handleGameScreenshot(args),
+```
+
+Manifest entry in `src/tool-manifest.ts`:
+
+```typescript
+game_screenshot: {
+  domain: 'game',
+  handler: 'handleGameScreenshot',
+  backend: { kind: 'runtime', command: 'screenshot' },
+  actions: null,
+  privileged: false,
+},
+```
+
+Handler methods validate their arguments and return a `ToolResponse`, either a
+success text payload or a structured error response.
 
 ### Cross-Platform Compatibility
 

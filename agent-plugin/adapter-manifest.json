@@ -15,7 +15,6 @@
     "surfaceAliases": ["compact"],
     "catalogTool": "godot_catalog",
     "callTool": "godot_call",
-    "deprecatedCompatibilityTool": "godot_tools",
     "compatibilityThrough": "1.x"
   },
   "skills": [
@@ -29,15 +28,14 @@
       },
       "toolContract": {
         "direct": [
-          "godot_catalog", "godot_call", "get_godot_version", "editor_session", "editor_transaction",
-          "create_project", "read_project_settings", "read_scene", "create_scene",
-          "add_node", "create_script", "write_file", "attach_script", "manage_input_map", "modify_project_settings",
-          "set_main_scene", "validate_scripts", "run_project", "game_get_scene_tree",
-          "game_get_ui", "game_get_node_info", "game_screenshot", "game_wait_until", "game_scenario",
-          "game_key_press", "game_key_hold", "game_key_release", "verify_project",
-          "run_project_tests", "get_debug_output", "game_get_errors", "game_get_logs", "stop_project"
+          "godot_catalog", "godot_call", "get_godot_version", "get_project_info",
+          "editor_session", "editor_transaction", "validate_scripts",
+          "run_project", "stop_project", "get_debug_output",
+          "game_get_scene_tree", "game_get_ui", "game_get_node_info",
+          "game_screenshot", "game_get_errors", "game_get_logs",
+          "game_scenario", "game_wait_until", "verify_project", "run_project_tests"
         ],
-        "hidden": ["list_project_files", "analyze_project_integrity"],
+        "hidden": ["analyze_project_integrity", "game_key_hold", "game_key_release"],
         "privilegedGroups": [],
         "effectScopes": ["read-only", "project-persistent", "runtime-ephemeral", "process", "external-open-world"]
       }
@@ -52,14 +50,13 @@
       },
       "toolContract": {
         "direct": [
-          "godot_catalog", "godot_call", "editor_session", "read_project_settings",
-          "read_scene", "read_file", "validate_scripts", "run_project", "game_scenario",
-          "game_wait_until", "game_get_scene_tree", "game_get_ui", "game_get_node_info",
-          "game_screenshot", "game_get_errors", "game_get_logs", "get_debug_output",
-          "game_key_press", "game_key_hold", "game_key_release", "stop_project",
-          "verify_project", "run_project_tests"
+          "godot_catalog", "godot_call", "get_project_info", "editor_session",
+          "validate_scripts", "run_project", "stop_project", "get_debug_output",
+          "game_get_scene_tree", "game_get_ui", "game_get_node_info",
+          "game_screenshot", "game_get_errors", "game_get_logs",
+          "game_scenario", "game_wait_until", "verify_project", "run_project_tests"
         ],
-        "hidden": ["manage_resource", "game_get_property", "game_call_method", "game_eval"],
+        "hidden": ["game_get_property", "game_set_property", "game_call_method", "game_eval"],
         "privilegedGroups": ["reflection", "code-execution"],
         "effectScopes": ["read-only", "project-persistent", "runtime-ephemeral", "process", "external-open-world"]
       }
@@ -74,16 +71,14 @@
       },
       "toolContract": {
         "direct": [
-          "godot_catalog", "godot_call", "editor_session", "read_project_settings",
-          "read_scene", "validate_scripts", "run_project_tests", "verify_project",
-          "run_project", "game_scenario", "game_wait_until", "game_get_errors",
-          "get_debug_output", "game_key_press", "game_key_hold", "game_key_release",
-          "stop_project"
+          "godot_catalog", "godot_call", "get_project_info", "editor_session",
+          "validate_scripts", "run_project_tests", "verify_project",
+          "run_project", "stop_project", "get_debug_output",
+          "game_scenario", "game_wait_until", "game_get_errors", "game_get_logs"
         ],
         "hidden": [
-          "list_project_files", "analyze_project_integrity", "manage_import_pipeline",
-          "manage_addon", "manage_export_presets", "verify_dotnet_project",
-          "verify_export_readiness", "export_project"
+          "analyze_project_integrity", "verify_export_readiness", "export_project",
+          "manage_import_pipeline", "verify_dotnet_project", "manage_addon"
         ],
         "privilegedGroups": [],
         "effectScopes": ["read-only", "project-persistent", "runtime-ephemeral", "process", "external-open-world"]
@@ -99,12 +94,11 @@
       },
       "toolContract": {
         "direct": [
-          "godot_catalog", "godot_call", "editor_session", "validate_script",
-          "validate_scripts", "read_scene", "read_project_settings", "read_file",
-          "verify_project", "run_project_tests", "run_project", "game_wait_until",
-          "game_scenario", "game_get_scene_tree", "game_get_ui", "game_get_node_info",
-          "game_screenshot", "game_key_press", "game_key_hold", "game_key_release",
-          "game_click", "game_get_errors", "get_debug_output", "stop_project"
+          "godot_catalog", "godot_call", "editor_session", "validate_scripts",
+          "verify_project", "run_project_tests", "run_project", "stop_project",
+          "get_debug_output", "game_get_scene_tree", "game_get_ui",
+          "game_get_node_info", "game_screenshot", "game_get_errors",
+          "game_scenario", "game_wait_until"
         ],
         "hidden": ["analyze_project_integrity", "game_get_property", "game_eval"],
         "privilegedGroups": ["reflection", "code-execution"],

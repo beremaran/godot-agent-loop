@@ -1,35 +1,28 @@
 /** Versioned JSON-RPC 2.0 contract for the Godot runtime TCP endpoint. */
 export const RUNTIME_PROTOCOL_VERSION = '1.0';
 export const RUNTIME_CAPABILITIES = ['runtime-commands', 'godot-json-values'] as const;
-export const AUTHORING_COMMANDS_CAPABILITY = 'authoring-commands' as const;
 export const RENDERING_CONTEXT_CAPABILITY = 'rendering-context' as const;
 export const HANDSHAKE_METHOD = 'godot.runtime.handshake';
 export const COMMAND_METHOD_PREFIX = 'godot.runtime.';
 export const CANCEL_METHOD = 'godot.runtime.cancel';
-export const CANCELLABLE_RUNTIME_COMMANDS = ['wait', 'await_signal', 'resource', 'http_request'] as const;
+export const CANCELLABLE_RUNTIME_COMMANDS = ['wait', 'await_signal'] as const;
 export const PRIVILEGED_RUNTIME_CAPABILITY = 'privileged-commands' as const;
 export const SESSION_AUTHENTICATION_CAPABILITY = 'session-authentication' as const;
-export const PRIVILEGED_RUNTIME_GROUPS = ['reflection', 'code-execution', 'network'] as const;
+export const PRIVILEGED_RUNTIME_GROUPS = ['reflection', 'code-execution'] as const;
 export type PrivilegedRuntimeGroup = (typeof PRIVILEGED_RUNTIME_GROUPS)[number];
 export const PRIVILEGED_RUNTIME_COMMANDS = [
   'call_method',
   'eval',
   'get_property',
-  'http_request',
-  'rpc',
   'script',
   'set_property',
-  'websocket',
 ] as const;
 export const PRIVILEGED_RUNTIME_COMMAND_GROUPS: Readonly<Record<(typeof PRIVILEGED_RUNTIME_COMMANDS)[number], PrivilegedRuntimeGroup>> = {
   call_method: 'reflection',
   eval: 'code-execution',
   get_property: 'reflection',
-  http_request: 'network',
-  rpc: 'network',
   script: 'code-execution',
   set_property: 'reflection',
-  websocket: 'network',
 };
 
 export function privilegedGroupCapability(group: PrivilegedRuntimeGroup): string {
@@ -43,32 +36,13 @@ export function privilegedGroupCapability(group: PrivilegedRuntimeGroup): string
  * reach the wire, and the contract test verifies the two never drift.
  */
 export const RUNTIME_COMMANDS = [
-  '3d_effects',
-  'add_collision',
-  'animation_control',
-  'animation_tree',
-  'audio_bus',
-  'audio_bus_layout',
-  'audio_effect',
-  'audio_play',
-  'audio_spatial',
   'await_signal',
-  'bone_pose',
   'call_method',
-  'camera_attributes',
-  'canvas',
-  'canvas_draw',
   'change_scene',
   'click',
   'connect_signal',
-  'create_animation',
-  'create_joint',
-  'create_timer',
-  'csg',
-  'debug_draw',
   'disconnect_signal',
   'emit_signal',
-  'environment',
   'eval',
   'find_nodes_by_class',
   'gamepad',
@@ -80,121 +54,42 @@ export const RUNTIME_COMMANDS = [
   'get_property',
   'get_scene_tree',
   'get_ui_elements',
-  'gi',
-  'gridmap',
-  'http_request',
   'input_action',
   'input_state',
   'instantiate_scene',
   'key_hold',
   'key_press',
   'key_release',
-  'light_2d',
-  'light_3d',
   'list_signals',
-  'locale',
   'manage_group',
-  'mesh_instance',
   'mouse_drag',
   'mouse_move',
-  'multimesh',
-  'multiplayer',
-  'navigate_path',
-  'navigation_3d',
   'os_info',
-  'parallax',
-  'path_2d',
-  'path_3d',
   'pause',
-  'physics_2d',
-  'physics_3d',
-  'physics_body',
-  'play_animation',
-  'procedural_mesh',
-  'process_mode',
-  'raycast',
   'remove_node',
-  'render_settings',
   'reparent_node',
-  'resource',
-  'rpc',
   'screenshot',
   'script',
   'scroll',
-  'serialize_state',
-  'set_camera',
-  'set_particles',
   'set_property',
-  'set_shader_param',
-  'shape_2d',
-  'skeleton_ik',
-  'sky',
   'spawn_node',
-  'terrain',
-  'tilemap',
   'time_scale',
   'touch',
-  'tween_property',
-  'ui_control',
-  'ui_item_list',
-  'ui_menu',
-  'ui_popup',
-  'ui_range',
-  'ui_tabs',
-  'ui_text',
-  'ui_theme',
-  'ui_tree',
-  'video',
-  'viewport',
-  'visual_shader',
   'wait',
-  'websocket',
-  'window',
-  'world_settings',
 ] as const;
 
 export type RuntimeCommand = (typeof RUNTIME_COMMANDS)[number];
 const RUNTIME_COMMAND_SET: ReadonlySet<string> = new Set(RUNTIME_COMMANDS);
 
-/**
- * File-backed operations exposed only by the harness-owned authoring session.
- * They share the runtime transport, but remain distinct from game commands so
- * tools can migrate from the subprocess backend one at a time.
- */
-export const AUTHORING_COMMANDS = [
-  'authoring_add_node',
-  'authoring_attach_script',
-  'authoring_create_resource',
-  'authoring_create_scene',
-  'authoring_export_mesh_library',
-  'authoring_get_uid',
-  'authoring_load_sprite',
-  'authoring_manage_resource',
-  'authoring_manage_scene_signals',
-  'authoring_manage_scene_structure',
-  'authoring_manage_theme_resource',
-  'authoring_modify_node',
-  'authoring_read_scene',
-  'authoring_remove_node',
-  'authoring_resave_resources',
-  'authoring_save_scene',
-] as const;
-
-export type AuthoringCommand = (typeof AUTHORING_COMMANDS)[number];
-export type SessionCommand = RuntimeCommand | AuthoringCommand;
-export const SESSION_COMMANDS = [...RUNTIME_COMMANDS, ...AUTHORING_COMMANDS].sort() as SessionCommand[];
-const AUTHORING_COMMAND_SET: ReadonlySet<string> = new Set(AUTHORING_COMMANDS);
+export type SessionCommand = RuntimeCommand;
+export const SESSION_COMMANDS = [...RUNTIME_COMMANDS].sort();
 
 export function isRuntimeCommand(command: string): command is RuntimeCommand {
   return RUNTIME_COMMAND_SET.has(command);
 }
 
-export function isAuthoringCommand(command: string): command is AuthoringCommand {
-  return AUTHORING_COMMAND_SET.has(command);
-}
-
 export function isSessionCommand(command: string): command is SessionCommand {
-  return isRuntimeCommand(command) || isAuthoringCommand(command);
+  return isRuntimeCommand(command);
 }
 
 export type JsonRpcId = number | string;

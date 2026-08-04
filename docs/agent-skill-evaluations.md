@@ -1,5 +1,8 @@
 # Agent skill evaluations
 
+> **Status:** partially superseded — the surface was reduced to 20 advertised /
+> 64 total tools in August 2026; figures below describe the pre-reduction state.
+
 The committed corpus under `evals/` separates executable deterministic coverage
 from external cold-model evidence. Passing automation never changes a cold-model
 scenario to passed.

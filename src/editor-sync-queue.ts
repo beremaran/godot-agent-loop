@@ -1,8 +1,15 @@
 import type { PublicEditorSession } from './editor-session-registry.js';
 import { EditorSessionUnavailableError } from './editor-session-registry.js';
-import type { AuthoringProjectWrite } from './authoring-session-manager.js';
 
 export type EditorSyncStatus = 'acknowledged' | 'detached' | 'timeout' | 'conflict' | 'failed';
+
+export interface AuthoringProjectWrite {
+  project_path: string;
+  command: string;
+  scene_path?: string;
+  resource_path?: string;
+  focus_path?: string;
+}
 
 export interface EditorSyncResult extends Record<string, unknown> {
   sync_status: EditorSyncStatus;

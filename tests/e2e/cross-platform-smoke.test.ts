@@ -16,7 +16,7 @@ function payload(text: string): unknown {
   return JSON.parse(text) as unknown;
 }
 
-describe('portable process, path, input, and window acceptance', () => {
+describe('portable process, path, input, and platform acceptance', () => {
   it('runs a Unicode-path project and tears it down through the full MCP boundary', async () => {
     const project = createTempProject({ name: 'Cross Platform Ω Project' });
     server = await startServer({ project });
@@ -51,9 +51,13 @@ describe('portable process, path, input, and window acceptance', () => {
     expect(actionState.pressed).toBe(true);
     expect(actionState.strength).toBeCloseTo(0.75, 4);
 
-    const window = await server.call('game_window', { action: 'get' });
-    expect(window.isError, window.text).toBe(false);
-    expect((payload(window.text) as { size: { x: number; y: number } }).size.x).toBeGreaterThan(0);
+    const osInfo = await server.call('game_os_info');
+    expect(osInfo.isError, osInfo.text).toBe(false);
+    const osInfoData = payload(osInfo.text) as {
+      os_name: string; screen_size: { x: number; y: number };
+    };
+    expect(osInfoData.os_name).not.toBe('');
+    expect(osInfoData.screen_size.x).toBeGreaterThan(0);
 
     const stopped = await server.call('stop_project');
     expect(stopped.isError, stopped.text).toBe(false);

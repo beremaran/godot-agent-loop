@@ -39,11 +39,8 @@ import { LifecycleToolHandlers } from './tool-handlers/lifecycle-tool-handlers.j
 import { ProjectSupport } from './project-support.js';
 import { canonicalProjectPath, EditorSessionRegistry } from './editor-session-registry.js';
 import { EditorSyncQueue } from './editor-sync-queue.js';
-import { EditorAuthoringRouter } from './editor-authoring-router.js';
 import { EditorPluginInstaller, type EditorPluginInstallation } from './editor-plugin-installer.js';
 import { PRIVILEGED_RUNTIME_GROUPS, type PrivilegedRuntimeGroup } from './runtime-protocol.js';
-import { AuthoringSessionManager } from './authoring-session-manager.js';
-import { resolveAuthoringMode } from './authoring-mode.js';
 import { resolveHeadlessMode } from './headless-mode.js';
 import { EditorMutationGuard } from './editor-mutation-guard.js';
 import { SERVER_INSTRUCTIONS } from './server-instructions.js';
@@ -161,7 +158,6 @@ export class GodotServer {
   private interactionServerInstaller: InteractionServerInstaller;
   private readonly executableValidator: GodotExecutableValidator;
   private operationRunner: HeadlessOperationRunner;
-  private readonly authoringSession: AuthoringSessionManager;
   private readonly headlessOperations: HeadlessOperationService;
   private readonly gameCommands: GameCommandService;
   private readonly attachedEditorProjects = new Set<string>();
@@ -191,14 +187,6 @@ export class GodotServer {
   private readonly editorSync = new EditorSyncQueue({
     send: (projectPath, params, timeoutMs) => this.editorSessions.send(projectPath, 'filesystem_changed', params, timeoutMs),
     status: projectPath => this.editorSessions.status(projectPath),
-  });
-  private readonly editorAuthoring = new EditorAuthoringRouter({
-    status: projectPath => this.editorSessions.status(projectPath),
-    ensure: (projectPath, timeoutMs) => this.editorSessions.ensure(projectPath, timeoutMs),
-    send: (projectPath, command, params, timeoutMs) => this.editorSessions.send(
-      projectPath, command, params, timeoutMs,
-    ),
-    inputKeycodeFor: key => this.projectSupport.keyNameToScancode(key),
   });
   private readonly editorMutationGuard = new EditorMutationGuard(
     (projectPath, command, params, timeoutMs, signal) => this.editorSessions.send(
@@ -231,7 +219,6 @@ export class GodotServer {
     // Apply configuration if provided
     let debugMode = DEBUG_MODE;
     const headlessMode = resolveHeadlessMode();
-    const authoringMode = resolveAuthoringMode();
     this.executableValidator = new GodotExecutableValidator(message => { this.logDebug(message); });
     this.executable = new GodotExecutableService(
       this.executableValidator,
@@ -278,35 +265,9 @@ export class GodotServer {
       logDebug: message => { this.logDebug(message); },
       debugGodot: debugMode,
     });
-    this.authoringSession = new AuthoringSessionManager({
-      operationsScriptPath: this.operationsScriptPath,
-      resolveGodotPath: async () => {
-        const path = await this.executable.requirePath();
-        if (!path) throw new Error('Could not find a valid Godot executable path');
-        return path;
-      },
-      installer: this.interactionServerInstaller,
-      logDebug: message => { this.logDebug(message); },
-      // A running user game owns the installed runtime artifacts. Authoring
-      // calls use their declared subprocess fallback until that process stops.
-      // The session is windowless by design (--headless): authoring operations
-      // are pure scene/resource manipulation and never require a rendering
-      // context. Headless mode additionally skips even that process and runs
-      // every authoring call through its one-shot --headless fallback.
-      canStart: () => this.activeProcess === null && !headlessMode,
-      onLifecycleEvent: event => { this.forwardEditorActivity(event); },
-      onProjectWrite: event => {
-        return this.editorSync.enqueue(event);
-      },
-      tryEditorOperation: (command, params, projectPath) => this.editorAuthoring.tryExecute(
-        command, params, projectPath,
-      ),
-    });
     this.headlessOperations = new HeadlessOperationService(
       this.operationRunner,
       pathSecurity,
-      this.authoringSession,
-      authoringMode,
     );
     this.gameCommands = new GameCommandService(this.processManager, this.gameConnection);
     if (debugMode) console.error(`[DEBUG] Operations script path: ${this.operationsScriptPath}`);
@@ -325,7 +286,6 @@ export class GodotServer {
       projectSupport: this.projectSupport,
       pathSecurity,
       ownedTransientFiles: projectPath => this.interactionServerInstaller.ownedTransientFiles(projectPath),
-      editorAuthoring: this.editorAuthoring,
     });
     this.lifecycleToolHandlers = new LifecycleToolHandlers({
       executable: this.executable,
@@ -344,7 +304,6 @@ export class GodotServer {
         });
       },
       stopProjectProcess: () => this.processManager.stop(),
-      stopAuthoringSession: () => { this.authoringSession.stop(); },
       connectToGame: (projectPath, signal) => this.connectToGame(projectPath, signal),
       disconnectFromGame: () => { this.disconnectFromGame(); },
       injectInteractionServer: projectPath => { this.injectInteractionServer(projectPath); },
@@ -419,7 +378,7 @@ export class GodotServer {
     if (config?.manageProcessLifecycle !== false) {
       // Cleanup on both interactive interruption and process-manager shutdown.
       // E2E clients and service supervisors use SIGTERM; without this handler a
-      // persistent authoring child would outlive the MCP server.
+      // running Godot process would outlive the MCP server.
       let shuttingDown = false;
       const shutdown = () => {
         if (shuttingDown) return;
@@ -435,7 +394,7 @@ export class GodotServer {
   }
 
   private forwardEditorActivity(event: import('./game-connection.js').GameLifecycleEvent): void {
-    const activeProjectPath = this.gameConnection.connectedProjectPath ?? this.authoringSession.activeProjectPath;
+    const activeProjectPath = this.gameConnection.connectedProjectPath;
     if (!activeProjectPath) return;
     const projectPath = this.traceProjectPath(activeProjectPath);
     this.lifecycleTrace.record(projectPath, {
@@ -539,9 +498,7 @@ export class GodotServer {
         : { resource_path: 'res://project.godot' }),
       ...(typeof nestedArgs.nodePath === 'string' ? { focus_path: normalizeFocusPath(nestedArgs.nodePath) } : {}),
     });
-    const backend = manifest.backend.kind === 'authoring-session' ? 'subprocess'
-      : manifest.backend.kind === 'local' ? 'file-backed'
-      : manifest.backend.kind;
+    const backend = manifest.backend.kind === 'local' ? 'file-backed' : manifest.backend.kind;
     const metadata = { backend, ...sync };
     return setToolResultMetadata(response, {
       synchronized: true,
@@ -650,7 +607,6 @@ export class GodotServer {
    */
   private async cleanup() {
     this.logDebug('Cleaning up resources');
-    this.authoringSession.stop();
     this.disconnectFromGame();
     this.editorSessions.disconnectAll();
     this.pauseGuardEditorProjects.clear();
@@ -711,7 +667,6 @@ export class GodotServer {
             args.projectPath,
             parent?.projectPath,
             this.gameConnection.connectedProjectPath,
-            this.authoringSession.activeProjectPath,
           );
           return {
             ...(projectPath ? { projectPath: this.traceProjectPath(projectPath) } : {}),

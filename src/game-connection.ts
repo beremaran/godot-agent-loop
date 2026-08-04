@@ -1,6 +1,6 @@
 import { createConnection, type Socket } from 'net';
 import { performance } from 'perf_hooks';
-import { AUTHORING_COMMANDS_CAPABILITY, CANCEL_METHOD, HANDSHAKE_METHOD, PRIVILEGED_RUNTIME_CAPABILITY, PRIVILEGED_RUNTIME_COMMANDS, PRIVILEGED_RUNTIME_COMMAND_GROUPS, RUNTIME_CAPABILITIES, RUNTIME_PROTOCOL_VERSION, SESSION_AUTHENTICATION_CAPABILITY, commandMethod, isAuthoringCommand, isHandshakeResult, isJsonRpcResponse, isSessionCommand, privilegedGroupCapability, type JsonRpcResponse, type PrivilegedRuntimeGroup } from './runtime-protocol.js';
+import { CANCEL_METHOD, HANDSHAKE_METHOD, PRIVILEGED_RUNTIME_CAPABILITY, PRIVILEGED_RUNTIME_COMMANDS, PRIVILEGED_RUNTIME_COMMAND_GROUPS, RUNTIME_CAPABILITIES, RUNTIME_PROTOCOL_VERSION, SESSION_AUTHENTICATION_CAPABILITY, commandMethod, isHandshakeResult, isJsonRpcResponse, isSessionCommand, privilegedGroupCapability, type JsonRpcResponse, type PrivilegedRuntimeGroup } from './runtime-protocol.js';
 import { abortError, throwIfCancelled } from './execution-context.js';
 
 export interface GameConnectionOptions {
@@ -155,9 +155,6 @@ export class GameConnection {
   async send(command: string, params: Record<string, unknown> = {}, timeoutMs = 10000, signal?: AbortSignal): Promise<GameResponse> {
     throwIfCancelled(signal);
     if (!isSessionCommand(command)) throw new Error(`'${command}' is not a command in the published session contract`);
-    if (isAuthoringCommand(command) && !this.runtimeCapabilities.includes(AUTHORING_COMMANDS_CAPABILITY)) {
-      throw new Error(`runtime does not expose the harness-owned ${AUTHORING_COMMANDS_CAPABILITY} capability`);
-    }
     const isPrivileged = PRIVILEGED_RUNTIME_COMMANDS.includes(command as typeof PRIVILEGED_RUNTIME_COMMANDS[number]);
     if (isPrivileged) {
       const privilegedCommand = command as typeof PRIVILEGED_RUNTIME_COMMANDS[number];

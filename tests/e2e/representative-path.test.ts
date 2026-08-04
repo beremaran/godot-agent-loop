@@ -1,5 +1,6 @@
 // @test-kind: e2e
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { toolDefinitions } from '../../src/tool-definitions.js';
@@ -20,9 +21,14 @@ import { e2eHeadless } from './helpers/e2e-headless.js';
  *
  * is crossed at least once, with independent observations (filesystem reads,
  * follow-up requests, process checks) rather than response echoes.
+ *
+ * Scene authoring is exercised the way the harness and product now intend:
+ * fixture projects are authored by writing project.godot/.gd/.tscn directly
+ * with Node fs, then run through the engine with the retained runtime tools.
  */
 
 let server: E2EServer | null = null;
+let authoredRoot: string | null = null;
 
 afterEach(async () => {
   if (server) {
@@ -30,7 +36,68 @@ afterEach(async () => {
     server = null;
     await active.close();
   }
+  if (authoredRoot) {
+    const root = authoredRoot;
+    authoredRoot = null;
+    rmSync(root, { recursive: true, force: true });
+  }
 });
+
+/**
+ * Authors a self-contained runnable project directly on disk (no MCP authoring
+ * tool): a Node2D root scripted to advance its player while the RIGHT key is
+ * held, so held-input coverage can assert a real sustained effect.
+ */
+function authorFixtureProject(root: string): string {
+  const projectPath = join(root, 'project');
+  mkdirSync(join(projectPath, 'scenes'), { recursive: true });
+  mkdirSync(join(projectPath, 'scripts'), { recursive: true });
+  writeFileSync(join(projectPath, 'project.godot'), [
+    'config_version=5',
+    '',
+    '[application]',
+    '',
+    'config/name="godot-agent-loop-e2e-authored"',
+    'run/main_scene="res://scenes/level.tscn"',
+    'config/features=PackedStringArray("4.7")',
+    '',
+  ].join('\n'));
+  writeFileSync(join(projectPath, 'scripts/mover.gd'), [
+    'extends Node2D',
+    '',
+    'const SPEED := 240.0',
+    'var moved_frames := 0',
+    '',
+    'func _ready() -> void:',
+    '\tprint("authored-fixture-ready")',
+    '',
+    'func _physics_process(delta: float) -> void:',
+    '\tif Input.is_key_pressed(KEY_RIGHT):',
+    '\t\tposition.x += SPEED * delta',
+    '\t\tmoved_frames += 1',
+    '\t\tif moved_frames == 60:',
+    '\t\t\tprint("mover-advanced")',
+    '',
+  ].join('\n'));
+  writeFileSync(join(projectPath, 'scenes/level.tscn'), [
+    '[gd_scene load_steps=2 format=3]',
+    '',
+    '[ext_resource type="Script" path="res://scripts/mover.gd" id="1"]',
+    '',
+    '[node name="Level" type="Node2D"]',
+    '',
+    '[node name="Player" type="Node2D" parent="."]',
+    'script = ExtResource("1")',
+    'position = Vector2(40, 40)',
+    '',
+    '[node name="Hud" type="Label" parent="."]',
+    'text = "authored"',
+    'offset_left = 10.0',
+    'offset_top = 10.0',
+    '',
+  ].join('\n'));
+  return projectPath;
+}
 
 describe('MCP tool discovery', () => {
   it('lists all advertised tools through a real MCP client', async () => {
@@ -48,7 +115,7 @@ describe('MCP tool discovery', () => {
 
   it('returns recoverable structured argument errors before any handler runs', async () => {
     server = await startServer();
-    const result = await server.client.callTool({ name: 'create_scene', arguments: { projectPath: 42 } });
+    const result = await server.client.callTool({ name: 'run_project', arguments: { projectPath: 42 } });
     expect(result.isError).toBe(true);
     expect(result.structuredContent).toMatchObject({
       ok: false,
@@ -57,47 +124,113 @@ describe('MCP tool discovery', () => {
   });
 });
 
-describe('persistent authoring operation path', () => {
-  it('creates a scene on disk and reads it back through the engine', async () => {
-    server = await startServer();
-    const created = await server.call('create_scene', {
-      projectPath: server.projectPath,
-      scenePath: 'scenes/level.tscn',
-      rootNodeType: 'Node2D',
-    });
-    expect(created.isError, created.text).toBe(false);
+describe('persistent authoring and runtime path', () => {
+  it('authors a project on disk, runs it, observes, drives held input through a scenario, asserts, and evaluates', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'godot-agent-loop-authored-'));
+    const projectPath = authorFixtureProject(root);
+    authoredRoot = root;
+    // Privileged eval and reflection are exercised below, so opt in explicitly
+    // the way the harness supports (GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS=true).
+    server = await startServer({ project: { root, projectPath }, allowPrivileged: true });
 
-    // Independent observation 1: the file exists and is a Godot scene.
-    const sceneFile = join(server.projectPath, 'scenes/level.tscn');
-    expect(existsSync(sceneFile)).toBe(true);
-    // Godot 4.7 can append a unique_id attribute to node headers.
-    expect(readFileSync(sceneFile, 'utf8')).toMatch(/\[node name="Node2D" type="Node2D"[^\]]*\]/);
+    // Independent observation 1: the authored files exist and parse as a scene.
+    expect(existsSync(join(projectPath, 'scenes/level.tscn'))).toBe(true);
+    expect(readFileSync(join(projectPath, 'scenes/level.tscn'), 'utf8'))
+      .toMatch(/\[node name="Level" type="Node2D"[^\]]*\]/);
+    expect(readFileSync(join(projectPath, 'scripts/mover.gd'), 'utf8'))
+      .toContain('Input.is_key_pressed(KEY_RIGHT)');
 
-    const added = await server.call('add_node', {
-      projectPath: server.projectPath,
-      scenePath: 'scenes/level.tscn',
-      nodeType: 'Sprite2D',
-      nodeName: 'Player',
+    const started = await server.call('run_project', {
+      projectPath, timingMode: 'realtime',
     });
-    expect(added.isError, added.text).toBe(false);
+    expect(started.isError, started.text).toBe(false);
+    expect(started.text).toContain(String(server.runtimePort));
+    await server.waitForGameConnection();
 
-    // Independent observation 2: a separate JSON-RPC operation reloads the
-    // scene and reports the node added by the previous operation.
-    const read = await server.call('read_scene', {
-      projectPath: server.projectPath,
-      scenePath: 'scenes/level.tscn',
+    // Observe the authored tree and a single node independently.
+    const tree = await server.call('game_get_scene_tree');
+    expect(tree.isError, tree.text).toBe(false);
+    expect(tree.text).toContain('Level');
+    expect(tree.text).toContain('Player');
+    const info = await server.call('game_get_node_info', {
+      nodePath: '/root/Level/Player', detail: 'compact', propertyNames: ['position'],
     });
-    expect(read.isError, read.text).toBe(false);
-    expect(read.text).toContain('"Player"');
-    expect(read.text).toContain('Sprite2D');
+    expect(info.isError, info.text).toBe(false);
+    expect(JSON.parse(info.text)).toMatchObject({ path: '/root/Level/Player' });
+
+    // Interact through a compound scenario: hold RIGHT until the mover has
+    // advanced (a log marker), observe, release, assert, and sample.
+    const scenario = await server.call('game_scenario', {
+      projectPath,
+      name: 'Authored held-input evidence',
+      timeoutSeconds: 20,
+      steps: [
+        { type: 'input', tool: 'game_key_hold', arguments: { key: 'RIGHT' }, label: 'hold movement key' },
+        {
+          type: 'wait',
+          condition: { condition: 'log', text: 'mover-advanced', fresh: true, timeoutSeconds: 10 },
+          label: 'held input sustained movement',
+        },
+        {
+          type: 'observe',
+          tool: 'game_get_node_info',
+          arguments: { nodePath: '/root/Level/Player', detail: 'compact', propertyNames: ['position'] },
+          label: 'observe advanced player',
+        },
+        { type: 'input', tool: 'game_key_release', arguments: { key: 'RIGHT' }, label: 'release movement key' },
+        { type: 'assert', condition: { condition: 'node', nodePath: '/root/Level/Player' }, label: 'player exists' },
+        { type: 'performance' },
+        ...(e2eHeadless ? [] : [{ type: 'screenshot' }]),
+      ],
+    });
+    expect(scenario.isError, scenario.text).toBe(false);
+    expect(JSON.parse(scenario.text)).toMatchObject({
+      name: 'Authored held-input evidence',
+      passed: true,
+      step_count: e2eHeadless ? 6 : 7,
+      teardown: { attempted: true, time_scale_restored: true },
+    });
+
+    // Assert the held input actually moved the player, then that releasing it
+    // stopped further movement (two independent privileged samples).
+    const evalX = async (): Promise<number> => {
+      const result = await server.call('game_eval', { code: 'return get_node("/root/Level/Player").position.x' });
+      expect(result.isError, result.text).toBe(false);
+      return Number(JSON.parse(result.text).result);
+    };
+    const firstX = await evalX();
+    expect(firstX).toBeGreaterThan(40);
+    await server.call('game_wait', { frames: 20 });
+    const secondX = await evalX();
+    expect(secondX).toBe(firstX);
+
+    // Runtime mutation through privileged code, then a bounded node wait.
+    const spawned = await server.call('game_eval', {
+      code: 'var n := Node.new()\nn.name = "EvalSpawned"\nget_node("/root/Level/Player").add_child(n)\nreturn n.get_path()',
+    });
+    expect(spawned.isError, spawned.text).toBe(false);
+    expect(spawned.text).toContain('/root/Level/Player/EvalSpawned');
+    const conditionWait = await server.call('game_wait_until', {
+      projectPath,
+      condition: 'node',
+      nodePath: '/root/Level/Player/EvalSpawned',
+      timeoutSeconds: 2,
+      pollIntervalMs: 20,
+    });
+    expect(conditionWait.isError, conditionWait.text).toBe(false);
+    expect(JSON.parse(conditionWait.text)).toMatchObject({
+      satisfied: true, condition: 'node', last_observed: {},
+    });
+
+    const stopped = await server.call('stop_project');
+    expect(stopped.isError, stopped.text).toBe(false);
+    await assertNoLeakedGodotProcesses(root);
   });
 
-  it('returns a structured failure for a missing scene', async () => {
+  it('returns a structured failure for a missing project', async () => {
     server = await startServer();
-    const result = await server.call('read_scene', {
-      projectPath: server.projectPath,
-      scenePath: 'scenes/absent.tscn',
-    });
+    const missing = join(server.root, 'does-not-exist');
+    const result = await server.call('get_project_info', { projectPath: missing });
     expect(result.isError).toBe(true);
     expect(result.text).toMatch(/does not exist/i);
   });
@@ -220,16 +353,21 @@ describe('lifecycle and runtime path', () => {
     expect(waited.isError, waited.text).toBe(false);
     expect(waited.text).toContain('waited_frames');
 
-    // A user-facing game owns the generated runtime installation, so an
-    // authoring call takes its manifest-declared subprocess fallback. The
-    // fallback disables its duplicate runtime listener and must not disturb
-    // the live game connection.
-    const authoredWhileRunning = await server.call('create_scene', {
-      projectPath: server.projectPath,
-      scenePath: 'scenes/authored_while_running.tscn',
-    });
-    expect(authoredWhileRunning.isError, authoredWhileRunning.text).toBe(false);
-    expect(existsSync(join(server.projectPath, 'scenes/authored_while_running.tscn'))).toBe(true);
+    // A user-facing game owns the generated runtime installation, so authoring
+    // (now direct Node-fs scene writes) lands on disk without disturbing the
+    // live game connection.
+    const scenesDir = join(server.projectPath, 'scenes');
+    mkdirSync(scenesDir, { recursive: true });
+    const authoredScenePath = join(scenesDir, 'authored_while_running.tscn');
+    writeFileSync(authoredScenePath, [
+      '[gd_scene format=3]',
+      '',
+      '[node name="AuthoredWhileRunning" type="Node2D"]',
+      '',
+    ].join('\n'));
+    expect(existsSync(authoredScenePath)).toBe(true);
+    expect(readFileSync(authoredScenePath, 'utf8'))
+      .toMatch(/\[node name="AuthoredWhileRunning" type="Node2D"[^\]]*\]/);
     const stillConnected = await server.call('game_get_scene_tree');
     expect(stillConnected.isError, stillConnected.text).toBe(false);
 
@@ -279,7 +417,6 @@ describe('lifecycle and runtime path', () => {
       expect(result.isError).toBe(true);
       expect(result.text).toMatch(/allowed roots/i);
     } finally {
-      const { rmSync } = await import('node:fs');
       rmSync(outside.root, { recursive: true, force: true });
     }
   });
@@ -315,7 +452,6 @@ describe('shutdown behavior across seams', () => {
     server = null;
     await active.client.close();
     await assertNoLeakedGodotProcesses(root);
-    const { rmSync } = await import('node:fs');
     rmSync(root, { recursive: true, force: true });
   });
 });
@@ -419,12 +555,17 @@ describe('recovery and multi-project isolation', () => {
     expect(code.text).toMatch(/code-execution|privileged|disabled/i);
     expect(code.text).not.toContain('must-not-run');
 
-    const network = await server.call('game_http_request', {
-      url: 'http://127.0.0.1:1/secret-must-not-leak',
+    // Networking is gone from the surface; the remaining privileged boundary
+    // outside reflection is code execution, which must stay denied even for a
+    // mutation attempt, while reflection stays the only granted group.
+    const mutating = await server.call('game_eval', {
+      code: 'get_node("/root/Main").name = "MustNotChange"',
     });
-    expect(network.isError).toBe(true);
-    expect(network.text).toMatch(/network|privileged|disabled/i);
-    expect(network.text).not.toContain('secret-must-not-leak');
+    expect(mutating.isError).toBe(true);
+    expect(mutating.text).not.toContain('MustNotChange');
+    expect((await server.call('game_get_property', {
+      nodePath: '/root/Main', property: 'name',
+    })).text).toContain('Main');
   });
 
   it('reconnects after a game restart and invalidates nodes from the old tree', async () => {

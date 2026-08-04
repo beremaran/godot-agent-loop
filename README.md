@@ -48,12 +48,15 @@ Using Cline, Cursor, or another MCP client? See
   Inspector, Inspect AI, real-client, scorer, baseline, and paired-comparison
   lanes, including exactly which agent and model each lane uses.
 - A retained representative real-Godot path is enforced in CI.
-- A cold agent built and independently verified a playable win/lose game with
-  zero human corrections, in under seven minutes, using 103 MCP calls and no
-  built-in tools; see the [launch evidence](docs/launch/launch-evidence.md) and
-  [recorded launch evidence](docs/launch/launch-evidence.md).
-- Privileged reflection, code execution, and networking groups are denied by
-  default, and the editor provides a human **Pause Agent** control.
+- Historically, a cold agent demonstrated MCP-only operation by building and
+  independently verifying a playable win/lose game with zero human corrections
+  in under seven minutes, using 103 MCP calls and no built-in tools. That
+  launch pre-dates the lean surface reduction, which deliberately removed
+  file, scene-authoring, and project-settings tools whose work host editors and
+  shells do better; see the [launch evidence](docs/launch/launch-evidence.md)
+  and the [changelog](CHANGELOG.md).
+- Privileged reflection and code-execution groups are denied by default, and
+  the editor provides a human **Pause Agent** control.
 
 Support is deliberately bounded: Godot 4.7 is both the compatibility floor and
 the primary target. Editor attachment is verified on Linux CI and in a headed
@@ -64,45 +67,58 @@ builds, and unbounded engine control are not claimed. Details in the
 
 ## Highlights
 
-- **Author with or without an editor** — attach securely to a normally opened
-  project for undoable scene/resource transactions, or retain detached and CI
-  authoring with explicit synchronization metadata.
+- **A lean task-oriented core** — the default surface advertises 20 tools that
+  cover the whole loop: catalog and dispatch (`godot_catalog`, `godot_call`),
+  project facts (`get_project_info`, `get_godot_version`), lifecycle
+  (`run_project`, `stop_project`, `get_debug_output`), the editor session and
+  compound scene transactions (`editor_session`, `editor_transaction`),
+  observation (`game_screenshot`, `game_get_scene_tree`, `game_get_ui`,
+  `game_get_node_info`, `game_get_errors`, `game_get_logs`), structured
+  interaction and waiting (`game_scenario`, `game_wait_until`), and independent
+  verification (`validate_scripts`, `run_project_tests`, `verify_project`).
+- **Everything else is one search away** — 44 more tools remain callable through
+  `godot_catalog` + `godot_call`: input primitives (mouse, keyboard, key-hold,
+  drag, scroll, touch, gamepad), runtime reflection (privileged, opt-in),
+  node and signal generics, observation extras (performance, visual regression,
+  camera, audio, OS), editor control, and ship tooling (exports, import
+  pipeline, .NET, add-ons).
+- **Author with your own file tools** — coding agents edit
+  `.gd`/`.tscn`/`.tres`/`project.godot` directly and run `validate_scripts` to
+  check them; with an editor attached, `editor_transaction` applies undoable
+  compound scene edits through `EditorUndoRedoManager`.
 - **Run and observe** — launch the game, capture logs and errors
   incrementally, take screenshots, and run visual-regression comparisons with
   baselines, masks, and retained diffs.
 - **Playtest like a player** — mouse, keyboard, key-hold, drag, scroll, touch,
-  and gamepad input against the running game.
-- **Verify independently** — headless GDScript validation (`validate_script`,
-  `validate_scripts`), test runners for native/GUT/GdUnit4
-  (`run_project_tests`), bounded runtime evidence (`verify_project`), export
-  checks (`verify_export_readiness`), and static integrity analysis
-  (`analyze_project_integrity`).
-- **Reach into the runtime** — inspect and manipulate any node, signal,
-  animation, physics body, or UI control through 100+ runtime tools;
-  `game_eval` executes GDScript with `await` support (privileged, opt-in).
+  and gamepad input against the running game, composed deterministically with
+  `game_scenario`.
+- **Verify independently** — headless GDScript validation (`validate_scripts`),
+  test runners for native/GUT/GdUnit4 (`run_project_tests`), bounded runtime
+  evidence (`verify_project`), export checks (`verify_export_readiness`), and
+  static integrity analysis (`analyze_project_integrity`).
+- **Reach into the runtime** — with `reflection` and `code-execution` opted in,
+  inspect and manipulate any node, signal, or property through `game_eval` and
+  the generic node tools.
 - **Drive the editor** — `editor_session ensure` discovers the matching
-  project, editor-routed tools and `editor_transaction` apply reversible edits
-  through `EditorUndoRedoManager`, and the Agent Activity dock replays the
-  bounded correlated trace with a human **Pause Agent** lock.
-- **.NET / C# support** — scaffold C# projects with a `Godot.NET.Sdk` matched
-  to your installed Godot, generate idiomatic scripts, and restore/build/run
-  via `verify_dotnet_project`.
+  project, `editor_transaction` applies reversible edits through
+  `EditorUndoRedoManager`, and the Agent Activity dock replays the bounded
+  correlated trace with a human **Pause Agent** lock.
+- **.NET / C# support** — inspect, restore, build, and run .NET projects with a
+  `Godot.NET.Sdk` matched to your installed Godot via `verify_dotnet_project`.
 - **Bounded by design** — deterministic pagination and size caps on large
   responses, structured correlated diagnostics, and least-privilege security
   defaults.
 
 ## Tool catalog
 
-The full inventory—runtime interaction, scene authoring, project management,
-verification, 2D/3D rendering, audio, UI, networking, and more—lives in
-[docs/tools.md](docs/tools.md).
+The full inventory—the 20 advertised core tools plus the hidden catalog of 44
+more—lives in [docs/tools.md](docs/tools.md).
 
 ## Requirements
 
 - [Godot Engine](https://godotengine.org/download) 4.7 or later
 - (Optional) [.NET SDK](https://dotnet.microsoft.com/download) 8.0+ and the
-  Godot .NET (C#) build, only if you use `create_project`'s `dotnet: true`
-  flag or `create_csharp_script`
+  Godot .NET (C#) build, only if you use `verify_dotnet_project`
 - [Node.js](https://nodejs.org/) >= 22.0.0 (active LTS)
 - An AI assistant that supports MCP (Claude Code, Cline, Cursor, etc.)
 
@@ -191,7 +207,6 @@ Add to your Claude Code MCP settings:
       "args": ["-y", "@beremaran/godot-agent-loop"],
       "env": {
         "GODOT_PATH": "/path/to/godot",
-        "GODOT_MCP_AUTHORING_MODE": "headless",
         "DEBUG": "true"
       }
     }
@@ -284,15 +299,14 @@ accepted. A manually managed runtime should set the same
 secret refuses unauthenticated sessions unless `GODOT_MCP_ALLOW_INSECURE_RUNTIME`
 is set explicitly; use that only on a trusted machine.
 
-Commands that execute arbitrary GDScript, invoke arbitrary node properties or
-methods, mutate scripts, call multiplayer peers, or make HTTP/WebSocket
-connections remain disabled by default even after authentication. Grant only
-the required group with `GODOT_MCP_PRIVILEGED_GROUPS`: `reflection` enables
-arbitrary property/method access, `code-execution` enables eval/script control,
-and `network` enables RPC, HTTP, and WebSocket. The legacy
-`GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS=true` grants all three groups. Use either
-only for a trusted local developer workflow. Authentication and policy denials
-never echo secrets, source, property values, URLs, headers, or engine errors.
+Commands that execute arbitrary GDScript or invoke arbitrary node properties or
+methods remain disabled by default even after authentication. Grant only the
+required group with `GODOT_MCP_PRIVILEGED_GROUPS`: `reflection` enables
+arbitrary property/method access and `code-execution` enables eval/script
+control. The legacy `GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS=true` grants both
+groups. Use either only for a trusted local developer workflow. Authentication
+and policy denials never echo secrets, source, property values, URLs, headers,
+or engine errors.
 Authentication success/failure emits a structured audit event containing only
 the event name, runtime component, numeric session ID, and timestamp.
 
@@ -303,14 +317,13 @@ the event name, runtime component, numeric session ID, and timestamp.
 | `GODOT_PATH` | Path to the Godot executable (overrides auto-detection) |
 | `DEBUG` | Set to `"true"` for detailed server-side logging. This also runs the headless operations script with `--debug-godot`, which logs diagnostics and writes a temporary write-access probe file into the project (removed again on every branch). Parameter values are summarized by type and size in both logs, never printed. |
 | `GODOT_MCP_ALLOWED_DIRS` | Optional. Restrict `run_project` to projects under these roots (`;`, `,`, or `:` separated). When unset and no MCP client roots are provided, filesystem access is denied unless `GODOT_MCP_ALLOW_UNRESTRICTED` is set. |
-| `GODOT_MCP_AUTHORING_MODE` | Optional, default `persistent`. `persistent` reuses a windowless (`--headless`) Godot process and avoids startup cost on each scene or resource call. `headless` starts no persistent process at all and runs each authoring call through its declared one-shot `--headless` subprocess fallback. Neither mode opens a helper window; the headed `run_project` game window is unaffected. |
-| `GODOT_MCP_HEADLESS` | Optional, default `false`. Set to `true` (or `1`) to run `run_project` and `launch_editor` with Godot's `--headless` flag so no window opens. The persistent authoring session is already windowless by design. Rendering-dependent operations such as screenshots fail fast with a headed-display remediation; intended for CI and headless workstations. The E2E suite honors it too: `GODOT_MCP_HEADLESS=1 npm run test:e2e` skips its pixel assertions, which stay covered by the virtual-display renderer jobs. |
+| `GODOT_MCP_HEADLESS` | Optional, default `false`. Set to `true` (or `1`) to run `run_project` and `launch_editor` with Godot's `--headless` flag so no window opens. Rendering-dependent operations such as screenshots fail fast with a headed-display remediation; intended for CI and headless workstations. The E2E suite honors it too: `GODOT_MCP_HEADLESS=1 npm run test:e2e` skips its pixel assertions, which stay covered by the virtual-display renderer jobs. |
 | `GODOT_MCP_RUNTIME_SECRET` | Optional explicit shared runtime secret. The MCP server generates a fresh 256-bit value when omitted and passes it only to Godot processes it launches. Set the same value manually only when connecting to a separately launched runtime. |
 | `GODOT_MCP_EDITOR_START_PAUSED` | Optional, default `false`. Start the editor addon's cooperative lock in human-editing mode so mutating MCP tools are refused until **Resume Agent** is pressed. |
-| `GODOT_MCP_TOOL_SURFACE` | Optional, default `core`. `compact` is a compatibility alias for `core`; `full` advertises the complete static catalog. Unknown values are rejected. Use `godot_catalog` plus `godot_call` for hidden tools; the combined `godot_tools` alias is deprecated through the 1.x release line. |
+| `GODOT_MCP_TOOL_SURFACE` | Optional, default `core`. `compact` is a compatibility alias for `core`; `full` advertises the complete 64-tool static catalog. Unknown values are rejected. Use `godot_catalog` plus `godot_call` for hidden tools. |
 | `GODOT_MCP_LEGACY_JSON_TEXT` | Optional, default `true`. Set to `false` for clients that read MCP `structuredContent` to omit the extra compatibility JSON text block and reduce repeated output. Bundled adapters set this to `false`. |
-| `GODOT_MCP_PRIVILEGED_GROUPS` | Optional comma-separated least-privilege grants: `reflection`, `code-execution`, and/or `network`. All are denied by default. |
-| `GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS` | Optional, default `false`. Explicitly enable runtime `eval`, arbitrary property/method access, script control, RPC, HTTP, and WebSocket commands for a trusted localhost developer workflow. |
+| `GODOT_MCP_PRIVILEGED_GROUPS` | Optional comma-separated least-privilege grants: `reflection` and/or `code-execution`. All are denied by default. |
+| `GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS` | Optional, default `false`. Explicitly enable runtime `eval`, arbitrary property/method access, and script control for a trusted localhost developer workflow. |
 | `GODOT_MCP_ALLOW_UNRESTRICTED` | Optional, default `false`. Explicitly re-enable the legacy open path mode when neither `GODOT_MCP_ALLOWED_DIRS` nor MCP client roots are configured. Without roots and without this flag, filesystem access is denied. |
 | `GODOT_MCP_ALLOW_INSECURE_RUNTIME` | Optional, default `false`. Set in the Godot runtime process to restore the legacy unauthenticated handshake for a separately launched runtime that cannot receive `GODOT_MCP_RUNTIME_SECRET`. Keep off whenever the runtime can receive the shared secret. |
 
@@ -327,9 +340,9 @@ machine-readable failure classification.
 ### Large-project response limits
 
 Large responses are bounded rather than allowed to grow with project size.
-`list_project_files` returns deterministic cursor pages of at most 1,000 files;
 `game_get_scene_tree` returns deterministic pre-order trees of 1,000 nodes by
-default (configurable up to 10,000) and reports truncation. `game_get_logs` and
+default (configurable up to 10,000) and reports truncation, and
+`game_get_ui` bounds visible controls. `game_get_logs` and
 `game_get_errors` return at most 1,000 unread lines per call with `hasMore` and
 `remaining`, while retaining the latest 1,000 lines per stream. Runtime JSON
 responses are capped at 8 MiB, screenshots additionally enforce pixel and
@@ -341,20 +354,19 @@ queries instead of receiving partial unlabelled data.
 
 The server uses three bounded execution paths:
 
-1. **Scene and resource authoring** - `GODOT_MCP_AUTHORING_MODE=persistent`
-   reuses a windowless, deterministic Godot main loop (`--headless`) and avoids
-   engine startup cost per edit. `GODOT_MCP_AUTHORING_MODE=headless` starts no
-   persistent process and sends each call to its declared one-shot `--headless`
-   subprocess fallback.
+1. **Scene and resource authoring** - coding agents are expected to author
+   `.gd`/`.tscn`/`.tres`/`project.godot` with their own file tools. When a
+   compatible editor session is attached, `editor_transaction` applies compound
+   scene edits as one undo step through `EditorUndoRedoManager`; detached and
+   CI projects are authored directly on disk.
 
 2. **Running-game socket** - `run_project` launches the user's game headed and
    injects the authenticated `mcp_interaction_server.gd` autoload through
    `override.cfg` for high-fidelity runtime interaction.
 
 3. **Other one-shot subprocess work** - Validation, import, and export operations
-   may invoke Godot once and exit. Headless authoring does not make visual work
-   display-less: running games, screenshots, and visual checks still require a
-   desktop display, Xvfb, or another reachable rendering context.
+   may invoke Godot once and exit. Running games, screenshots, and visual checks
+   still require a desktop display, Xvfb, or another reachable rendering context.
 
 ### Source layout
 
@@ -365,7 +377,6 @@ The server uses three bounded execution paths:
 | `src/tool-manifest.ts` | Per-tool domain, backend, and action declarations |
 | `src/tool-surface.ts` | Reviewed core membership, discovery ranking, compatibility modes, and generated size budgets |
 | `src/tool-handlers/` | Lifecycle, project, and game handler implementations |
-| `src/scripts/godot_operations.gd` | Persistent and one-shot GDScript operations runner |
 | `src/scripts/mcp_interaction_server.gd` | TCP interaction server autoload |
 | `tests/` | Retained Vitest unit and MCP-to-Godot smoke suites |
 
@@ -397,25 +408,28 @@ deterministic golden replay is not presented as a substitute for that run.
 ## Example Prompts
 
 ```text
-"Run my Godot project and check for errors"
+"Author scripts/player.gd and scenes/level.tscn with your file tools, then run
+validate_scripts before launching"
 
-"Create a new Godot project called 'MyGame' and write a player script"
-
-"Read the test_level.tscn scene and show me the node tree"
+"Run my Godot project and check for errors with game_get_errors"
 
 "Check all my changed GDScript files for syntax errors before I run the game"
 
-"Hold down the W key for 2 seconds to test walking"
+"Run the project, wait until the main menu is up, and take a screenshot"
 
-"Pause the game and take a screenshot"
+"Hold down the W key for 2 seconds to test walking (find game_key_hold in the
+catalog)"
 
-"Get performance metrics - what's my FPS and draw call count?"
+"Run a game_scenario that presses Enter on the title screen and asserts the
+scene changed to res://scenes/level.tscn"
 
-"Set the player's health to 100"
+"Use verify_project to run bounded assertions and capture evidence"
 
-"Connect the enemy's 'died' signal to the game manager's 'on_enemy_died' method"
+"Sample performance - what's my FPS and draw call count? (game_performance)"
 
-"Create a new C# (.NET) Godot project and add a CharacterBody2D script"
+"Export the project for Linux with verify_export_readiness"
+
+"Restore, build, and run the .NET project with verify_dotnet_project"
 ```
 
 ## Community

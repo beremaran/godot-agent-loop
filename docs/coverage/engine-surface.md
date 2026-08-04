@@ -23,9 +23,9 @@ That is the point, and it is what the tool coverage report cannot tell us.
 
 | Bucket | Classes | Meaning |
 | --- | ---: | --- |
-| tooled | 230 | The class is named in our shipped GDScript or in a tool schema |
-| reachable | 712 | No named tool, but generically drivable via `add_node` / `game_eval` |
-| out-of-scope | 94 | Declared unsupported in the README support boundary |
+| tooled | 81 | The class is named in our shipped GDScript or in a tool schema |
+| reachable | 859 | No named tool, but generically drivable via `game_spawn_node` / `game_eval` |
+| out-of-scope | 96 | Declared unsupported in the README support boundary |
 | gap | 0 | No tool, no generic reach, no scope decision |
 | **Total** | **1036** | |
 
@@ -38,7 +38,7 @@ mention this class", not "we have a first-class affordance for it".
 
 ### Reachable is an architectural classification
 
-The `reachable` bucket asserts that `game_eval` and `add_node` can drive any
+The `reachable` bucket asserts that `game_eval` and `game_spawn_node` can drive any
 ClassDB-instantiable class. The retained smoke suite does not sample arbitrary
 untooled classes from this bucket, so treat them as reachable in principle,
 not as current end-to-end evidence.
@@ -60,12 +60,13 @@ decision on record; the audit fails if a rule stops matching any class.
 | XR editor tooling | 3 | XR is not a claimed workflow, and these are its editor-side binding and interaction-profile editors |
 | import and export editor internals | 27 | project-file configuration plus an actual engine import or export is the supported and authoritative seam; requiring a GUI editor merely to hold its internal importer/platform objects would contradict the deterministic external workflow without strengthening its result |
 | low-level rendering device | 1 | raw RenderingDevice and compute/RID orchestration are not a claimed workflow; the supported rendering surface is scene resources, visual shaders, and the higher-level rendering tools, and exposing 135 device methods would work against the progressive-disclosure goal |
-| packed scene implementation handles | 2 | read_scene and the authoring tools expose stable serializable scene structure; raw PackedScene state, placeholders, and packed-container references are engine implementation handles rather than an additional user workflow |
+| packed scene implementation handles | 3 | editor_transaction and the file-backed scene authoring expose stable serializable scene structure; raw PackedScene state, placeholders, and packed-container references are engine implementation handles rather than an additional user workflow |
 | advanced runtime audio handles | 6 | procedural sample feeding, spectrum analysis, and specialized playlist/polyphonic playback handles are not claimed; the supported audio workflow covers players, streams, buses, effects, playback control, and persisted layouts |
-| low-level transport handles | 2 | per-peer ENet tuning and custom TLS credential objects are below the claimed HTTP, WebSocket, and multiplayer workflows; those workflows retain the engine and platform TLS validation defaults rather than exposing unsafe or certificate-construction primitives |
+| low-level transport handles | 2 | per-peer ENet tuning and custom TLS credential objects sit below the retained runtime surface, which no longer claims HTTP, WebSocket, or multiplayer workflows after the 2.0.0 lean surface reduction; these handles are engine implementation details rather than user workflows |
 | XR runtime | 2 | XR is not a claimed workflow, and these handles require WebXR or OpenXR runtime/platform support that is outside the portable game-authoring matrix |
 | platform embedding bridges | 2 | embedding the engine as a host-controlled instance and reaching browser JavaScript objects are platform-host integration APIs, not portable Godot project or running-game automation |
 | skinning implementation handles | 1 | SkinReference is an internal RenderingServer binding handle; the supported mesh, skeleton, skin resource, and animation workflows do not expose or require the underlying RID lifetime object |
+| runtime UI tree handles | 1 | TreeItem exists only inside a Tree control and is obtained through that control's accessor, so it is not ClassDB-constructible and no retained runtime tool targets it; the supported runtime UI surface covers controls, UI elements, and signals without exposing per-widget handle objects |
 
 ## Gap list
 

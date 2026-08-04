@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### BREAKING
+
+- **Lean tool-surface reduction.** The catalog shrinks from 173 tools to 64:
+  109 tools are removed (70 subsystem runtime wrappers, 38 project
+  file/authoring/settings/CI tools, and the deprecated `godot_tools` alias).
+  The advertised `core` surface is now 20 tools — `godot_catalog`,
+  `godot_call`, `get_project_info`, `get_godot_version`, `run_project`,
+  `stop_project`, `get_debug_output`, `editor_session`, `editor_transaction`,
+  `game_screenshot`, `game_get_scene_tree`, `game_get_ui`, `game_get_node_info`,
+  `game_get_errors`, `game_get_logs`, `game_scenario`, `game_wait_until`,
+  `validate_scripts`, `run_project_tests`, and `verify_project` — at 32,787
+  bytes / ~8,197 estimated tokens, a 92.39% reduction against the full 64-tool
+  surface (430,774 bytes / ~107,694 estimated tokens). A tool earns its place
+  only if it does something file editing plus shell cannot, and the product is
+  the feedback loop: author files → validate → run → observe → interact →
+  assert.
+- Remove the `GODOT_MCP_AUTHORING_MODE` environment variable (host file tools
+  and watched-mode `editor_transaction` replace the persistent authoring
+  session) and the `benchmark:loop` npm script.
+- Migration: author `.gd`/`.tscn`/`.tres`/`project.godot` with the coding
+  agent's own file tools; use `editor_transaction` in watched mode; reach the
+  44 hidden tools via `godot_catalog` + `godot_call`; opted-in agents use the
+  privileged `reflection`/`code-execution` generics in place of the deleted
+  subsystem runtime wrappers. Clients still calling `godot_tools` receive an
+  unknown-tool error and must switch to `godot_catalog`/`godot_call`.
+
 ## [1.2.0] - 2026-08-03
 
 ### Editor

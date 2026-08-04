@@ -14,12 +14,6 @@ try {
   // Ensure the build/scripts directory exists
   fs.mkdirSync(path.join(__dirname, '..', 'build', 'scripts'), { recursive: true });
   
-  // Copy the godot_operations.gd file
-  fs.copyFileSync(
-    path.join(__dirname, '..', 'src', 'scripts', 'godot_operations.gd'),
-    path.join(__dirname, '..', 'build', 'scripts', 'godot_operations.gd')
-  );
-  
   // Copy the mcp_interaction_server.gd file
   fs.copyFileSync(
     path.join(__dirname, '..', 'src', 'scripts', 'mcp_interaction_server.gd'),

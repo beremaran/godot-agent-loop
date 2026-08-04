@@ -1,5 +1,8 @@
 # MCP server evaluation and improvement roadmap
 
+> **Status:** partially superseded — the surface was reduced to 20 advertised /
+> 64 total tools in August 2026; figures below describe the pre-reduction state.
+
 - Status: operational; stochastic calibration evidence pending an authorized run
 - Date: 2026-07-26
 - Scope: MCP protocol, the 173-tool Godot surface, progressive discovery,

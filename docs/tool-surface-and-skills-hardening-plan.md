@@ -1,5 +1,8 @@
 # Tool Surface, Human Control, and Shipped Skills Hardening Plan
 
+> **Status:** partially superseded — the surface was reduced to 20 advertised /
+> 64 total tools in August 2026; figures below describe the pre-reduction state.
+>
 > **Status:** completed 2026-07-17
 > **Baseline:** 2026-07-17, 171 total tools, 40 default tools, Godot 4.7.1  
 > **Goal-ready objective:** Harden Godot Agent Loop's MCP tool surface and four
@@ -50,6 +53,8 @@ tokens), within the reviewed 60,000-byte/15,000-token budget justified in
   remains callable but deprecated through the 1.x release line. Removal is
   reserved for a major release. MCP Tasks remain intentionally deferred until
   the protocol and a concrete workflow require them.
+  *Moot — `godot_tools` was deleted outright in the August 2026 lean surface
+  reduction; hidden tools now go through `godot_catalog` + `godot_call`.*
 - Remaining release gates are honestly classified rather than treated as
   failures of this plan: Apple signing/notarization, unavailable target SDKs or
   export templates, target-hardware smoke tests, subjective game/audio feel,
@@ -107,6 +112,8 @@ different choice needs recorded evidence and an update to this plan.
    - advertise `godot_call` for hidden execution;
    - continue accepting `godot_tools` as a deprecated compatibility alias for
      at least one minor release;
+     *Moot — `godot_tools` was deleted in the August 2026 lean surface
+     reduction rather than deprecated.*
    - do not rely on dynamic `tools/list` refresh for required workflows.
 4. Use deterministic local search first: weighted lexical ranking, curated
    aliases, fuzzy token matching, and intent metadata. Do not add a network or
@@ -237,6 +244,7 @@ different choice needs recorded evidence and an update to this plan.
   dispatcher results.
 - [x] Keep the existing `godot_tools` handler as a deprecated compatibility
   alias and test old clients against it.
+  *Moot — removed in the August 2026 lean surface reduction.*
 - [x] Update the Pi adapter and human-facing display precedence to use MCP
   `tool.title`, then legacy annotation title, then name.
 

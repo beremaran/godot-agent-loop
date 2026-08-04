@@ -14,15 +14,18 @@ engine behavior as outside the supported boundary.
 - Validate `projectPath` against effective MCP roots and allowed directories
   before mutation. Preserve a reproducible baseline and changed-file snapshot.
 - Record whether the user requested watched or unattended work. For watched work,
-  call `editor_session` with `ensure` and launch enabled; stop if a usable editor
-  cannot be established instead of silently continuing detached.
+  call `editor_session` with ensure and launch enabled; stop if a usable editor
+  cannot be established instead of silently continuing detached. Unattended
+  repairs use the host's normal file tools on `.tscn`, `.gd`, and
+  `project.godot`.
 - Distinguish persistent scene/resource/script/settings repair from
-  runtime-ephemeral observation or mutation. Stop the runtime before persistent repair
-  unless an editor-native operation is explicitly safe during play and record why.
-- Use canonical core tools directly (`compact` is only the compatibility alias).
-  Resolve hidden `manage_resource`, `game_get_property`, `game_call_method`, and
-  `game_eval` through `godot_catalog` detail, then invoke them with `godot_call`;
-  never call a hidden tool directly.
+  runtime-ephemeral observation or mutation. Stop the runtime before persistent
+  repair unless an editor-native operation is explicitly safe during play and
+  record why.
+- Use canonical core tools directly (compact is only the compatibility alias).
+  Resolve hidden `game_get_property`, `game_set_property`, `game_call_method`,
+  and `game_eval` through `godot_catalog` detail, then invoke them with
+  `godot_call`; never call a hidden tool directly.
 - If **Pause Agent** blocks a mutation, do not retry or bypass it. Continue only
   observation or safe teardown and report the effective blocked tool.
 - Use privileged reflection or evaluation only when its group is already enabled,
@@ -33,22 +36,24 @@ engine behavior as outside the supported boundary.
 1. Reproduce before editing. Use realtime `run_project` for visual or timing
    complaints and repeat the user's exact input or a bounded `game_scenario`.
 2. Capture the minimum distinguishing evidence: cursor-bounded
-   `get_debug_output`, `game_get_errors`, `game_get_logs`, concise scene/UI/node
-   state, and `game_screenshot` only when rendering matters.
+   `get_debug_output`, `game_get_errors`, `game_get_logs`, concise
+   `game_get_scene_tree`/`game_get_ui`/`game_get_node_info` state, and
+   `game_screenshot` only when rendering matters.
 3. Classify the failing boundary: parse/startup, persistent scene/resource,
    import, runtime state, input/timing, rendering, audio, export, or
    platform/toolchain.
 4. State one falsifiable hypothesis and one observation that distinguishes it
    from the nearest alternative. Change one independent variable per trial; do
    not disable multiple systems and infer a single cause.
-5. For input, use `game_key_press` only for a one-frame tap. Use
-   `game_key_hold` for continuous movement and always call `game_key_release` in
-   normal and failure cleanup. Keep hold, bounded wait or observation, and
-   release in one `game_scenario`. Never leave input held across a separate MCP
-   call or while reasoning. Use bounded `game_wait_until`, never manual sleeps.
+5. Drive input through `game_scenario`. Use a `game_key_hold` step for
+   continuous movement with a bounded wait or observation and a release in the
+   same scenario; do not hand-assemble repeated `game_key_press` taps. Never
+   leave input held across a separate MCP call or while reasoning. Use bounded
+   `game_wait_until`, never manual sleeps.
 6. Stop the project before persistent repair. Apply the smallest matching scene,
-   script, resource, or setting change as one coherent undoable change.
-7. Run static validation before runtime proof. Repeat the exact baseline,
+   script, resource, or setting change as one coherent undoable change through
+   `editor_transaction` (watched) or the host's file tools.
+7. Run `validate_scripts` before runtime proof. Repeat the exact baseline,
    stress/recovery input, and observation; then run adjacent regression checks
    with `verify_project` or `run_project_tests`.
 8. Separate measured FPS/frame time/process/render data from unavailable GPU

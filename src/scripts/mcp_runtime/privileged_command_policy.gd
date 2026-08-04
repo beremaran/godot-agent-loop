@@ -1,35 +1,28 @@
 extends RefCounted
 
 # Trust policy for runtime commands that can execute arbitrary code, invoke
-# arbitrary engine APIs, mutate scripts, call peers, or reach external hosts.
-# Authentication proves possession of the per-launch session secret; this
-# separate least-privilege gate still keeps dangerous commands disabled unless
-# the project owner explicitly opts in.
+# arbitrary engine APIs, or mutate scripts. Authentication proves possession of
+# the per-launch session secret; this separate least-privilege gate still keeps
+# dangerous commands disabled unless the project owner explicitly opts in.
 
 const CAPABILITY: String = "privileged-commands"
 const ENVIRONMENT_VARIABLE: String = "GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS"
 const GROUP_ENVIRONMENT_VARIABLE: String = "GODOT_MCP_PRIVILEGED_GROUPS"
 const ERROR_CODE: int = -32007
-const GROUPS: Array[String] = ["reflection", "code-execution", "network"]
+const GROUPS: Array[String] = ["reflection", "code-execution"]
 const COMMANDS: Array[String] = [
 	"call_method",
 	"eval",
 	"get_property",
-	"http_request",
-	"rpc",
 	"script",
 	"set_property",
-	"websocket",
 ]
 const COMMAND_GROUPS: Dictionary = {
 	"call_method": "reflection",
 	"eval": "code-execution",
 	"get_property": "reflection",
-	"http_request": "network",
-	"rpc": "network",
 	"script": "code-execution",
 	"set_property": "reflection",
-	"websocket": "network",
 }
 
 

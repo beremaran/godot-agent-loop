@@ -31,7 +31,7 @@ export interface ToolCatalogMetadata {
   readonly privilege: ToolPrivilege;
   readonly conditionalPrivileges: readonly {
     readonly selector: string;
-    readonly group: 'reflection' | 'code-execution' | 'network';
+    readonly group: 'reflection' | 'code-execution';
   }[];
   readonly destructive: boolean;
   readonly idempotent: boolean;
@@ -68,15 +68,10 @@ type WorkflowGuidance = readonly [whenToUse: string, whenNotToUse: string];
 
 /** Explicitly reviewed guidance for every compact or shipped-skill tool. */
 const REVIEWED_WORKFLOW_GUIDANCE: Partial<Record<ToolName, WorkflowGuidance>> = {
-  add_node: ['Add a node to a saved scene.', 'Use game_spawn_node for a temporary runtime-only node.'],
   analyze_project_integrity: ['Audit assets or preview a safe rename.', 'Do not use it to mutate or rename files directly.'],
-  attach_script: ['Attach a saved script to a node in a scene.', 'Do not use it for runtime-only script attachment.'],
-  create_project: ['Create a new Godot project directory.', 'Do not use it for an existing project.'],
-  create_scene: ['Create a persistent scene resource.', 'Use runtime spawning for temporary scene-tree experiments.'],
-  create_script: ['Create a persistent GDScript source file.', 'Use write_file when replacing arbitrary existing content.'],
   editor_control: ['Drive an attached editor selection, scene, property, or undo action.', 'Do not use it when no compatible editor is attached.'],
   editor_session: ['Inspect, attach, launch, or disconnect the persistent editor bridge.', 'Do not use it to start the game runtime.'],
-  editor_transaction: ['Apply an undoable batch of editor scene mutations.', 'Use focused project tools for simple headless file authoring.'],
+  editor_transaction: ['Apply an undoable batch of editor scene mutations.', 'Do not use it when no attached editor is available.'],
   export_project: ['Produce an export artifact from a configured preset.', 'Run readiness checks first when release confidence matters.'],
   game_call_method: ['Invoke a known runtime node method during playtesting.', 'Avoid arbitrary calls when a typed purpose-built tool exists.'],
   game_click: ['Click runtime UI or viewport coordinates.', 'Use key tools for keyboard or InputMap actions.'],
@@ -85,7 +80,7 @@ const REVIEWED_WORKFLOW_GUIDANCE: Partial<Record<ToolName, WorkflowGuidance>> = 
   game_get_logs: ['Read bounded new runtime log messages.', 'Use game_get_errors when only failures matter; use a fresh log condition for a transition wait.'],
   game_get_node_info: ['Inspect one runtime node and selected properties.', 'Use scene-tree reads to discover an unknown node path first.'],
   game_get_property: ['Read one known runtime property.', 'Use game_get_node_info for a broader node inspection.'],
-  game_get_scene_tree: ['Discover the live runtime scene tree.', 'Use read_scene for saved authored structure.'],
+  game_get_scene_tree: ['Discover the live runtime scene tree.', 'Use get_project_info for project metadata instead.'],
   game_get_ui: ['Inspect concise runtime UI controls and text.', 'Use the full scene tree for non-UI nodes.'],
   game_key_hold: ['Hold one key or InputMap action across frames; in a scenario, use step.arguments and a short engine-side wait or observation.', 'Do not pass a duration field or rely on a long hold to steer through a grid route; use game_key_release after the wait.'],
   game_key_press: ['Tap a key, action, or text once.', 'Use hold/release for continuous movement.'],
@@ -95,33 +90,20 @@ const REVIEWED_WORKFLOW_GUIDANCE: Partial<Record<ToolName, WorkflowGuidance>> = 
   game_wait_until: ['Wait for a bounded runtime condition; set fresh=true on a log condition when it must match output emitted after the wait starts.', 'Do not replace deterministic immediate reads with polling or use an old log line as transition proof.'],
   get_debug_output: ['Read bounded runtime stdout and stderr.', 'Use structured logs/errors when their typed data is sufficient.'],
   get_godot_version: ['Inspect the selected Godot executable version.', 'Do not use it as a project compatibility proof.'],
-  get_project_info: ['Inspect project metadata and main-scene configuration.', 'Use read_project_settings for individual settings.'],
+  get_project_info: ['Inspect project metadata and main-scene configuration.', 'Do not use it as a substitute for runtime observations.'],
   godot_call: ['Execute a specifically discovered hidden tool.', 'Use godot_catalog first when the exact tool is unknown.'],
   godot_catalog: ['Search or describe the full tool catalog without mutation.', 'Do not use discovery as permission to execute a result.'],
   launch_editor: ['Open a project in the Godot editor.', 'Use editor_session ensure when a watched attached workflow is required.'],
-  list_project_files: ['List bounded project-relative files.', 'Use read_file only after choosing a specific file.'],
   manage_addon: ['Inspect or manage an editor add-on with integrity checks.', 'Do not install untrusted or unhashed add-on sources.'],
-  manage_export_presets: ['Inspect or edit persistent export presets.', 'Use verify_export_readiness before release export.'],
   manage_import_pipeline: ['Inspect dependencies, change importer settings, or reimport assets.', 'Do not edit generated .import metadata with generic file writes.'],
-  manage_input_map: ['Inspect or persist InputMap actions.', 'Use runtime input tools to exercise an existing action.'],
-  manage_resource: ['Read or modify a saved Godot resource.', 'Use runtime resource tools for loaded ephemeral state.'],
-  modify_project_settings: ['Change one persistent project setting.', 'Use read_project_settings before changing an unfamiliar key.'],
-  modify_scene_node: ['Change properties on a node in a saved scene.', 'Use runtime property tools for temporary playtest changes.'],
-  read_file: ['Read one bounded project-relative text file.', 'Use specialized scene/settings readers when structure matters.'],
-  read_project_settings: ['Read persistent project settings with projectPath only.', 'Do not pass detail or filter fields, and do not use it for live runtime state.'],
-  read_scene: ['Inspect bounded authored scene structure.', 'Use game_get_scene_tree for the live instantiated tree.'],
-  remove_scene_node: ['Remove a node from a saved scene.', 'Use runtime removal for a temporary instantiated node.'],
   run_project: ['Start the game and wait for the runtime bridge.', 'Do not launch a duplicate runtime when one is already connected.'],
   run_project_tests: ['Discover or run project test suites. action=discover accepts framework and testPaths; action=run also accepts artifactPaths, timeoutSeconds, and failFast.', 'Do not pass run-only fields to action=discover; use verify_project for broader static and configuration checks.'],
-  save_scene: ['Persist an authored scene resource.', 'Do not use it as proof the running game reloaded the change.'],
-  set_main_scene: ['Set the project main scene persistently.', 'Do not use it to change only the current runtime scene.'],
   stop_project: ['Safely stop the connected game runtime with no arguments; it is process-global.', 'Do not pass projectPath or disconnect the editor when only the game should stop.'],
   validate_script: ['Validate one GDScript file.', 'Use validate_scripts for a bounded project batch.'],
   validate_scripts: ['Validate changed, all, or explicit GDScript files.', 'A zero-file changed scope is unvalidated; use all or explicit paths.'],
   verify_dotnet_project: ['Inspect, restore, build, or run the project .NET workflow.', 'Do not use it for a GDScript-only project.'],
   verify_export_readiness: ['Inspect or smoke-test an export preset.', 'Do not substitute it for testing the exported artifact.'],
   verify_project: ['Run bounded project-wide static verification.', 'Use runtime observations for gameplay behavior.'],
-  write_file: ['Create or replace a bounded project-relative text file.', 'Prefer structured scene, setting, and resource tools when available.'],
 };
 
 /** High-value user language that cannot be inferred reliably from tool names. */
@@ -150,21 +132,6 @@ const CURATED_GUIDANCE: Partial<Record<ToolName, CuratedGuidance>> = {
     aliases: ['release held input', 'release held key', 'stop continuous movement'],
     tags: ['input', 'release', 'cleanup', 'held'],
     concepts: ['Input action', 'InputEventKey'],
-  },
-  game_light_2d: {
-    aliases: ['add 2d lighting', 'change 2d lighting', 'create 2d light'],
-    tags: ['lighting', 'illumination', '2d'],
-    concepts: ['Light2D', 'PointLight2D', 'DirectionalLight2D'],
-  },
-  game_light_3d: {
-    aliases: ['add 3d lighting', 'change 3d lighting', 'create 3d light'],
-    tags: ['lighting', 'illumination', '3d'],
-    concepts: ['Light3D', 'OmniLight3D', 'SpotLight3D', 'DirectionalLight3D'],
-  },
-  game_audio_play: {
-    aliases: ['play audio', 'play a sound', 'control audio playback'],
-    tags: ['audio', 'sound', 'playback'],
-    concepts: ['AudioStreamPlayer', 'AudioStreamPlayer2D', 'AudioStreamPlayer3D'],
   },
   game_get_audio: {
     aliases: ['inspect audio state', 'check audio playback status', 'audio player state'],
@@ -206,11 +173,6 @@ const CURATED_GUIDANCE: Partial<Record<ToolName, CuratedGuidance>> = {
     tags: ['screenshot', 'compare', 'image', 'diff', 'baseline'],
     concepts: ['Viewport texture', 'PNG'],
   },
-  game_terrain: {
-    aliases: ['create terrain', 'make a heightmap terrain', 'paint terrain'],
-    tags: ['terrain', 'heightmap', 'mesh', 'paint'],
-    concepts: ['ArrayMesh', 'HeightMapShape3D'],
-  },
   manage_addon: {
     aliases: ['inspect addons', 'inspect editor plugins', 'manage addon'],
     tags: ['addon', 'plugin', 'editor', 'install'],
@@ -221,16 +183,6 @@ const CURATED_GUIDANCE: Partial<Record<ToolName, CuratedGuidance>> = {
     tags: ['dotnet', 'csharp', 'c#', 'build', 'sdk'],
     concepts: ['Godot.NET.Sdk', 'CSharpScript'],
   },
-  create_scene: {
-    aliases: ['create a persistent scene', 'create saved scene', 'author a scene'],
-    tags: ['persistent', 'authoring', 'saved', 'scene', 'project'],
-    concepts: ['PackedScene'],
-  },
-  add_node: {
-    aliases: ['add a persistent node', 'author node in saved scene'],
-    tags: ['persistent', 'authoring', 'saved', 'node', 'scene'],
-    concepts: ['Node', 'PackedScene'],
-  },
   game_spawn_node: {
     aliases: ['spawn a runtime-only node', 'create temporary node', 'runtime node spawn'],
     tags: ['runtime', 'ephemeral', 'temporary', 'spawn', 'node'],
@@ -238,27 +190,16 @@ const CURATED_GUIDANCE: Partial<Record<ToolName, CuratedGuidance>> = {
   },
 };
 
-const EXTERNAL_TOOLS = new Set<ToolName>([
-  'game_http_request', 'game_websocket', 'game_multiplayer', 'game_rpc',
-]);
+const EXTERNAL_TOOLS = new Set<ToolName>([]);
 const EDITOR_TOOLS = new Set<ToolName>(['editor_control', 'editor_transaction']);
 const RUNTIME_STATE_TOOLS = new Set<ToolName>(['get_debug_output', 'stop_project']);
-const NO_STATE_TOOLS = new Set<ToolName>(['godot_catalog', 'godot_call', 'godot_tools', 'get_godot_version', 'list_projects']);
+const NO_STATE_TOOLS = new Set<ToolName>(['godot_catalog', 'godot_call', 'get_godot_version']);
 const POTENTIALLY_DESTRUCTIVE_TOOLS = new Set<ToolName>([
-  'godot_call', 'godot_tools', 'editor_control', 'editor_transaction', 'write_file',
-  'delete_file', 'rename_file', 'remove_scene_node', 'manage_addon', 'manage_autoloads',
-  'manage_input_map', 'manage_export_presets', 'manage_plugins', 'manage_scene_structure',
-  'manage_scene_signals', 'manage_translations', 'game_remove_node', 'game_change_scene',
+  'godot_call', 'editor_control', 'editor_transaction', 'manage_addon',
+  'game_remove_node', 'game_change_scene',
 ]);
 
 const PREFERRED_ALTERNATIVES: Partial<Record<ToolName, readonly ToolName[]>> = {
-  add_node: ['game_spawn_node'],
-  create_scene: ['game_spawn_node'],
-  game_spawn_node: ['add_node', 'create_scene'],
-  modify_scene_node: ['game_set_property'],
-  game_set_property: ['modify_scene_node'],
-  read_scene: ['game_get_scene_tree'],
-  game_get_scene_tree: ['read_scene'],
   game_key_press: ['game_key_hold', 'game_key_release'],
   game_key_hold: ['game_key_press', 'game_key_release'],
   game_key_release: ['game_key_press', 'game_key_hold'],
@@ -294,7 +235,7 @@ function mutationFor(name: ToolName): ToolMutation {
 
 function effectScopeFor(name: ToolName, backend: ToolBackend, mutation: ToolMutation): ToolEffectScope {
   if (name === 'godot_catalog') return 'read-only';
-  if (name === 'godot_call' || name === 'godot_tools') return 'external-open-world';
+  if (name === 'godot_call') return 'external-open-world';
   if (EXTERNAL_TOOLS.has(name)) return 'external-open-world';
   if (mutation === 'read-only') return 'read-only';
   if (backend.kind === 'runtime' || backend.kind === 'runtime-buffer') return 'runtime-ephemeral';

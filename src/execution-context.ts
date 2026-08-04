@@ -77,7 +77,7 @@ const executionStorage = new AsyncLocalStorage<ToolExecutionContext>();
 const responseMetadata = new WeakMap<object, ToolResultMetadata>();
 const NEVER_ABORTED_SIGNAL = new AbortController().signal;
 
-const DISPATCHERS = new Set(['godot_tools', 'godot_call']);
+const DISPATCHERS = new Set(['godot_call']);
 
 export function currentExecutionContext(): ToolExecutionContext | undefined {
   return executionStorage.getStore();
@@ -188,7 +188,7 @@ export function abortError(reason?: unknown): Error {
 }
 
 function effectiveCall(name: string, args: ToolArguments): { name: string; args: ToolArguments } {
-  const dispatches = name === 'godot_call' || (name === 'godot_tools' && args.action === 'call');
+  const dispatches = name === 'godot_call';
   if (!DISPATCHERS.has(name) || !dispatches || typeof args.toolName !== 'string') {
     return { name, args };
   }
@@ -200,11 +200,8 @@ function effectiveCall(name: string, args: ToolArguments): { name: string; args:
 
 function effectScope(name: string, domain: string | undefined, backend: string, mutating: boolean): ToolEffectScope {
   if (!mutating) return 'read-only';
-  if (name === 'game_http_request' || name === 'game_websocket' || name === 'game_multiplayer' || name === 'game_rpc') {
-    return 'external-open-world';
-  }
   if (domain === 'game' || backend === 'runtime') return 'runtime-ephemeral';
-  if (domain === 'project' || backend === 'authoring-session' || backend === 'godot-cli') return 'project-persistent';
+  if (domain === 'project' || backend === 'godot-cli') return 'project-persistent';
   return 'process';
 }
 

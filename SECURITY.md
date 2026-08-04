@@ -46,10 +46,12 @@ Please include, as far as you can determine them:
 
 The server is designed to keep dangerous capabilities off by default:
 
-- **Privileged runtime groups** — reflection, code execution, and networking —
-  are **denied by default**. They must be explicitly opted into with
+- **Privileged runtime groups** — reflection and code execution — are **denied
+  by default**. They must be explicitly opted into with
   `GODOT_MCP_PRIVILEGED_GROUPS` / `GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS`, and are
-  intended only for trusted localhost development.
+  intended only for trusted localhost development. Networking commands were
+  removed from the tool surface in 2.0.0, so no separate networking grant
+  exists.
 - **Runtime connections are authenticated** with `GODOT_MCP_RUNTIME_SECRET`. The
   server generates a fresh 256-bit secret when one is not supplied and passes it
   only to Godot processes it launches itself.

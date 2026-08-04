@@ -10,7 +10,7 @@ different state ownership and evidence requirements.
 | Mode | Owner of mutable state | Primary backend | Required evidence |
 | --- | --- | --- | --- |
 | Attached editor authoring | The user's open Godot editor | Authenticated `EditorPlugin` transaction | Editor acknowledgement plus independent persisted readback |
-| Detached/headless authoring | Project files and an MCP-owned authoring process | Authoring session, then declared subprocess fallback when startup is unavailable | Process result; `sync_status=detached` when no editor can acknowledge it |
+| Detached authoring | Project files authored by the coding agent's own file tools | Host file edits, validated with `validate_scripts` | File state on disk; `sync_status=detached` when no editor can acknowledge it |
 | Running-game interaction | The launched game process | Authenticated runtime JSON-RPC | Runtime observation/assertion and deterministic teardown |
 
 Attached authoring is preferred when a compatible session exists. It does not
@@ -81,17 +81,18 @@ only if the same MCP installed it and its files remain unmodified.
 
 ## Authoring routing and mutation results
 
-The following existing tools route to one `EditorUndoRedoManager` transaction
-when attached: `create_scene`, `add_node`, `modify_scene_node`,
-`remove_scene_node`, `attach_script`, `save_scene` (except save-as), and
-`manage_scene_structure` rename/duplicate/move. Common engine resource classes
-(materials, meshes, 2D/3D shapes, themes, audio streams, gradients, curves, and
-environments) also route through `create_resource` and `manage_resource`
-modify. `editor_transaction` exposes
-compound add/remove/rename/duplicate/reparent/property/instantiate/script/
-resource-assignment/save operations directly. The transaction validates every
+Scene and resource authoring is deliberately lean. Coding agents author
+`.gd`/`.tscn`/`.tres`/`project.godot` with their own file tools and check them
+with `validate_scripts`. When a compatible editor session is attached,
+`editor_transaction` exposes compound
+add/remove/rename/duplicate/reparent/property/instantiate/script/
+resource-assignment/save operations directly: it validates every
 stage before commit, records one human-readable undo action, saves, and reloads
-the packed scene independently for hierarchy evidence.
+the packed scene independently for hierarchy evidence. The individual
+scene-authoring primitives (`create_scene`, `add_node`, `modify_scene_node`,
+`read_scene`, `attach_script`, `save_scene`, `create_resource`, and friends)
+were removed in the lean surface reduction, so `editor_transaction` is the only
+editor-native authoring entry point.
 
 Creating a previously absent scene requires one isolated initial `PackedScene`
 save before Godot can open it. Save-only and initial creation therefore report
@@ -108,7 +109,7 @@ visibility with these fields:
 
 | Field | Contract |
 | --- | --- |
-| `backend` | `editor`, `authoring-session`, or the declared file/subprocess backend |
+| `backend` | `editor`, or the declared file/subprocess backend |
 | `editor_session` | Public session snapshot, or `null` when unavailable |
 | `sync_status` | `acknowledged`, `detached`, `timeout`, `conflict`, or `failed` |
 | `fallback_reason` | `null` for editor-native work; otherwise the explicit reason |
@@ -156,4 +157,5 @@ still match; user-managed files are never overwritten or removed. Runtime
 JSON-RPC remains protocol 1 and is independent from this editor bridge change.
 
 The persistent addon is optional. Projects that do not install it retain
-headless authoring, CI, runtime interaction, and deterministic verification.
+detached file-based authoring, CI, runtime interaction, and deterministic
+verification.

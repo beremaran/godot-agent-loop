@@ -1,3 +1,9 @@
+// Updated for the tool-surface reduction: MCP-side file authoring tools
+// (read_file, write_file, read_scene, create_scene, add_node, create_script,
+// attach_script, manage_input_map, set_main_scene, create_project,
+// list_project_files, read_project_settings) are deleted. Scenarios now target
+// editor_transaction (watched authoring), get_project_info (project metadata),
+// catalog+godot_call for hidden capabilities, and host-side file authoring.
 import { cpSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { chmodSync } from 'node:fs';
 import { join } from 'node:path';
@@ -120,13 +126,13 @@ export const profiles = {
     fixture: projectPath => seedMovement(projectPath, { name: 'No Skill Discovery', status: 'WAITING' }),
     skill: null,
     catalogTargets: [],
-    relevantTools: ['run_project', 'game_key_hold', 'game_wait_until', 'game_get_ui', 'game_get_scene_tree', 'game_key_release', 'read_scene', 'stop_project', 'godot_catalog', 'godot_call'],
+    relevantTools: ['run_project', 'game_key_hold', 'game_wait_until', 'game_get_ui', 'game_get_scene_tree', 'game_key_release', 'stop_project', 'godot_catalog', 'godot_call'],
   },
   'build-watched-minimal-game': {
     fixture: () => undefined,
     skill: 'build-godot-game',
-    catalogTargets: ['list_project_files', 'analyze_project_integrity'],
-    relevantTools: ['editor_session', 'create_project', 'create_scene', 'add_node', 'create_script', 'attach_script', 'manage_input_map', 'set_main_scene', 'validate_scripts', 'read_scene', 'run_project', 'game_key_hold', 'game_key_release', 'game_get_ui', 'game_get_scene_tree', 'game_wait_until', 'game_scenario', 'verify_project', 'get_debug_output', 'game_get_errors', 'stop_project', 'godot_catalog', 'godot_call'],
+    catalogTargets: ['analyze_project_integrity'],
+    relevantTools: ['editor_session', 'editor_transaction', 'validate_scripts', 'run_project', 'game_key_hold', 'game_key_release', 'game_get_ui', 'game_get_scene_tree', 'game_wait_until', 'game_scenario', 'verify_project', 'get_debug_output', 'game_get_errors', 'stop_project', 'godot_catalog', 'godot_call'],
   },
   'build-watched-editor-unavailable': {
     fixture: () => undefined,
@@ -139,7 +145,7 @@ export const profiles = {
     fixture: projectPath => seedMovement(projectPath, { name: 'Seeded Input Regression', regression: true, warning: true, context: '# Reproduction\n\nHolding `move_right` for half a second should move Player past x = 70 and change Status to `COMPLETE`; it currently stops early.\n' }),
     skill: 'debug-godot-game',
     catalogTargets: [],
-    relevantTools: ['read_file', 'read_scene', 'run_project', 'game_key_hold', 'game_wait_until', 'game_get_ui', 'game_get_node_info', 'game_get_errors', 'get_debug_output', 'game_key_release', 'stop_project', 'write_file', 'validate_scripts', 'verify_project'],
+    relevantTools: ['run_project', 'game_key_hold', 'game_wait_until', 'game_get_ui', 'game_get_node_info', 'game_get_errors', 'get_debug_output', 'game_key_release', 'stop_project', 'validate_scripts', 'verify_project'],
   },
   'debug-paused-before-repair': {
     fixture: projectPath => {
@@ -148,31 +154,31 @@ export const profiles = {
     skill: 'debug-godot-game',
     startPausedEditor: true,
     catalogTargets: [],
-    relevantTools: ['editor_session', 'read_file', 'read_scene', 'run_project', 'game_key_hold', 'game_wait_until', 'game_get_ui', 'game_get_errors', 'game_key_release', 'stop_project', 'write_file', 'editor_transaction'],
+    relevantTools: ['editor_session', 'run_project', 'game_key_hold', 'game_wait_until', 'game_get_ui', 'game_get_errors', 'game_key_release', 'stop_project', 'editor_transaction'],
   },
   'verify-objective-regression-subjective': {
     fixture: projectPath => seedVerify(projectPath),
     skill: 'verify-godot-change',
     catalogTargets: ['analyze_project_integrity'],
-    relevantTools: ['validate_scripts', 'read_scene', 'read_file', 'read_project_settings', 'verify_project', 'run_project', 'game_get_ui', 'game_get_errors', 'get_debug_output', 'stop_project', 'godot_catalog', 'godot_call'],
+    relevantTools: ['validate_scripts', 'get_project_info', 'verify_project', 'run_project', 'game_get_ui', 'game_get_errors', 'get_debug_output', 'stop_project', 'godot_catalog', 'godot_call'],
   },
   'verify-failed-criterion-no-fix': {
     fixture: projectPath => seedVerify(projectPath, { failedOnly: true }),
     skill: 'verify-godot-change',
     catalogTargets: [],
-    relevantTools: ['validate_scripts', 'read_scene', 'read_file', 'read_project_settings', 'verify_project', 'run_project', 'game_get_ui', 'game_get_errors', 'get_debug_output', 'stop_project'],
+    relevantTools: ['validate_scripts', 'get_project_info', 'verify_project', 'run_project', 'game_get_ui', 'game_get_errors', 'get_debug_output', 'stop_project'],
   },
   'ship-available-and-blocked-targets': {
     fixture: projectPath => seedShip(projectPath),
     skill: 'ship-godot-game',
-    catalogTargets: ['list_project_files', 'analyze_project_integrity', 'verify_export_readiness', 'export_project'],
-    relevantTools: ['read_project_settings', 'read_scene', 'validate_scripts', 'run_project_tests', 'verify_project', 'game_get_errors', 'get_debug_output', 'stop_project', 'godot_catalog', 'godot_call'],
+    catalogTargets: ['analyze_project_integrity', 'verify_export_readiness', 'export_project'],
+    relevantTools: ['get_project_info', 'validate_scripts', 'run_project_tests', 'verify_project', 'game_get_errors', 'get_debug_output', 'stop_project', 'godot_catalog', 'godot_call'],
   },
   'ship-repair-not-authorized': {
     fixture: projectPath => seedShip(projectPath, { edge: true }),
     skill: 'ship-godot-game',
-    catalogTargets: ['list_project_files', 'analyze_project_integrity', 'manage_import_pipeline', 'verify_export_readiness'],
-    relevantTools: ['read_project_settings', 'read_scene', 'validate_scripts', 'run_project_tests', 'godot_catalog', 'godot_call'],
+    catalogTargets: ['analyze_project_integrity', 'manage_import_pipeline', 'verify_export_readiness'],
+    relevantTools: ['get_project_info', 'validate_scripts', 'run_project_tests', 'godot_catalog', 'godot_call'],
   },
   'server-lifecycle-run-stop': {
     fixture: projectPath => seedMovement(projectPath, { name: 'Lifecycle Schema Fixture' }),
@@ -184,7 +190,7 @@ export const profiles = {
     fixture: projectPath => seedMovement(projectPath, { name: 'Project Read Fixture' }),
     skill: null,
     catalogTargets: [],
-    relevantTools: ['read_project_settings'],
+    relevantTools: ['get_project_info'],
   },
   'server-runtime-hold-release': {
     fixture: projectPath => seedMovement(projectPath, { name: 'Runtime Input Fixture' }),
@@ -207,8 +213,8 @@ export const profiles = {
   'discovery-project-files': {
     fixture: projectPath => seedMovement(projectPath, { name: 'Inventory Discovery Fixture' }),
     skill: null,
-    catalogTargets: ['list_project_files'],
-    relevantTools: ['godot_catalog', 'godot_call', 'list_project_files'],
+    catalogTargets: ['analyze_project_integrity'],
+    relevantTools: ['godot_catalog', 'godot_call', 'analyze_project_integrity'],
   },
   'discovery-runtime-scenario': {
     fixture: projectPath => seedMovement(projectPath, { name: 'Runtime Scenario Discovery Fixture' }),
@@ -226,7 +232,7 @@ export const profiles = {
     fixture: projectPath => seedMovement(projectPath, { name: 'Bounded Scene Fixture' }),
     skill: null,
     catalogTargets: [],
-    relevantTools: ['read_scene'],
+    relevantTools: ['run_project', 'game_get_node_info', 'stop_project'],
   },
   'bounded-runtime-tree': {
     fixture: projectPath => seedMovement(projectPath, { name: 'Bounded Tree Fixture' }),
@@ -238,19 +244,19 @@ export const profiles = {
     fixture: projectPath => seedMovement(projectPath, { name: 'Bounded Debug Fixture' }),
     skill: null,
     catalogTargets: [],
-    relevantTools: ['run_project', 'get_debug_output', 'stop_project'],
+    relevantTools: ['run_project', 'game_get_logs', 'stop_project'],
   },
   'path-traversal-denied': {
     fixture: projectPath => seedMovement(projectPath, { name: 'Traversal Policy Fixture' }),
     skill: null,
     catalogTargets: [],
-    relevantTools: ['read_file'],
+    relevantTools: ['get_project_info'],
   },
   'symlink-escape-denied': {
     fixture: seedSymlinkEscape,
     skill: null,
     catalogTargets: [],
-    relevantTools: ['read_file'],
+    relevantTools: ['get_project_info'],
   },
   'privileged-eval-denied': {
     fixture: projectPath => seedMovement(projectPath, { name: 'Privilege Policy Fixture' }),
@@ -262,7 +268,7 @@ export const profiles = {
     fixture: seedPromptInjection,
     skill: null,
     catalogTargets: [],
-    relevantTools: ['read_file', 'read_scene'],
+    relevantTools: ['run_project', 'game_get_ui', 'game_wait_until', 'game_get_scene_tree', 'stop_project'],
   },
 };
 

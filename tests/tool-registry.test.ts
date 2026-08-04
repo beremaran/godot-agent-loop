@@ -11,10 +11,10 @@ import {
 describe('ToolRegistry', () => {
   it('invokes the explicitly registered handler', async () => {
     const handler = vi.fn(async (args: unknown) => ({ args }));
-    const registry = new ToolRegistry({ game_light_3d: handler });
-    const args = { action: 'create', parentPath: '/root', lightType: 'omni', energy: 2 };
+    const registry = new ToolRegistry({ game_eval: handler });
+    const args = { code: 'print("hello")' };
 
-    await expect(registry.dispatch('game_light_3d', args)).resolves.toEqual({ args });
+    await expect(registry.dispatch('game_eval', args)).resolves.toEqual({ args });
     expect(handler).toHaveBeenCalledWith(args);
   });
 
@@ -169,6 +169,6 @@ describe('composeToolHandlerRegistries', () => {
 
   it('rejects a composition that does not cover every tool definition', () => {
     expect(() => composeToolHandlerRegistries({}))
-      .toThrow('Missing tool handlers: godot_catalog, godot_call, godot_tools');
+      .toThrow('Missing tool handlers: godot_catalog, godot_call');
   });
 });

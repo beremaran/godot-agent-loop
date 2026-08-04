@@ -1,7 +1,7 @@
 {
   "name": "@beremaran/godot-agent-loop",
   "version": "1.2.0",
-  "description": "MCP automation loop with 173 tools for Godot 4",
+  "description": "Lean MCP feedback loop for Godot 4 — run, observe, interact, verify",
   "keywords": [
     "godot",
     "mcp",
@@ -70,7 +70,7 @@
     "check:fast": "npm run lint && npm run typecheck",
     "typecheck": "tsc --noEmit",
     "coverage:engine": "node scripts/engine-surface-audit.js",
-    "benchmark:loop": "npm run build && node scripts/benchmark-authoring-loop.mjs",
+    "coverage:surface": "node scripts/generate-tool-surface-report.mjs",
     "watch": "tsc --watch",
     "test": "vitest run",
     "test:watch": "vitest",

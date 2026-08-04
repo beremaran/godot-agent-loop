@@ -1,5 +1,8 @@
 # Evaluating the MCP server
 
+> **Status:** partially superseded — the surface was reduced to 20 advertised /
+> 64 total tools in August 2026; figures below describe the pre-reduction state.
+
 Godot Agent Loop uses layered evaluation. No single benchmark is treated as
 proof of protocol correctness, real-engine behavior, or agent reliability.
 
@@ -72,6 +75,7 @@ They are reported as non-applicable, never as passes.
 each server with Inspect's native Python MCP client, verifies the 42-tool core
 surface, executes a recorded scorer replay, and cleans the owned fixture
 workspaces. It does not sample a model.
+*Moot — the check now verifies the 20-tool `core` surface.*
 
 The controlled corpus contains 24 cases: nine retained long-horizon
 skill/client cases and 15 no-skill server, discovery, response-bound, recovery,

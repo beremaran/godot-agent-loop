@@ -40,27 +40,27 @@
   },
   "toolSurface": {
     "path": "docs/coverage/tool-surface.json",
-    "sha256": "96731003dd775505c2f3a8399fb6f9b63079ff84d2c5019cc45dfd78c4e2387a",
+    "sha256": "992eacce45b985d0f4fab5599271d7527ea9cc404f725fd0513fa1d35bf4deba",
     "surface": "core",
-    "advertisedToolCount": 42,
-    "fullToolCount": 173
+    "advertisedToolCount": 20,
+    "fullToolCount": 64
   },
   "skills": [
     {
       "name": "build-godot-game",
-      "sha256": "d0b3ac6b02019ee302d02e3d6eb752b6056b7c42921f73d0a30825f6ad6c2c04"
+      "sha256": "005fa6ff718a37cbf75fdf55f42a3c55f3fe3cd52ca057b8bee11f0fdea26a14"
     },
     {
       "name": "debug-godot-game",
-      "sha256": "6ef240bedaaaea84bf7d2d7bb777ba130d0d183e85f2528730d6facabcf3d391"
+      "sha256": "7b3d57911bf92f0ffd9bded52a32febfadf984a54815ec9c8f8b2b8b42685a33"
     },
     {
       "name": "ship-godot-game",
-      "sha256": "50c13ab0211a7d4dc6cebbd3a666070a88b78898164339251e897266892566cc"
+      "sha256": "c66171bd77f3f1ea653f3254980fe4896efc381384ef39f4faf258656fb7c205"
     },
     {
       "name": "verify-godot-change",
-      "sha256": "c867f3379fe02e8b75e0be1ab3b64f8eb8bb92e9833a1a811f621528d04ee796"
+      "sha256": "b22f9e3baba9714f8c12294738eb914de5215747b524b9f3eed9b86e66574d4e"
     }
   ],
   "historicalBehavioralEvidence": {

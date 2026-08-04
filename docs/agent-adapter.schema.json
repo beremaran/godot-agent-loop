@@ -15,7 +15,7 @@
     "mcp": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["command", "environment", "canonicalSurface", "surfaceAliases", "catalogTool", "callTool", "deprecatedCompatibilityTool", "compatibilityThrough"],
+      "required": ["command", "environment", "canonicalSurface", "surfaceAliases", "catalogTool", "callTool", "compatibilityThrough"],
       "properties": {
         "command": { "type": "array", "minItems": 1, "items": { "type": "string" } },
         "environment": { "type": "object", "additionalProperties": { "type": "string" } },
@@ -23,7 +23,6 @@
         "surfaceAliases": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
         "catalogTool": { "const": "godot_catalog" },
         "callTool": { "const": "godot_call" },
-        "deprecatedCompatibilityTool": { "const": "godot_tools" },
         "compatibilityThrough": { "type": "string", "minLength": 1 }
       }
     },
@@ -57,7 +56,7 @@
               "privilegedGroups": {
                 "type": "array",
                 "uniqueItems": true,
-                "items": { "enum": ["reflection", "code-execution", "network"] }
+                "items": { "enum": ["reflection", "code-execution"] }
               },
               "effectScopes": {
                 "type": "array",

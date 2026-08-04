@@ -11,7 +11,7 @@
  *   tooled       a named MCP tool targets the class (the class token appears
  *                in the GDScript we ship or in a tool schema)
  *   reachable    no named tool, but the class is generically drivable:
- *                ClassDB-instantiable (headless `add_node`, runtime `game_eval`)
+ *                ClassDB-instantiable (runtime `game_spawn_node`, `game_eval`)
  *                or exposed as a singleton
  *   out-of-scope editor/debugger/GDExtension surface the README does not claim
  *   gap          none of the above -- needs a decision
@@ -151,7 +151,7 @@ function classify(api, references) {
       why = 'editor-context class: not constructible in a running game, and no tool reaches it';
     } else if (cls.is_instantiable) {
       bucket = 'reachable';
-      why = 'ClassDB-instantiable: headless add_node and runtime game_eval can construct it';
+      why = 'ClassDB-instantiable: runtime game_spawn_node and game_eval can construct it';
     } else if (singletons.has(cls.name)) {
       bucket = 'reachable';
       why = 'engine singleton: runtime game_eval can call it by name';
@@ -216,7 +216,7 @@ function render(version, api, rows) {
     '| Bucket | Classes | Meaning |',
     '| --- | ---: | --- |',
     `| tooled | ${count('tooled')} | The class is named in our shipped GDScript or in a tool schema |`,
-    `| reachable | ${count('reachable')} | No named tool, but generically drivable via \`add_node\` / \`game_eval\` |`,
+    `| reachable | ${count('reachable')} | No named tool, but generically drivable via \`game_spawn_node\` / \`game_eval\` |`,
     `| out-of-scope | ${count('out-of-scope')} | Declared unsupported in the README support boundary |`,
     `| gap | ${count('gap')} | No tool, no generic reach, no scope decision |`,
     `| **Total** | **${rows.length}** | |`,
@@ -230,7 +230,7 @@ function render(version, api, rows) {
     '',
     '### Reachable is an architectural classification',
     '',
-    'The `reachable` bucket asserts that `game_eval` and `add_node` can drive any',
+    'The `reachable` bucket asserts that `game_eval` and `game_spawn_node` can drive any',
     'ClassDB-instantiable class. The retained smoke suite does not sample arbitrary',
     'untooled classes from this bucket, so treat them as reachable in principle,',
     'not as current end-to-end evidence.',

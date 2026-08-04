@@ -19,36 +19,30 @@ export type ToolSurfaceMode = 'core' | 'full';
 export type ToolSurfaceSetting = ToolSurfaceMode | 'compact';
 
 /**
- * Stable, task-oriented starting surface. The complete catalog remains callable
- * through godot_tools and can be advertised directly with TOOL_SURFACE_ENV=full.
+ * Stable, lean task-oriented starting surface (20 tools). The complete catalog
+ * remains callable and can be advertised directly with TOOL_SURFACE_ENV=full.
  */
 export const CORE_TOOL_NAMES: ReadonlySet<ToolName> = new Set([
   'godot_catalog', 'godot_call',
-  'launch_editor', 'editor_session', 'editor_control', 'editor_transaction', 'run_project', 'verify_project', 'game_wait_until', 'game_scenario', 'run_project_tests',
-  'get_debug_output', 'stop_project', 'get_godot_version', 'get_project_info',
-  'create_project', 'create_scene', 'add_node', 'read_scene', 'modify_scene_node',
-  'remove_scene_node', 'save_scene', 'create_script', 'attach_script', 'read_file',
-  'write_file', 'validate_script', 'validate_scripts', 'read_project_settings',
-  'modify_project_settings', 'manage_input_map', 'set_main_scene',
-  'game_get_scene_tree', 'game_get_ui', 'game_screenshot', 'game_get_node_info',
-  'game_get_errors', 'game_get_logs', 'game_click', 'game_key_press',
-  'game_key_hold', 'game_key_release',
+  'get_project_info', 'get_godot_version',
+  'run_project', 'stop_project', 'get_debug_output',
+  'editor_session', 'editor_transaction',
+  'game_screenshot', 'game_get_scene_tree', 'game_get_ui', 'game_get_node_info',
+  'game_get_errors', 'game_get_logs',
+  'game_scenario', 'game_wait_until',
+  'validate_scripts', 'run_project_tests', 'verify_project',
 ]);
 
 export const TOOL_SURFACE_BUDGETS = {
-  coreBytesMax: 62_000,
-  coreEstimatedTokensMax: 15_500,
-  coreReductionPercentMin: 70,
+  coreBytesMax: 36_100,
+  coreEstimatedTokensMax: 9_100,
+  coreReductionPercentMin: 92,
 } as const;
 
 const COMPACT_DESCRIPTION_MAX = 37;
 const POTENTIALLY_DESTRUCTIVE_TOOLS = new Set<ToolName>([
-  'godot_call', 'godot_tools', 'editor_control', 'editor_transaction', 'run_project',
-  'write_file', 'delete_file', 'rename_file', 'modify_scene_node', 'remove_scene_node',
-  'modify_project_settings', 'manage_input_map', 'manage_export_presets', 'manage_autoloads',
-  'manage_addon', 'manage_resource', 'manage_scene_structure', 'manage_scene_signals',
-  'manage_layers', 'manage_plugins', 'manage_shader', 'manage_theme_resource',
-  'manage_translations', 'set_main_scene', 'game_remove_node', 'game_change_scene',
+  'godot_call', 'editor_control', 'editor_transaction', 'run_project',
+  'manage_addon', 'game_remove_node', 'game_change_scene',
 ]);
 
 function compactDescription(description: string): string {
@@ -100,7 +94,7 @@ function annotationsFor(name: ToolName): ToolAnnotations {
   if (name === 'godot_catalog') {
     return { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
   }
-  if (name === 'godot_call' || name === 'godot_tools') {
+  if (name === 'godot_call') {
     return { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true };
   }
   const metadata = toolCatalogMetadata[name];

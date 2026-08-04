@@ -130,7 +130,7 @@
     },
     {
       "group": "packed scene implementation handles",
-      "reason": "read_scene and the authoring tools expose stable serializable scene structure; raw PackedScene state, placeholders, and packed-container references are engine implementation handles rather than an additional user workflow",
+      "reason": "editor_transaction and the file-backed scene authoring expose stable serializable scene structure; raw PackedScene state, placeholders, and packed-container references are engine implementation handles rather than an additional user workflow",
       "classes": ["InstancePlaceholder", "PackedDataContainerRef", "SceneState"]
     },
     {
@@ -147,7 +147,7 @@
     },
     {
       "group": "low-level transport handles",
-      "reason": "per-peer ENet tuning and custom TLS credential objects are below the claimed HTTP, WebSocket, and multiplayer workflows; those workflows retain the engine and platform TLS validation defaults rather than exposing unsafe or certificate-construction primitives",
+      "reason": "per-peer ENet tuning and custom TLS credential objects sit below the retained runtime surface, which no longer claims HTTP, WebSocket, or multiplayer workflows after the 2.0.0 lean surface reduction; these handles are engine implementation details rather than user workflows",
       "classes": ["ENetPacketPeer", "TLSOptions"]
     },
     {
@@ -164,6 +164,11 @@
       "group": "skinning implementation handles",
       "reason": "SkinReference is an internal RenderingServer binding handle; the supported mesh, skeleton, skin resource, and animation workflows do not expose or require the underlying RID lifetime object",
       "classes": ["SkinReference"]
+    },
+    {
+      "group": "runtime UI tree handles",
+      "reason": "TreeItem exists only inside a Tree control and is obtained through that control's accessor, so it is not ClassDB-constructible and no retained runtime tool targets it; the supported runtime UI surface covers controls, UI elements, and signals without exposing per-widget handle objects",
+      "classes": ["TreeItem"]
     }
   ]
 }

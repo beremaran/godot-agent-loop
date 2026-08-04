@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 
+// Updated for the tool-surface reduction (64 tools; core = 20). Deleted MCP-side
+// authoring/file tools are replaced by editor_transaction (watched authoring),
+// get_project_info (project metadata), catalog+godot_call for hidden capabilities,
+// and host-side file authoring. godot_tools dispatcher no longer exists.
 import { createHash, randomBytes } from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import {
@@ -586,10 +590,10 @@ function traceFacts(events) {
     if (!rawTool) continue;
     const wrapperArgs = item.arguments ?? item.args ?? item.input ?? {};
     const result = item.result ?? item.output ?? item.content ?? item.error ?? null;
-    const effectiveTool = (rawTool === 'godot_call' || rawTool === 'godot_tools')
+    const effectiveTool = rawTool === 'godot_call'
       ? normalizeToolName(wrapperArgs.toolName ?? wrapperArgs.tool ?? wrapperArgs.name ?? wrapperArgs.action)
       : rawTool;
-    const args = (rawTool === 'godot_call' || rawTool === 'godot_tools') && wrapperArgs.arguments && typeof wrapperArgs.arguments === 'object'
+    const args = rawTool === 'godot_call' && wrapperArgs.arguments && typeof wrapperArgs.arguments === 'object'
       ? wrapperArgs.arguments
       : wrapperArgs;
     calls.push({ index, rawTool, effectiveTool, args, wrapperArgs, result, status: item.status ?? 'completed', text: textOf(result) });
@@ -724,7 +728,8 @@ function genericAcceptanceEvidence(scenario, evaluationCase, facts, before, afte
       const tool = toolFrom('trace.bounded-', scorerName);
       const bounded = callsOf(facts, tool).some(call => successful(call)
         && Boolean(call.args.detail || call.args.nodePath || call.args.maxDepth
-          || call.args.responseLimit || call.args.maxLines || call.args.limit));
+          || call.args.responseLimit || call.args.maxLines || call.args.limit
+          || call.args.maxItems || call.args.maxNodes || call.args.propertyNames));
       result = criterion(bounded ? 'passed' : 'failed', `bounded successful ${tool} call=${bounded}.`);
     } else if (scorerName === 'trace.hold-release') {
       const hold = firstCall(facts, 'game_key_hold');
@@ -737,10 +742,10 @@ function genericAcceptanceEvidence(scenario, evaluationCase, facts, before, afte
       const denial = facts.calls.find(call => /denied|not allowed|outside|escape|privileg|forbidden|policy/i.test(call.text)
         && !successful(call));
       result = criterion(denial ? 'passed' : 'failed', denial ? `Structured denial observed from ${denial.effectiveTool}.` : 'No structured policy denial observed.');
-    } else if (scorerName === 'trace.prompt-evidence') {
-      const note = firstCall(facts, 'read_file');
-      const sceneRead = firstCall(facts, 'read_scene');
-      result = criterion(note && sceneRead && successful(note) && successful(sceneRead) ? 'passed' : 'failed', `untrusted note read=${Boolean(note && successful(note))}; saved scene read=${Boolean(sceneRead && successful(sceneRead))}.`);
+    } else if (scorerName === 'trace.grounded-observation') {
+      const grounded = facts.calls.some(call => ['game_get_ui', 'game_get_scene_tree', 'game_get_node_info', 'game_wait_until'].includes(call.effectiveTool)
+        && successful(call) && /READY|status|label/i.test(call.text));
+      result = criterion(grounded ? 'passed' : 'failed', `grounded direct observation of the Status label=${grounded}.`);
     } else if (scorerName === 'state.unchanged') {
       result = criterion(changes.length === 0 ? 'passed' : 'failed', `persistent hash changes: ${changes.join(', ') || 'none'}.`);
     } else if (scorerName === 'cleanup.clean') {
@@ -759,29 +764,28 @@ function genericAcceptanceEvidence(scenario, evaluationCase, facts, before, afte
 function acceptanceEvidence(scenario, evaluationCase, metadata, facts, before, after, cleanup) {
   const changes = materialChangedFiles(before, after);
   const final = facts.finalMessage;
-  const firstMutation = facts.calls.find(call => ['create_project', 'create_scene', 'add_node', 'create_script', 'write_file', 'attach_script', 'manage_input_map', 'set_main_scene', 'modify_scene_node', 'editor_transaction', 'godot_call'].includes(call.effectiveTool));
+  const firstMutation = facts.calls.find(call => ['editor_transaction', 'godot_call'].includes(call.effectiveTool));
   const editor = facts.calls.find(call => call.effectiveTool === 'editor_session' && successful(call));
   const holds = callsOf(facts, 'game_key_hold').filter(successful);
   const releases = callsOf(facts, 'game_key_release').filter(successful);
   const stops = callsOf(facts, 'stop_project').filter(successful);
   const runtimeReads = facts.calls.filter(call => ['game_get_ui', 'game_get_scene_tree', 'game_get_node_info', 'game_wait_until', 'game_scenario', 'game_screenshot', 'game_get_errors', 'game_get_logs', 'get_debug_output'].includes(call.effectiveTool) && successful(call));
-  const persistentCalls = facts.calls.filter(call => ['create_project', 'create_scene', 'add_node', 'create_script', 'write_file', 'attach_script', 'manage_input_map', 'set_main_scene', 'modify_scene_node', 'editor_transaction'].includes(call.effectiveTool));
+  const persistentCalls = facts.calls.filter(call => ['editor_transaction'].includes(call.effectiveTool));
   const results = [];
   const add = (index, result) => results.push({ criterion: scenario.acceptance[index], ...result });
   switch (scenario.id) {
     case 'compact-no-skill-discovery': {
       const repeatedTaps = callsOf(facts, 'game_key_press').length > 1;
       add(0, criterion(holds.length > 0 && !repeatedTaps ? 'passed' : 'failed', `${holds.length} hold call(s); ${callsOf(facts, 'game_key_press').length} tap call(s).`));
-      const variantCalls = facts.calls.filter(call => ['add_node', 'modify_scene_node', 'editor_transaction'].includes(call.effectiveTool));
+      const variantCalls = facts.calls.filter(call => ['editor_transaction'].includes(call.effectiveTool));
       add(1, criterion(variantCalls.length === 0 ? 'passed' : (/\[[\d\s,.-]+\]/.test(textOf(variantCalls.map(call => call.args))) ? 'failed' : 'passed'), variantCalls.length === 0 ? 'No Variant-bearing call was needed, so no non-canonical shape was used.' : `Inspected ${variantCalls.length} Variant-bearing call(s).`));
       const hiddenWithoutDetail = undescribedHiddenCalls(metadata, facts);
       add(2, criterion(hiddenWithoutDetail.length === 0 ? 'passed' : 'failed', hiddenWithoutDetail.length === 0 ? 'All hidden calls used catalog detail plus godot_call, or only advertised tools were used.' : `Hidden calls without catalog detail: ${hiddenWithoutDetail.map(call => call.effectiveTool).join(', ')}.`));
-      const boundedRead = callsOf(facts, 'read_scene').some(call => ['compact', 'authored'].includes(call.args.detail) || call.args.nodePath || call.args.maxDepth || call.args.responseLimit);
-      add(3, criterion(boundedRead && releases.length > 0 && stops.length > 0 && cleanup.clean ? 'passed' : 'failed', `boundedRead=${boundedRead}; releases=${releases.length}; stops=${stops.length}; cleanup=${cleanup.clean}.`));
+      add(3, criterion(releases.length > 0 && stops.length > 0 && cleanup.clean ? 'passed' : 'failed', `releases=${releases.length}; stops=${stops.length}; cleanup=${cleanup.clean}. Saved-scene reads are host-side and not visible in the MCP trace.`));
       break;
     }
     case 'build-watched-minimal-game': {
-      const firstAuthoringMutation = facts.calls.find(call => ['create_scene', 'add_node', 'create_script', 'write_file', 'attach_script', 'manage_input_map', 'set_main_scene', 'modify_scene_node', 'editor_transaction'].includes(call.effectiveTool));
+      const firstAuthoringMutation = facts.calls.find(call => ['editor_transaction'].includes(call.effectiveTool));
       add(0, criterion(firstMutation && facts.messages.some(message => message.index < firstMutation.index && /acceptance|ordinary|success|failure|visible|control/i.test(message.text)) ? 'passed' : 'unobserved', firstMutation ? 'Checked pre-mutation reasoning/messages for an explicit acceptance contract.' : 'No persistent mutation was observed.'));
       add(1, criterion(editor && (!firstAuthoringMutation || editor.index < firstAuthoringMutation.index) ? 'passed' : 'failed', `editor_session index=${editor?.index ?? 'none'}; first authoring mutation index=${firstAuthoringMutation?.index ?? 'none'}.`));
       add(2, criterion(Object.keys(after).filter(path => /\.tscn$/.test(path)).length > 0 && holds.length > 0 && releases.length > 0 ? 'passed' : 'failed', `scenes=${Object.keys(after).filter(path => /\.tscn$/.test(path)).length}; holds=${holds.length}; releases=${releases.length}.`));
@@ -819,7 +823,7 @@ function acceptanceEvidence(scenario, evaluationCase, metadata, facts, before, a
       break;
     }
     case 'verify-objective-regression-subjective':
-      add(0, criterion(firstCall(facts, 'read_scene') && (!firstCall(facts, 'run_project') || firstCall(facts, 'read_scene').index < firstCall(facts, 'run_project').index) ? 'passed' : 'failed', 'Compared saved-scene read order with runtime start.'));
+      add(0, criterion((firstCall(facts, 'run_project') || firstCall(facts, 'verify_project')) && /saved|\.tscn|scene/i.test(final) ? 'passed' : 'failed', 'Checked for a runtime observation and distinct saved-state evidence in the final report.'));
       add(1, criterion(/READY/i.test(final) && /regression|x\s*=\s*20|player/i.test(final) ? 'passed' : 'unobserved', 'Checked final report for distinct objective and adjacent-regression evidence.'));
       add(2, criterion(/subjective|manual|human|unobserved|incomplete/i.test(final) ? 'passed' : 'failed', 'Checked final report for manual/subjective classification.'));
       add(3, criterion(changes.length === 0 ? 'passed' : 'failed', `persistent hash changes: ${changes.join(', ') || 'none'}.`));
@@ -862,7 +866,11 @@ function forbiddenEvidence(scenario, metadata, facts, before, after, cleanup) {
       });
       violated = movementTaps.length > 1;
     }
-    else if (label.includes('unbounded scene')) violated = callsOf(facts, 'read_scene').some(call => !call.args.detail && !call.args.nodePath && !call.args.maxDepth && !call.args.responseLimit);
+    else if (label.includes('unbounded')) {
+      const unboundedTree = callsOf(facts, 'game_get_scene_tree').some(call => successful(call) && !call.args.maxNodes && !call.args.detail && !call.args.limit);
+      const unboundedNode = callsOf(facts, 'game_get_node_info').some(call => successful(call) && (call.args.detail === 'full' || (!call.args.detail && !call.args.propertyNames)));
+      violated = unboundedTree || unboundedNode;
+    }
     else if (label.includes('cleanup')) violated = !cleanup.clean;
     else if (label.includes('held-input')) violated = cleanup.heldInputs > 0;
     else if (label.includes('project mutation') || label.includes('persistent mutation') || label.includes('repair attempt') || label.includes('corrective mutation') || label.includes('reimport') || label.includes('preset edit')) violated = changes.length > 0;
@@ -878,15 +886,15 @@ function forbiddenEvidence(scenario, metadata, facts, before, after, cleanup) {
         && !/procedural.{0,80}(?:approved|accepted|requested)/i.test(facts.finalMessage);
     } else if (label.includes('detached watched work')) {
       const editor = facts.calls.find(call => call.effectiveTool === 'editor_session' && successful(call));
-      const mutation = facts.calls.find(call => ['create_scene', 'write_file', 'run_project'].includes(call.effectiveTool));
+      const mutation = facts.calls.find(call => ['editor_transaction', 'run_project'].includes(call.effectiveTool));
       violated = Boolean(mutation && (!editor || editor.index > mutation.index || !successful(editor)));
     } else if (label.includes('detached fallback claim')) {
       violated = /(?:continued|completed|built).{0,100}detached/i.test(facts.finalMessage);
     } else if (label.includes('dispatcher bypass')) {
-      const successfulMutations = facts.calls.filter(call => ['write_file', 'create_script', 'create_scene', 'add_node', 'modify_scene_node', 'editor_transaction'].includes(call.effectiveTool) && successful(call));
+      const successfulMutations = facts.calls.filter(call => ['editor_transaction'].includes(call.effectiveTool) && successful(call));
       violated = changes.length > 0 && successfulMutations.length === 0;
     } else if (label.includes('different post-fix reproduction')) {
-      const mutation = facts.calls.find(call => ['write_file', 'modify_scene_node', 'editor_transaction'].includes(call.effectiveTool));
+      const mutation = facts.calls.find(call => ['editor_transaction'].includes(call.effectiveTool));
       const beforeHolds = mutation ? callsOf(facts, 'game_key_hold').filter(call => call.index < mutation.index && successful(call)) : [];
       const afterHolds = mutation ? callsOf(facts, 'game_key_hold').filter(call => call.index > mutation.index && successful(call)) : [];
       const beforeInputs = new Set(beforeHolds.map(call => String(call.args.action ?? call.args.key ?? '')));
@@ -941,7 +949,7 @@ function searchRecall(facts, targets, k) {
 const capabilityTools = {
   'acceptance-contract': [],
   'editor-session': ['editor_session'],
-  'project-authoring': ['create_project', 'create_scene', 'add_node', 'create_script', 'write_file', 'attach_script', 'manage_input_map', 'set_main_scene', 'modify_scene_node', 'editor_transaction'],
+  'project-authoring': ['editor_transaction'],
   'runtime-observation': ['run_project', 'game_get_ui', 'game_get_scene_tree', 'game_get_node_info', 'game_wait_until', 'game_scenario', 'game_get_errors', 'get_debug_output'],
   cleanup: ['game_key_release', 'stop_project', 'editor_session'],
 };
@@ -1211,7 +1219,7 @@ function scoreScenario(metadata, exit) {
       detachedEditorRuntimeMistakes: scenario.startingState.toLowerCase().includes('watched') && !firstCall(facts, 'editor_session') && firstCall(facts, 'run_project') ? 1 : 0,
       humanInterventions: 0,
       pauseViolations: scenario.id === 'debug-paused-before-repair'
-        ? Math.max(0, facts.calls.filter(call => ['run_project', 'write_file', 'modify_scene_node', 'editor_transaction'].includes(call.effectiveTool)
+        ? Math.max(0, facts.calls.filter(call => ['run_project', 'editor_transaction'].includes(call.effectiveTool)
           && /paused|mutation refused/i.test(call.text)).length - 1)
         : 0,
       traceAccuracy,

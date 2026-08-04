@@ -37,7 +37,7 @@
       "skill": null,
       "kind": "primary",
       "startingState": "Existing compact-surface fixture; no skill is loaded.",
-      "prompt": "Hold movement until a label changes, release the input, inspect the saved scene separately from runtime state, and leave the project stopped.",
+      "prompt": "Hold movement until a label changes, release the input, read the saved scene file with your host file tools separately from runtime state, and leave the project stopped.",
       "acceptance": [
         "Discovers hold rather than repeating one-frame taps.",
         "Uses canonical structured Variant shapes whenever a Variant-bearing call is needed.",
@@ -74,7 +74,7 @@
       "skill": "debug-godot-game",
       "kind": "primary",
       "startingState": "Fixture with one causal input/timing regression and a misleading nearby rendering warning.",
-      "prompt": "Reproduce why continuous movement stops early, isolate one cause, make the smallest repair, and repeat the same test.",
+      "prompt": "Reproduce why continuous movement stops early, isolate one cause, make the smallest host-file repair, and repeat the same test.",
       "acceptance": [
         "Preserves the baseline and classifies the failing boundary.",
         "Tests one falsifiable hypothesis against the misleading symptom.",
@@ -99,7 +99,7 @@
       "startingState": "Supplied change with one objective passing criterion, one adjacent regression criterion, and one subjective criterion.",
       "prompt": "Verify this change without editing the project and distinguish automated evidence from manual judgment.",
       "acceptance": [
-        "Checks saved state before runtime behavior.",
+        "Reports saved-state evidence distinctly from runtime behavior evidence.",
         "Reports objective and regression criteria independently.",
         "Marks the subjective criterion manual or incomplete.",
         "Proves persistent project files were not edited."

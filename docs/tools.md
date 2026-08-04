@@ -1,10 +1,19 @@
 # Tool catalog
 
-Godot Agent Loop advertises a reviewed `core` surface within the generated
-[surface budget](coverage/tool-surface.json). Read-only `godot_catalog` searches
-and describes the complete catalog; `godot_call` executes one hidden tool after
-inspection. Set `GODOT_MCP_TOOL_SURFACE=full` to advertise the complete static
-catalog. The former `compact` surface name aliases `core` during migration.
+Godot Agent Loop advertises a reviewed `core` surface of 20 tools within the
+generated [surface budget](coverage/tool-surface.json). The remaining 44 tools
+stay callable through read-only `godot_catalog` search and inspection followed
+by `godot_call` execution. Set `GODOT_MCP_TOOL_SURFACE=full` to advertise the
+complete 64-tool catalog statically. The former `compact` surface name aliases
+`core` during migration.
+
+A tool earns its place only if it does something file editing plus shell
+cannot. The product is the feedback loop: **author files → validate → run →
+observe → interact → assert**. Coding agents are expected to author
+`.gd`/`.tscn`/`.tres`/`project.godot` with their own file tools, run
+`validate_scripts` before launching, use `editor_transaction` for undoable
+scene edits when an editor is attached, and reserve the MCP surface for the
+parts that need a live engine.
 
 ## Calling contract
 
@@ -24,68 +33,145 @@ allowed directories still apply. Long operations report progress only when the
 request includes a progress token and honor MCP cancellation where safe. Clients
 without these optional capabilities retain the bounded compatibility path.
 
-## Meta & editor bridge
+## Advertised core (20)
 
-| Tool | Description |
+These tools cover the whole loop without any hidden lookup:
+
+| Tool | Purpose |
 | ------ | ------------- |
 | `godot_catalog` | Read-only ranked search and summary/schema/full description for any catalog tool |
 | `godot_call` | Execute one inspected hidden tool with its effective scope, privilege group, and trace identity |
-| `godot_tools` | Deprecated 1.x compatibility alias for legacy search, describe, and call clients |
-| `editor_session` | Idempotently discover/attach, inspect, or disconnect a project editor session |
-| `editor_control` | Inspect editor state and apply reversible edits through the editor bridge |
-| `editor_transaction` | Commit one validated compound scene edit as one editor undo step |
+| `get_project_info` | Retrieve metadata about a Godot project (including an `isDotnet` field) |
+| `get_godot_version` | Get the installed Godot version |
+| `run_project` | Run the Godot project and capture output, then report when the authenticated runtime bridge is usable |
+| `stop_project` | Stop the currently running project |
+| `get_debug_output` | Get the current debug output and errors |
+| `editor_session` | Discover, attach, inspect, or disconnect a per-project editor session |
+| `editor_transaction` | Apply one validated compound scene edit as one editor undo step |
+| `game_screenshot` | Capture a PNG preview with dimensions, digest, and optional retained artifact |
+| `game_get_scene_tree` | Get the running game's scene tree as a bounded deterministic pre-order |
+| `game_get_ui` | Get a bounded list of visible UI elements from the running game |
+| `game_get_node_info` | Compact or full node introspection: properties, signals, methods, children |
+| `game_get_errors` | Get new `push_error`/`push_warning` messages since the last call |
+| `game_get_logs` | Get new `print` output since the last call (cursor read) |
+| `game_scenario` | Run a bounded input/wait/assert/observe/screenshot/performance sequence |
+| `game_wait_until` | Wait once for a bounded runtime condition and return the last observation |
+| `validate_scripts` | Batch-check GDScript files (git-changed by default, or all) |
+| `run_project_tests` | Discover or run native, GUT, and GdUnit4 tests with structured results |
+| `verify_project` | Run bounded assertions, capture evidence, and tear down deterministically |
+
+`run_project` succeeds only after the authenticated runtime bridge is usable by
+the next runtime tool; on failure it returns an actionable error and cleans
+owned state. `game_scenario` composes input, wait, assert, observe, screenshot,
+and performance steps into one bounded trace, so interactive verification does
+not require many primitive calls. `verify_project` runs bounded assertions
+(`node_exists`, `group_count`, `log_contains`) and can capture a screenshot and
+stop the project in one call.
+
+## Hidden surface (44 tools)
+
+Every tool below is callable, but only through `godot_catalog search` +
+`godot_catalog describe` + `godot_call`. Advertise them all up front only with
+`GODOT_MCP_TOOL_SURFACE=full`. Privileged tools are denied by default and
+require the named `GODOT_MCP_PRIVILEGED_GROUPS` grant.
+
+### Input primitives
+
+Reach these via the catalog when you need synthetic player input beyond
+`game_scenario`'s composed steps.
+
+| Tool | Purpose |
+| ------ | ------------- |
+| `game_click` | Click at a position in the running game window |
+| `game_key_press` | Tap a key or input action for one frame (auto-release) |
+| `game_key_hold` | Hold exactly one key or input action until `game_key_release` |
+| `game_key_release` | Release exactly one previously held key or input action |
+| `game_mouse_move` | Move the mouse (absolute or relative) in the running game |
+| `game_mouse_drag` | Drag between two points over N frames |
+| `game_scroll` | Send a mouse scroll wheel event at a position |
+| `game_gamepad` | Send a gamepad button or axis input event |
+| `game_touch` | Simulate touch press/release/drag and gestures |
+| `game_input_action` | Manage runtime InputMap actions and strength |
+| `game_input_state` | Query key, action, mouse, and joypad state or configure the mouse |
+
+### Privileged generics (denied by default)
+
+These are the generic reflection/code-execution tools. Grant
+`GODOT_MCP_PRIVILEGED_GROUPS=reflection` and/or `code-execution` for a trusted
+localhost workflow; they cover the ground that the deleted subsystem wrappers
+used to expose.
+
+| Tool | Privilege | Purpose |
+| ------ | ------------- | ------------- |
+| `game_eval` | `code-execution` | Execute arbitrary GDScript in the running game; `return` yields values |
+| `game_get_property` | `reflection` | Get a property value from any node by path |
+| `game_set_property` | `reflection` | Set a property on a node (auto type conversion) |
+| `game_call_method` | `reflection` | Call a method on any node with optional arguments |
+| `game_script` | `code-execution` | Attach, detach, or get the source of node scripts |
+
+### Node generics
+
+Generic live scene-tree manipulation that does not persist back to `.tscn`
+files.
+
+| Tool | Purpose |
+| ------ | ------------- |
+| `game_spawn_node` | Create a new node of any type at runtime with properties |
+| `game_remove_node` | Remove and free a node from the running scene tree |
+| `game_change_scene` | Switch to a different scene file in the running game |
+| `game_instantiate_scene` | Load a PackedScene and add it as a child of a node |
+| `game_reparent_node` | Move a node to a new parent, optionally keeping the global transform |
+| `game_connect_signal` | Connect a signal from one node to a method on another |
+| `game_disconnect_signal` | Disconnect a signal connection |
+| `game_emit_signal` | Emit a signal on a node, optionally with arguments |
+| `game_get_nodes_in_group` | Get all nodes belonging to a specific group |
+| `game_find_nodes_by_class` | Find all nodes of a class type under a root |
+| `game_list_signals` | List all signals on a node with connections |
+| `game_await_signal` | Await a signal with a timeout and return its arguments |
+| `game_manage_group` | Add/remove a node from a group, or list groups |
+
+### Observation extras
+
+Additional bounded evidence beyond the core observation tools.
+
+| Tool | Purpose |
+| ------ | ------------- |
+| `game_performance` | Sample live metrics or run a bounded profiler session (sample, start, stop, report, stress, leaks) |
+| `game_visual_regression` | Capture a baseline or compare rendered PNGs with tolerances, masks, and retained diffs |
+| `game_wait` | Wait N render or physics frames |
+| `game_get_camera` | Get the active camera position, rotation, and size |
+| `game_get_audio` | Get the audio bus layout and playing streams |
+| `game_os_info` | Get platform, locale, screen, adapter, and memory info |
+
+### Editor
+
+Editor attachment beyond the core session/transaction pair.
+
+| Tool | Purpose |
+| ------ | ------------- |
+| `launch_editor` | Attach to an existing matching editor or launch one when needed |
+| `editor_control` | Inspect editor state and apply reversible property/node-name edits through the editor bridge |
 
 `editor_control` inspects the edited scene and selection, opens/saves/reloads
 scenes, and applies reversible property or node-name edits through
 `EditorUndoRedoManager`. `editor_session ensure` first discovers a normally
 opened matching editor; `launch_editor` uses the same flow and spawns only when
-needed. Its **Agent Activity** dock shows
-each command's target, live outcome, and duration from the same correlated
-lifecycle events used by server diagnostics, including bounded replay after a
-late attach or reconnect. File-backed writes enter an acknowledged per-project
-scan/import queue and reload the affected scene only when it has no unsaved
-human changes. Results distinguish persisted, acknowledged, detached,
-conflicted, timed-out, and failed synchronization. When an
-operation identifies a scene node, the bridge selects and reveals it in the
-editor so the human view follows the agent's current target. The dock's
-**Pause Agent** button gives the human a project-wide lock: subsequent persistent
-and runtime mutations, including dispatched and scenario-contained calls, are
-refused before dispatch. Observation, held-input release, stop, cleanup, and a
-human-initiated **Resume Agent** remain available. The lock defaults to
-agent-driving and does not affect unattended use when no editor is open. Setup,
-uninstall, security, protocol migration, and all session states are documented in the
-[interaction architecture](architecture/editor-interaction.md). When an editor
-session is attached, project.godot mutations (`modify_project_settings`,
-`set_main_scene`, and `manage_input_map` add/remove) are applied through
-`ProjectSettings` inside the editor and saved by the editor itself, so the editor
-never prompts to reload the file from disk; without an attached editor they use
-the declared file-backed fallback.
+needed.
 
-## Project Management
+### Ship and validation
 
-| Tool | Description |
+Project-level tooling for validation, imports, integrity, .NET, add-ons, and
+exports.
+
+| Tool | Purpose |
 | ------ | ------------- |
-| `launch_editor` | Launch Godot editor for a project |
-| `run_project` | Run a Godot project and capture output |
-| `verify_project` | Run, assert bounded runtime evidence, optionally capture, and tear down |
-| `game_wait_until` | Await one bounded runtime condition and return its last observed state |
-| `game_scenario` | Run a bounded input/wait/assert/observe/screenshot/performance sequence |
-| `run_project_tests` | Discover or run native, GUT, and GdUnit4 tests with structured cases and logs |
+| `validate_script` | Check a single GDScript file for syntax/type errors headlessly (single-file companion to core `validate_scripts`) |
 | `manage_import_pipeline` | Inspect/change importer settings, reimport, and query generated dependencies |
-| `analyze_project_integrity` | Analyze resource graphs and preview non-mutating rename impact |
-| `verify_export_readiness` | Validate export prerequisites and return artifact plus smoke-run evidence |
-| `verify_dotnet_project` | Inspect, restore, build, and run against the matching Godot.NET.Sdk |
+| `analyze_project_integrity` | Analyze resource graphs, run static audits, and preview a safe resource rename |
+| `verify_export_readiness` | Validate presets/templates, export, inspect artifacts, and smoke-run builds |
+| `verify_dotnet_project` | Inspect, restore, build, and run against the matching `Godot.NET.Sdk` |
 | `manage_addon` | Inspect/install/update/remove and toggle hash-pinned local EditorPlugins |
-| `stop_project` | Stop the running project |
-| `get_debug_output` | Get console output and errors |
-| `get_godot_version` | Get installed Godot version |
-| `list_projects` | Find Godot projects in a directory |
-| `get_project_info` | Get project metadata (including an `isDotnet` field) |
-
-`run_project` succeeds only after the authenticated runtime bridge is usable by
-the next runtime tool. A watched request attaches to the requested editor or
-deliberately launches one; it returns an actionable failure and cleans owned
-state rather than silently continuing detached.
+| `export_project` | Export a Godot project using a preset (CI/CD ready) |
 
 Import changes require an editor-capable Godot binary. `reimport` runs Godot's
 bounded `--import` workflow and returns diagnostics; it may rewrite `.import`
@@ -99,310 +185,52 @@ changes files.
 Export readiness recognizes the bounded Linux, Windows, macOS, and Web template
 filenames for the active Godot version. Local smoke execution is intentionally
 limited to Linux exports on Linux; other targets are inspected but not claimed
-as locally runnable. Export writes the requested artifact and companion files,
-returns bounded process output and SHA-256 evidence, and classifies missing
-templates, unsupported platforms, invalid output paths, timeouts, export errors,
-missing artifacts, and smoke failures.
+as locally runnable. Add-on installation is deliberately offline and
+provenance-first: `sourcePath` must be an allowed local directory and
+`expectedSha256` must match its authored tree before any write.
 
-The managed workflow requires both a .NET-enabled Godot editor and a 64-bit
-.NET SDK. It verifies that the versioned `Godot.NET.Sdk` in the unique or
-selected `.csproj` matches the active engine, returns bounded structured MSBuild
-diagnostics, and hashes the resulting assembly. Standard Godot builds return a
-controlled `dotnet_editor_required` result and do not attempt restore or build.
+## Removed in the lean surface reduction
 
-Add-on installation is deliberately offline and provenance-first: `sourcePath`
-must be an allowed local directory and `expectedSha256` must match its authored
-tree before any write. Symlinks, oversized trees, malformed `plugin.cfg`,
-non-`@tool` scripts, incompatible minimum Godot versions, and traversal are
-rejected. Replacement is staged atomically, editor reload is mandatory, and a
-parse/load failure restores the prior version and plugin configuration.
+The August 2026 reduction deleted 109 tools whose work file editing plus shell
+already did better. They are gone from the catalog and return an unknown-tool
+error; do not call them.
 
-## Scene Management
-
-| Tool | Description |
-| ------ | ------------- |
-| `create_scene` | Create a new scene with a root node type |
-| `add_node` | Add a node to an existing scene |
-| `load_sprite` | Load a texture into a Sprite2D node |
-| `export_mesh_library` | Export a scene as MeshLibrary |
-| `save_scene` | Save a scene (with optional variant path) |
-| `get_uid` | Get UID for a file (Godot 4.4+) |
-| `update_project_uids` | Resave resources to update UIDs |
-
-## Scene Authoring Operations
-
-These operate directly on `.tscn`/`.tres` files — no running game needed.
-
-| Tool | Description |
-| ------ | ------------- |
-| `read_scene` | Read bounded `compact`, authored-property, or explicit `full` scene detail, with node/property filters |
-| `modify_scene_node` | Modify node properties in a scene file |
-| `remove_scene_node` | Remove a node from a scene file |
-| `attach_script` | Attach a GDScript to a scene node |
-| `create_resource` | Create a .tres resource file (materials, themes, etc.) |
-
-## Project Settings
-
-| Tool | Description |
-| ------ | ------------- |
-| `read_project_settings` | Parse project.godot as JSON |
-| `modify_project_settings` | Change a project setting |
-| `list_project_files` | Paginate/filter project files |
-
-## Runtime Input
-
-| Tool | Description |
-| ------ | ------------- |
-| `game_screenshot` | Capture a screenshot (base64 PNG) |
-| `game_visual_regression` | Capture baselines or compare frames with masks, tolerances, and retained PNG diffs |
-| `game_click` | Click at a position |
-| `game_key_press` | Send a one-frame key or named-action tap; use hold/release for continuous input |
-| `game_mouse_move` | Move the mouse |
-
-## Runtime Inspection
-
-| Tool | Description |
-| ------ | ------------- |
-| `game_get_ui` | Get all visible UI elements |
-| `game_get_scene_tree` | Get a bounded concise scene tree, with explicit full detail when needed |
-| `game_get_node_info` | Detailed node introspection: properties, signals, methods, children |
-
-## Runtime Code Execution
-
-| Tool | Description |
-| ------ | ------------- |
-| `game_eval` | Execute arbitrary GDScript with return values |
-
-`game_eval` supports `await` for async GDScript and works even when the game
-is paused (`PROCESS_MODE_ALWAYS`). It belongs to the `code-execution`
-privileged group and is denied by default; see the security notes in the
-[README](../README.md#runtime-tools-setup).
-
-## Runtime Node Manipulation
-
-| Tool | Description |
-| ------ | ------------- |
-| `game_get_property` | Get any node property |
-| `game_set_property` | Set any node property (auto type conversion) |
-| `game_call_method` | Call any method on a node |
-| `game_instantiate_scene` | Add a PackedScene to the running tree |
-| `game_remove_node` | Remove a node from the tree |
-| `game_change_scene` | Switch to a different scene |
-| `game_reparent_node` | Move a node to a new parent |
-
-Property access uses the node's `get_property_list()` for automatic type
-conversion, supporting Vector2/3, Color, Quaternion, Basis, Transform2D/3D,
-AABB, Rect2, and all packed array types (serialized as proper JSON arrays).
-
-## Runtime Signals
-
-| Tool | Description |
-| ------ | ------------- |
-| `game_connect_signal` | Connect a signal to a method |
-| `game_disconnect_signal` | Disconnect a signal |
-| `game_emit_signal` | Emit a signal with arguments |
-| `game_list_signals` | List all signals on a node with connections |
-| `game_await_signal` | Await a signal with timeout and return args |
-
-## Runtime Animation
-
-| Tool | Description |
-| ------ | ------------- |
-| `game_play_animation` | Control AnimationPlayer (play, stop, pause, list) |
-| `game_tween_property` | Tween a property with configurable easing |
-
-## Runtime Utilities
-
-| Tool | Description |
-| ------ | ------------- |
-| `game_pause` | Pause/unpause the game |
-| `game_performance` | FPS, frame time, memory, object counts, draw calls, bounded profiler sessions, and live orphan-node diagnostics |
-| `game_wait` | Wait N frames (timing-sensitive operations) |
-| `game_get_nodes_in_group` | Query nodes by group |
-| `game_find_nodes_by_class` | Find nodes by class type |
-
-## File I/O
-
-| Tool | Description |
-| ------ | ------------- |
-| `read_file` | Read a text file from a Godot project |
-| `write_file` | Create or overwrite a text file |
-| `delete_file` | Delete a file from a project |
-| `create_directory` | Create a directory inside a project |
-
-## Error & Log Capture
-
-| Tool | Description |
-| ------ | ------------- |
-| `game_get_errors` | Get new push_error/push_warning messages since last call |
-| `game_get_logs` | Get new print output since last call |
-
-## Enhanced Input
-
-| Tool | Description |
-| ------ | ------------- |
-| `game_key_hold` | Hold a key down (no auto-release), e.g. WASD movement testing |
-| `game_key_release` | Release a held key |
-| `game_scroll` | Mouse scroll wheel event |
-| `game_mouse_drag` | Drag between two points over N frames |
-| `game_gamepad` | Gamepad button or axis input |
-| `game_touch` | Simulate touch press/release/drag and gestures |
-| `game_input_state` | Query pressed keys, mouse position, connected pads |
-| `game_input_action` | Manage runtime InputMap actions and strength |
-
-## Project Creation
-
-| Tool | Description |
-| ------ | ------------- |
-| `create_project` | Create a new Godot project (pass `dotnet: true` to scaffold a .NET/C# project with a `.csproj` whose `Godot.NET.Sdk` version matches your installed Godot) |
-| `create_csharp_script` | Create an idiomatic C# script (partial class, correct `_Ready`/`_Process` override signatures, class name kept in sync with the file name) |
-| `manage_autoloads` | Add, remove, or list autoloads |
-| `manage_input_map` | Add, remove, or list input actions and key bindings |
-| `manage_export_presets` | Create or modify export presets |
-
-## Advanced Runtime
-
-| Tool | Description |
-| ------ | ------------- |
-| `game_get_camera` | Get active camera position/rotation/zoom |
-| `game_set_camera` | Move or rotate the active camera |
-| `game_raycast` | Cast a ray and return collision results (auto-detects 2D vs 3D) |
-| `game_get_audio` | Get audio bus layout and playing streams |
-| `game_spawn_node` | Create a new node of any type at runtime with properties |
-| `game_set_shader_param` | Set a shader parameter on a node's material |
-| `game_audio_play` | Play, stop, or pause an AudioStreamPlayer node |
-| `game_audio_bus` | Set volume, mute, or solo on an audio bus |
-| `game_navigate_path` | Query a navigation path between two points (2D/3D) |
-| `game_tilemap` | Get or set cells in a TileMapLayer node |
-| `game_add_collision` | Add a collision shape to a physics body node |
-| `game_environment` | Get or set environment and post-processing settings (fog, glow, SSAO, tonemap, etc.) |
-| `game_manage_group` | Add or remove a node from a group, or list groups |
-| `game_create_timer` | Create a Timer node with configuration |
-| `game_set_particles` | Configure GPUParticles2D/3D properties and process materials |
-| `game_create_animation` | Create animations with value/method/bezier/audio tracks and keyframes |
-| `game_serialize_state` | Save or load entire node tree state as JSON |
-| `game_physics_body` | Configure physics body properties (mass, velocity, damping, friction, bounce) |
-| `game_create_joint` | Create physics joints (pin, spring, hinge, cone, slider) |
-| `game_bone_pose` | Get or set skeleton bone poses for character animation |
-| `game_ui_theme` | Apply color, constant, and font size theme overrides to a Control node |
-| `game_viewport` | Create or configure a SubViewport node |
-| `game_debug_draw` | Draw debug geometry (lines, spheres, boxes) in 3D |
-
-## Build & Export
-
-| Tool | Description |
-| ------ | ------------- |
-| `export_project` | Export a Godot project using a preset (CI/CD ready) |
-| `manage_ci_pipeline` | Create/read GitHub Actions workflow for automated Godot exports |
-| `manage_docker_export` | Create Dockerfile for headless Godot export |
-
-## Networking
-
-| Tool | Description |
-| ------ | ------------- |
-| `game_http_request` | HTTP GET/POST/PUT/DELETE with headers and body |
-| `game_websocket` | WebSocket client connect/disconnect/send messages |
-| `game_multiplayer` | ENet multiplayer create server/client/disconnect |
-| `game_rpc` | Call or configure RPC methods on nodes |
-
-Networking tools belong to the `network` privileged group and are denied by
-default.
-
-## System & Window
-
-| Tool | Description |
-| ------ | ------------- |
-| `game_script` | Attach, detach, or get source of node scripts at runtime |
-| `game_window` | Get/set window size, fullscreen, title, position |
-| `game_os_info` | Get platform, locale, screen, adapter, memory info |
-| `game_time_scale` | Get/set Engine.time_scale and timing info |
-| `game_process_mode` | Set node process mode (pausable/always/disabled) |
-| `game_world_settings` | Get/set gravity, physics FPS, and world settings |
-
-## 3D Rendering & Geometry
-
-| Tool | Description |
-| ------ | ------------- |
-| `game_csg` | Create/configure CSG nodes with boolean operations |
-| `game_multimesh` | Create/configure MultiMeshInstance3D for instancing |
-| `game_procedural_mesh` | Generate meshes via ArrayMesh from vertex data |
-| `game_light_3d` | Create/configure 3D lights (directional/omni/spot) |
-| `game_mesh_instance` | Create MeshInstance3D with primitive meshes |
-| `game_gridmap` | GridMap set/get/clear cells and query used cells |
-| `game_3d_effects` | Create ReflectionProbe, Decal, or FogVolume |
-| `game_gi` | Create/configure VoxelGI or LightmapGI |
-| `game_path_3d` | Create Path3D/Curve3D and manage curve points |
-| `game_sky` | Create/configure Sky with procedural/physical sky |
-| `game_camera_attributes` | Configure DOF, exposure, auto-exposure on camera |
-| `game_navigation_3d` | Create/configure NavigationRegion3D and bake |
-| `game_physics_3d` | Area3D queries and point/shape intersection tests |
-| `game_terrain` | Create/modify terrain meshes from heightmap data |
-
-## 2D Systems
-
-| Tool | Description |
-| ------ | ------------- |
-| `game_canvas` | Create/configure CanvasLayer and CanvasModulate |
-| `game_canvas_draw` | 2D drawing: line/rect/circle/polygon/text/clear |
-| `game_light_2d` | Create/configure 2D lights and light occluders |
-| `game_parallax` | Create/configure ParallaxBackground and layers |
-| `game_shape_2d` | Line2D/Polygon2D point manipulation |
-| `game_path_2d` | Path2D/Curve2D management and AnimatedSprite2D |
-| `game_physics_2d` | Area2D queries and 2D point/shape intersections |
-
-## Advanced Animation
-
-| Tool | Description |
-| ------ | ------------- |
-| `game_animation_tree` | AnimationTree state machine travel and params |
-| `game_animation_control` | AnimationPlayer seek/queue/speed/info control |
-| `game_skeleton_ik` | SkeletonIK3D start/stop/set target position |
-
-## Advanced Audio
-
-| Tool | Description |
-| ------ | ------------- |
-| `game_audio_effect` | Add/remove/configure audio bus effects |
-| `game_audio_bus_layout` | Create/remove/reorder audio buses and routing |
-| `game_audio_spatial` | Configure AudioStreamPlayer3D spatial properties |
-
-## Editor & Project Tools
-
-| Tool | Description |
-| ------ | ------------- |
-| `rename_file` | Rename or move a file within the project |
-| `manage_resource` | Read or modify .tres/.res resource files |
-| `create_script` | Create a GDScript file from a template |
-| `validate_script` | Check a GDScript file for syntax/type errors headlessly, returning `{ valid, errors: [{ message, file, line }] }` |
-| `validate_scripts` | Batch-check GDScript files (git-changed by default, or the whole project) |
-| `manage_scene_signals` | List/add/remove signal connections in .tscn files |
-| `manage_layers` | List/set named layer definitions in project |
-| `manage_plugins` | List/enable/disable editor plugins |
-| `manage_shader` | Create or read .gdshader files |
-| `manage_theme_resource` | Create/read/modify Theme .tres resources |
-| `set_main_scene` | Set the main scene in project.godot |
-| `manage_scene_structure` | Rename/duplicate/move nodes within .tscn scenes |
-| `manage_translations` | List/add/remove translation files in project |
-| `game_locale` | Set/get locale and translate strings at runtime |
-
-## UI Controls
-
-| Tool | Description |
-| ------ | ------------- |
-| `game_ui_control` | Set focus, anchors, tooltip, mouse filter on Control |
-| `game_ui_text` | LineEdit/TextEdit/RichTextLabel text operations |
-| `game_ui_popup` | Show/hide/popup for Popup/Dialog/Window nodes |
-| `game_ui_tree` | Tree control: get/select/collapse/add/remove items |
-| `game_ui_item_list` | ItemList/OptionButton: get/select/add/remove items |
-| `game_ui_tabs` | TabContainer/TabBar: get/set current tab |
-| `game_ui_menu` | PopupMenu/MenuBar: add/remove/get menu items |
-| `game_ui_range` | ProgressBar/Slider/SpinBox/ColorPicker get/set |
-
-## Rendering & Resources
-
-| Tool | Description |
-| ------ | ------------- |
-| `game_render_settings` | Get/set MSAA, FXAA, TAA, scaling mode/scale |
-| `game_resource` | Runtime resource load, save, or preload |
-| `game_visual_shader` | Create and edit VisualShader graphs: add/connect/disconnect nodes |
-| `game_video` | Video playback control: play, pause, stop, seek on VideoStreamPlayer |
+- **File CRUD and project listing** — `read_file`, `write_file`, `delete_file`,
+  `create_directory`, `rename_file`, `list_project_files`, `list_projects`.
+- **Project and script creation** — `create_project`, `create_script`,
+  `create_csharp_script`, `manage_shader`.
+- **Scene-authoring primitives** — `create_scene`, `add_node`, `read_scene`,
+  `modify_scene_node`, `remove_scene_node`, `attach_script`, `save_scene`,
+  `create_resource`, `manage_resource`, `manage_scene_signals`,
+  `manage_scene_structure`, `manage_theme_resource`, `load_sprite`,
+  `export_mesh_library`, `get_uid`, `update_project_uids`.
+- **Project-settings wrappers** — `read_project_settings`,
+  `modify_project_settings`, `manage_input_map`, `set_main_scene`,
+  `manage_autoloads`, `manage_export_presets`, `manage_layers`, `manage_plugins`,
+  `manage_translations`.
+- **CI/export scaffolds** — `manage_ci_pipeline`, `manage_docker_export`.
+- **Deprecated dispatcher** — `godot_tools` (migrate to `godot_catalog` +
+  `godot_call`).
+- **Subsystem runtime wrappers (~70)** — 3D rendering and geometry
+  (`game_csg`, `game_multimesh`, `game_procedural_mesh`, `game_light_3d`,
+  `game_mesh_instance`, `game_gridmap`, `game_3d_effects`, `game_gi`,
+  `game_path_3d`, `game_sky`, `game_camera_attributes`, `game_navigation_3d`,
+  `game_physics_3d`, `game_terrain`); 2D systems (`game_canvas`,
+  `game_canvas_draw`, `game_light_2d`, `game_parallax`, `game_shape_2d`,
+  `game_path_2d`, `game_physics_2d`); animation (`game_play_animation`,
+  `game_tween_property`, `game_create_animation`, `game_bone_pose`,
+  `game_animation_tree`, `game_animation_control`, `game_skeleton_ik`); audio
+  (`game_audio_play`, `game_audio_bus`, `game_audio_effect`,
+  `game_audio_bus_layout`, `game_audio_spatial`); UI controls
+  (`game_ui_theme`, `game_ui_control`, `game_ui_text`, `game_ui_popup`,
+  `game_ui_tree`, `game_ui_item_list`, `game_ui_tabs`, `game_ui_menu`,
+  `game_ui_range`); physics and collision (`game_physics_body`,
+  `game_create_joint`, `game_add_collision`, `game_raycast`,
+  `game_navigate_path`); runtime state and config (`game_pause`,
+  `game_time_scale`, `game_process_mode`, `game_world_settings`, `game_window`,
+  `game_render_settings`, `game_environment`, `game_set_shader_param`,
+  `game_set_particles`, `game_viewport`, `game_debug_draw`,
+  `game_create_timer`, `game_serialize_state`, `game_tilemap`, `game_locale`,
+  `game_set_camera`); networking (`game_http_request`, `game_websocket`,
+  `game_multiplayer`, `game_rpc`); and resources/video (`game_resource`,
+  `game_visual_shader`, `game_video`).

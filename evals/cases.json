@@ -21,7 +21,7 @@
         "builder": "compact-no-skill-discovery",
         "initialState": "Existing movement fixture with no skill exposed."
       },
-      "prompt": "Hold movement until a label changes, release the input, inspect the saved scene separately from runtime state, and leave the project stopped.",
+      "prompt": "Hold movement until a label changes, release the input, read the saved scene file with your host file tools separately from runtime state, and leave the project stopped.",
       "skill": null,
       "allowedMutations": [],
       "forbiddenMutations": ["project/**"],
@@ -29,7 +29,6 @@
       "requiredCapabilities": [
         ["game_key_hold"],
         ["game_key_release", "stop_project"],
-        ["read_scene"],
         ["game_get_ui", "game_get_scene_tree", "game_wait_until"]
       ],
       "order": [
@@ -40,7 +39,7 @@
         {"criterionIndex": 0, "scorer": "trace.hold-not-taps", "evidenceSources": ["mcp-trace"], "criterionType": "objective"},
         {"criterionIndex": 1, "scorer": "trace.canonical-variants", "evidenceSources": ["mcp-trace"], "criterionType": "objective"},
         {"criterionIndex": 2, "scorer": "trace.hidden-tool-discovery", "evidenceSources": ["tool-inventory", "mcp-trace"], "criterionType": "objective"},
-        {"criterionIndex": 3, "scorer": "trace.bounded-read-and-cleanup", "evidenceSources": ["mcp-trace", "cleanup"], "criterionType": "objective"}
+        {"criterionIndex": 3, "scorer": "trace.teardown-and-cleanup", "evidenceSources": ["mcp-trace", "cleanup"], "criterionType": "objective"}
       ],
       "forbiddenVerifiers": [
         {"criterionIndex": 0, "scorer": "forbidden.repeated-taps", "evidenceSources": ["mcp-trace"], "criterionType": "objective"},
@@ -77,7 +76,7 @@
       "validToolGroups": ["editor-session", "project-authoring", "runtime-input", "runtime-observation", "verification", "cleanup"],
       "requiredCapabilities": [
         ["editor_session"],
-        ["create_scene", "editor_transaction"],
+        ["editor_transaction"],
         ["run_project", "verify_project"],
         ["game_key_hold"],
         ["game_key_release", "stop_project"]
@@ -159,16 +158,14 @@
         "surface": "core"
       },
       "fixture": {"builder": "debug-seeded-input-regression", "initialState": "Movement budget regression plus unrelated rendering warning."},
-      "prompt": "Reproduce why continuous movement stops early, isolate one cause, make the smallest repair, and repeat the same test.",
+      "prompt": "Reproduce why continuous movement stops early, isolate one cause, make the smallest host-file repair, and repeat the same test.",
       "skill": "debug-godot-game",
       "allowedMutations": ["project/main.gd"],
       "forbiddenMutations": ["project/** except main.gd", "outside-project/**"],
       "validToolGroups": ["saved-state-read", "runtime-reproduction", "causal-repair", "runtime-retest", "cleanup"],
       "requiredCapabilities": [
-        ["read_file", "read_scene"],
         ["run_project"],
         ["game_key_hold"],
-        ["write_file"],
         ["game_key_release", "stop_project"]
       ],
       "order": [
@@ -215,7 +212,7 @@
       "allowedMutations": [],
       "forbiddenMutations": ["project/**", "outside-project/**"],
       "validToolGroups": ["safe-observation", "pause-refusal", "cleanup"],
-      "requiredCapabilities": [["editor_session"], ["read_file", "read_scene"], ["stop_project", "game_key_release"]],
+      "requiredCapabilities": [["editor_session"], ["stop_project", "game_key_release"]],
       "order": [["safe-observation", "pause-refusal"], ["pause-refusal", "cleanup"]],
       "acceptanceVerifiers": [
         {"criterionIndex": 0, "scorer": "trace.pause-and-safe-teardown", "evidenceSources": ["mcp-trace", "cleanup"], "criterionType": "objective"},
@@ -253,7 +250,7 @@
       "allowedMutations": [],
       "forbiddenMutations": ["project/**", "outside-project/**"],
       "validToolGroups": ["saved-state-read", "runtime-observation", "criterion-report", "cleanup"],
-      "requiredCapabilities": [["read_scene"], ["run_project", "verify_project"], ["stop_project"]],
+      "requiredCapabilities": [["run_project", "verify_project"], ["stop_project"]],
       "order": [["saved-state-read", "runtime-observation"], ["runtime-observation", "criterion-report"]],
       "acceptanceVerifiers": [
         {"criterionIndex": 0, "scorer": "trace.saved-before-runtime", "evidenceSources": ["mcp-trace"], "criterionType": "objective"},
@@ -293,7 +290,7 @@
       "allowedMutations": [],
       "forbiddenMutations": ["project/**", "outside-project/**"],
       "validToolGroups": ["saved-state-read", "runtime-observation", "failure-report", "cleanup"],
-      "requiredCapabilities": [["read_scene"], ["run_project", "verify_project"], ["stop_project"]],
+      "requiredCapabilities": [["run_project", "verify_project"], ["stop_project"]],
       "order": [["saved-state-read", "runtime-observation"], ["runtime-observation", "failure-report"]],
       "acceptanceVerifiers": [
         {"criterionIndex": 0, "scorer": "report.failed-objective-evidence", "evidenceSources": ["final-response", "project-snapshot"], "criterionType": "objective"},
@@ -335,7 +332,7 @@
         ["validate_scripts"],
         ["run_project_tests", "verify_project"],
         ["verify_export_readiness", "export_project"],
-        ["list_project_files", "analyze_project_integrity"]
+        ["analyze_project_integrity"]
       ],
       "order": [
         ["release-matrix", "source-validation"],

@@ -14,13 +14,8 @@ const VariantCodec = preload("res://mcp_runtime/variant_codec.gd")
 const PrivilegedCommandPolicy = preload("res://mcp_runtime/privileged_command_policy.gd")
 const DOMAIN_SCRIPTS: Array[String] = [
 	"res://mcp_runtime/input_domain.gd",
-	"res://mcp_runtime/ui_domain.gd",
-	"res://mcp_runtime/scene_2d_domain.gd",
-	"res://mcp_runtime/physics_domain.gd",
-	"res://mcp_runtime/scene_3d_domain.gd",
 	"res://mcp_runtime/rendering_domain.gd",
 	"res://mcp_runtime/audio_animation_domain.gd",
-	"res://mcp_runtime/networking_domain.gd",
 	"res://mcp_runtime/system_domain.gd",
 	"res://mcp_runtime/core_domain.gd",
 ]
@@ -84,10 +79,9 @@ const INSECURE_ENVIRONMENT_VARIABLE: String = "GODOT_MCP_ALLOW_INSECURE_RUNTIME"
 @export var port: int = DEFAULT_PORT
 const PROTOCOL_VERSION: String = "1.0"
 const CAPABILITIES: Array[String] = ["runtime-commands", "godot-json-values"]
-const AUTHORING_COMMANDS_CAPABILITY: String = "authoring-commands"
 const RENDERING_CONTEXT_CAPABILITY: String = "rendering-context"
 const METHOD_PREFIX: String = "godot.runtime."
-const CANCELLABLE_COMMANDS: Array[String] = ["wait", "await_signal", "resource", "http_request"]
+const CANCELLABLE_COMMANDS: Array[String] = ["wait", "await_signal"]
 const ERROR_LIMIT_EXCEEDED: int = -32006
 const ERROR_PRIVILEGED_COMMAND_DISABLED: int = PrivilegedCommandPolicy.ERROR_CODE
 const ERROR_AUTHENTICATION_REQUIRED: int = -32008
@@ -133,10 +127,6 @@ var _privileged_policy: PrivilegedCommandPolicy
 var _profile_active: bool = false
 var _profile_samples: Array[Dictionary] = []
 const MAX_PROFILE_SAMPLES: int = 10000
-# Set only by godot_operations.gd when it owns the process main loop. Regular
-# injected game runs publish the command names but do not advertise or execute
-# project-file authoring commands.
-var _authoring_dispatcher: Callable = Callable()
 
 func _ready() -> void:
 	# Ensure MCP server keeps processing even when game is paused
@@ -151,9 +141,9 @@ func _ready() -> void:
 			push_warning("McpInteractionServer: No %s configured; unauthenticated sessions are refused. Set the same secret in the MCP server and this process, or set %s=true to restore the legacy insecure mode." % [SECRET_ENVIRONMENT_VARIABLE, INSECURE_ENVIRONMENT_VARIABLE])
 	_register_domains()
 	_register_commands()
-	# A one-shot authoring fallback can run while the real game owns this
-	# project's runtime port. It still needs the autoloads to parse, but must not
-	# start a second transport or emit a misleading bind failure.
+	# Another Godot process may already own this project's runtime port. The
+	# autoloads still need to parse, but the server must not start a second
+	# transport or emit a misleading bind failure.
 	if OS.get_environment(DISABLED_ENVIRONMENT_VARIABLE) == "true":
 		return
 	_server = TCPServer.new()
@@ -460,119 +450,13 @@ func _register_domains() -> void:
 
 
 func _register_commands() -> void:
-	_register_command("authoring_add_node", _cmd_authoring_add_node)
-	_register_command("authoring_attach_script", _cmd_authoring_attach_script)
-	_register_command("authoring_create_resource", _cmd_authoring_create_resource)
-	_register_command("authoring_create_scene", _cmd_authoring_create_scene)
-	_register_command("authoring_export_mesh_library", _cmd_authoring_export_mesh_library)
-	_register_command("authoring_get_uid", _cmd_authoring_get_uid)
-	_register_command("authoring_load_sprite", _cmd_authoring_load_sprite)
-	_register_command("authoring_manage_resource", _cmd_authoring_manage_resource)
-	_register_command("authoring_manage_scene_signals", _cmd_authoring_manage_scene_signals)
-	_register_command("authoring_manage_scene_structure", _cmd_authoring_manage_scene_structure)
-	_register_command("authoring_manage_theme_resource", _cmd_authoring_manage_theme_resource)
-	_register_command("authoring_modify_node", _cmd_authoring_modify_node)
-	_register_command("authoring_read_scene", _cmd_authoring_read_scene)
-	_register_command("authoring_remove_node", _cmd_authoring_remove_node)
-	_register_command("authoring_resave_resources", _cmd_authoring_resave_resources)
-	_register_command("authoring_save_scene", _cmd_authoring_save_scene)
 	_register_command("screenshot", _cmd_screenshot)
 	_register_command("eval", _cmd_eval)
 	_register_command("wait", _cmd_wait)
 	_register_command("get_ui_elements", _cmd_get_ui_elements)
 	_register_command("pause", _cmd_pause)
 	_register_command("get_performance", _cmd_get_performance)
-	_register_command("play_animation", _cmd_play_animation)
-	_register_command("tween_property", _cmd_tween_property)
-	_register_command("create_timer", _cmd_create_timer)
-	_register_command("serialize_state", _cmd_serialize_state)
 	_register_command("script", _cmd_script)
-
-
-func register_authoring_dispatcher(dispatcher: Callable) -> void:
-	_authoring_dispatcher = dispatcher
-
-
-func _dispatch_authoring(operation: String, params: Dictionary) -> void:
-	if not _authoring_dispatcher.is_valid():
-		_send_response({
-			"error": "Authoring commands require the harness-owned operations session",
-			"error_data": {"reason": "authoring_session_required", "operation": operation},
-		})
-		return
-	var raw_result: Variant = _authoring_dispatcher.call(operation, params)
-	if not raw_result is Dictionary:
-		_send_response({
-			"error": "Authoring dispatcher returned an invalid response",
-			"error_data": {"reason": "invalid_authoring_response", "operation": operation},
-		})
-		return
-	var result: Dictionary = raw_result
-	_send_response(result)
-
-
-func _cmd_authoring_add_node(params: Dictionary) -> void:
-	_dispatch_authoring("add_node", params)
-
-
-func _cmd_authoring_attach_script(params: Dictionary) -> void:
-	_dispatch_authoring("attach_script", params)
-
-
-func _cmd_authoring_create_resource(params: Dictionary) -> void:
-	_dispatch_authoring("create_resource", params)
-
-
-func _cmd_authoring_create_scene(params: Dictionary) -> void:
-	_dispatch_authoring("create_scene", params)
-
-
-func _cmd_authoring_export_mesh_library(params: Dictionary) -> void:
-	_dispatch_authoring("export_mesh_library", params)
-
-
-func _cmd_authoring_get_uid(params: Dictionary) -> void:
-	_dispatch_authoring("get_uid", params)
-
-
-func _cmd_authoring_load_sprite(params: Dictionary) -> void:
-	_dispatch_authoring("load_sprite", params)
-
-
-func _cmd_authoring_manage_resource(params: Dictionary) -> void:
-	_dispatch_authoring("manage_resource", params)
-
-
-func _cmd_authoring_manage_scene_signals(params: Dictionary) -> void:
-	_dispatch_authoring("manage_scene_signals", params)
-
-
-func _cmd_authoring_manage_scene_structure(params: Dictionary) -> void:
-	_dispatch_authoring("manage_scene_structure", params)
-
-
-func _cmd_authoring_manage_theme_resource(params: Dictionary) -> void:
-	_dispatch_authoring("manage_theme_resource", params)
-
-
-func _cmd_authoring_modify_node(params: Dictionary) -> void:
-	_dispatch_authoring("modify_node", params)
-
-
-func _cmd_authoring_read_scene(params: Dictionary) -> void:
-	_dispatch_authoring("read_scene", params)
-
-
-func _cmd_authoring_remove_node(params: Dictionary) -> void:
-	_dispatch_authoring("remove_node", params)
-
-
-func _cmd_authoring_resave_resources(params: Dictionary) -> void:
-	_dispatch_authoring("resave_resources", params)
-
-
-func _cmd_authoring_save_scene(params: Dictionary) -> void:
-	_dispatch_authoring("save_scene", params)
 
 
 func _handle_handshake(session: RuntimeSession, req_id: Variant, params: Dictionary) -> void:
@@ -597,8 +481,6 @@ func _handle_handshake(session: RuntimeSession, req_id: Variant, params: Diction
 	var capabilities: Array[String] = _privileged_policy.capabilities(CAPABILITIES, allow_privileged_commands)
 	if _has_rendering_context():
 		capabilities.append(RENDERING_CONTEXT_CAPABILITY)
-	if _authoring_dispatcher.is_valid():
-		capabilities.append(AUTHORING_COMMANDS_CAPABILITY)
 	if not runtime_secret.is_empty():
 		capabilities.append("session-authentication")
 	_send_response_raw(session, {"jsonrpc": "2.0", "id": req_id, "result": {
@@ -1168,198 +1050,6 @@ func _json_to_variant(value: Variant, type_hint: String = "") -> Variant:
 	return _codec.decode(value, type_hint)
 
 
-func _json_to_variant_for_property(node: Node, property: String, value: Variant) -> Variant:
-	_codec.configure(max_json_nesting_depth, max_json_collection_items)
-	return _codec.decode_for_property(node, property, value)
-
-
-# --- Connect Signal ---
-func _cmd_play_animation(params: Dictionary) -> void:
-	var node_path: String = params.get("node_path", "")
-	if node_path.is_empty():
-		_send_response({"error": "node_path is required"})
-		return
-
-	var node: Node = get_tree().root.get_node_or_null(node_path)
-	if node == null:
-		_send_response({"error": "Node not found: %s" % node_path})
-		return
-
-	if not node is AnimationPlayer:
-		_send_response({"error": "Node is not an AnimationPlayer: %s (is %s)" % [node_path, node.get_class()]})
-		return
-
-	var anim_player: AnimationPlayer = node as AnimationPlayer
-	var action: String = params.get("action", "play")
-
-	match action:
-		"play":
-			var animation: String = params.get("animation", "")
-			if animation.is_empty():
-				_send_response({"error": "animation name is required for play action"})
-				return
-			if not anim_player.has_animation(animation):
-				_send_response({"error": "Animation '%s' not found. Available: %s" % [animation, str(anim_player.get_animation_list())]})
-				return
-			anim_player.play(animation)
-			_send_response({"success": true, "action": "play", "animation": animation})
-		"stop":
-			anim_player.stop()
-			_send_response({"success": true, "action": "stop"})
-		"pause":
-			anim_player.pause()
-			_send_response({"success": true, "action": "pause"})
-		"get_list":
-			var anims: Array = []
-			for anim_name in anim_player.get_animation_list():
-				anims.append(str(anim_name))
-			_send_response({"success": true, "animations": anims, "current": anim_player.current_animation, "playing": anim_player.is_playing()})
-		_:
-			_send_response({"error": "Unknown animation action: %s. Use play, stop, pause, or get_list" % action})
-
-
-# --- Tween Property ---
-func _cmd_tween_property(params: Dictionary) -> void:
-	var node_path: String = params.get("node_path", "")
-	var property: String = params.get("property", "")
-	if node_path.is_empty() or property.is_empty():
-		_send_response({"error": "node_path and property are required"})
-		return
-
-	var node: Node = get_tree().root.get_node_or_null(node_path)
-	if node == null:
-		_send_response({"error": "Node not found: %s" % node_path})
-		return
-
-	var final_value: Variant = _json_to_variant_for_property(node, property, params.get("final_value", null))
-	var duration: float = CommandParams.to_float(params.get("duration"), 1.0)
-	var trans_type: int = CommandParams.to_int(params.get("trans_type"), 0)  # Tween.TRANS_LINEAR
-	var ease_type: int = CommandParams.to_int(params.get("ease_type"), 2)  # Tween.EASE_IN_OUT
-
-	var tween: Tween = create_tween()
-	var tweener: PropertyTweener = tween.tween_property(node, property, final_value, duration)
-	if tweener == null:
-		tween.kill()
-		_send_response({"error": "tween_property failed: value type does not match property '%s' on %s" % [property, node.get_class()]})
-		return
-	@warning_ignore("return_value_discarded")
-	tweener.set_trans(trans_type).set_ease(ease_type)
-	_send_response({"success": true, "node": node_path, "property": property, "duration": duration})
-
-
-# --- Get Nodes In Group ---
-
-
-func _cmd_create_timer(params: Dictionary) -> void:
-	var parent_path: String = params.get("parent_path", "/root")
-	var wait_time: float = CommandParams.to_float(params.get("wait_time"), 1.0)
-	var one_shot: bool = params.get("one_shot", false)
-	var autostart: bool = params.get("autostart", false)
-
-	var parent: Node = get_tree().root.get_node_or_null(parent_path)
-	if parent == null:
-		_send_response({"error": "Parent node not found: %s" % parent_path})
-		return
-
-	var timer: Timer = Timer.new()
-	timer.wait_time = wait_time
-	timer.one_shot = one_shot
-	timer.autostart = autostart
-	var timer_name: String = CommandParams.json_string(params, "name")
-	if not timer_name.is_empty():
-		timer.name = timer_name
-	parent.add_child(timer)
-	if autostart:
-		timer.start()
-	_send_response({"success": true, "path": str(timer.get_path()), "name": timer.name, "wait_time": timer.wait_time, "one_shot": timer.one_shot, "autostart": autostart})
-
-
-# --- Set Particles ---
-func _cmd_serialize_state(params: Dictionary) -> void:
-	var node_path: String = params.get("node_path", "/root")
-	var action: String = params.get("action", "save")
-	var max_depth: int = CommandParams.to_int(params.get("max_depth"), 5)
-
-	var node: Node = get_tree().root.get_node_or_null(node_path)
-	if node == null:
-		_send_response({"error": "Node not found: %s" % node_path})
-		return
-
-	match action:
-		"save":
-			var state: Dictionary = _serialize_node(node, max_depth, 0)
-			_send_response({"success": true, "action": "save", "state": state})
-		"load":
-			var data: Dictionary = params.get("data", {})
-			if data.is_empty():
-				_send_response({"error": "data is required for load action"})
-				return
-			var count: int = _deserialize_node(node, data)
-			_send_response({"success": true, "action": "load", "restored_count": count})
-		_:
-			_send_response({"error": "Unknown serialize action: %s. Use save or load" % action})
-
-
-func _serialize_node(node: Node, max_depth: int, depth: int) -> Dictionary:
-	var result: Dictionary = {
-		"class": node.get_class(),
-		"name": node.name,
-		"path": str(node.get_path()),
-	}
-	# Capture editor-visible properties
-	var props: Dictionary = {}
-	for prop in node.get_property_list():
-		var prop_dict: Dictionary = prop
-		if prop_dict.get("usage", 0) & PROPERTY_USAGE_STORAGE:
-			var prop_name: String = prop_dict.get("name", "")
-			if prop_name.is_empty() or prop_name.begins_with("_"):
-				continue
-			props[prop_name] = _variant_to_json(node.get(prop_name))
-	result["properties"] = props
-
-	if depth < max_depth:
-		var children: Array = []
-		for child in node.get_children():
-			# Skip the MCP interaction server itself
-			if child == self:
-				continue
-			children.append(_serialize_node(child, max_depth, depth + 1))
-		result["children"] = children
-
-	return result
-
-
-func _deserialize_node(node: Node, data: Dictionary) -> int:
-	var count: int = 0
-	# Restore properties
-	var props: Dictionary = CommandParams.json_dictionary(data, "properties")
-	for prop_name: Variant in props:
-		var property: String = str(prop_name)
-		var value: Variant = _json_to_variant_for_property(node, property, props[prop_name])
-		node.set(property, value)
-	count += 1
-
-	# Restore children
-	var children_data: Array = CommandParams.json_array(data, "children")
-	for child_data: Variant in children_data:
-		if not child_data is Dictionary:
-			continue
-		var child_state: Dictionary = child_data
-		var child_name: String = CommandParams.json_string(child_state, "name")
-		var child: Node = null
-		for c: Node in node.get_children():
-			if c.name == child_name:
-				child = c
-				break
-		if child != null:
-			count += _deserialize_node(child, child_state)
-	return count
-
-
-# --- Bone Pose ---
-
-
-
 func _cmd_script(params: Dictionary) -> void:
 	var node_path: String = params.get("node_path", "")
 	var node: Node = get_tree().root.get_node_or_null(node_path)
@@ -1399,20 +1089,9 @@ func _cmd_script(params: Dictionary) -> void:
 			_send_response({"error": "Unknown script action: %s" % action})
 
 
-
 # ==========================================================================
 # Batch 2: 3D Rendering + Lighting + Sky + Physics
 # ==========================================================================
-
-
-
-
-
-
-
-
-
-
 
 
 func _exit_tree() -> void:

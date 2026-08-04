@@ -21,7 +21,9 @@ describe('shared adapter MCP smoke path', () => {
       expect(listed.tools).toHaveLength(advertisedToolDefinitions('core').length);
       expect(listed.tools.map(tool => tool.name)).toContain('godot_catalog');
       expect(listed.tools.map(tool => tool.name)).toContain('godot_call');
-      expect(listed.tools.map(tool => tool.name)).not.toContain('godot_tools');
+      // Representative hidden tools stay out of the advertised core surface.
+      expect(listed.tools.map(tool => tool.name)).not.toContain('export_project');
+      expect(listed.tools.map(tool => tool.name)).not.toContain('game_eval');
       expect(listed.tools.map(tool => tool.name)).not.toContain('game_light_3d');
 
       const version = await server.call('get_godot_version');
@@ -29,27 +31,30 @@ describe('shared adapter MCP smoke path', () => {
       expect(version.text).toMatch(/4\.[0-9]+/);
 
       const hidden = await server.call('godot_catalog', {
-        action: 'search', query: 'light 3d', domain: 'game',
+        action: 'search', query: 'visual regression', domain: 'game',
       });
       expect(hidden.isError, hidden.text).toBe(false);
       expect(JSON.parse(hidden.text).results).toEqual(expect.arrayContaining([
-        expect.objectContaining({ name: 'game_light_3d' }),
+        expect.objectContaining({ name: 'game_visual_regression' }),
       ]));
 
       for (const detail of ['summary', 'schema', 'full'] as const) {
         const described = await server.call('godot_catalog', {
-          action: 'describe', toolName: 'list_project_files', detail,
+          action: 'describe', toolName: 'analyze_project_integrity', detail,
         });
         expect(described.isError, described.text).toBe(false);
-        expect(JSON.parse(described.text)).toMatchObject({ name: 'list_project_files' });
+        expect(JSON.parse(described.text)).toMatchObject({ name: 'analyze_project_integrity' });
       }
 
       const delegated = await server.call('godot_call', {
-        toolName: 'list_project_files',
-        arguments: { projectPath: server.projectPath },
+        toolName: 'analyze_project_integrity',
+        arguments: { projectPath: server.projectPath, action: 'analyze' },
       });
       expect(delegated.isError, delegated.text).toBe(false);
-      expect(delegated.text).toContain('project.godot');
+      expect(delegated.text).toContain('main.tscn');
+      expect(JSON.parse(delegated.text)).toMatchObject({
+        main_scene_structure: { configured: true, scene_path: 'main.tscn' },
+      });
     },
   );
 
@@ -57,7 +62,7 @@ describe('shared adapter MCP smoke path', () => {
     server = await startServer({ toolSurface: 'core' });
     const filters = [
       ...(['lifecycle', 'project', 'game'] as const).map(domain => ({ domain })),
-      ...(['process', 'subprocess', 'authoring-session', 'runtime', 'runtime-buffer', 'godot-cli', 'local'] as const)
+      ...(['process', 'subprocess', 'runtime', 'runtime-buffer', 'godot-cli', 'local'] as const)
         .map(backend => ({ backend })),
       ...(['read-only', 'project-persistent', 'runtime-ephemeral', 'process', 'external-open-world'] as const)
         .map(effect => ({ effect })),
@@ -94,7 +99,8 @@ describe('shared adapter MCP smoke path', () => {
       expect(tools.size).toBe(expectedCount);
       expect(tools.has('godot_catalog')).toBe(true);
       expect(tools.has('godot_call')).toBe(true);
-      expect(tools.has('godot_tools')).toBe(false);
+      expect(tools.has('export_project')).toBe(false);
+      expect(tools.has('game_eval')).toBe(false);
       expect(tools.has('game_light_3d')).toBe(false);
       expect(tools.get('get_godot_version').label).toBe('Get Godot Version');
 
@@ -102,11 +108,11 @@ describe('shared adapter MCP smoke path', () => {
       expect(version.content.map((entry: { text?: string }) => entry.text ?? '').join('\n')).toMatch(/4\.[0-9]+/);
 
       const hidden = await tools.get('godot_catalog').execute('pi-discovery', {
-        action: 'search', query: 'light 3d', domain: 'game',
+        action: 'search', query: 'visual regression', domain: 'game',
       }, undefined);
       const payload = JSON.parse(hidden.content[0].text);
       expect(payload.results).toEqual(expect.arrayContaining([
-        expect.objectContaining({ name: 'game_light_3d' }),
+        expect.objectContaining({ name: 'game_visual_regression' }),
       ]));
     } finally {
       await handlers.get('session_shutdown')?.({});

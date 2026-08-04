@@ -1,7 +1,7 @@
 # Tool disclosure compatibility decision
 
-Updated for the split catalog/call migration. Current counts and byte/token sizes
-are generated in [`coverage/tool-surface.json`](coverage/tool-surface.json).
+Updated for the lean surface reduction. Current counts and byte/token sizes are
+generated in [`coverage/tool-surface.json`](coverage/tool-surface.json).
 
 ## What clients can be trusted to do
 
@@ -24,8 +24,8 @@ context.
 
 ## Decision
 
-The default is a reviewed static `core` surface. It advertises two separate
-identities:
+The default is a reviewed static `core` surface of 20 tools (~32,787 bytes /
+~8,197 estimated tokens). It advertises two separate identities:
 
 - `godot_catalog` is read-only and performs ranked `search` and `describe`;
 - `godot_call` conservatively represents mutation/destruction risk and executes
@@ -33,14 +33,16 @@ identities:
 
 This uses only the universally available tools primitive and keeps required
 discovery functional when a client ignores resources and dynamic-list
-notifications. `GODOT_MCP_TOOL_SURFACE=full` advertises the complete static
-catalog for clients with native tool search or exact legacy requirements.
+notifications. `GODOT_MCP_TOOL_SURFACE=full` advertises the complete 64-tool
+static catalog (430,774 bytes / ~107,694 estimated tokens) for clients with
+native tool search or exact legacy requirements. The advertised core is 92.39%
+smaller than the full surface.
 
 `core` is the canonical surface name. `compact` remains an accepted alias during
 the 1.x line, and unknown surface values are rejected. The combined
-`godot_tools search|describe|call` interface remains callable as a deprecated 1.x
-compatibility alias for older clients, but new prompts and shipped skills use the
-split identities. See [the migration guide](tool-surface-migration.md).
+`godot_tools search|describe|call` dispatcher was removed in the lean surface
+reduction, so every hidden tool is reached through the split `godot_catalog` +
+`godot_call` identities. See [the migration guide](tool-surface-migration.md).
 
 Dynamic list changes are not needed because the visible set never changes during
 a connection. Resources may later carry long reference material, but no required

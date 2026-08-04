@@ -142,14 +142,15 @@ describe('persistent editor discovery through the complete MCP path', () => {
       const eventIds = replayedActivity.map(event => event.event_id).filter(Number.isInteger);
       expect(new Set(eventIds).size).toBe(eventIds.length);
 
+      // External script edits land directly on disk (Node fs; the MCP file
+      // tools are gone). The bridge stays fully functional after the write.
       const script = `${readFileSync(join(project.projectPath, 'main.gd'), 'utf8')}\n# externally synchronized\n`;
-      const fallback = await second.call('write_file', {
-        projectPath: project.projectPath, filePath: 'main.gd', content: script,
+      writeFileSync(join(project.projectPath, 'main.gd'), script);
+      expect(readFileSync(join(project.projectPath, 'main.gd'), 'utf8')).toContain('# externally synchronized');
+      const bridgeAfterWrite = await second.call('editor_control', {
+        projectPath: project.projectPath, action: 'inspect',
       });
-      expect(fallback.isError, fallback.text).toBe(false);
-      expect((fallback.raw as { structuredContent?: unknown }).structuredContent).toMatchObject({
-        meta: { backend: 'file-backed', synchronization: 'acknowledged' },
-      });
+      expect(bridgeAfterWrite.isError, bridgeAfterWrite.text).toBe(false);
 
       const opened = await second.call('editor_control', {
         projectPath: project.projectPath, action: 'open_scene', scenePath: 'main.tscn',
@@ -159,19 +160,13 @@ describe('persistent editor discovery through the complete MCP path', () => {
         projectPath: project.projectPath, action: 'set_property', nodePath: '.', property: 'name', value: 'UnsavedHumanState',
       });
       expect(dirty.isError, dirty.text).toBe(false);
+
+      // An external disk write lands while the editor holds unsaved changes to
+      // the open scene. The editor's in-memory state must survive the external
+      // change: the unsaved human edit wins over the disk write.
       const diskScene = readFileSync(join(project.projectPath, 'main.tscn'), 'utf8');
-      const conflict = await second.call('write_file', {
-        projectPath: project.projectPath, filePath: 'main.tscn', content: diskScene,
-      });
-      expect(conflict.isError, conflict.text).toBe(false);
-      expect((conflict.raw as { structuredContent?: unknown }).structuredContent).toMatchObject({
-        meta: {
-          synchronization: 'conflict',
-          synchronizationEvidence: {
-            fallback_reason: expect.stringMatching(/unsaved human changes/i),
-          },
-        },
-      });
+      writeFileSync(join(project.projectPath, 'main.tscn'), diskScene);
+      expect(readFileSync(join(project.projectPath, 'main.tscn'), 'utf8')).not.toContain('UnsavedHumanState');
       const inspected = await second.call('editor_control', {
         projectPath: project.projectPath, action: 'inspect',
       });

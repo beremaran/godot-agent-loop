@@ -1,5 +1,8 @@
 # Agent Context, Discoverability, and Usage Optimization Plan
 
+> **Status:** partially superseded — the surface was reduced to 20 advertised /
+> 64 total tools in August 2026; figures below describe the pre-reduction state.
+>
 > **Status:** proposed  
 > **Baseline:** 2026-07-26, 173 catalog tools, 42 default `core` tools  
 > **Objective:** Reduce the context and correction cost of Godot Agent Loop
@@ -85,6 +88,8 @@ The program is complete when all of these conditions hold:
   15,500-estimated-token hard limits. A stretch goal of 50,000 bytes and 12,500
   estimated tokens may be adopted only if cold-model validity and selection
   metrics do not regress.
+  *Moot — the adopted core is 20 tools at 32,787 bytes / ~8,197 estimated
+  tokens, well under both limits.*
 - [ ] Actual tokenizer measurements are published for the primary supported
   model families alongside the deterministic estimate.
 - [ ] Unit, contract, Godot, E2E, adapter, package, and external cold-model
@@ -259,6 +264,7 @@ they hand-compose long primitive sequences.
 - [ ] Review the 42-tool core for semantically overlapping tools. Move a tool
   behind catalog discovery only when cold-model evidence shows that doing so
   improves selection without damaging the complete build loop.
+  *Moot — the August 2026 reduction removed 109 tools and left a 20-tool core.*
 - [ ] Do not merge tools across different effect scopes or authorization
   boundaries.
 
@@ -335,6 +341,9 @@ aggressively cutting useful input schemas.
 
 ## Phase 5: Revisit the core budget using evidence
 
+*Moot in its original form — the evidence-based core reduction ran ahead of
+this plan: the core is now 20 advertised tools (see the status banner).*
+
 Only optimize core membership after discovery, schema correctness, and response
 volume have stable measurements.
 
@@ -349,6 +358,7 @@ volume have stable measurements.
   1. the current 42-tool core;
   2. a smaller workflow-first core;
   3. the current membership with tighter schema serialization.
+  *Moot — candidate 2 was adopted in August 2026 as the 20-tool core.*
 - [ ] Run the same no-skill and skill-backed scenario set against every
   candidate with fresh model runs.
 - [ ] Choose the smallest candidate that preserves task success, search recall,

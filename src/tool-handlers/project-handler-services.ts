@@ -1,9 +1,9 @@
 import { dirname, extname, isAbsolute, join, relative, resolve } from 'path';
-import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from 'fs';
+import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'fs';
 import { createHash, randomUUID } from 'crypto';
 import { homedir } from 'os';
 
-import { createErrorResponse, errorMessage, normalizeParameters, validatePath, type OperationParams, type ToolArguments, type ToolResponse, PathSecurity } from '../utils.js';
+import { createErrorResponse, errorMessage, normalizeParameters, validatePath, type ToolArguments, type ToolResponse, PathSecurity } from '../utils.js';
 import type { ProjectSupport } from '../project-support.js';
 import type { GodotExecutableService } from '../godot-executable.js';
 import type { HeadlessOperationService } from '../headless-operation-service.js';
@@ -52,132 +52,6 @@ function validProject(context: ProjectHandlerServiceContext, projectPath: unknow
   return typeof projectPath === 'string'
     && context.pathSecurity.isProjectPathAllowed(projectPath)
     && existsSync(projectFile(projectPath));
-}
-
-/** Owns project-relative file operations and their security checks. */
-export class ProjectFileIOService {
-  constructor(private readonly context: ProjectHandlerServiceContext) {}
-
-  async read(args: ToolArguments): Promise<ToolResponse> {
-    args = normalizeParameters(args || {});
-    if (!args.projectPath || !args.filePath) return createErrorResponse('projectPath and filePath are required.');
-    if (!validProject(this.context, args.projectPath) || !validatePath(args.filePath)) return createErrorResponse('Invalid path.');
-    try {
-      const fullPath = projectRelativePath(this.context, args.projectPath, args.filePath);
-      if (!existsSync(fullPath)) return createErrorResponse(`File does not exist: ${args.filePath}`);
-      return { content: [{ type: 'text', text: readFileSync(fullPath, 'utf8') }] };
-    } catch (error: unknown) { return createErrorResponse(`Failed to read file: ${errorMessage(error)}`); }
-  }
-
-  async write(args: ToolArguments): Promise<ToolResponse> {
-    args = normalizeParameters(args || {});
-    if (!args.projectPath || !args.filePath || args.content === undefined) return createErrorResponse('projectPath, filePath, and content are required.');
-    if (!validProject(this.context, args.projectPath) || !validatePath(args.filePath)) return createErrorResponse('Invalid path.');
-    try {
-      const fullPath = projectRelativePath(this.context, args.projectPath, args.filePath);
-      mkdirSync(dirname(fullPath), { recursive: true });
-      writeFileSync(fullPath, args.content, 'utf8');
-      return { content: [{ type: 'text', text: `File written: ${args.filePath}` }] };
-    } catch (error: unknown) { return createErrorResponse(`Failed to write file: ${errorMessage(error)}`); }
-  }
-
-  async delete(args: ToolArguments): Promise<ToolResponse> {
-    args = normalizeParameters(args || {});
-    if (!args.projectPath || !args.filePath) return createErrorResponse('projectPath and filePath are required.');
-    if (!validProject(this.context, args.projectPath) || !validatePath(args.filePath)) return createErrorResponse('Invalid path.');
-    try {
-      const fullPath = projectRelativePath(this.context, args.projectPath, args.filePath);
-      if (!existsSync(fullPath)) return createErrorResponse(`File does not exist: ${args.filePath}`);
-      unlinkSync(fullPath);
-      return { content: [{ type: 'text', text: `File deleted: ${args.filePath}` }] };
-    } catch (error: unknown) { return createErrorResponse(`Failed to delete file: ${errorMessage(error)}`); }
-  }
-
-  async createDirectory(args: ToolArguments): Promise<ToolResponse> {
-    args = normalizeParameters(args || {});
-    if (!args.projectPath || !args.directoryPath) return createErrorResponse('projectPath and directoryPath are required.');
-    if (!validProject(this.context, args.projectPath) || !validatePath(args.directoryPath)) return createErrorResponse('Invalid path.');
-    try {
-      mkdirSync(projectRelativePath(this.context, args.projectPath, args.directoryPath), { recursive: true });
-      return { content: [{ type: 'text', text: `Directory created: ${args.directoryPath}` }] };
-    } catch (error: unknown) { return createErrorResponse(`Failed to create directory: ${errorMessage(error)}`); }
-  }
-
-  async rename(args: ToolArguments): Promise<ToolResponse> {
-    args = normalizeParameters(args || {});
-    if (!args.projectPath || !args.filePath || !args.newPath) return createErrorResponse('projectPath, filePath, and newPath are required.');
-    if (!validProject(this.context, args.projectPath) || !validatePath(args.filePath) || !validatePath(args.newPath)) return createErrorResponse('Invalid path.');
-    try {
-      const source = projectRelativePath(this.context, args.projectPath, args.filePath);
-      if (!existsSync(source)) return createErrorResponse(`File not found: ${args.filePath}`);
-      const destination = projectRelativePath(this.context, args.projectPath, args.newPath);
-      mkdirSync(dirname(destination), { recursive: true });
-      renameSync(source, destination);
-      return { content: [{ type: 'text', text: `Renamed ${args.filePath} → ${args.newPath}` }] };
-    } catch (error: unknown) { return createErrorResponse(`rename_file failed: ${errorMessage(error)}`); }
-  }
-}
-
-/** Owns direct reads and writes to project.godot settings. */
-export class ProjectConfigurationService {
-  constructor(private readonly context: ProjectHandlerServiceContext) {}
-
-  async read(args: ToolArguments): Promise<ToolResponse> {
-    args = normalizeParameters(args || {});
-    if (!args.projectPath) return createErrorResponse('projectPath is required.');
-    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath, true)) return createErrorResponse('Invalid path.');
-    if (!existsSync(args.projectPath)) return createErrorResponse(`Project directory does not exist: ${args.projectPath}. Use create_project first.`);
-    if (!existsSync(projectFile(args.projectPath))) return createErrorResponse(`Not a valid Godot project: ${args.projectPath}. Use create_project first.`);
-    try {
-      const sections: Record<string, Record<string, string>> = {};
-      let currentSection = '';
-      for (const line of readFileSync(projectFile(args.projectPath), 'utf8').split('\n')) {
-        const trimmed = line.trim();
-        if (!trimmed || trimmed.startsWith(';')) continue;
-        const section = /^\[(.+)\]$/.exec(trimmed);
-        if (section) { currentSection = section[1]; sections[currentSection] ??= {}; continue; }
-        const setting = /^([^=]+)=(.*)$/.exec(trimmed);
-        if (setting && currentSection) sections[currentSection][setting[1].trim()] = setting[2].trim();
-      }
-      return { content: [{ type: 'text', text: JSON.stringify(sections, null, 2) }] };
-    } catch (error: unknown) { return createErrorResponse(`Failed to read project settings: ${errorMessage(error)}`); }
-  }
-
-  async modify(args: ToolArguments): Promise<ToolResponse> {
-    args = normalizeParameters(args || {});
-    if (!args.projectPath || !args.section || !args.key || args.value === undefined) return createErrorResponse('projectPath, section, key, and value are required.');
-    if (!this.context.pathSecurity.isProjectPathAllowed(args.projectPath, true)) return createErrorResponse('Invalid path.');
-    if (!existsSync(args.projectPath)) return createErrorResponse(`Project directory does not exist: ${args.projectPath}. Use create_project first.`);
-    if (!existsSync(projectFile(args.projectPath))) return createErrorResponse(`Not a valid Godot project: ${args.projectPath}. Use create_project first.`);
-    try {
-      let content = readFileSync(projectFile(args.projectPath), 'utf8');
-      const header = `[${args.section}]`;
-      const serializedValue = serializeProjectSettingValue(args.value);
-      const setting = `${args.key}=${serializedValue}`;
-      const index = content.indexOf(header);
-      if (index === -1) content += `\n\n${header}\n\n${setting}\n`;
-      else {
-        const end = content.indexOf('\n[', index + header.length);
-        const section = content.slice(index, end === -1 ? undefined : end);
-        const keyPattern = new RegExp(`^${args.key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*=.*$`, 'm');
-        const updated = keyPattern.test(section) ? section.replace(keyPattern, setting) : `${section}\n${setting}`;
-        content = content.slice(0, index) + updated + (end === -1 ? '' : content.slice(end));
-      }
-      writeFileSync(projectFile(args.projectPath), content, 'utf8');
-      return { content: [{ type: 'text', text: `Setting updated: [${args.section}] ${args.key}=${serializedValue}` }] };
-    } catch (error: unknown) { return createErrorResponse(`Failed to modify project settings: ${errorMessage(error)}`); }
-  }
-}
-
-/** Convert common JSON values to valid project.godot Variant text. */
-export function serializeProjectSettingValue(value: unknown): string {
-  if (typeof value === 'boolean' || typeof value === 'number') return JSON.stringify(value);
-  if (typeof value !== 'string') throw new Error('value must be a string, number, or boolean');
-  const trimmed = value.trim();
-  if (!trimmed) return '""';
-  if (/^(?:true|false|null|[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)$/.test(trimmed)) return trimmed;
-  if (/^(?:[A-Za-z_][A-Za-z0-9_]*\s*\(|[[{"&^])/.test(trimmed)) return trimmed;
-  return JSON.stringify(value);
 }
 
 /** Owns GDScript validation and keeps batch limits in one place. */
@@ -1463,17 +1337,5 @@ export class AddonManagementService {
 
   private response(value: Record<string, unknown>): ToolResponse {
     return { content: [{ type: 'text', text: JSON.stringify(value, null, 2) }] };
-  }
-}
-
-/** Owns the common headless scene-operation delegation. */
-export class SceneOperationService {
-  constructor(private readonly context: ProjectHandlerServiceContext) {}
-
-  async run(operation: string, args: ToolArguments, params: OperationParams): Promise<ToolResponse> {
-    args = normalizeParameters(args || {});
-    if (!args.projectPath) return createErrorResponse('projectPath is required.');
-    if (!validProject(this.context, args.projectPath)) return createErrorResponse('Invalid path.');
-    return this.context.operations.run(operation, args.projectPath, params);
   }
 }

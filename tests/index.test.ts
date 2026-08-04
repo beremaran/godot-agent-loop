@@ -379,16 +379,7 @@ describe('GodotServer class tests', () => {
       // The editor bridge is exercised by the full-path lifecycle suite; this
       // generic unit sweep only has a mocked runtime socket.
       if (genericSweepExclusions.has(tool.name)) continue;
-      if (tool.name === 'create_project') {
-        mockExistsSyncImpl = (path: string) => {
-          if (typeof path === 'string' && path.endsWith('project.godot')) {
-            return false;
-          }
-          return true;
-        };
-      } else {
-        mockExistsSyncImpl = (_path: string) => true;
-      }
+      mockExistsSyncImpl = (_path: string) => true;
 
       // Re-assign mocked active process and socket before every tool call because some tools like stop_project reset it
       (server as any).activeProcess = {
@@ -691,16 +682,11 @@ describe('GodotServer class tests', () => {
     const callTool = handlers.get(CallToolRequestSchema);
 
     const actionTools = [
-      { name: 'manage_autoloads', actions: ['list', 'add', 'remove'], args: { name: 'MyAutoload', path: 'res://autoload.gd' } },
-      { name: 'manage_input_map', actions: ['list', 'add', 'remove'], args: { actionName: 'ui_accept', action_name: 'ui_accept', key: 'Space' } },
-      { name: 'manage_export_presets', actions: ['list', 'add', 'remove'], args: { presetName: 'Linux', preset_name: 'Linux', name: 'Linux', platform: 'Linux', exportPath: 'build/', export_path: 'build/' } },
-      { name: 'manage_layers', actions: ['list', 'set'], args: { layerType: 'physics_2d', layer_type: 'physics_2d', layer: 1, name: 'Player' } },
-      { name: 'manage_plugins', actions: ['list', 'enable', 'disable'], args: { pluginName: 'my_plugin', plugin_name: 'my_plugin' } },
-      { name: 'manage_resource', actions: ['read', 'create'], args: { resourcePath: 'res://icon.png', resource_path: 'res://icon.png', resourceType: 'Texture2D', resource_type: 'Texture2D' } },
-      { name: 'manage_scene_signals', actions: ['list', 'add', 'remove'], args: { scenePath: 'res://main.tscn', scene_path: 'res://main.tscn', nodePath: 'Player', node_path: 'Player', signalName: 'clicked', signal_name: 'clicked', targetNodePath: 'Game', target_node_path: 'Game', method: 'on_clicked' } },
-      { name: 'manage_theme_resource', actions: ['read', 'create'], args: { resourcePath: 'res://main.theme', resource_path: 'res://main.theme', itemType: 'Color', item_type: 'Color', itemName: 'bg', item_name: 'bg', itemValue: '#ffffff', item_value: '#ffffff' } },
-      { name: 'manage_scene_structure', actions: ['read', 'create'], args: { scenePath: 'res://main.tscn', scene_path: 'res://main.tscn', nodePath: 'Player', node_path: 'Player', properties: {} } },
-      { name: 'manage_translations', actions: ['list', 'add', 'remove'], args: { locale: 'en', translationPath: 'res://en.translation', translation_path: 'res://en.translation' } },
+      { name: 'manage_addon', actions: ['inspect', 'install', 'update', 'remove', 'enable', 'disable'], args: { pluginName: 'my_plugin', plugin_name: 'my_plugin', sourcePath: '/tmp/opencode/plugin', source_path: '/tmp/opencode/plugin', expectedSha256: '0'.repeat(64), expected_sha256: '0'.repeat(64) } },
+      { name: 'manage_import_pipeline', actions: ['inspect', 'change', 'reimport', 'dependencies'], args: { sourcePath: 'res://icon.png', source_path: 'res://icon.png', settings: { importer: 'texture' } } },
+      { name: 'verify_dotnet_project', actions: ['inspect', 'restore', 'build', 'run'], args: { csprojPath: 'Game.csproj', csproj_path: 'Game.csproj', configuration: 'Debug', expectedOutput: 'pass' } },
+      { name: 'verify_export_readiness', actions: ['inspect', 'export_smoke'], args: { presetName: 'Linux', preset_name: 'Linux', outputPath: 'build/game', output_path: 'build/game', debug: false } },
+      { name: 'analyze_project_integrity', actions: ['analyze', 'preview_rename', 'assets', 'localization', 'accessibility', 'extensions', 'leaks'], args: { sourcePath: 'res://main.tscn', source_path: 'res://main.tscn', destinationPath: 'res://other.tscn', destination_path: 'res://other.tscn' } },
     ];
 
     for (const tool of actionTools) {
@@ -754,11 +740,19 @@ describe('GodotServer class tests', () => {
       },
     });
 
-    // create_script variations
+    // validate_script variations
     await callTool({
       params: {
-        name: 'create_script',
-        arguments: { projectPath: '/fake/project', scriptPath: 'enemy.gd', extends: 'CharacterBody2D' }
+        name: 'validate_script',
+        arguments: { projectPath: '/fake/project', scriptPath: 'player.gd' }
+      }
+    });
+
+    // run_project_tests discover edge (project test discovery path)
+    await callTool({
+      params: {
+        name: 'run_project_tests',
+        arguments: { projectPath: '/fake/project', action: 'discover' }
       }
     });
   });
