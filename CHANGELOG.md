@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-08-04
+
 ### BREAKING
 
 - **Lean tool-surface reduction.** The catalog shrinks from 173 tools to 64:
@@ -220,7 +222,8 @@ identity. Full release notes: [`docs/releases/1.0.0.md`](docs/releases/1.0.0.md)
 - Runtime connections are authenticated with a per-session secret; transports
   bind to loopback and retained logs are bounded and redacted.
 
-[Unreleased]: https://github.com/beremaran/godot-agent-loop/compare/v1.1.6...HEAD
+[Unreleased]: https://github.com/beremaran/godot-agent-loop/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/beremaran/godot-agent-loop/compare/v1.1.6...v2.0.0
 [1.1.6]: https://github.com/beremaran/godot-agent-loop/compare/v1.1.5...v1.1.6
 [1.1.5]: https://github.com/beremaran/godot-agent-loop/compare/v1.1.4...v1.1.5
 [1.1.4]: https://github.com/beremaran/godot-agent-loop/compare/v1.1.3...v1.1.4

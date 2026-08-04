@@ -1,6 +1,6 @@
 {
   "name": "@beremaran/godot-agent-loop",
-  "version": "1.2.0",
+  "version": "2.0.0",
   "description": "Lean MCP feedback loop for Godot 4 — run, observe, interact, verify",
   "keywords": [
     "godot",
