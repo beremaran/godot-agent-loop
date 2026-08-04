@@ -5,7 +5,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [3.0.0] - 2026-08-04
+
+### BREAKING
+
+- **Advertised core tools removed.** The `core` surface drops from 19 to 16
+  tools and the full catalog from 61 to 56. Clients must switch:
+  `get_godot_version` and `get_project_info` → `run_project` metadata or
+  `analyze_project_integrity`/host file reads; `validate_scripts` →
+  `run_project_tests` with `scriptPaths`; `get_debug_output` →
+  `game_get_logs`/`game_get_errors`; `export_project` →
+  `verify_export_readiness`; signal introspection is now folded into
+  `game_get_node_info` at `detail=full`; `launch_editor` → `editor_session`
+  ensure; `validate_script` → `run_project_tests`.
 
 ### Removed
 
@@ -260,7 +272,7 @@ identity. Full release notes: [`docs/releases/1.0.0.md`](docs/releases/1.0.0.md)
 - Runtime connections are authenticated with a per-session secret; transports
   bind to loopback and retained logs are bounded and redacted.
 
-[Unreleased]: https://github.com/beremaran/godot-agent-loop/compare/v2.0.0...HEAD
+[3.0.0]: https://github.com/beremaran/godot-agent-loop/compare/v2.0.0...v3.0.0
 [2.0.0]: https://github.com/beremaran/godot-agent-loop/compare/v1.1.6...v2.0.0
 [1.1.6]: https://github.com/beremaran/godot-agent-loop/compare/v1.1.5...v1.1.6
 [1.1.5]: https://github.com/beremaran/godot-agent-loop/compare/v1.1.4...v1.1.5
