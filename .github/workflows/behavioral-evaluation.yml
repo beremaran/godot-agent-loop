@@ -68,7 +68,7 @@ jobs:
           echo "GODOT_BIN=$HOME/.local/bin/godot" >> "$GITHUB_ENV"
 
       - name: Install pinned uv toolchain
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           enable-cache: true
           cache-dependency-glob: evals/inspect/uv.lock
