@@ -102,7 +102,7 @@ the supported boundary. Never add MCP autoloads, addons, or bridge files.
    pass only projectPath/action=discover plus optional framework/test paths; use
    run-only fields only with action=run. Mark each unobserved path as unproved,
    even if the code seems to implement it.
-9. Inspect `get_debug_output` and `game_get_errors`, release held input, call
+9. Inspect `game_get_logs` and `game_get_errors`, release held input, call
    `stop_project`, and remove only identified MCP-owned probes or transient
    files. For watched work, leave the editor available to the human and use
    `editor_session` with projectPath/action=disconnect to hand off the agent

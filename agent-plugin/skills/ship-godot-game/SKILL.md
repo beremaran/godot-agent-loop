@@ -58,7 +58,7 @@ toolchain, or target device into a passing claim. Support begins at Godot 4.7.
    movement with a `game_key_hold` step inside one scenario paired with a
    bounded wait and release; do not hand-assemble repeated `game_key_press`
    taps. Never leave input held across separate MCP calls or while reasoning.
-5. Inspect `game_get_errors`, `get_debug_output`, warnings, metric availability,
+5. Inspect `game_get_errors`, `game_get_logs`, warnings, metric availability,
    leaks, and teardown; call `stop_project` before artifact production.
 6. For each authorized target, run `verify_export_readiness` before export.
    Keep unavailable or signing-dependent targets blocked instead of weakening

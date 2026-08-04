@@ -67,16 +67,16 @@ builds, and unbounded engine control are not claimed. Details in the
 
 ## Highlights
 
-- **A lean task-oriented core** — the default surface advertises 20 tools that
+- **A lean task-oriented core** — the default surface advertises 19 tools that
   cover the whole loop: catalog and dispatch (`godot_catalog`, `godot_call`),
   project facts (`get_project_info`, `get_godot_version`), lifecycle
-  (`run_project`, `stop_project`, `get_debug_output`), the editor session and
+  (`run_project`, `stop_project`), the editor session and
   compound scene transactions (`editor_session`, `editor_transaction`),
   observation (`game_screenshot`, `game_get_scene_tree`, `game_get_ui`,
   `game_get_node_info`, `game_get_errors`, `game_get_logs`), structured
   interaction and waiting (`game_scenario`, `game_wait_until`), and independent
   verification (`validate_scripts`, `run_project_tests`, `verify_project`).
-- **Everything else is one search away** — 44 more tools remain callable through
+- **Everything else is one search away** — 42 more tools remain callable through
   `godot_catalog` + `godot_call`: input primitives (mouse, keyboard, key-hold,
   drag, scroll, touch, gamepad), runtime reflection (privileged, opt-in),
   node and signal generics, observation extras (performance, visual regression,
@@ -317,10 +317,10 @@ the event name, runtime component, numeric session ID, and timestamp.
 | `GODOT_PATH` | Path to the Godot executable (overrides auto-detection) |
 | `DEBUG` | Set to `"true"` for detailed server-side logging. This also runs the headless operations script with `--debug-godot`, which logs diagnostics and writes a temporary write-access probe file into the project (removed again on every branch). Parameter values are summarized by type and size in both logs, never printed. |
 | `GODOT_MCP_ALLOWED_DIRS` | Optional. Restrict `run_project` to projects under these roots (`;`, `,`, or `:` separated). When unset and no MCP client roots are provided, filesystem access is denied unless `GODOT_MCP_ALLOW_UNRESTRICTED` is set. |
-| `GODOT_MCP_HEADLESS` | Optional, default `false`. Set to `true` (or `1`) to run `run_project` and `launch_editor` with Godot's `--headless` flag so no window opens. Rendering-dependent operations such as screenshots fail fast with a headed-display remediation; intended for CI and headless workstations. The E2E suite honors it too: `GODOT_MCP_HEADLESS=1 npm run test:e2e` skips its pixel assertions, which stay covered by the virtual-display renderer jobs. |
+| `GODOT_MCP_HEADLESS` | Optional, default `false`. Set to `true` (or `1`) to run `run_project` with Godot's `--headless` flag so no window opens. Rendering-dependent operations such as screenshots fail fast with a headed-display remediation; intended for CI and headless workstations. The E2E suite honors it too: `GODOT_MCP_HEADLESS=1 npm run test:e2e` skips its pixel assertions, which stay covered by the virtual-display renderer jobs. |
 | `GODOT_MCP_RUNTIME_SECRET` | Optional explicit shared runtime secret. The MCP server generates a fresh 256-bit value when omitted and passes it only to Godot processes it launches. Set the same value manually only when connecting to a separately launched runtime. |
 | `GODOT_MCP_EDITOR_START_PAUSED` | Optional, default `false`. Start the editor addon's cooperative lock in human-editing mode so mutating MCP tools are refused until **Resume Agent** is pressed. |
-| `GODOT_MCP_TOOL_SURFACE` | Optional, default `core`. `compact` is a compatibility alias for `core`; `full` advertises the complete 64-tool static catalog. Unknown values are rejected. Use `godot_catalog` plus `godot_call` for hidden tools. |
+| `GODOT_MCP_TOOL_SURFACE` | Optional, default `core`. `compact` is a compatibility alias for `core`; `full` advertises the complete 61-tool static catalog. Unknown values are rejected. Use `godot_catalog` plus `godot_call` for hidden tools. |
 | `GODOT_MCP_LEGACY_JSON_TEXT` | Optional, default `true`. Set to `false` for clients that read MCP `structuredContent` to omit the extra compatibility JSON text block and reduce repeated output. Bundled adapters set this to `false`. |
 | `GODOT_MCP_PRIVILEGED_GROUPS` | Optional comma-separated least-privilege grants: `reflection` and/or `code-execution`. All are denied by default. |
 | `GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS` | Optional, default `false`. Explicitly enable runtime `eval`, arbitrary property/method access, and script control for a trusted localhost developer workflow. |

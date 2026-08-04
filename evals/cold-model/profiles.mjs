@@ -132,20 +132,20 @@ export const profiles = {
     fixture: () => undefined,
     skill: 'build-godot-game',
     catalogTargets: ['analyze_project_integrity'],
-    relevantTools: ['editor_session', 'editor_transaction', 'validate_scripts', 'run_project', 'game_key_hold', 'game_key_release', 'game_get_ui', 'game_get_scene_tree', 'game_wait_until', 'game_scenario', 'verify_project', 'get_debug_output', 'game_get_errors', 'stop_project', 'godot_catalog', 'godot_call'],
+    relevantTools: ['editor_session', 'editor_transaction', 'validate_scripts', 'run_project', 'game_key_hold', 'game_key_release', 'game_get_ui', 'game_get_scene_tree', 'game_wait_until', 'game_scenario', 'verify_project', 'game_get_logs', 'game_get_errors', 'stop_project', 'godot_catalog', 'godot_call'],
   },
   'build-watched-editor-unavailable': {
     fixture: () => undefined,
     skill: 'build-godot-game',
     unavailableEditor: true,
     catalogTargets: [],
-    relevantTools: ['editor_session', 'launch_editor'],
+    relevantTools: ['editor_session'],
   },
   'debug-seeded-input-regression': {
     fixture: projectPath => seedMovement(projectPath, { name: 'Seeded Input Regression', regression: true, warning: true, context: '# Reproduction\n\nHolding `move_right` for half a second should move Player past x = 70 and change Status to `COMPLETE`; it currently stops early.\n' }),
     skill: 'debug-godot-game',
     catalogTargets: [],
-    relevantTools: ['run_project', 'game_key_hold', 'game_wait_until', 'game_get_ui', 'game_get_node_info', 'game_get_errors', 'get_debug_output', 'game_key_release', 'stop_project', 'validate_scripts', 'verify_project'],
+    relevantTools: ['run_project', 'game_key_hold', 'game_wait_until', 'game_get_ui', 'game_get_node_info', 'game_get_errors', 'game_get_logs', 'game_key_release', 'stop_project', 'validate_scripts', 'verify_project'],
   },
   'debug-paused-before-repair': {
     fixture: projectPath => {
@@ -160,19 +160,19 @@ export const profiles = {
     fixture: projectPath => seedVerify(projectPath),
     skill: 'verify-godot-change',
     catalogTargets: ['analyze_project_integrity'],
-    relevantTools: ['validate_scripts', 'get_project_info', 'verify_project', 'run_project', 'game_get_ui', 'game_get_errors', 'get_debug_output', 'stop_project', 'godot_catalog', 'godot_call'],
+    relevantTools: ['validate_scripts', 'get_project_info', 'verify_project', 'run_project', 'game_get_ui', 'game_get_errors', 'game_get_logs', 'stop_project', 'godot_catalog', 'godot_call'],
   },
   'verify-failed-criterion-no-fix': {
     fixture: projectPath => seedVerify(projectPath, { failedOnly: true }),
     skill: 'verify-godot-change',
     catalogTargets: [],
-    relevantTools: ['validate_scripts', 'get_project_info', 'verify_project', 'run_project', 'game_get_ui', 'game_get_errors', 'get_debug_output', 'stop_project'],
+    relevantTools: ['validate_scripts', 'get_project_info', 'verify_project', 'run_project', 'game_get_ui', 'game_get_errors', 'game_get_logs', 'stop_project'],
   },
   'ship-available-and-blocked-targets': {
     fixture: projectPath => seedShip(projectPath),
     skill: 'ship-godot-game',
     catalogTargets: ['analyze_project_integrity', 'verify_export_readiness', 'export_project'],
-    relevantTools: ['get_project_info', 'validate_scripts', 'run_project_tests', 'verify_project', 'game_get_errors', 'get_debug_output', 'stop_project', 'godot_catalog', 'godot_call'],
+    relevantTools: ['get_project_info', 'validate_scripts', 'run_project_tests', 'verify_project', 'game_get_errors', 'game_get_logs', 'stop_project', 'godot_catalog', 'godot_call'],
   },
   'ship-repair-not-authorized': {
     fixture: projectPath => seedShip(projectPath, { edge: true }),

@@ -154,10 +154,10 @@ describe('composeToolHandlerRegistries', () => {
   const handler = vi.fn(async () => ({ content: [] }));
 
   it('rejects handlers registered by more than one domain', () => {
-    const registry: ToolHandlerRegistry = { launch_editor: handler };
+    const registry: ToolHandlerRegistry = { editor_session: handler };
 
     expect(() => composeToolHandlerRegistries(registry, registry))
-      .toThrow('Tool handler is registered more than once: launch_editor');
+      .toThrow('Tool handler is registered more than once: editor_session');
   });
 
   it('rejects handlers without a corresponding tool definition', () => {

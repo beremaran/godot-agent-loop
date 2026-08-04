@@ -30,7 +30,6 @@ import {
 } from '../execution-context.js';
 import type { EditorPluginInstallation } from '../editor-plugin-installer.js';
 import { canonicalProjectPath, type PublicEditorSession } from '../editor-session-registry.js';
-import { createBoundedObservationResponse } from '../observation-result.js';
 import { PRIVILEGED_RUNTIME_CAPABILITY, privilegedGroupCapability } from '../runtime-protocol.js';
 import type { StructuredToolError } from '../tool-results.js';
 
@@ -168,10 +167,6 @@ export class LifecycleToolHandlers {
     }
   }
 
-  public async handleLaunchEditor(args: ToolArguments) {
-    return this.ensureEditor(normalizeParameters(args), true);
-  }
-
   public async handleEditorSession(args: ToolArguments): Promise<ToolResponse> {
     args = normalizeParameters(args || {});
     if (!args.projectPath || !['ensure', 'status', 'disconnect'].includes(args.action)) {
@@ -304,7 +299,7 @@ export class LifecycleToolHandlers {
       if (args[key] !== undefined) params[key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`)] = args[key];
     }
     try {
-      if (!this.context.sendEditorCommand) return createErrorResponse('Editor bridge is not configured. Launch the editor through launch_editor first.');
+      if (!this.context.sendEditorCommand) return createErrorResponse('Editor bridge is not configured. Ensure an editor session through editor_session action=ensure first.');
       const result = await this.context.sendEditorCommand(
         args.projectPath, args.action, params, 15_000, currentExecutionContext()?.signal,
       );
@@ -496,7 +491,7 @@ export class LifecycleToolHandlers {
         interaction_port: this.context.getInteractionPort(),
         timing_policy: timingPolicy(mode),
         handshake,
-        message: 'Godot project started in debug mode; use get_debug_output for process output.',
+        message: 'Godot project started in debug mode; use game_get_logs and game_get_errors for process output.',
       }, null, 2) }] };
     } catch (error: unknown) {
       const cleanup: Record<string, unknown> = { attempted: installationOwned };
@@ -904,26 +899,6 @@ export class LifecycleToolHandlers {
       return { ...assertion, passed: output.includes(assertion.text) };
     }
     return { ...assertion, passed: false, error: `Unknown assertion kind: ${String(assertion.kind)}` };
-  }
-
-  public async handleGetDebugOutput() {
-    const activeProcess = this.context.getActiveProcess();
-    if (!activeProcess) return createErrorResponse('No active Godot process.');
-    const outputDropped = activeProcess.outputDropped ?? 0;
-    const errorsDropped = activeProcess.errorsDropped ?? 0;
-    return createBoundedObservationResponse(
-      { output: activeProcess.output, errors: activeProcess.errors, outputDropped, errorsDropped },
-      {
-        preferredArrayKeys: ['output', 'errors'],
-        returnedCount: payload => ['output', 'errors'].reduce(
-          (count, key) => count + (Array.isArray(payload[key]) ? payload[key].length : 0),
-          0,
-        ),
-        sourceTruncated: () => outputDropped > 0 || errorsDropped > 0,
-        refinement: 'Use cursor-based game_get_logs and game_get_errors for smaller incremental pages.',
-        continuation: 'Call game_get_logs and game_get_errors to read retained output through their independent cursors.',
-      },
-    );
   }
 
   public async handleStopProject() {

@@ -30,7 +30,7 @@
         "direct": [
           "godot_catalog", "godot_call", "get_godot_version", "get_project_info",
           "editor_session", "editor_transaction", "validate_scripts",
-          "run_project", "stop_project", "get_debug_output",
+          "run_project", "stop_project",
           "game_get_scene_tree", "game_get_ui", "game_get_node_info",
           "game_screenshot", "game_get_errors", "game_get_logs",
           "game_scenario", "game_wait_until", "verify_project", "run_project_tests"
@@ -51,8 +51,7 @@
       "toolContract": {
         "direct": [
           "godot_catalog", "godot_call", "get_project_info", "editor_session",
-          "validate_scripts", "run_project", "stop_project", "get_debug_output",
-          "game_get_scene_tree", "game_get_ui", "game_get_node_info",
+          "validate_scripts",           "game_get_scene_tree", "game_get_ui", "game_get_node_info",
           "game_screenshot", "game_get_errors", "game_get_logs",
           "game_scenario", "game_wait_until", "verify_project", "run_project_tests"
         ],
@@ -73,7 +72,7 @@
         "direct": [
           "godot_catalog", "godot_call", "get_project_info", "editor_session",
           "validate_scripts", "run_project_tests", "verify_project",
-          "run_project", "stop_project", "get_debug_output",
+          "run_project", "stop_project",
           "game_scenario", "game_wait_until", "game_get_errors", "game_get_logs"
         ],
         "hidden": [
@@ -96,7 +95,7 @@
         "direct": [
           "godot_catalog", "godot_call", "editor_session", "validate_scripts",
           "verify_project", "run_project_tests", "run_project", "stop_project",
-          "get_debug_output", "game_get_scene_tree", "game_get_ui",
+          "game_get_scene_tree", "game_get_ui",
           "game_get_node_info", "game_screenshot", "game_get_errors",
           "game_scenario", "game_wait_until"
         ],

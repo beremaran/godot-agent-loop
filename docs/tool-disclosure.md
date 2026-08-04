@@ -24,8 +24,8 @@ context.
 
 ## Decision
 
-The default is a reviewed static `core` surface of 20 tools (~32,787 bytes /
-~8,197 estimated tokens). It advertises two separate identities:
+The default is a reviewed static `core` surface of 19 tools (~32,054 bytes /
+~8,014 estimated tokens). It advertises two separate identities:
 
 - `godot_catalog` is read-only and performs ranked `search` and `describe`;
 - `godot_call` conservatively represents mutation/destruction risk and executes
@@ -33,9 +33,9 @@ The default is a reviewed static `core` surface of 20 tools (~32,787 bytes /
 
 This uses only the universally available tools primitive and keeps required
 discovery functional when a client ignores resources and dynamic-list
-notifications. `GODOT_MCP_TOOL_SURFACE=full` advertises the complete 64-tool
-static catalog (430,774 bytes / ~107,694 estimated tokens) for clients with
-native tool search or exact legacy requirements. The advertised core is 92.39%
+notifications. `GODOT_MCP_TOOL_SURFACE=full` advertises the complete 61-tool
+static catalog (415,177 bytes / ~103,795 estimated tokens) for clients with
+native tool search or exact legacy requirements. The advertised core is 92.28%
 smaller than the full surface.
 
 `core` is the canonical surface name. `compact` remains an accepted alias during

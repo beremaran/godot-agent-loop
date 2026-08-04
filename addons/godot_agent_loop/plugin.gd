@@ -275,7 +275,7 @@ func _create_activity_dock() -> void:
 	setup_help.name = "SetupHelp"
 	setup_help.fit_content = true
 	setup_help.custom_minimum_size = Vector2(320, 96)
-	setup_help.text = "Install and enable this addon once for interactive projects.\nOpen Godot normally before or after the MCP; this dock waits for the matching authenticated agent.\nUse launch_editor only when no editor is already open."
+	setup_help.text = "Install and enable this addon once for interactive projects.\nOpen Godot normally before or after the MCP; this dock waits for the matching authenticated agent.\nUse editor_session ensure (launchIfNeeded) only when no editor is already open."
 	_activity_dock.add_child(setup_help)
 	add_control_to_dock(DOCK_SLOT_RIGHT_BL, _activity_dock)
 

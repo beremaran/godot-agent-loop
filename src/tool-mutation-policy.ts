@@ -9,7 +9,6 @@ import type { ToolArguments } from './utils.js';
  */
 export const READ_ONLY_TOOLS: ReadonlySet<ToolName> = new Set([
   'godot_catalog',
-  'get_debug_output',
   'get_godot_version',
   'get_project_info',
   'game_screenshot',
@@ -25,7 +24,6 @@ export const READ_ONLY_TOOLS: ReadonlySet<ToolName> = new Set([
   'game_get_audio',
   'game_list_signals',
   'game_os_info',
-  'validate_script',
   'validate_scripts',
 ]);
 
@@ -86,7 +84,7 @@ export function isToolCallAllowedWhilePaused(name: string, args: ToolArguments):
   // not an agent-authored project/runtime mutation. It must remain possible
   // after a paused editor exits so the same paused state can be observed and
   // resumed by the human UI.
-  if (name === 'launch_editor' || (name === 'editor_session' && args.action === 'ensure')) return true;
+  if (name === 'editor_session' && args.action === 'ensure') return true;
   if (name === 'stop_project' || name === 'game_key_release') return true;
   if (name === 'game_key_press' && args.pressed === false) return true;
   if (name === 'game_touch' && (args.action === 'release' || args.pressed === false)) return true;

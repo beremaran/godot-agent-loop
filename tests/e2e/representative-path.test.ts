@@ -372,7 +372,7 @@ describe('lifecycle and runtime path', () => {
     expect(stillConnected.isError, stillConnected.text).toBe(false);
 
     // Debug output crossed the process boundary.
-    const debug = await server.call('get_debug_output');
+    const debug = await server.call('game_get_logs', { maxItems: 1000 });
     expect(debug.isError, debug.text).toBe(false);
     expect(debug.text).toContain('McpInteractionServer: Listening on 127.0.0.1:' + String(server.runtimePort));
 
@@ -480,8 +480,8 @@ describe('recovery and multi-project isolation', () => {
     );
     expect(waitStart?.correlation_id).toMatch(/^mcp_\d+$/);
 
-    const debug = await server.call('get_debug_output');
-    const processOutput = (JSON.parse(debug.text) as { output: string[] }).output;
+    const debug = await server.call('game_get_logs', { maxItems: 1000 });
+    const processOutput = (JSON.parse(debug.text) as { logs: string[] }).logs;
     const runtimeRecords = processOutput.map(parseRecord).filter(record => record !== null);
     expect(runtimeRecords).toContainEqual(expect.objectContaining({
       component: 'godot-agent-loop-runtime', event: 'request_started',
@@ -506,10 +506,10 @@ describe('recovery and multi-project isolation', () => {
     expect((await server.call('run_project', { projectPath: server.projectPath })).isError).toBe(false);
     await server.waitForGameConnection();
 
-    const output = await server.call('get_debug_output');
+    const output = await server.call('game_get_logs', { maxItems: 1000 });
     expect(output.isError, output.text).toBe(false);
-    const debug = JSON.parse(output.text) as { output: string[] };
-    const audit = debug.output
+    const debug = JSON.parse(output.text) as { logs: string[] };
+    const audit = debug.logs
       .map(line => { try { return JSON.parse(line) as Record<string, unknown>; } catch { return null; } })
       .find(record => record?.event === 'authentication_succeeded');
     expect(audit).toMatchObject({

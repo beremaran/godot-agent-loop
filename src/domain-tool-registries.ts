@@ -60,7 +60,6 @@ export function createLifecycleToolRegistry(
   return {
       'godot_catalog': args => handlers.handleGodotCatalog(args),
       'godot_call': args => handlers.handleGodotCall(args),
-      'launch_editor': args => handlers.handleLaunchEditor(args),
       'editor_session': args => handlers.handleEditorSession(args),
       'editor_control': args => handlers.handleEditorControl(args),
       'editor_transaction': args => handlers.handleEditorTransaction(args),
@@ -68,7 +67,6 @@ export function createLifecycleToolRegistry(
       'verify_project': args => handlers.handleVerifyProject(args),
       'game_wait_until': args => handlers.handleGameWaitUntil(args),
       'game_scenario': args => handlers.handleGameScenario(args),
-      'get_debug_output': () => handlers.handleGetDebugOutput(),
       'stop_project': () => handlers.handleStopProject(),
       'get_godot_version': () => handlers.handleGetGodotVersion(),
   };
@@ -80,7 +78,6 @@ export function createProjectToolRegistry(
   return {
       'get_project_info': args => handlers.handleGetProjectInfo(args),
       'run_project_tests': args => handlers.handleRunProjectTests(args),
-      'validate_script': args => handlers.handleValidateScript(args),
       'validate_scripts': args => handlers.handleValidateScripts(args),
       'analyze_project_integrity': args => handlers.handleAnalyzeProjectIntegrity(args),
       'export_project': args => handlers.handleExportProject(args),

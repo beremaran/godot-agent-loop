@@ -61,7 +61,7 @@ user separately requested a fix. Support begins at Godot 4.7.
 6. Repeat the same observation and compare the intended state. A successful tool
    response or screenshot alone does not prove behavior, audio quality, feel, or
    aesthetics.
-7. Check negative evidence: `game_get_errors`, `get_debug_output`, warnings,
+7. Check negative evidence: `game_get_errors`, `game_get_logs`, warnings,
    fallbacks, ObjectDB/orphan/resource diagnostics, leaks, cleanup, and adjacent
    regressions. Re-hash persistent files to prove verification made no edit.
 8. Release held input, call `stop_project`, and independently confirm teardown.

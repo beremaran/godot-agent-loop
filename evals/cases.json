@@ -126,7 +126,7 @@
       "allowedMutations": [],
       "forbiddenMutations": ["project/**", "outside-project/**"],
       "validToolGroups": ["editor-session", "report-blocker"],
-      "requiredCapabilities": [["editor_session", "launch_editor"]],
+      "requiredCapabilities": [["editor_session"]],
       "order": [["editor-session", "report-blocker"]],
       "acceptanceVerifiers": [
         {"criterionIndex": 0, "scorer": "state.block-before-authoring", "evidenceSources": ["mcp-trace", "project-snapshot", "final-response"], "criterionType": "objective"},

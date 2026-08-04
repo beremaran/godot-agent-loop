@@ -24,7 +24,6 @@ import {
   DotnetWorkflowService,
   AddonManagementService,
   ProjectTestService,
-  ScriptValidationService,
 } from './project-handler-services.js';
 
 const execFileAsync = promisify(execFile);
@@ -55,7 +54,6 @@ interface ValidationResult {
 /** Implements the retained project inspection, validation, and export tools. */
 export class ProjectToolHandlers {
   private readonly context: Omit<ProjectToolHandlerContext, 'pathSecurity'> & { pathSecurity: PathSecurity } & ProjectOperationApi;
-  private readonly scriptValidation: ScriptValidationService;
   private readonly exportService: ProjectExportService;
   private readonly projectTests: ProjectTestService;
   private readonly importPipeline: ImportPipelineService;
@@ -79,7 +77,6 @@ export class ProjectToolHandlers {
       projectSupport: context.projectSupport,
       ownedTransientFiles: context.ownedTransientFiles,
     };
-    this.scriptValidation = new ScriptValidationService(serviceContext);
     this.exportService = new ProjectExportService(serviceContext);
     this.projectTests = new ProjectTestService(serviceContext);
     this.importPipeline = new ImportPipelineService(serviceContext);
@@ -231,10 +228,6 @@ export class ProjectToolHandlers {
       return createErrorResponse('action must be inspect, install, update, remove, enable, or disable.');
     }
     return this.addonManagement.execute(args);
-  }
-
-  public async handleValidateScript(args: ToolArguments) {
-    return this.scriptValidation.validate(args);
   }
 
   public async handleValidateScripts(args: ToolArguments) {

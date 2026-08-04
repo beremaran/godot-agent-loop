@@ -42,37 +42,10 @@ function projectFile(projectPath: string): string {
   return join(projectPath, 'project.godot');
 }
 
-function projectRelativePath(context: ProjectHandlerServiceContext, projectPath: string, relativePath: string): string {
-  const resolved = context.pathSecurity.resolveProjectPath(projectPath, relativePath);
-  if (!resolved) throw new Error(`Path is outside the project: ${relativePath}`);
-  return resolved;
-}
-
 function validProject(context: ProjectHandlerServiceContext, projectPath: unknown): projectPath is string {
   return typeof projectPath === 'string'
     && context.pathSecurity.isProjectPathAllowed(projectPath)
     && existsSync(projectFile(projectPath));
-}
-
-/** Owns GDScript validation and keeps batch limits in one place. */
-export class ScriptValidationService {
-  constructor(private readonly context: ProjectHandlerServiceContext) {}
-
-  async validate(args: ToolArguments): Promise<ToolResponse> {
-    args = normalizeParameters(args || {});
-    if (!args.projectPath || !args.scriptPath) return createErrorResponse('projectPath and scriptPath are required.');
-    if (!validProject(this.context, args.projectPath) || !validatePath(args.scriptPath)) return createErrorResponse('Invalid path.');
-    if (!/\.gd$/i.test(args.scriptPath)) return createErrorResponse('validate_script only checks GDScript (.gd) files.');
-    const projectPath = this.context.pathSecurity.canonicalProjectPath(args.projectPath);
-    if (!projectPath) return createErrorResponse('Invalid path.');
-    const scriptPath = projectRelativePath(this.context, projectPath, args.scriptPath);
-    if (!existsSync(scriptPath)) return createErrorResponse(`Script does not exist: ${args.scriptPath}`);
-    if (!this.context.executable.path) await this.context.executable.detect();
-    if (!this.context.executable.path) return createErrorResponse('Could not find a valid Godot executable path');
-    const check = await this.context.projectSupport.runGdScriptCheck(projectPath, scriptPath);
-    if (!check.completed) return createErrorResponse(`validate_script could not check the script; ${check.error}`);
-    return { content: [{ type: 'text', text: JSON.stringify({ valid: check.errors.length === 0, scriptPath: args.scriptPath, errorCount: check.errors.length, errors: check.errors }, null, 2) }] };
-  }
 }
 
 /** Owns invocation of Godot's export command. */

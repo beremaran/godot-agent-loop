@@ -54,13 +54,6 @@ export const toolManifest: Record<ToolName, ToolManifestEntry> = {
     actions: null,
     privileged: false,
   },
-  launch_editor: {
-    domain: 'lifecycle',
-    handler: 'handleLaunchEditor',
-    backend: { kind: 'process' },
-    actions: null,
-    privileged: false,
-  },
   editor_session: {
     domain: 'lifecycle',
     handler: 'handleEditorSession',
@@ -150,13 +143,6 @@ export const toolManifest: Record<ToolName, ToolManifestEntry> = {
     handler: 'handleManageAddon',
     backend: { kind: 'godot-cli' },
     actions: ['inspect', 'install', 'update', 'remove', 'enable', 'disable'],
-    privileged: false,
-  },
-  get_debug_output: {
-    domain: 'lifecycle',
-    handler: 'handleGetDebugOutput',
-    backend: { kind: 'process' },
-    actions: null,
     privileged: false,
   },
   stop_project: {
@@ -474,13 +460,6 @@ export const toolManifest: Record<ToolName, ToolManifestEntry> = {
     domain: 'game',
     handler: 'handleGameOsInfo',
     backend: { kind: 'runtime', command: 'os_info' },
-    actions: null,
-    privileged: false,
-  },
-  validate_script: {
-    domain: 'project',
-    handler: 'handleValidateScript',
-    backend: { kind: 'godot-cli' },
     actions: null,
     privileged: false,
   },

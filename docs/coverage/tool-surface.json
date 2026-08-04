@@ -10,26 +10,26 @@
     "coreReductionPercentMin": 92
   },
   "full": {
-    "tools": 64,
-    "bytes": 430774,
-    "estimatedTokens": 107694
+    "tools": 61,
+    "bytes": 415177,
+    "estimatedTokens": 103795
   },
   "core": {
-    "tools": 20,
-    "bytes": 32787,
-    "estimatedTokens": 8197
+    "tools": 19,
+    "bytes": 32054,
+    "estimatedTokens": 8014
   },
-  "coreByteReductionPercent": 92.39,
+  "coreByteReductionPercent": 92.28,
   "counts": {
     "domains": {
-      "lifecycle": 13,
-      "project": 10,
+      "lifecycle": 11,
+      "project": 9,
       "game": 41
     },
     "backends": {
       "local": 4,
-      "process": 11,
-      "godot-cli": 9,
+      "process": 9,
+      "godot-cli": 8,
       "runtime": 38,
       "runtime-buffer": 2
     },
@@ -38,24 +38,24 @@
       "declaredActions": 63
     },
     "privilege": {
-      "none": 59,
+      "none": 56,
       "required": 5
     },
     "effectScopes": {
-      "read-only": 20,
+      "read-only": 18,
       "external-open-world": 1,
-      "process": 16,
+      "process": 15,
       "runtime-ephemeral": 27
     },
     "requiredStates": {
       "none": 3,
-      "project": 17,
+      "project": 15,
       "editor": 2,
-      "runtime": 42
+      "runtime": 41
     },
     "mutation": {
-      "read-only": 20,
-      "mutating": 32,
+      "read-only": 18,
+      "mutating": 31,
       "mixed": 12
     }
   },
@@ -71,7 +71,6 @@
       "game_scenario",
       "game_screenshot",
       "game_wait_until",
-      "get_debug_output",
       "get_godot_version",
       "get_project_info",
       "godot_call",
@@ -121,43 +120,41 @@
       "game_touch",
       "game_visual_regression",
       "game_wait",
-      "launch_editor",
       "manage_addon",
       "manage_import_pipeline",
-      "validate_script",
       "verify_dotnet_project",
       "verify_export_readiness"
     ]
   },
   "coverage": {
     "catalogMetadata": {
-      "complete": 64,
-      "total": 64
+      "complete": 61,
+      "total": 61
     },
     "inputSchemas": {
-      "declared": 64,
-      "dialectDeclared": 64,
-      "closedTopLevel": 64,
-      "propertyNodes": 684,
-      "describedPropertyNodes": 684
+      "declared": 61,
+      "dialectDeclared": 61,
+      "closedTopLevel": 61,
+      "propertyNodes": 681,
+      "describedPropertyNodes": 681
     },
     "outputSchemas": {
-      "declared": 64,
-      "total": 64
+      "declared": 61,
+      "total": 61
     },
     "titles": {
-      "catalogMetadata": 64,
-      "advertised": 64,
-      "total": 64
+      "catalogMetadata": 61,
+      "advertised": 61,
+      "total": 61
     },
     "annotations": {
-      "declared": 64,
-      "total": 64,
+      "declared": 61,
+      "total": 61,
       "hints": {
-        "readOnlyHint": 64,
-        "destructiveHint": 64,
-        "idempotentHint": 64,
-        "openWorldHint": 64
+        "readOnlyHint": 61,
+        "destructiveHint": 61,
+        "idempotentHint": 61,
+        "openWorldHint": 61
       }
     }
   },
@@ -183,8 +180,7 @@
         "game_scenario",
         "game_key_hold",
         "game_key_press",
-        "verify_project",
-        "get_debug_output"
+        "verify_project"
       ],
       "invalidToolReferences": []
     },
@@ -199,9 +195,8 @@
         "godot_call",
         "run_project",
         "game_scenario",
-        "get_debug_output",
-        "game_get_errors",
         "game_get_logs",
+        "game_get_errors",
         "game_get_scene_tree",
         "game_get_ui",
         "game_get_node_info",
@@ -236,7 +231,7 @@
         "game_key_hold",
         "game_key_press",
         "game_get_errors",
-        "get_debug_output",
+        "game_get_logs",
         "stop_project"
       ],
       "invalidToolReferences": []
@@ -263,7 +258,7 @@
         "game_key_press",
         "game_click",
         "game_get_errors",
-        "get_debug_output",
+        "game_get_logs",
         "stop_project"
       ],
       "invalidToolReferences": []

@@ -133,7 +133,7 @@ export function writeFixtureProject(projectPath: string): void {
   ].join('\n'));
   // The root script provides unprivileged observation hooks: a signal handler
   // that tags nodes with a group (readable via game_get_nodes_in_group) and a
-  // startup print (readable via game_get_logs / get_debug_output).
+  // startup print (readable via game_get_logs).
   writeFileSync(join(projectPath, 'main.gd'), [
     'extends Node2D',
     '',
@@ -463,11 +463,11 @@ export async function startServer(options: StartServerOptions = {}): Promise<E2E
         throw new Error(`Unexpected error while waiting for the game connection: ${result.text}`);
       }
       if (Date.now() > deadline) {
-        const debug = await call('get_debug_output');
+        const debug = await call('game_get_logs', { maxItems: 1000 });
         const diagnostics = serverLogs.slice(-40).join('\n');
         throw new Error([
           `Game connection never became ready: ${result.text}`,
-          debug.text ? `Godot debug output:\n${debug.text}` : '',
+          debug.text ? `Godot log output:\n${debug.text}` : '',
           diagnostics ? `MCP diagnostics:\n${diagnostics}` : '',
         ].filter(Boolean).join('\n'));
       }

@@ -250,7 +250,7 @@ function getFakeArgsForSchema(schema: any, toolName: string): any {
 }
 
 const genericSweepExclusions = new Set([
-  'godot_call', 'launch_editor', 'editor_session', 'editor_control', 'editor_transaction', 'game_scenario',
+  'godot_call', 'editor_session', 'editor_control', 'editor_transaction', 'game_scenario',
   'game_key_press', 'game_key_hold', 'game_key_release',
 ]);
 
@@ -372,8 +372,6 @@ describe('GodotServer class tests', () => {
       .mockResolvedValue({ content: [{ type: 'text', text: '{"ready":true}' }] });
     const addonSpy = vi.spyOn((server as any).projectToolHandlers, 'handleManageAddon')
       .mockResolvedValue({ content: [{ type: 'text', text: '{"installed":true}' }] });
-    const editorLaunchSpy = vi.spyOn((server as any).lifecycleToolHandlers, 'handleLaunchEditor')
-      .mockResolvedValue({ content: [{ type: 'text', text: '{"launched":true}' }] });
 
     for (const tool of toolsResult.tools) {
       // The editor bridge is exercised by the full-path lifecycle suite; this
@@ -426,7 +424,6 @@ describe('GodotServer class tests', () => {
     exportReadinessSpy.mockRestore();
     dotnetWorkflowSpy.mockRestore();
     addonSpy.mockRestore();
-    editorLaunchSpy.mockRestore();
     disconnectSpy.mockRestore();
 
     expect(errors).toEqual([]);
@@ -738,14 +735,6 @@ describe('GodotServer class tests', () => {
         ok: false,
         error: { code: 'invalid_arguments', category: 'argument' },
       },
-    });
-
-    // validate_script variations
-    await callTool({
-      params: {
-        name: 'validate_script',
-        arguments: { projectPath: '/fake/project', scriptPath: 'player.gd' }
-      }
     });
 
     // run_project_tests discover edge (project test discovery path)

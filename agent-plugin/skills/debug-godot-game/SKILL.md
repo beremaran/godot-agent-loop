@@ -36,7 +36,7 @@ engine behavior as outside the supported boundary.
 1. Reproduce before editing. Use realtime `run_project` for visual or timing
    complaints and repeat the user's exact input or a bounded `game_scenario`.
 2. Capture the minimum distinguishing evidence: cursor-bounded
-   `get_debug_output`, `game_get_errors`, `game_get_logs`, concise
+   `game_get_logs`, `game_get_errors`, concise
    `game_get_scene_tree`/`game_get_ui`/`game_get_node_info` state, and
    `game_screenshot` only when rendering matters.
 3. Classify the failing boundary: parse/startup, persistent scene/resource,

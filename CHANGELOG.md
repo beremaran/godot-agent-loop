@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **Redundant editor and validation identities.** `launch_editor` is removed;
+  `editor_session ensure` with `launchIfNeeded` covers attach-or-launch, and the
+  transient-addon launch path is unchanged. `validate_script` is removed; pass
+  `scriptPaths` to `validate_scripts` for a single-file check. Both return an
+  unknown-tool error.
+- **`get_debug_output`.** Superseded by the cursor reads `game_get_logs` and
+  `game_get_errors`, which page the same captured process output with
+  `remaining`/`byteLimited` bounds. The advertised `core` surface drops to 19
+  tools (32,054 bytes / ~8,014 estimated tokens; 92.28% smaller than the
+  61-tool full catalog).
+
 ## [2.0.0] - 2026-08-04
 
 ### BREAKING

@@ -74,8 +74,9 @@ stateDiagram-v2
 The response contains `editor_session` with `state`, canonical `project_path`,
 `connected`, `reused`, `spawned`, PID/start identity, loopback port, protocol,
 addon/Godot versions, creation time, and an optional actionable `reason`.
-Authentication material is deliberately absent. `launch_editor` uses the same
-ensure flow, reuses a compatible editor, and waits for a confirmed bridge. Its
+Authentication material is deliberately absent. `editor_session ensure` with
+`launchIfNeeded` uses the ensure flow, reuses a compatible editor, and waits
+for a confirmed bridge. Its
 transient addon is reserved for a disposable MCP-owned launch and is removed
 only if the same MCP installed it and its files remain unmodified.
 

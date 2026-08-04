@@ -617,7 +617,7 @@ function cleanupResidue(metadata, facts) {
     .filter(record => record.purpose === 'paused-editor-precondition').map(record => record.pid));
   const watchedEditor = metadata.startingState.toLowerCase().includes('watched');
   if (watchedEditor) {
-    for (const call of facts.calls.filter(call => ['editor_session', 'launch_editor'].includes(call.effectiveTool) && successful(call))) {
+    for (const call of facts.calls.filter(call => call.effectiveTool === 'editor_session' && successful(call))) {
       const structured = call.result?.structured_content ?? call.result?.structuredContent;
       const session = structured?.data?.editor_session ?? structured?.data;
       if (Number.isInteger(session?.editor_pid)) expectedHarnessPids.add(session.editor_pid);
@@ -769,7 +769,7 @@ function acceptanceEvidence(scenario, evaluationCase, metadata, facts, before, a
   const holds = callsOf(facts, 'game_key_hold').filter(successful);
   const releases = callsOf(facts, 'game_key_release').filter(successful);
   const stops = callsOf(facts, 'stop_project').filter(successful);
-  const runtimeReads = facts.calls.filter(call => ['game_get_ui', 'game_get_scene_tree', 'game_get_node_info', 'game_wait_until', 'game_scenario', 'game_screenshot', 'game_get_errors', 'game_get_logs', 'get_debug_output'].includes(call.effectiveTool) && successful(call));
+  const runtimeReads = facts.calls.filter(call => ['game_get_ui', 'game_get_scene_tree', 'game_get_node_info', 'game_wait_until', 'game_scenario', 'game_screenshot', 'game_get_errors', 'game_get_logs'].includes(call.effectiveTool) && successful(call));
   const persistentCalls = facts.calls.filter(call => ['editor_transaction'].includes(call.effectiveTool));
   const results = [];
   const add = (index, result) => results.push({ criterion: scenario.acceptance[index], ...result });
@@ -798,7 +798,7 @@ function acceptanceEvidence(scenario, evaluationCase, metadata, facts, before, a
       break;
     case 'debug-seeded-input-regression': {
       const mutationIndex = firstMutation?.index ?? Number.MAX_SAFE_INTEGER;
-      const baselineReads = facts.calls.filter(call => call.index < mutationIndex && ['run_project', 'game_key_hold', 'game_get_ui', 'game_get_node_info', 'get_debug_output'].includes(call.effectiveTool));
+      const baselineReads = facts.calls.filter(call => call.index < mutationIndex && ['run_project', 'game_key_hold', 'game_get_ui', 'game_get_node_info', 'game_get_logs'].includes(call.effectiveTool));
       add(0, criterion(baselineReads.length >= 2 ? 'passed' : 'failed', `${baselineReads.length} baseline reproduction/observation calls preceded repair.`));
       add(1, criterion(/hypothesis|timing|movement_budget|0\.05/i.test(facts.messages.filter(message => message.index < mutationIndex).map(message => message.text).join('\n')) ? 'passed' : 'unobserved', 'Checked pre-repair trace text for one input/timing hypothesis.'));
       const repairedSource = readFileSync(join(metadata.projectPath, 'main.gd'), 'utf8');
@@ -950,7 +950,7 @@ const capabilityTools = {
   'acceptance-contract': [],
   'editor-session': ['editor_session'],
   'project-authoring': ['editor_transaction'],
-  'runtime-observation': ['run_project', 'game_get_ui', 'game_get_scene_tree', 'game_get_node_info', 'game_wait_until', 'game_scenario', 'game_get_errors', 'get_debug_output'],
+  'runtime-observation': ['run_project', 'game_get_ui', 'game_get_scene_tree', 'game_get_node_info', 'game_wait_until', 'game_scenario', 'game_get_errors', 'game_get_logs'],
   cleanup: ['game_key_release', 'stop_project', 'editor_session'],
 };
 

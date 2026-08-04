@@ -1,10 +1,10 @@
 # Tool catalog
 
-Godot Agent Loop advertises a reviewed `core` surface of 20 tools within the
-generated [surface budget](coverage/tool-surface.json). The remaining 44 tools
+Godot Agent Loop advertises a reviewed `core` surface of 19 tools within the
+generated [surface budget](coverage/tool-surface.json). The remaining 42 tools
 stay callable through read-only `godot_catalog` search and inspection followed
 by `godot_call` execution. Set `GODOT_MCP_TOOL_SURFACE=full` to advertise the
-complete 64-tool catalog statically. The former `compact` surface name aliases
+complete 61-tool catalog statically. The former `compact` surface name aliases
 `core` during migration.
 
 A tool earns its place only if it does something file editing plus shell
@@ -33,7 +33,7 @@ allowed directories still apply. Long operations report progress only when the
 request includes a progress token and honor MCP cancellation where safe. Clients
 without these optional capabilities retain the bounded compatibility path.
 
-## Advertised core (20)
+## Advertised core (19)
 
 These tools cover the whole loop without any hidden lookup:
 
@@ -45,7 +45,6 @@ These tools cover the whole loop without any hidden lookup:
 | `get_godot_version` | Get the installed Godot version |
 | `run_project` | Run the Godot project and capture output, then report when the authenticated runtime bridge is usable |
 | `stop_project` | Stop the currently running project |
-| `get_debug_output` | Get the current debug output and errors |
 | `editor_session` | Discover, attach, inspect, or disconnect a per-project editor session |
 | `editor_transaction` | Apply one validated compound scene edit as one editor undo step |
 | `game_screenshot` | Capture a PNG preview with dimensions, digest, and optional retained artifact |
@@ -68,7 +67,7 @@ not require many primitive calls. `verify_project` runs bounded assertions
 (`node_exists`, `group_count`, `log_contains`) and can capture a screenshot and
 stop the project in one call.
 
-## Hidden surface (44 tools)
+## Hidden surface (42 tools)
 
 Every tool below is callable, but only through `godot_catalog search` +
 `godot_catalog describe` + `godot_call`. Advertise them all up front only with
@@ -149,14 +148,13 @@ Editor attachment beyond the core session/transaction pair.
 
 | Tool | Purpose |
 | ------ | ------------- |
-| `launch_editor` | Attach to an existing matching editor or launch one when needed |
 | `editor_control` | Inspect editor state and apply reversible property/node-name edits through the editor bridge |
 
-`editor_control` inspects the edited scene and selection, opens/saves/reloads
-scenes, and applies reversible property or node-name edits through
-`EditorUndoRedoManager`. `editor_session ensure` first discovers a normally
-opened matching editor; `launch_editor` uses the same flow and spawns only when
-needed.
+`editor_session ensure` first discovers a normally opened matching editor and
+spawns only when needed; `launch_editor` no longer exists as a separate
+identity. `editor_control` inspects the edited scene and selection,
+opens/saves/reloads scenes, and applies reversible property or node-name edits
+through `EditorUndoRedoManager`.
 
 ### Ship and validation
 
@@ -165,7 +163,6 @@ exports.
 
 | Tool | Purpose |
 | ------ | ------------- |
-| `validate_script` | Check a single GDScript file for syntax/type errors headlessly (single-file companion to core `validate_scripts`) |
 | `manage_import_pipeline` | Inspect/change importer settings, reimport, and query generated dependencies |
 | `analyze_project_integrity` | Analyze resource graphs, run static audits, and preview a safe resource rename |
 | `verify_export_readiness` | Validate presets/templates, export, inspect artifacts, and smoke-run builds |
@@ -234,3 +231,12 @@ error; do not call them.
   `game_set_camera`); networking (`game_http_request`, `game_websocket`,
   `game_multiplayer`, `game_rpc`); and resources/video (`game_resource`,
   `game_visual_shader`, `game_video`).
+
+## Removed after the lean surface reduction
+
+A follow-up pass deleted three redundant identities: `launch_editor` (the
+`editor_session ensure` flow covers launching with `launchIfNeeded`),
+`validate_script` (pass `scriptPaths` to `validate_scripts` instead), and
+`get_debug_output` (superseded by the cursor reads `game_get_logs` and
+`game_get_errors`, which page the same process output). They return an
+unknown-tool error; do not call them.

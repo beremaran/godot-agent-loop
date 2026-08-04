@@ -2,7 +2,7 @@
 
 The canonical progressive-disclosure surface is `core`. Existing configurations
 that set `GODOT_MCP_TOOL_SURFACE=compact` continue to select the same surface
-during the 1.x release line. `full` advertises the complete 64-tool static
+during the 1.x release line. `full` advertises the complete 61-tool static
 catalog. Unknown values fail at startup instead of silently selecting core.
 
 ## Catalog and hidden execution

@@ -109,20 +109,6 @@ const rawToolDefinitions = [
   },
 },
 {
-  name: 'launch_editor',
-  description: 'Attach to an existing matching editor or launch one when needed',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Godot project path',
-      },
-    },
-    required: ['projectPath'],
-  },
-},
-{
   name: 'editor_session',
   description: 'Discover, attach, inspect, or disconnect a per-project Godot editor session',
   inputSchema: {
@@ -349,15 +335,6 @@ const rawToolDefinitions = [
       expectedOutput: { type: 'string', maxLength: 4096, description: 'Required editor reload output substring' },
     },
     required: ['projectPath', 'action', 'pluginName'],
-  },
-},
-{
-  name: 'get_debug_output',
-  description: 'Get the current debug output and errors',
-  inputSchema: {
-    type: 'object',
-    properties: {},
-    required: [],
   },
 },
 {
@@ -1076,18 +1053,6 @@ const rawToolDefinitions = [
 // Batch 2: 3D Rendering + Lighting + Sky + Physics
 // Batch 3: 2D Systems + Animation Advanced + Audio Effects
 // Batch 4: Editor/Headless + Localization + Resource
-{
-  name: 'validate_script',
-  description: 'Check a GDScript file for syntax/type errors (headless, no run)',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: { type: 'string', description: 'Godot project path' },
-      scriptPath: { type: 'string', description: 'GDScript file path relative to project (e.g. "scripts/player.gd")' },
-    },
-    required: ['projectPath', 'scriptPath'],
-  },
-},
 {
   name: 'validate_scripts',
   description: 'Batch-check GDScript files (git-changed by default, or all)',
