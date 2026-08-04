@@ -64,7 +64,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        godot-version: ["4.7-stable"]
+        godot-version: ["4.7.1-stable"]
     name: Godot ${{ matrix.godot-version }}
     steps:
       - uses: actions/checkout@v6
@@ -138,20 +138,20 @@ jobs:
           node-version: 24
           cache: npm
 
-      - name: Install Godot 4.7 on Windows
+      - name: Install Godot 4.7.1 on Windows
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          Invoke-WebRequest -Uri "https://github.com/godotengine/godot-builds/releases/download/4.7-stable/Godot_v4.7-stable_win64.exe.zip" -OutFile godot.zip
+          Invoke-WebRequest -Uri "https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_win64.exe.zip" -OutFile godot.zip
           Expand-Archive godot.zip -DestinationPath godot
-          $binary = (Resolve-Path "godot/Godot_v4.7-stable_win64.exe").Path
+          $binary = (Resolve-Path "godot/Godot_v4.7.1-stable_win64.exe").Path
           "GODOT_BIN=$binary" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-      - name: Install Godot 4.7 on macOS
+      - name: Install Godot 4.7.1 on macOS
         if: runner.os == 'macOS'
         run: |
           curl -sSL -o godot.zip \
-            "https://github.com/godotengine/godot-builds/releases/download/4.7-stable/Godot_v4.7-stable_macos.universal.zip"
+            "https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_macos.universal.zip"
           unzip -q godot.zip -d godot
           GODOT_BIN="$PWD/godot/Godot.app/Contents/MacOS/Godot"
           chmod +x "$GODOT_BIN"

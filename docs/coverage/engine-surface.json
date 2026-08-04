@@ -3217,7 +3217,7 @@
     {
       "name": "GDScript",
       "bucket": "tooled",
-      "why": "src/scripts/mcp_interaction_server.gd, src/scripts/validate_script.gd, src/server-instructions.ts, src/tool-catalog-metadata.ts, src/tool-definitions.ts, src/tool-handlers/project-handler-services.ts, src/tool-handlers/project-tool-handlers.ts, src/tool-manifest.ts",
+      "why": "src/scripts/mcp_interaction_server.gd, src/scripts/validate_script.gd, src/server-instructions.ts, src/tool-catalog-metadata.ts, src/tool-definitions.ts, src/tool-manifest.ts",
       "api_type": "core",
       "instantiable": true,
       "is_node": false,
@@ -4295,7 +4295,7 @@
     {
       "name": "JSON",
       "bucket": "tooled",
-      "why": "src/editor-connection.ts, src/editor-plugin-installer.ts, src/editor-session-registry.ts, src/game-command-service.ts, src/game-connection.ts, src/godot-process-manager.ts, src/godot-subprocess.ts, src/headless-operation-runner.ts, src/index.ts, src/observation-result.ts, src/opencode-setup.ts, src/runtime-protocol.ts, src/scripts/mcp_interaction_server.gd, src/scripts/mcp_runtime/command_params.gd, src/scripts/mcp_runtime/core_domain.gd, src/scripts/mcp_runtime/runtime_domain.gd, src/scripts/mcp_runtime/variant_codec.gd, src/tool-argument-validation.ts, src/tool-handlers/game-tool-handlers.ts, src/tool-handlers/lifecycle-tool-handlers.ts, src/tool-handlers/project-handler-services.ts, src/tool-handlers/project-tool-handlers.ts, src/tool-handlers/visual-regression-service.ts, src/tool-manifest.ts, src/tool-output-schema.ts, src/tool-results.ts, src/tool-surface.ts, addons/godot_agent_loop/plugin.gd",
+      "why": "src/editor-connection.ts, src/editor-plugin-installer.ts, src/editor-session-registry.ts, src/game-command-service.ts, src/game-connection.ts, src/godot-process-manager.ts, src/godot-subprocess.ts, src/index.ts, src/observation-result.ts, src/opencode-setup.ts, src/runtime-protocol.ts, src/scripts/mcp_interaction_server.gd, src/scripts/mcp_runtime/command_params.gd, src/scripts/mcp_runtime/core_domain.gd, src/scripts/mcp_runtime/runtime_domain.gd, src/scripts/mcp_runtime/variant_codec.gd, src/tool-argument-validation.ts, src/tool-handlers/game-tool-handlers.ts, src/tool-handlers/lifecycle-tool-handlers.ts, src/tool-handlers/project-handler-services.ts, src/tool-handlers/visual-regression-service.ts, src/tool-manifest.ts, src/tool-output-schema.ts, src/tool-results.ts, src/tool-surface.ts, addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": true,
       "is_node": false,
@@ -5329,7 +5329,7 @@
     {
       "name": "Object",
       "bucket": "tooled",
-      "why": "src/domain-tool-registries.ts, src/editor-plugin-installer.ts, src/headless-operation-runner.ts, src/headless-operation-service.ts, src/lifecycle-trace.ts, src/observation-result.ts, src/runtime-protocol.ts, src/scripts/mcp_runtime/variant_codec.gd, src/tool-catalog-metadata.ts, src/tool-definitions.ts, src/tool-handlers/project-handler-services.ts, src/tool-mutation-policy.ts, src/tool-registry.ts, src/tool-results.ts, src/tool-surface.ts, src/utils.ts",
+      "why": "src/domain-tool-registries.ts, src/editor-plugin-installer.ts, src/lifecycle-trace.ts, src/observation-result.ts, src/runtime-protocol.ts, src/scripts/mcp_runtime/variant_codec.gd, src/tool-catalog-metadata.ts, src/tool-definitions.ts, src/tool-handlers/project-handler-services.ts, src/tool-mutation-policy.ts, src/tool-registry.ts, src/tool-results.ts, src/tool-surface.ts, src/utils.ts",
       "api_type": "core",
       "instantiable": true,
       "is_node": false,
@@ -7903,7 +7903,7 @@
     {
       "name": "Script",
       "bucket": "tooled",
-      "why": "src/scripts/mcp_interaction_server.gd, src/tool-definitions.ts, src/tool-handlers/project-handler-services.ts, src/tool-handlers/project-tool-handlers.ts, addons/godot_agent_loop/plugin.gd",
+      "why": "src/scripts/mcp_interaction_server.gd, src/tool-definitions.ts, src/tool-handlers/project-handler-services.ts, addons/godot_agent_loop/plugin.gd",
       "api_type": "core",
       "instantiable": false,
       "is_node": false,
