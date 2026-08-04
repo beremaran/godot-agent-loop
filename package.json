@@ -86,7 +86,7 @@
     "release:candidate": "node scripts/build-release-candidate.js"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "ajv": "^8.18.0",
     "ajv-formats": "^3.0.1",
     "jsonc-parser": "^3.3.1",
