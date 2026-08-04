@@ -40,8 +40,9 @@ the supported boundary. Never add MCP autoloads, addons, or bridge files.
 ## Workflow
 
 1. Inspect an existing project by reading `project.godot`, the main scene, and
-   relevant `.gd` files with the host's file tools, and summarize it with
-   `get_project_info`. Identify the main scene, input map, persisted hierarchy,
+   relevant `.gd` files with the host's file tools, and summarize the structure
+   with `analyze_project_integrity` (action=analyze). Identify the main scene,
+   input map, persisted hierarchy,
    renderer, and relevant resources.
 2. Author one human-readable change per `editor_transaction` (watched) or host
    file edit (unattended). Prefer persisted scene hierarchy and resources; use
@@ -55,7 +56,7 @@ the supported boundary. Never add MCP autoloads, addons, or bridge files.
 4. Put behavior in `.gd` scripts and bind named input actions in `project.godot`
    with the host's file tools. Keep edits minimal and typed; do not duplicate
    logic across files.
-5. Run `validate_scripts` (use all or explicit paths if changed finds none),
+5. Run `run_project_tests` discovery or headless GDScript validation,
    then independently re-read changed files before starting the game. Treat this
    as a gate: script validation alone does not prove saved scenes or project
    settings.

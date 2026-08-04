@@ -53,7 +53,8 @@ engine behavior as outside the supported boundary.
 6. Stop the project before persistent repair. Apply the smallest matching scene,
    script, resource, or setting change as one coherent undoable change through
    `editor_transaction` (watched) or the host's file tools.
-7. Run `validate_scripts` before runtime proof. Repeat the exact baseline,
+7. Run `run_project_tests` discovery or headless checks before runtime proof.
+   Repeat the exact baseline,
    stress/recovery input, and observation; then run adjacent regression checks
    with `verify_project` or `run_project_tests`.
 8. Separate measured FPS/frame time/process/render data from unavailable GPU

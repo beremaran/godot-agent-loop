@@ -95,6 +95,42 @@
         "coreEstimatedTokensMax": 9100,
         "coreReductionPercentMin": 92
       }
+    },
+    {
+      "reviewedAt": "2026-08-04",
+      "reason": "coordinated tool-surface reduction: six redundant identities removed (get_godot_version, get_project_info, validate_scripts, game_os_info, game_list_signals, export_project), editor_control trimmed to non-mutating actions, game_list_signals merged into game_get_node_info, and a new hidden game_pause tool added",
+      "measurement": {
+        "bytes": "UTF-8 byte length of compact JSON.stringify(advertisedToolDefinitions('core'))",
+        "estimatedTokens": "ceil(bytes / 4); deterministic planning estimate, not a model tokenizer"
+      },
+      "previous": {
+        "tools": 19,
+        "bytes": 32054,
+        "estimatedTokens": 8014,
+        "bytesMax": 36100,
+        "estimatedTokensMax": 9100
+      },
+      "membershipRevision": {
+        "previousTools": 19,
+        "currentTools": 16,
+        "added": [],
+        "removed": ["get_godot_version", "get_project_info", "validate_scripts"],
+        "netChange": -3,
+        "compatibility": "get_godot_version, get_project_info, and validate_scripts are no longer callable; engine version comes from run_project/catalog, project metadata from analyze_project_integrity or host file reads, and script validation from run_project_tests or headless checks"
+      },
+      "measuredSurface": {
+        "coreBytes": 29491,
+        "coreEstimatedTokens": 7373,
+        "fullTools": 56,
+        "fullBytes": 383907,
+        "fullEstimatedTokens": 95977,
+        "coreByteReductionPercent": 92.32
+      },
+      "reviewedBudget": {
+        "coreBytesMax": 36100,
+        "coreEstimatedTokensMax": 9100,
+        "coreReductionPercentMin": 92
+      }
     }
   ],
   "revisionPolicy": "Any change to measured size, core membership, or reviewed maxima must update this evidence file and its contract test in the same change."

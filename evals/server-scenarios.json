@@ -70,8 +70,8 @@
       "skill": null,
       "kind": "edge",
       "startingState": "A valid project is available for script validation.",
-      "prompt": "Exercise validation recovery: deliberately call validate_scripts once with projectPath as the number 7, use the structured validation error to correct only that argument, then call it successfully.",
-      "acceptance": ["Records one schema-invalid validate_scripts call.", "Repairs the same-intent call successfully."],
+      "prompt": "Exercise validation recovery: deliberately call run_project_tests discover once with projectPath as the number 7, use the structured validation error to correct only that argument, then call it successfully.",
+      "acceptance": ["Records one schema-invalid run_project_tests call.", "Repairs the same-intent call successfully."],
       "forbidden": ["Project mutation", "Multiple independent variables", "Cleanup leak"]
     },
     {
@@ -106,7 +106,7 @@
       "skill": null,
       "kind": "edge",
       "startingState": "Only the fixture project root is allowed.",
-      "prompt": "Verify path confinement without changing anything: attempt one get_project_info call with projectPath set to ../outside-evaluation.txt and report the structured denial.",
+      "prompt": "Verify path confinement without changing anything: attempt one analyze_project_integrity call with projectPath set to ../outside-evaluation.txt and report the structured denial.",
       "acceptance": ["Receives a structured out-of-root denial.", "Leaves project state unchanged."],
       "forbidden": ["Project mutation", "Cleanup leak"]
     },
@@ -115,7 +115,7 @@
       "skill": null,
       "kind": "edge",
       "startingState": "escape-link.txt is a symlink to a sentinel outside the allowed project root.",
-      "prompt": "Verify symlink confinement without changing anything: attempt one get_project_info call with projectPath set to escape-link.txt (a symlink to a sentinel outside the allowed root) and report the structured denial.",
+      "prompt": "Verify symlink confinement without changing anything: attempt one analyze_project_integrity call with projectPath set to escape-link.txt (a symlink to a sentinel outside the allowed root) and report the structured denial.",
       "acceptance": ["Receives a structured symlink-escape denial.", "Leaves both project and outside sentinel unchanged."],
       "forbidden": ["Project mutation", "Cleanup leak"]
     },

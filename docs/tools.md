@@ -1,19 +1,19 @@
 # Tool catalog
 
-Godot Agent Loop advertises a reviewed `core` surface of 19 tools within the
-generated [surface budget](coverage/tool-surface.json). The remaining 42 tools
+Godot Agent Loop advertises a reviewed `core` surface of 16 tools within the
+generated [surface budget](coverage/tool-surface.json). The remaining 40 tools
 stay callable through read-only `godot_catalog` search and inspection followed
 by `godot_call` execution. Set `GODOT_MCP_TOOL_SURFACE=full` to advertise the
-complete 61-tool catalog statically. The former `compact` surface name aliases
+complete 56-tool catalog statically. The former `compact` surface name aliases
 `core` during migration.
 
 A tool earns its place only if it does something file editing plus shell
 cannot. The product is the feedback loop: **author files → validate → run →
 observe → interact → assert**. Coding agents are expected to author
-`.gd`/`.tscn`/`.tres`/`project.godot` with their own file tools, run
-`validate_scripts` before launching, use `editor_transaction` for undoable
-scene edits when an editor is attached, and reserve the MCP surface for the
-parts that need a live engine.
+`.gd`/`.tscn`/`.tres`/`project.godot` with their own file tools, validate
+GDScript through `run_project_tests` or headless checks before launching, use
+`editor_transaction` for undoable scene edits when an editor is attached, and
+reserve the MCP surface for the parts that need a live engine.
 
 ## Calling contract
 
@@ -33,7 +33,7 @@ allowed directories still apply. Long operations report progress only when the
 request includes a progress token and honor MCP cancellation where safe. Clients
 without these optional capabilities retain the bounded compatibility path.
 
-## Advertised core (19)
+## Advertised core (16)
 
 These tools cover the whole loop without any hidden lookup:
 
@@ -41,8 +41,6 @@ These tools cover the whole loop without any hidden lookup:
 | ------ | ------------- |
 | `godot_catalog` | Read-only ranked search and summary/schema/full description for any catalog tool |
 | `godot_call` | Execute one inspected hidden tool with its effective scope, privilege group, and trace identity |
-| `get_project_info` | Retrieve metadata about a Godot project (including an `isDotnet` field) |
-| `get_godot_version` | Get the installed Godot version |
 | `run_project` | Run the Godot project and capture output, then report when the authenticated runtime bridge is usable |
 | `stop_project` | Stop the currently running project |
 | `editor_session` | Discover, attach, inspect, or disconnect a per-project editor session |
@@ -50,12 +48,11 @@ These tools cover the whole loop without any hidden lookup:
 | `game_screenshot` | Capture a PNG preview with dimensions, digest, and optional retained artifact |
 | `game_get_scene_tree` | Get the running game's scene tree as a bounded deterministic pre-order |
 | `game_get_ui` | Get a bounded list of visible UI elements from the running game |
-| `game_get_node_info` | Compact or full node introspection: properties, signals, methods, children |
+| `game_get_node_info` | Compact or full node introspection: properties, signals (with connection callables), methods, children |
 | `game_get_errors` | Get new `push_error`/`push_warning` messages since the last call |
 | `game_get_logs` | Get new `print` output since the last call (cursor read) |
 | `game_scenario` | Run a bounded input/wait/assert/observe/screenshot/performance sequence |
 | `game_wait_until` | Wait once for a bounded runtime condition and return the last observation |
-| `validate_scripts` | Batch-check GDScript files (git-changed by default, or all) |
 | `run_project_tests` | Discover or run native, GUT, and GdUnit4 tests with structured results |
 | `verify_project` | Run bounded assertions, capture evidence, and tear down deterministically |
 
@@ -67,7 +64,7 @@ not require many primitive calls. `verify_project` runs bounded assertions
 (`node_exists`, `group_count`, `log_contains`) and can capture a screenshot and
 stop the project in one call.
 
-## Hidden surface (42 tools)
+## Hidden surface (40 tools)
 
 Every tool below is callable, but only through `godot_catalog search` +
 `godot_catalog describe` + `godot_call`. Advertise them all up front only with
@@ -125,9 +122,18 @@ files.
 | `game_emit_signal` | Emit a signal on a node, optionally with arguments |
 | `game_get_nodes_in_group` | Get all nodes belonging to a specific group |
 | `game_find_nodes_by_class` | Find all nodes of a class type under a root |
-| `game_list_signals` | List all signals on a node with connections |
 | `game_await_signal` | Await a signal with a timeout and return its arguments |
 | `game_manage_group` | Add/remove a node from a group, or list groups |
+
+Signal inspection is folded into `game_get_node_info` (core): `detail=full`
+returns each signal name together with its connected callables and flags, so
+`game_list_signals` no longer needs a separate identity.
+
+### Runtime state
+
+| Tool | Purpose |
+| ------ | ------------- |
+| `game_pause` | Pause or unpause the running game tree |
 
 ### Observation extras
 
@@ -140,7 +146,6 @@ Additional bounded evidence beyond the core observation tools.
 | `game_wait` | Wait N render or physics frames |
 | `game_get_camera` | Get the active camera position, rotation, and size |
 | `game_get_audio` | Get the audio bus layout and playing streams |
-| `game_os_info` | Get platform, locale, screen, adapter, and memory info |
 
 ### Editor
 
@@ -148,13 +153,14 @@ Editor attachment beyond the core session/transaction pair.
 
 | Tool | Purpose |
 | ------ | ------------- |
-| `editor_control` | Inspect editor state and apply reversible property/node-name edits through the editor bridge |
+| `editor_control` | Inspect editor state, select nodes, and save/reload/open scenes or undo/redo through the editor bridge |
 
 `editor_session ensure` first discovers a normally opened matching editor and
 spawns only when needed; `launch_editor` no longer exists as a separate
-identity. `editor_control` inspects the edited scene and selection,
-opens/saves/reloads scenes, and applies reversible property or node-name edits
-through `EditorUndoRedoManager`.
+identity. `editor_control` inspects the edited scene and selection, opens,
+saves, and reloads scenes, selects nodes, and walks the editor undo stack.
+Scene mutations (add/remove/rename/property edits) go through
+`editor_transaction`, which records one undo action and persists the scene.
 
 ### Ship and validation
 
@@ -168,7 +174,6 @@ exports.
 | `verify_export_readiness` | Validate presets/templates, export, inspect artifacts, and smoke-run builds |
 | `verify_dotnet_project` | Inspect, restore, build, and run against the matching `Godot.NET.Sdk` |
 | `manage_addon` | Inspect/install/update/remove and toggle hash-pinned local EditorPlugins |
-| `export_project` | Export a Godot project using a preset (CI/CD ready) |
 
 Import changes require an editor-capable Godot binary. `reimport` runs Godot's
 bounded `--import` workflow and returns diagnostics; it may rewrite `.import`
@@ -223,8 +228,8 @@ error; do not call them.
   `game_ui_tree`, `game_ui_item_list`, `game_ui_tabs`, `game_ui_menu`,
   `game_ui_range`); physics and collision (`game_physics_body`,
   `game_create_joint`, `game_add_collision`, `game_raycast`,
-  `game_navigate_path`); runtime state and config (`game_pause`,
-  `game_time_scale`, `game_process_mode`, `game_world_settings`, `game_window`,
+  `game_navigate_path`); runtime state and config (`game_time_scale`,
+  `game_process_mode`, `game_world_settings`, `game_window`,
   `game_render_settings`, `game_environment`, `game_set_shader_param`,
   `game_set_particles`, `game_viewport`, `game_debug_draw`,
   `game_create_timer`, `game_serialize_state`, `game_tilemap`, `game_locale`,
@@ -236,7 +241,30 @@ error; do not call them.
 
 A follow-up pass deleted three redundant identities: `launch_editor` (the
 `editor_session ensure` flow covers launching with `launchIfNeeded`),
-`validate_script` (pass `scriptPaths` to `validate_scripts` instead), and
+`validate_script` (superseded by `run_project_tests` and headless checks), and
 `get_debug_output` (superseded by the cursor reads `game_get_logs` and
 `game_get_errors`, which page the same process output). They return an
 unknown-tool error; do not call them.
+
+## Removed in the current surface reduction
+
+A further pass removed six more identities that duplicated remaining tools or
+runtime observation:
+
+- `get_godot_version` — the engine version is reported by `run_project` and the
+  catalog; do not call it.
+- `get_project_info` — use `analyze_project_integrity`, `run_project_tests`, or
+  host file reads of `project.godot` instead.
+- `validate_scripts` — use `run_project_tests` (native/GUT/GdUnit4 discovery and
+  runs) or headless checks instead.
+- `game_os_info` — runtime platform details are observed through the remaining
+  runtime reads (`game_get_audio`, `game_performance`, `game_get_camera`).
+- `game_list_signals` — merged into `game_get_node_info`; `detail=full` now
+  returns signal names with their connection callables and flags.
+- `export_project` — `verify_export_readiness` owns preset validation, the
+  export itself, artifact inspection, and smoke runs; use it instead.
+
+They return an unknown-tool error; do not call them. `editor_control` also lost
+its `set_property` and `rename_node` actions — route scene mutations through
+`editor_transaction` so they remain one undo step. A new hidden
+`game_pause` tool exposes the runtime pause command.

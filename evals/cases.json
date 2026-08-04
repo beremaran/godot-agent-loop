@@ -329,9 +329,9 @@
       "forbiddenMutations": ["project/addons/**", "project/** except build/**", "outside-project/**"],
       "validToolGroups": ["release-matrix", "source-validation", "runtime-verification", "readiness", "export", "artifact-inspection", "cleanup"],
       "requiredCapabilities": [
-        ["validate_scripts"],
+        ["run_project_tests", "analyze_project_integrity"],
         ["run_project_tests", "verify_project"],
-        ["verify_export_readiness", "export_project"],
+        ["verify_export_readiness"],
         ["analyze_project_integrity"]
       ],
       "order": [
@@ -377,7 +377,7 @@
       "allowedMutations": [],
       "forbiddenMutations": ["project/**", "outside-project/**"],
       "validToolGroups": ["source-validation", "readiness-inspection", "blocker-report"],
-      "requiredCapabilities": [["validate_scripts"], ["manage_import_pipeline", "analyze_project_integrity"], ["verify_export_readiness"]],
+      "requiredCapabilities": [["run_project_tests", "analyze_project_integrity"], ["manage_import_pipeline", "analyze_project_integrity"], ["verify_export_readiness"]],
       "order": [["source-validation", "readiness-inspection"], ["readiness-inspection", "blocker-report"]],
       "acceptanceVerifiers": [
         {"criterionIndex": 0, "scorer": "state.read-only-inspection", "evidenceSources": ["project-snapshot", "mcp-trace"], "criterionType": "objective"},

@@ -9,8 +9,6 @@ import type { ToolArguments } from './utils.js';
  */
 export const READ_ONLY_TOOLS: ReadonlySet<ToolName> = new Set([
   'godot_catalog',
-  'get_godot_version',
-  'get_project_info',
   'game_screenshot',
   'game_get_ui',
   'game_get_scene_tree',
@@ -22,16 +20,13 @@ export const READ_ONLY_TOOLS: ReadonlySet<ToolName> = new Set([
   'game_get_logs',
   'game_get_camera',
   'game_get_audio',
-  'game_list_signals',
-  'game_os_info',
-  'validate_scripts',
 ]);
 
 /** Read-only modes on tools whose other actions mutate project/runtime state. */
 export const READ_ONLY_ACTIONS: Readonly<Partial<Record<ToolName, readonly string[]>>> = {
   godot_catalog: ['search', 'describe'],
   editor_session: ['status', 'disconnect'],
-  editor_control: ['inspect'],
+  editor_control: ['inspect', 'select', 'open_scene'],
   run_project_tests: ['discover'],
   manage_import_pipeline: ['inspect', 'dependencies'],
   analyze_project_integrity: ['analyze', 'preview_rename', 'assets', 'localization', 'accessibility', 'extensions', 'leaks'],

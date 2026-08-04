@@ -10,7 +10,7 @@ different state ownership and evidence requirements.
 | Mode | Owner of mutable state | Primary backend | Required evidence |
 | --- | --- | --- | --- |
 | Attached editor authoring | The user's open Godot editor | Authenticated `EditorPlugin` transaction | Editor acknowledgement plus independent persisted readback |
-| Detached authoring | Project files authored by the coding agent's own file tools | Host file edits, validated with `validate_scripts` | File state on disk; `sync_status=detached` when no editor can acknowledge it |
+| Detached authoring | Project files authored by the coding agent's own file tools | Host file edits, validated with `run_project_tests` or headless checks | File state on disk; `sync_status=detached` when no editor can acknowledge it |
 | Running-game interaction | The launched game process | Authenticated runtime JSON-RPC | Runtime observation/assertion and deterministic teardown |
 
 Attached authoring is preferred when a compatible session exists. It does not
@@ -83,8 +83,9 @@ only if the same MCP installed it and its files remain unmodified.
 ## Authoring routing and mutation results
 
 Scene and resource authoring is deliberately lean. Coding agents author
-`.gd`/`.tscn`/`.tres`/`project.godot` with their own file tools and check them
-with `validate_scripts`. When a compatible editor session is attached,
+`.gd`/`.tscn`/`.tres`/`project.godot` with their own file tools and validate
+them with `run_project_tests` or headless checks. When a compatible editor
+session is attached,
 `editor_transaction` exposes compound
 add/remove/rename/duplicate/reparent/property/instantiate/script/
 resource-assignment/save operations directly: it validates every

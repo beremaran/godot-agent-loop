@@ -11,7 +11,7 @@ against the built server. The retained contract:
 
 1. completes the MCP initialization handshake;
 2. receives the generated `core` surface rather than a hand-maintained count;
-3. calls `get_godot_version` against the real Godot binary;
+3. calls `run_project_tests` discovery against the fixture project;
 4. finds hidden `game_light_3d` through read-only `godot_catalog` detail and
    invokes hidden tools only through `godot_call`;
 5. closes its MCP client and child process.

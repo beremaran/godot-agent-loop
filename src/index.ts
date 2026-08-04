@@ -22,11 +22,9 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import type { GameResponse } from './game-connection.js';
 
-import { PathSecurity, type OperationParams, type ToolResponse } from './utils.js';
+import { PathSecurity, type ToolResponse } from './utils.js';
 import type { ToolName } from './tool-definitions.js';
 import { GodotExecutableService, GodotExecutableValidator } from './godot-executable.js';
-import { HeadlessOperationRunner } from './headless-operation-runner.js';
-import { HeadlessOperationService } from './headless-operation-service.js';
 import { GameCommandService } from './game-command-service.js';
 import { InteractionServerInstaller } from './interaction-server-installer.js';
 import { GameConnection } from './game-connection.js';
@@ -154,11 +152,8 @@ export class GodotServer {
   private readonly projectToolHandlers: ProjectToolHandlers;
   private readonly lifecycleToolHandlers: LifecycleToolHandlers;
   private readonly projectSupport: ProjectSupport;
-  private operationsScriptPath: string;
   private interactionServerInstaller: InteractionServerInstaller;
   private readonly executableValidator: GodotExecutableValidator;
-  private operationRunner: HeadlessOperationRunner;
-  private readonly headlessOperations: HeadlessOperationService;
   private readonly gameCommands: GameCommandService;
   private readonly attachedEditorProjects = new Set<string>();
   private readonly pauseGuardEditorProjects = new Set<string>();
@@ -217,7 +212,6 @@ export class GodotServer {
 
   constructor(config?: GodotServerConfig) {
     // Apply configuration if provided
-    let debugMode = DEBUG_MODE;
     const headlessMode = resolveHeadlessMode();
     this.executableValidator = new GodotExecutableValidator(message => { this.logDebug(message); });
     this.executable = new GodotExecutableService(
@@ -227,9 +221,6 @@ export class GodotServer {
     );
 
     if (config) {
-      if (config.debugMode !== undefined) {
-        debugMode = config.debugMode;
-      }
       if (config.strictPathValidation !== undefined) {
         this.strictPathValidation = config.strictPathValidation;
       }
@@ -248,29 +239,12 @@ export class GodotServer {
       }
     }
 
-    // Set the path to the operations script
-    this.operationsScriptPath = join(__dirname, 'scripts', 'godot_operations.gd');
     this.editorPluginInstaller = new EditorPluginInstaller(join(__dirname, 'scripts', 'mcp_editor_plugin.gd'));
     this.interactionServerInstaller = new InteractionServerInstaller({
       sourceScriptPath: join(__dirname, 'scripts', 'mcp_interaction_server.gd'),
       logDebug: message => { this.logDebug(message); },
     });
-    this.operationRunner = new HeadlessOperationRunner({
-      operationsScriptPath: this.operationsScriptPath,
-      resolveGodotPath: async () => {
-        const path = await this.executable.requirePath();
-        if (!path) throw new Error('Could not find a valid Godot executable path');
-        return path;
-      },
-      logDebug: message => { this.logDebug(message); },
-      debugGodot: debugMode,
-    });
-    this.headlessOperations = new HeadlessOperationService(
-      this.operationRunner,
-      pathSecurity,
-    );
     this.gameCommands = new GameCommandService(this.processManager, this.gameConnection);
-    if (debugMode) console.error(`[DEBUG] Operations script path: ${this.operationsScriptPath}`);
     this.projectSupport = new ProjectSupport({
       getGodotPath: () => this.godotPath,
       detectGodotPath: () => this.detectGodotPath(),
@@ -282,7 +256,6 @@ export class GodotServer {
     this.projectToolHandlers = new ProjectToolHandlers({
       executable: this.executable,
       logDebug: message => { this.logDebug(message); },
-      operations: this.headlessOperations,
       projectSupport: this.projectSupport,
       pathSecurity,
       ownedTransientFiles: projectPath => this.interactionServerInstaller.ownedTransientFiles(projectPath),
@@ -631,22 +604,6 @@ export class GodotServer {
    */
   async close(): Promise<void> {
     await this.cleanup();
-  }
-
-  /**
-   * Execute a Godot operation using the operations script
-   * @param operation The operation to execute
-   * @param params The parameters for the operation
-   * @param projectPath The path to the Godot project
-   * @returns The stdout and stderr from the operation
-   */
-  private async executeOperation(
-    operation: string,
-    params: OperationParams,
-    projectPath: string
-  ): Promise<{ stdout: string; stderr: string }> {
-    // Parameter normalization is owned by HeadlessOperationRunner via convertCamelToSnakeCase.
-    return this.headlessOperations.execute(operation, params, projectPath);
   }
 
   // GameToolHandlers owns game_screenshot's type: 'image' / mimeType: 'image/png' response.

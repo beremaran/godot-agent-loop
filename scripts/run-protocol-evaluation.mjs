@@ -152,7 +152,7 @@ try {
     '--tool-arg',
     'action=describe',
     '--tool-arg',
-    'toolName=get_godot_version',
+    'toolName=godot_catalog',
   ], { env: inspectorEnvironment });
   const inspectorInvalidCallRun = command(inspectorEntry, [
     process.execPath,
@@ -175,7 +175,7 @@ try {
     toolsList: inspectorListRun.status === 0 && Array.isArray(inspectorTools),
     representativeValidCall: inspectorValidCallRun.status === 0
       && inspectorValidCall?.structuredContent?.ok === true
-      && inspectorValidCall.structuredContent?.data?.name === 'get_godot_version',
+      && inspectorValidCall.structuredContent?.data?.name === 'godot_catalog',
     invalidCallStructuredError: inspectorInvalidCallRun.status === 0
       && inspectorInvalidCall?.isError === true
       && inspectorInvalidCall?.structuredContent?.ok === false

@@ -10,51 +10,51 @@
     "coreReductionPercentMin": 92
   },
   "full": {
-    "tools": 61,
-    "bytes": 415177,
-    "estimatedTokens": 103795
+    "tools": 56,
+    "bytes": 383907,
+    "estimatedTokens": 95977
   },
   "core": {
-    "tools": 19,
-    "bytes": 32054,
-    "estimatedTokens": 8014
+    "tools": 16,
+    "bytes": 29491,
+    "estimatedTokens": 7373
   },
-  "coreByteReductionPercent": 92.28,
+  "coreByteReductionPercent": 92.32,
   "counts": {
     "domains": {
-      "lifecycle": 11,
-      "project": 9,
-      "game": 41
+      "lifecycle": 10,
+      "project": 6,
+      "game": 40
     },
     "backends": {
       "local": 4,
-      "process": 9,
-      "godot-cli": 8,
-      "runtime": 38,
+      "process": 8,
+      "godot-cli": 5,
+      "runtime": 37,
       "runtime-buffer": 2
     },
     "actions": {
       "toolsWithActions": 16,
-      "declaredActions": 63
+      "declaredActions": 61
     },
     "privilege": {
-      "none": 56,
+      "none": 51,
       "required": 5
     },
     "effectScopes": {
-      "read-only": 18,
+      "read-only": 13,
       "external-open-world": 1,
-      "process": 15,
-      "runtime-ephemeral": 27
+      "process": 14,
+      "runtime-ephemeral": 28
     },
     "requiredStates": {
-      "none": 3,
-      "project": 15,
+      "none": 2,
+      "project": 12,
       "editor": 2,
-      "runtime": 41
+      "runtime": 40
     },
     "mutation": {
-      "read-only": 18,
+      "read-only": 13,
       "mutating": 31,
       "mixed": 12
     }
@@ -71,20 +71,16 @@
       "game_scenario",
       "game_screenshot",
       "game_wait_until",
-      "get_godot_version",
-      "get_project_info",
       "godot_call",
       "godot_catalog",
       "run_project",
       "run_project_tests",
       "stop_project",
-      "validate_scripts",
       "verify_project"
     ],
     "hidden": [
       "analyze_project_integrity",
       "editor_control",
-      "export_project",
       "game_await_signal",
       "game_call_method",
       "game_change_scene",
@@ -105,11 +101,10 @@
       "game_key_hold",
       "game_key_press",
       "game_key_release",
-      "game_list_signals",
       "game_manage_group",
       "game_mouse_drag",
       "game_mouse_move",
-      "game_os_info",
+      "game_pause",
       "game_performance",
       "game_remove_node",
       "game_reparent_node",
@@ -128,33 +123,33 @@
   },
   "coverage": {
     "catalogMetadata": {
-      "complete": 61,
-      "total": 61
+      "complete": 56,
+      "total": 56
     },
     "inputSchemas": {
-      "declared": 61,
-      "dialectDeclared": 61,
-      "closedTopLevel": 61,
-      "propertyNodes": 681,
-      "describedPropertyNodes": 681
+      "declared": 56,
+      "dialectDeclared": 56,
+      "closedTopLevel": 56,
+      "propertyNodes": 632,
+      "describedPropertyNodes": 632
     },
     "outputSchemas": {
-      "declared": 61,
-      "total": 61
+      "declared": 56,
+      "total": 56
     },
     "titles": {
-      "catalogMetadata": 61,
-      "advertised": 61,
-      "total": 61
+      "catalogMetadata": 56,
+      "advertised": 56,
+      "total": 56
     },
     "annotations": {
-      "declared": 61,
-      "total": 61,
+      "declared": 56,
+      "total": 56,
       "hints": {
-        "readOnlyHint": 61,
-        "destructiveHint": 61,
-        "idempotentHint": 61,
-        "openWorldHint": 61
+        "readOnlyHint": 56,
+        "destructiveHint": 56,
+        "idempotentHint": 56,
+        "openWorldHint": 56
       }
     }
   },
@@ -167,8 +162,7 @@
         "godot_call",
         "run_project_tests",
         "stop_project",
-        "get_project_info",
-        "validate_scripts",
+        "analyze_project_integrity",
         "run_project",
         "game_get_scene_tree",
         "game_get_ui",
@@ -205,9 +199,8 @@
         "game_key_press",
         "game_wait_until",
         "editor_transaction",
-        "validate_scripts",
-        "verify_project",
         "run_project_tests",
+        "verify_project",
         "stop_project"
       ],
       "invalidToolReferences": []
@@ -217,14 +210,11 @@
         "editor_session",
         "analyze_project_integrity",
         "verify_export_readiness",
-        "export_project",
         "manage_import_pipeline",
         "verify_dotnet_project",
         "manage_addon",
         "godot_catalog",
         "godot_call",
-        "get_project_info",
-        "validate_scripts",
         "verify_project",
         "game_scenario",
         "game_wait_until",
@@ -244,9 +234,8 @@
         "game_eval",
         "godot_catalog",
         "godot_call",
-        "validate_scripts",
-        "verify_project",
         "run_project_tests",
+        "verify_project",
         "run_project",
         "game_get_scene_tree",
         "game_get_ui",

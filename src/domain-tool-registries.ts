@@ -68,7 +68,6 @@ export function createLifecycleToolRegistry(
       'game_wait_until': args => handlers.handleGameWaitUntil(args),
       'game_scenario': args => handlers.handleGameScenario(args),
       'stop_project': () => handlers.handleStopProject(),
-      'get_godot_version': () => handlers.handleGetGodotVersion(),
   };
 }
 
@@ -76,11 +75,8 @@ export function createProjectToolRegistry(
   handlers: ProjectToolHandlers,
 ): ToolHandlerRegistry {
   return {
-      'get_project_info': args => handlers.handleGetProjectInfo(args),
       'run_project_tests': args => handlers.handleRunProjectTests(args),
-      'validate_scripts': args => handlers.handleValidateScripts(args),
       'analyze_project_integrity': args => handlers.handleAnalyzeProjectIntegrity(args),
-      'export_project': args => handlers.handleExportProject(args),
       'verify_export_readiness': args => handlers.handleVerifyExportReadiness(args),
       'manage_import_pipeline': args => handlers.handleManageImportPipeline(args),
       'verify_dotnet_project': args => handlers.handleVerifyDotnetProject(args),
@@ -123,7 +119,7 @@ export function createGameToolRegistry(
       'game_emit_signal': args => handlers.handleGameEmitSignal(args),
       'game_get_nodes_in_group': args => handlers.handleGameGetNodesInGroup(args),
       'game_find_nodes_by_class': args => handlers.handleGameFindNodesByClass(args),
-      'game_list_signals': args => handlers.handleGameListSignals(args),
+      'game_pause': args => handlers.handleGamePause(args),
       'game_await_signal': args => handlers.handleGameAwaitSignal(args),
       'game_manage_group': args => handlers.handleGameManageGroup(args),
       'game_input_state': args => handlers.handleGameInputState(args),
@@ -132,6 +128,5 @@ export function createGameToolRegistry(
       'game_wait': args => handlers.handleGameWait(args),
       'game_get_camera': () => handlers.handleGameGetCamera(),
       'game_get_audio': () => handlers.handleGameGetAudio(),
-      'game_os_info': args => handlers.handleGameOsInfo(args),
   };
 }

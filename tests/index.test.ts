@@ -56,7 +56,7 @@ vi.mock('@modelcontextprotocol/sdk/server/stdio.js', () => {
   };
 });
 
-let mockExecFileImpl: any = (file: any, args: any, options: any, callback: any) => {
+const mockExecFileImpl: any = (file: any, args: any, options: any, callback: any) => {
   const cb = typeof options === 'function' ? options : callback;
   if (cb) {
     if (args?.includes('--version')) {
@@ -256,15 +256,8 @@ const genericSweepExclusions = new Set([
 
 describe('GodotServer class tests', () => {
   let server: GodotServer;
-  let executeOperationSpy: any;
 
   beforeAll(() => {
-    // Keep executable validation real while replacing headless operations.
-    executeOperationSpy = vi.spyOn(GodotServer.prototype as any, 'executeOperation').mockResolvedValue({
-      stdout: 'mock_stdout_output',
-      stderr: ''
-    });
-
     server = new GodotServer({
       godotPath: '/fake/godot',
       strictPathValidation: true,
@@ -301,7 +294,7 @@ describe('GodotServer class tests', () => {
     try {
       await callTool({
         params: {
-          name: 'get_godot_version',
+          name: 'run_project',
           arguments: {},
           _meta: { progressToken: 'client-progress-1' },
         },
@@ -319,7 +312,7 @@ describe('GodotServer class tests', () => {
       });
 
       dispatch.mockClear();
-      await callTool({ params: { name: 'get_godot_version', arguments: {} } });
+      await callTool({ params: { name: 'run_project', arguments: {} } });
       expect(dispatch.mock.calls[0][2]).toEqual({});
     } finally {
       dispatch.mockRestore();
@@ -595,30 +588,6 @@ describe('GodotServer class tests', () => {
     expect(isVal).toBe(true);
   });
 
-  it('tests executeOperation error handling', async () => {
-    executeOperationSpy.mockRestore();
-
-    mockExecFileImpl = (file: any, args: any, options: any, callback: any) => {
-      const cb = typeof options === 'function' ? options : callback;
-      const err: any = new Error('exec error');
-      err.code = 1;
-      err.stdout = 'stdout error';
-      err.stderr = 'stderr error';
-      cb(err, 'stdout error', 'stderr error');
-    };
-
-    const result = await (server as any).executeOperation('some_op', {}, '/fake/project');
-    expect(result.stdout).toBe('stdout error');
-    expect(result.stderr).toBe('stderr error');
-    expect(result.exitCode).toBe(1);
-    expect(result.signal).toBeNull();
-
-    executeOperationSpy = vi.spyOn(GodotServer.prototype as any, 'executeOperation').mockResolvedValue({
-      stdout: 'mock_stdout_output',
-      stderr: ''
-    });
-  });
-
   it('uses ProjectSupport for project discovery', () => {
     vi.spyOn(fs, 'existsSync').mockReturnValue(true);
     const readdirSpy = vi.spyOn(fs, 'readdirSync').mockReturnValue([
@@ -708,34 +677,6 @@ describe('GodotServer class tests', () => {
 
   it('covers specific tool edge cases', async () => {
     const callTool = handlers.get(CallToolRequestSchema);
-
-    // validate_scripts variations
-    await callTool({
-      params: {
-        name: 'validate_scripts',
-        arguments: { projectPath: '/fake/project', scope: 'all' }
-      }
-    });
-
-    await callTool({
-      params: {
-        name: 'validate_scripts',
-        arguments: { projectPath: '/fake/project', scriptPaths: ['player.gd'] }
-      }
-    });
-
-    await expect(callTool({
-      params: {
-        name: 'validate_scripts',
-        arguments: { projectPath: '/fake/project', scope: 'invalid_scope' }
-      }
-    })).resolves.toMatchObject({
-      isError: true,
-      structuredContent: {
-        ok: false,
-        error: { code: 'invalid_arguments', category: 'argument' },
-      },
-    });
 
     // run_project_tests discover edge (project test discovery path)
     await callTool({

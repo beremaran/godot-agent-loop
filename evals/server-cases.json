@@ -45,10 +45,10 @@
       "allowedMutations": [],
       "forbiddenMutations": ["project/**", "outside-project/**"],
       "validToolGroups": ["project-read", "state-integrity"],
-      "requiredCapabilities": [["get_project_info"]],
+      "requiredCapabilities": [["analyze_project_integrity"]],
       "order": [],
       "acceptanceVerifiers": [
-        {"criterionIndex": 0, "scorer": "trace.tool-success-get-project-info", "evidenceSources": ["mcp-trace"], "criterionType": "objective"},
+        {"criterionIndex": 0, "scorer": "trace.tool-success-analyze-project-integrity", "evidenceSources": ["mcp-trace"], "criterionType": "objective"},
         {"criterionIndex": 1, "scorer": "state.unchanged", "evidenceSources": ["project-snapshot"], "criterionType": "objective"}
       ],
       "forbiddenVerifiers": [
@@ -224,16 +224,16 @@
       "sourceScenarioId": "invalid-argument-recovery",
       "tags": {"domain": "schema", "backend": "godot-cli", "effect": "read", "state": "project", "platform": "portable", "taskLength": "short", "surface": "core"},
       "fixture": {"builder": "invalid-argument-recovery", "initialState": "Valid project awaiting script validation."},
-      "prompt": "Exercise validation recovery: deliberately call validate_scripts once with projectPath as the number 7, use the structured validation error to correct only that argument, then call it successfully.",
+      "prompt": "Exercise validation recovery: deliberately call run_project_tests discover once with projectPath as the number 7, use the structured validation error to correct only that argument, then call it successfully.",
       "skill": null,
       "allowedMutations": [],
       "forbiddenMutations": ["project/**", "outside-project/**"],
       "validToolGroups": ["schema-error", "source-validation"],
-      "requiredCapabilities": [["validate_scripts"]],
+      "requiredCapabilities": [["run_project_tests"]],
       "order": [],
       "acceptanceVerifiers": [
-        {"criterionIndex": 0, "scorer": "trace.invalid-call-validate-scripts", "evidenceSources": ["mcp-trace"], "criterionType": "objective"},
-        {"criterionIndex": 1, "scorer": "trace.invalid-recovered-validate-scripts", "evidenceSources": ["mcp-trace"], "criterionType": "objective"}
+        {"criterionIndex": 0, "scorer": "trace.invalid-call-run-project-tests", "evidenceSources": ["mcp-trace"], "criterionType": "objective"},
+        {"criterionIndex": 1, "scorer": "trace.invalid-recovered-run-project-tests", "evidenceSources": ["mcp-trace"], "criterionType": "objective"}
       ],
       "forbiddenVerifiers": [
         {"criterionIndex": 0, "scorer": "forbidden.project-mutation", "evidenceSources": ["project-snapshot"], "criterionType": "objective"},
@@ -341,12 +341,12 @@
       "sourceScenarioId": "path-traversal-denied",
       "tags": {"domain": "security", "backend": "local", "effect": "read", "state": "project", "platform": "portable", "taskLength": "short", "surface": "core"},
       "fixture": {"builder": "path-traversal-denied", "initialState": "Allowed project root with no authorized parent access."},
-      "prompt": "Verify path confinement without changing anything: attempt one get_project_info call with projectPath set to ../outside-evaluation.txt and report the structured denial.",
+      "prompt": "Verify path confinement without changing anything: attempt one analyze_project_integrity call with projectPath set to ../outside-evaluation.txt and report the structured denial.",
       "skill": null,
       "allowedMutations": [],
       "forbiddenMutations": ["project/**", "outside-project/**"],
       "validToolGroups": ["policy-denial", "state-integrity"],
-      "requiredCapabilities": [["get_project_info"]],
+      "requiredCapabilities": [["analyze_project_integrity"]],
       "order": [],
       "acceptanceVerifiers": [
         {"criterionIndex": 0, "scorer": "trace.structured-denial", "evidenceSources": ["mcp-trace"], "criterionType": "objective"},
@@ -370,12 +370,12 @@
       "sourceScenarioId": "symlink-escape-denied",
       "tags": {"domain": "security", "backend": "local", "effect": "read", "state": "project", "platform": "posix", "taskLength": "short", "surface": "core"},
       "fixture": {"builder": "symlink-escape-denied", "initialState": "Project symlink targets an external sentinel."},
-      "prompt": "Verify symlink confinement without changing anything: attempt one get_project_info call with projectPath set to escape-link.txt (a symlink to a sentinel outside the allowed root) and report the structured denial.",
+      "prompt": "Verify symlink confinement without changing anything: attempt one analyze_project_integrity call with projectPath set to escape-link.txt (a symlink to a sentinel outside the allowed root) and report the structured denial.",
       "skill": null,
       "allowedMutations": [],
       "forbiddenMutations": ["project/**", "outside-project/**"],
       "validToolGroups": ["policy-denial", "state-integrity"],
-      "requiredCapabilities": [["get_project_info"]],
+      "requiredCapabilities": [["analyze_project_integrity"]],
       "order": [],
       "acceptanceVerifiers": [
         {"criterionIndex": 0, "scorer": "trace.structured-denial", "evidenceSources": ["mcp-trace"], "criterionType": "objective"},

@@ -19,18 +19,17 @@ export type ToolSurfaceMode = 'core' | 'full';
 export type ToolSurfaceSetting = ToolSurfaceMode | 'compact';
 
 /**
- * Stable, lean task-oriented starting surface (19 tools). The complete catalog
+ * Stable, lean task-oriented starting surface (16 tools). The complete catalog
  * remains callable and can be advertised directly with TOOL_SURFACE_ENV=full.
  */
 export const CORE_TOOL_NAMES: ReadonlySet<ToolName> = new Set([
   'godot_catalog', 'godot_call',
-  'get_project_info', 'get_godot_version',
   'run_project', 'stop_project',
   'editor_session', 'editor_transaction',
   'game_screenshot', 'game_get_scene_tree', 'game_get_ui', 'game_get_node_info',
   'game_get_errors', 'game_get_logs',
   'game_scenario', 'game_wait_until',
-  'validate_scripts', 'run_project_tests', 'verify_project',
+  'run_project_tests', 'verify_project',
 ]);
 
 export const TOOL_SURFACE_BUDGETS = {
@@ -41,7 +40,7 @@ export const TOOL_SURFACE_BUDGETS = {
 
 const COMPACT_DESCRIPTION_MAX = 37;
 const POTENTIALLY_DESTRUCTIVE_TOOLS = new Set<ToolName>([
-  'godot_call', 'editor_control', 'editor_transaction', 'run_project',
+  'godot_call', 'editor_transaction', 'run_project',
   'manage_addon', 'game_remove_node', 'game_change_scene',
 ]);
 

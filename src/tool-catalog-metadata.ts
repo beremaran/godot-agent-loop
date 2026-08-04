@@ -69,27 +69,25 @@ type WorkflowGuidance = readonly [whenToUse: string, whenNotToUse: string];
 /** Explicitly reviewed guidance for every compact or shipped-skill tool. */
 const REVIEWED_WORKFLOW_GUIDANCE: Partial<Record<ToolName, WorkflowGuidance>> = {
   analyze_project_integrity: ['Audit assets or preview a safe rename.', 'Do not use it to mutate or rename files directly.'],
-  editor_control: ['Drive an attached editor selection, scene, property, or undo action.', 'Do not use it when no compatible editor is attached.'],
+  editor_control: ['Inspect editor state, select nodes, open scenes, and undo/redo through the attached editor bridge.', 'Do not use it for scene mutation; route persistent edits through editor_transaction.'],
   editor_session: ['Inspect, attach, launch, or disconnect the persistent editor bridge.', 'Do not use it to start the game runtime.'],
   editor_transaction: ['Apply an undoable batch of editor scene mutations.', 'Do not use it when no attached editor is available.'],
-  export_project: ['Produce an export artifact from a configured preset.', 'Run readiness checks first when release confidence matters.'],
   game_call_method: ['Invoke a known runtime node method during playtesting.', 'Avoid arbitrary calls when a typed purpose-built tool exists.'],
   game_click: ['Click runtime UI or viewport coordinates.', 'Use key tools for keyboard or InputMap actions.'],
   game_eval: ['Evaluate a bounded diagnostic runtime expression.', 'Do not use it for persistent authoring or untrusted code.'],
   game_get_errors: ['Read bounded new runtime errors.', 'Use game_get_logs for raw process output.'],
   game_get_logs: ['Read bounded new runtime log messages.', 'Use game_get_errors when only failures matter; use a fresh log condition for a transition wait.'],
-  game_get_node_info: ['Inspect one runtime node and selected properties.', 'Use scene-tree reads to discover an unknown node path first.'],
+  game_get_node_info: ['Inspect one runtime node, its properties, and signal connections.', 'Use scene-tree reads to discover an unknown node path first.'],
   game_get_property: ['Read one known runtime property.', 'Use game_get_node_info for a broader node inspection.'],
-  game_get_scene_tree: ['Discover the live runtime scene tree.', 'Use get_project_info for project metadata instead.'],
+  game_get_scene_tree: ['Discover the live runtime scene tree.', 'Inspect a single node with game_get_node_info once its path is known.'],
   game_get_ui: ['Inspect concise runtime UI controls and text.', 'Use the full scene tree for non-UI nodes.'],
   game_key_hold: ['Hold one key or InputMap action across frames; in a scenario, use step.arguments and a short engine-side wait or observation.', 'Do not pass a duration field or rely on a long hold to steer through a grid route; use game_key_release after the wait.'],
   game_key_press: ['Tap a key, action, or text once.', 'Use hold/release for continuous movement.'],
   game_key_release: ['Release input previously held by the agent.', 'Do not use it as a one-frame key tap.'],
+  game_pause: ['Pause or resume the running game tree to freeze gameplay while inspecting state.', 'Resume with paused=false before ending the session; do not use it for persistent project state.'],
   game_scenario: ['Run a bounded sequence of safe input, wait, observation, and assertions; put input fields inside each step.arguments object and conditions directly on wait/assert steps.', 'Do not use it to dispatch arbitrary hidden or persistent tools; set fresh=true on log conditions that must prove a new event.'],
   game_screenshot: ['Capture visual evidence from the running game.', 'Do not treat a screenshot alone as behavioral verification.'],
   game_wait_until: ['Wait for a bounded runtime condition; set fresh=true on a log condition when it must match output emitted after the wait starts.', 'Do not replace deterministic immediate reads with polling or use an old log line as transition proof.'],
-  get_godot_version: ['Inspect the selected Godot executable version.', 'Do not use it as a project compatibility proof.'],
-  get_project_info: ['Inspect project metadata and main-scene configuration.', 'Do not use it as a substitute for runtime observations.'],
   godot_call: ['Execute a specifically discovered hidden tool.', 'Use godot_catalog first when the exact tool is unknown.'],
   godot_catalog: ['Search or describe the full tool catalog without mutation.', 'Do not use discovery as permission to execute a result.'],
   manage_addon: ['Inspect or manage an editor add-on with integrity checks.', 'Do not install untrusted or unhashed add-on sources.'],
@@ -97,7 +95,6 @@ const REVIEWED_WORKFLOW_GUIDANCE: Partial<Record<ToolName, WorkflowGuidance>> = 
   run_project: ['Start the game and wait for the runtime bridge.', 'Do not launch a duplicate runtime when one is already connected.'],
   run_project_tests: ['Discover or run project test suites. action=discover accepts framework and testPaths; action=run also accepts artifactPaths, timeoutSeconds, and failFast.', 'Do not pass run-only fields to action=discover; use verify_project for broader static and configuration checks.'],
   stop_project: ['Safely stop the connected game runtime with no arguments; it is process-global.', 'Do not pass projectPath or disconnect the editor when only the game should stop.'],
-  validate_scripts: ['Validate changed, all, or explicit GDScript files.', 'A zero-file changed scope is unvalidated; use all or explicit paths.'],
   verify_dotnet_project: ['Inspect, restore, build, or run the project .NET workflow.', 'Do not use it for a GDScript-only project.'],
   verify_export_readiness: ['Inspect or smoke-test an export preset.', 'Do not substitute it for testing the exported artifact.'],
   verify_project: ['Run bounded project-wide static verification.', 'Use runtime observations for gameplay behavior.'],
@@ -190,9 +187,9 @@ const CURATED_GUIDANCE: Partial<Record<ToolName, CuratedGuidance>> = {
 const EXTERNAL_TOOLS = new Set<ToolName>([]);
 const EDITOR_TOOLS = new Set<ToolName>(['editor_control', 'editor_transaction']);
 const RUNTIME_STATE_TOOLS = new Set<ToolName>(['stop_project']);
-const NO_STATE_TOOLS = new Set<ToolName>(['godot_catalog', 'godot_call', 'get_godot_version']);
+const NO_STATE_TOOLS = new Set<ToolName>(['godot_catalog', 'godot_call']);
 const POTENTIALLY_DESTRUCTIVE_TOOLS = new Set<ToolName>([
-  'godot_call', 'editor_control', 'editor_transaction', 'manage_addon',
+  'godot_call', 'editor_transaction', 'manage_addon',
   'game_remove_node', 'game_change_scene',
 ]);
 

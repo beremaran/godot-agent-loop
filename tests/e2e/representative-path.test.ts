@@ -230,9 +230,11 @@ describe('persistent authoring and runtime path', () => {
   it('returns a structured failure for a missing project', async () => {
     server = await startServer();
     const missing = join(server.root, 'does-not-exist');
-    const result = await server.call('get_project_info', { projectPath: missing });
+    const result = await server.call('analyze_project_integrity', {
+      projectPath: missing, action: 'analyze',
+    });
     expect(result.isError).toBe(true);
-    expect(result.text).toMatch(/does not exist/i);
+    expect(result.text).toMatch(/invalid project/i);
   });
 });
 

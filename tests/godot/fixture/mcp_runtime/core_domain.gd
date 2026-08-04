@@ -170,7 +170,11 @@ func _cmd_get_node_info(params: Dictionary) -> void:
 			if signals.size() >= MAX_NODE_INFO_SIGNALS:
 				break
 			var sig_dict: Dictionary = sig
-			signals.append(sig_dict.get("name", ""))
+			var sig_name: String = CommandParams.json_string(sig_dict, "name")
+			var connections: Array = []
+			for conn: Dictionary in node.get_signal_connection_list(sig_name):
+				connections.append({"callable": str(conn["callable"]), "flags": conn["flags"]})
+			signals.append({"name": sig_name, "connections": connections})
 
 	var methods: Array = []
 	if detail == "full":

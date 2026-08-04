@@ -124,18 +124,14 @@ const rawToolDefinitions = [
 },
 {
   name: 'editor_control',
-  description: 'Inspect and edit open scenes through an authenticated editor bridge',
+  description: 'Inspect and select open scenes, or save, reload, open, undo, and redo through an authenticated editor bridge',
   inputSchema: {
     type: 'object',
     properties: {
       projectPath: { type: 'string', description: 'Godot project path whose editor is open' },
-      action: { type: 'string', enum: ['inspect', 'select', 'save', 'reload', 'open_scene', 'set_property', 'rename_node', 'undo', 'redo'], description: 'Editor action' },
+      action: { type: 'string', enum: ['inspect', 'select', 'save', 'reload', 'open_scene', 'undo', 'redo'], description: 'Editor action' },
       nodePaths: { type: 'array', items: { type: 'string' }, maxItems: 128, description: 'Scene-relative node paths for select' },
       scenePath: { type: 'string', description: 'Project-relative or res:// scene path' },
-      nodePath: { type: 'string', description: 'Scene-relative node path' },
-      property: { type: 'string', description: 'Property to edit' },
-      value: { description: 'New property value' },
-      name: { type: 'string', minLength: 1, maxLength: 128, description: 'New node name' },
     },
     required: ['projectPath', 'action'],
   },
@@ -347,29 +343,6 @@ const rawToolDefinitions = [
   },
 },
 {
-  name: 'get_godot_version',
-  description: 'Get the installed Godot version',
-  inputSchema: {
-    type: 'object',
-    properties: {},
-    required: [],
-  },
-},
-{
-  name: 'get_project_info',
-  description: 'Retrieve metadata about a Godot project',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Godot project path',
-      },
-    },
-    required: ['projectPath'],
-  },
-},
-{
   name: 'game_screenshot',
   description: 'Capture a PNG preview with dimensions, digest, and optional temp artifact',
   inputSchema: {
@@ -576,7 +549,7 @@ const rawToolDefinitions = [
 },
 {
   name: 'game_get_node_info',
-  description: 'Get compact or full node info; use compact with propertyNames for small reads',
+  description: 'Get compact or full node info including properties and, at full detail, signal names with their connection callables; use compact with propertyNames for small reads',
   inputSchema: {
     type: 'object',
     properties: {
@@ -584,7 +557,7 @@ const rawToolDefinitions = [
         type: 'string',
         description: 'Path to the node (e.g., "/root/Player")',
       },
-      detail: { type: 'string', enum: ['compact', 'full'], description: 'Compact omits methods and signals and returns only named properties. Default: full for compatibility' },
+      detail: { type: 'string', enum: ['compact', 'full'], description: 'Compact omits methods and signal connections and returns only named properties. Default: full for compatibility' },
       propertyNames: { type: 'array', items: { type: 'string' }, maxItems: 64, description: 'Exact properties to include; use with detail=compact for a small response' },
     },
     required: ['nodePath'],
@@ -940,20 +913,6 @@ const rawToolDefinitions = [
     required: ['action'],
   },
 },
-{
-  name: 'export_project',
-  description: 'Export a Godot project using a preset',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: { type: 'string', description: 'Godot project path' },
-      presetName: { type: 'string', description: 'Export preset name' },
-      outputPath: { type: 'string', description: 'Output file path for the exported build' },
-      debug: { type: 'boolean', description: 'Use debug export. Default: false' },
-    },
-    required: ['projectPath', 'presetName', 'outputPath'],
-  },
-},
 // Batch 1: Networking + Input + System + Signals + Script
 {
   name: 'game_touch',
@@ -1004,14 +963,14 @@ const rawToolDefinitions = [
   },
 },
 {
-  name: 'game_list_signals',
-  description: 'List all signals on a node with connections',
+  name: 'game_pause',
+  description: 'Pause or unpause the running game tree',
   inputSchema: {
     type: 'object',
     properties: {
-      nodePath: { type: 'string', description: 'Path to the node' },
+      paused: { type: 'boolean', description: 'Pause the game tree (true) or resume it (false). Default: true' },
     },
-    required: ['nodePath'],
+    required: [],
   },
 },
 {
@@ -1041,31 +1000,9 @@ const rawToolDefinitions = [
     required: ['nodePath', 'action'],
   },
 },
-{
-  name: 'game_os_info',
-  description: 'Get platform, locale, screen, adapter, memory info',
-  inputSchema: {
-    type: 'object',
-    properties: {},
-    required: [],
-  },
-},
 // Batch 2: 3D Rendering + Lighting + Sky + Physics
 // Batch 3: 2D Systems + Animation Advanced + Audio Effects
 // Batch 4: Editor/Headless + Localization + Resource
-{
-  name: 'validate_scripts',
-  description: 'Batch-check GDScript files (git-changed by default, or all)',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: { type: 'string', description: 'Godot project path' },
-      scope: { type: 'string', enum: ['changed', 'all'], description: '"changed" = git-changed .gd (default); "all" = every .gd in project' },
-      scriptPaths: { type: 'array', items: { type: 'string' }, description: 'Optional explicit list of .gd paths to check (overrides scope)' },
-    },
-    required: ['projectPath'],
-  },
-},
 // Batch 5: UI Controls + Rendering + Resource Runtime
 // Batch 6: Visual Shader + Terrain + Video + CI/CD
 ] as const satisfies readonly ToolDefinition[];
@@ -1558,7 +1495,7 @@ function addConditionalContracts(name: string, inputSchema: ToolPropertySchema):
     };
   }
   if (name === 'editor_control') {
-    const fields = ['nodePaths', 'scenePath', 'nodePath', 'property', 'value', 'name'] as const;
+    const fields = ['nodePaths', 'scenePath'] as const;
     const branch = (action: string, required: readonly string[] = []) => selectorBranch(
       'action', action, required, fields.filter(field => !required.includes(field)),
     );
@@ -1570,8 +1507,6 @@ function addConditionalContracts(name: string, inputSchema: ToolPropertySchema):
         branch('save'),
         branch('reload', ['scenePath']),
         branch('open_scene', ['scenePath']),
-        branch('set_property', ['nodePath', 'property', 'value']),
-        branch('rename_node', ['nodePath', 'name']),
         branch('undo'),
         branch('redo'),
       ],

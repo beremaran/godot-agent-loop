@@ -139,11 +139,6 @@ runtime registry under `src/scripts/mcp_runtime/`.
 
 The following tools have been recently added:
 
-- **get_project_info**: Retrieves metadata about a Godot project
-  - Analyzes project structure
-  - Returns information about scenes, scripts, and assets
-  - Helps LLMs understand the organization of Godot projects
-
 - **game_screenshot**: Captures a PNG preview of a running Godot project
   - Requires an active Godot process
   - Returns dimensions, a digest, and an optional retained temp artifact

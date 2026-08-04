@@ -6,10 +6,8 @@ import { homedir } from 'os';
 import { createErrorResponse, errorMessage, normalizeParameters, validatePath, type ToolArguments, type ToolResponse, PathSecurity } from '../utils.js';
 import type { ProjectSupport } from '../project-support.js';
 import type { GodotExecutableService } from '../godot-executable.js';
-import type { HeadlessOperationService } from '../headless-operation-service.js';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import { GODOT_EXPORT_OPTIONS } from '../godot-subprocess.js';
 import {
   abortError,
   currentExecutionContext,
@@ -32,7 +30,6 @@ function rethrowCancellation(error: unknown): void {
 /** Dependencies shared by the focused project-tool services. */
 export interface ProjectHandlerServiceContext {
   executable: GodotExecutableService;
-  operations: HeadlessOperationService;
   pathSecurity: PathSecurity;
   projectSupport: ProjectSupport;
   ownedTransientFiles?: (projectPath: string) => ReadonlySet<string>;
@@ -46,52 +43,6 @@ function validProject(context: ProjectHandlerServiceContext, projectPath: unknow
   return typeof projectPath === 'string'
     && context.pathSecurity.isProjectPathAllowed(projectPath)
     && existsSync(projectFile(projectPath));
-}
-
-/** Owns invocation of Godot's export command. */
-export class ProjectExportService {
-  constructor(private readonly context: ProjectHandlerServiceContext) {}
-
-  async export(args: ToolArguments): Promise<ToolResponse> {
-    args = normalizeParameters(args || {});
-    throwIfCancelled();
-    await reportProgress(0, 3, 'Validating export request and Godot executable');
-    if (!args.projectPath || !args.presetName || !args.outputPath) return createErrorResponse('projectPath, presetName, and outputPath are required.');
-    if (!validProject(this.context, args.projectPath)) return createErrorResponse('Invalid project path.');
-    const outputPath = isAbsolute(args.outputPath)
-      ? (this.context.pathSecurity.isProjectPathAllowed(args.outputPath, true) ? resolve(args.outputPath) : null)
-      : this.context.pathSecurity.resolveProjectPath(args.projectPath, args.outputPath);
-    if (!outputPath) return createErrorResponse('Invalid output path.');
-    if (!this.context.executable.path) await this.context.executable.detect();
-    if (!this.context.executable.path) return createErrorResponse('Could not find Godot executable.');
-    try {
-      mkdirSync(dirname(outputPath), { recursive: true });
-      const flag = args.debug ? '--export-debug' : '--export-release';
-      await reportProgress(1, 3, `Exporting preset ${args.presetName}`);
-      const { stdout } = await execFileAsync(this.context.executable.path, ['--headless', '--path', args.projectPath, flag, args.presetName, outputPath], {
-        ...GODOT_EXPORT_OPTIONS,
-        signal: executionSignal(),
-      });
-      throwIfCancelled();
-      await reportProgress(2, 3, 'Godot export process completed');
-      await reportProgress(3, 3, 'Export complete');
-      return { content: [{ type: 'text', text: `Export succeeded.\n\nOutput: ${stdout || outputPath}` }] };
-    } catch (error: unknown) {
-      rethrowCancellation(error);
-      if (error instanceof Error && 'code' in error) {
-        const processError = error as Error & { code?: number | string; signal?: NodeJS.Signals | null; stdout?: string; stderr?: string };
-        if (typeof processError.code !== 'number' && !processError.signal) {
-          return createErrorResponse(`Export failed: ${errorMessage(error)}`);
-        }
-        const status = processError.signal
-          ? `terminated by signal ${processError.signal}`
-          : `exited with code ${processError.code}`;
-        const output = processError.stderr || processError.stdout;
-        return createErrorResponse(`Export failed (${status})${output ? `: ${output}` : '.'}`);
-      }
-      return createErrorResponse(`Export failed: ${errorMessage(error)}`);
-    }
-  }
 }
 
 interface ProjectTestCaseResult {

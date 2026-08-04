@@ -51,7 +51,7 @@ Privileged runtime groups (reflection, code execution) are denied by default; op
 
 ### Lean surface (August 2026)
 
-The tool surface was deliberately reduced from 173 to 64 tools; the advertised `core` is 20 tools. Do not reach for tools from the removed categories — file CRUD, project listing/creation, scene-authoring primitives, project-settings wrappers, CI/export scaffolds, and subsystem runtime wrappers (UI, audio, physics, terrain, GI, animation, networking, and similar) were deleted. Coding agents author `.gd`/`.tscn`/`.tres`/`project.godot` with their own file tools and use `editor_transaction` in watched mode; capabilities beyond the core are reached through `godot_catalog` + `godot_call`. Privilege groups now cover reflection and code-execution only (network commands were deleted).
+The tool surface was deliberately reduced from 173 to 56 tools; the advertised `core` is 16 tools. Do not reach for tools from the removed categories — file CRUD, project listing/creation, scene-authoring primitives, project-settings wrappers, CI/export scaffolds, subsystem runtime wrappers (UI, audio, physics, terrain, GI, animation, networking, and similar), or the further-trimmed identities (`get_godot_version`, `get_project_info`, `validate_scripts`, `game_os_info`, `game_list_signals`, `export_project`) — all were deleted. Coding agents author `.gd`/`.tscn`/`.tres`/`project.godot` with their own file tools and use `editor_transaction` in watched mode; capabilities beyond the core are reached through `godot_catalog` + `godot_call`. Privilege groups now cover reflection and code-execution only (network commands were deleted).
 
 ## Testing conventions
 

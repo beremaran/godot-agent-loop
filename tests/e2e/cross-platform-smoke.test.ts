@@ -21,13 +21,11 @@ describe('portable process, path, input, and platform acceptance', () => {
     const project = createTempProject({ name: 'Cross Platform Ω Project' });
     server = await startServer({ project });
 
-    const version = await server.call('get_godot_version');
-    expect(version.isError, version.text).toBe(false);
-    expect(version.text).toMatch(/^4\.(4|7)/);
-
-    const info = await server.call('get_project_info', { projectPath: server.projectPath });
-    expect(info.isError, info.text).toBe(false);
-    expect(info.text).toContain('godot-agent-loop-e2e-fixture');
+    const integrity = await server.call('analyze_project_integrity', {
+      projectPath: server.projectPath, action: 'analyze',
+    });
+    expect(integrity.isError, integrity.text).toBe(false);
+    expect(integrity.text).toContain('main.tscn');
 
     const started = await server.call('run_project', { projectPath: server.projectPath });
     expect(started.isError, started.text).toBe(false);
@@ -51,13 +49,13 @@ describe('portable process, path, input, and platform acceptance', () => {
     expect(actionState.pressed).toBe(true);
     expect(actionState.strength).toBeCloseTo(0.75, 4);
 
-    const osInfo = await server.call('game_os_info');
-    expect(osInfo.isError, osInfo.text).toBe(false);
-    const osInfoData = payload(osInfo.text) as {
-      os_name: string; screen_size: { x: number; y: number };
+    const audio = await server.call('game_get_audio');
+    expect(audio.isError, audio.text).toBe(false);
+    const audioData = payload(audio.text) as {
+      buses: unknown[]; players: unknown[];
     };
-    expect(osInfoData.os_name).not.toBe('');
-    expect(osInfoData.screen_size.x).toBeGreaterThan(0);
+    expect(Array.isArray(audioData.buses)).toBe(true);
+    expect(Array.isArray(audioData.players)).toBe(true);
 
     const stopped = await server.call('stop_project');
     expect(stopped.isError, stopped.text).toBe(false);

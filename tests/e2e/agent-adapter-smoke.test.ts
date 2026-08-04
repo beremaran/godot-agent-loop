@@ -26,9 +26,11 @@ describe('shared adapter MCP smoke path', () => {
       expect(listed.tools.map(tool => tool.name)).not.toContain('game_eval');
       expect(listed.tools.map(tool => tool.name)).not.toContain('game_light_3d');
 
-      const version = await server.call('get_godot_version');
+      const version = await server.call('run_project_tests', {
+        projectPath: server.projectPath, action: 'discover',
+      });
       expect(version.isError, version.text).toBe(false);
-      expect(version.text).toMatch(/4\.[0-9]+/);
+      expect(version.text).toContain('frameworks');
 
       const hidden = await server.call('godot_catalog', {
         action: 'search', query: 'visual regression', domain: 'game',
@@ -102,10 +104,13 @@ describe('shared adapter MCP smoke path', () => {
       expect(tools.has('export_project')).toBe(false);
       expect(tools.has('game_eval')).toBe(false);
       expect(tools.has('game_light_3d')).toBe(false);
-      expect(tools.get('get_godot_version').label).toBe('Get Godot Version');
+      expect(tools.has('get_godot_version')).toBe(false);
 
-      const version = await tools.get('get_godot_version').execute('pi-version', {}, undefined);
-      expect(version.content.map((entry: { text?: string }) => entry.text ?? '').join('\n')).toMatch(/4\.[0-9]+/);
+      const described = await tools.get('godot_catalog').execute('pi-discovery', {
+        action: 'describe', toolName: 'godot_catalog',
+      }, undefined);
+      const describedPayload = JSON.parse(described.content[0].text);
+      expect(describedPayload).toMatchObject({ name: 'godot_catalog' });
 
       const hidden = await tools.get('godot_catalog').execute('pi-discovery', {
         action: 'search', query: 'visual regression', domain: 'game',

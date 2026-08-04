@@ -23,7 +23,7 @@ toolchain, or target device into a passing claim. Support begins at Godot 4.7.
   changes, runtime-ephemeral playtest state, process lifecycle, and deliverables.
 - Use canonical core tools directly (compact is only the compatibility alias).
   Resolve hidden `analyze_project_integrity`, `verify_export_readiness`,
-  `export_project`, `manage_import_pipeline`, `verify_dotnet_project`, and
+  `manage_import_pipeline`, `verify_dotnet_project`, and
   `manage_addon` through `godot_catalog` detail, then invoke them with
   `godot_call`; never call a hidden tool directly.
 - The wrapper field is exactly toolName, not name or tool. Use `godot_catalog`
@@ -48,11 +48,12 @@ toolchain, or target device into a passing claim. Support begins at Godot 4.7.
    presets, templates, signing, expected outputs, and whether each gate is
    local, CI, target-hardware, or manual.
 2. Inspect `project.godot`, presets, addons, imports, and repository state with
-   `get_project_info` and host file reads, plus read-only hidden actions. Pass a
+   host file reads plus read-only hidden actions (`analyze_project_integrity`
+   and `verify_export_readiness` inspect). Pass a
    real sourcePath to `manage_import_pipeline` inspect and a real pluginName to
    `manage_addon` inspect; call .NET checks only when a C# project exists.
-3. Run `validate_scripts`, hidden integrity/import/addon/.NET readiness checks,
-   and project tests. Do not repair a failed gate without explicit authorization.
+3. Run hidden integrity/import/addon/.NET readiness checks,
+   project tests, and headless GDScript validation. Do not repair a failed gate without explicit authorization.
 4. Require representative gameplay proof with `verify_project` before export.
    Use bounded `game_scenario` and `game_wait_until` where needed. Drive held
    movement with a `game_key_hold` step inside one scenario paired with a
@@ -60,10 +61,11 @@ toolchain, or target device into a passing claim. Support begins at Godot 4.7.
    taps. Never leave input held across separate MCP calls or while reasoning.
 5. Inspect `game_get_errors`, `game_get_logs`, warnings, metric availability,
    leaks, and teardown; call `stop_project` before artifact production.
-6. For each authorized target, run `verify_export_readiness` before export.
+6. For each authorized target, run `verify_export_readiness` before export;
+   its export-smoke action owns preset validation, the export itself,
+   artifact inspection, and local smoke runs.
    Keep unavailable or signing-dependent targets blocked instead of weakening
-   the matrix. Describe `export_project` first, then pass its required
-   outputPath; do not invent a release flag.
+   the matrix. Do not invent a release flag.
 7. Inspect every produced artifact independently: expected path, file type,
    non-zero size, sidecar or pack files, hash, logs, exit status, and supported
    local smoke-run behavior. Do not treat the export response as artifact proof.

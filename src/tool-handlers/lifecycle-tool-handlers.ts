@@ -2,13 +2,10 @@ import { spawn, type ChildProcess } from 'child_process';
 import { createHash } from 'crypto';
 import { existsSync } from 'fs';
 import { join } from 'path';
-import { execFile } from 'child_process';
-import { promisify } from 'util';
 
 import { convertCamelToSnakeCase, createErrorResponse, errorMessage, normalizeParameters, validatePath, type ToolArguments, type ToolResponse } from '../utils.js';
 import type { GodotProcess } from '../godot-process-manager.js';
 import type { GodotExecutableService } from '../godot-executable.js';
-import { GODOT_VERSION_OPTIONS } from '../godot-subprocess.js';
 import type { GameResponse } from '../game-connection.js';
 import {
   deterministicSessionArguments,
@@ -32,8 +29,6 @@ import type { EditorPluginInstallation } from '../editor-plugin-installer.js';
 import { canonicalProjectPath, type PublicEditorSession } from '../editor-session-registry.js';
 import { PRIVILEGED_RUNTIME_CAPABILITY, privilegedGroupCapability } from '../runtime-protocol.js';
 import type { StructuredToolError } from '../tool-results.js';
-
-const execFileAsync = promisify(execFile);
 
 export interface LifecycleToolHandlerContext {
   executable: GodotExecutableService;
@@ -284,7 +279,7 @@ export class LifecycleToolHandlers {
 
   public async handleEditorControl(args: ToolArguments) {
     args = normalizeParameters(args || {});
-    const allowed = ['inspect', 'select', 'save', 'reload', 'open_scene', 'set_property', 'rename_node', 'undo', 'redo'];
+    const allowed = ['inspect', 'select', 'save', 'reload', 'open_scene', 'undo', 'redo'];
     if (!args.projectPath || !allowed.includes(args.action)) {
       return createErrorResponse('projectPath and a valid editor action are required.');
     }
@@ -295,7 +290,7 @@ export class LifecycleToolHandlers {
       return createErrorResponse('scenePath is outside the project root');
     }
     const params: Record<string, unknown> = {};
-    for (const key of ['nodePaths', 'scenePath', 'nodePath', 'property', 'value', 'name']) {
+    for (const key of ['nodePaths', 'scenePath']) {
       if (args[key] !== undefined) params[key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`)] = args[key];
     }
     try {
@@ -922,22 +917,6 @@ export class LifecycleToolHandlers {
         text: JSON.stringify({ message: 'Godot project stopped', finalOutput: stoppedProcess.output, finalErrors: stoppedProcess.errors }, null, 2),
       }],
     };
-  }
-
-  public async handleGetGodotVersion() {
-    try {
-      const godotPath = await this.requireGodotPath();
-      if (!godotPath) return createErrorResponse('Could not find a valid Godot executable path');
-      this.context.logDebug('Getting Godot version');
-      const { stdout } = await execFileAsync(godotPath, ['--version'], {
-        ...GODOT_VERSION_OPTIONS,
-        signal: currentExecutionContext()?.signal,
-      });
-      return { content: [{ type: 'text', text: stdout.trim() }] };
-    } catch (error: unknown) {
-      if (isAbortError(error)) throw error;
-      return createErrorResponse(`Failed to get Godot version: ${this.errorMessage(error)}`);
-    }
   }
 
   private waitForProcessExit(record: GodotProcess, timeoutMs: number): Promise<void> {

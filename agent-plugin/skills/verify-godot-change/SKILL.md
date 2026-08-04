@@ -40,7 +40,8 @@ user separately requested a fix. Support begins at Godot 4.7.
 1. Define applicable saved-state, runtime, rendered, timing, log/error,
    regression, and subjective/manual-review criteria. Mark non-applicable and
    unobservable criteria explicitly.
-2. Check saved state first with `validate_scripts` and host file reads of
+2. Check saved state first with `run_project_tests` discovery, headless checks,
+   and host file reads of
    `.tscn`, `.gd`, and `project.godot`; use hidden integrity analysis only
    through the declared discovery flow.
 3. Prefer `verify_project` and `run_project_tests`; use realtime `run_project`

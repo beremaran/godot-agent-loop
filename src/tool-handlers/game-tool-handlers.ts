@@ -398,12 +398,6 @@ export class GameToolHandlers {
     }));
   }
 
-  public async handleGameListSignals(args: ToolArguments) {
-    args = normalizeParameters(args || {});
-    if (!args.nodePath) return createErrorResponse('nodePath is required.');
-    return this.context.gameCommand('list_signals', args, a => ({ node_path: a.nodePath }));
-  }
-
   public async handleGameAwaitSignal(args: ToolArguments) {
     args = normalizeParameters(args || {});
     if (!args.nodePath || !args.signalName) return createErrorResponse('nodePath and signalName are required.');
@@ -411,6 +405,11 @@ export class GameToolHandlers {
     return this.context.gameCommand('await_signal', args, a => ({
       node_path: a.nodePath, signal_name: a.signalName, timeout: a.timeout ?? 10,
     }), timeout);
+  }
+
+  public async handleGamePause(args: ToolArguments) {
+    args = normalizeParameters(args || {});
+    return this.context.gameCommand('pause', args, a => ({ paused: a.paused ?? true }));
   }
 
   public async handleGameScript(args: ToolArguments) {
@@ -421,9 +420,5 @@ export class GameToolHandlers {
       ...(a.source ? { source: a.source } : {}),
       ...(a.className ? { class_name: a.className } : {}),
     }));
-  }
-
-  public async handleGameOsInfo(_args: ToolArguments) {
-    return this.context.gameCommand('os_info', {}, () => ({}));
   }
 }

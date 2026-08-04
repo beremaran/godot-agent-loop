@@ -9,16 +9,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- **Six redundant tool identities.** `get_godot_version`, `get_project_info`,
+  `validate_scripts`, `game_os_info`, `game_list_signals`, and `export_project`
+  are removed from the catalog and return an unknown-tool error. Engine
+  versions are reported by `run_project`; project metadata is read through
+  `analyze_project_integrity` or host file reads; script validation goes through
+  `run_project_tests`; runtime platform observation uses the remaining runtime
+  reads; signal connections are folded into `game_get_node_info` at
+  `detail=full`; and export work uses `verify_export_readiness`. The advertised
+  `core` surface drops from 19 to 16 tools, and the full catalog from 61 to 56
+  tools.
+- **`editor_control` mutating actions.** `set_property` and `rename_node` are
+  removed from `editor_control`; scene mutations go through
+  `editor_transaction` so they remain one undo step. `editor_control` keeps
+  inspect, select, save, reload, open_scene, undo, and redo.
 - **Redundant editor and validation identities.** `launch_editor` is removed;
   `editor_session ensure` with `launchIfNeeded` covers attach-or-launch, and the
   transient-addon launch path is unchanged. `validate_script` is removed; pass
-  `scriptPaths` to `validate_scripts` for a single-file check. Both return an
+  `scriptPaths` to `run_project_tests`-style headless checks. Both return an
   unknown-tool error.
 - **`get_debug_output`.** Superseded by the cursor reads `game_get_logs` and
   `game_get_errors`, which page the same captured process output with
-  `remaining`/`byteLimited` bounds. The advertised `core` surface drops to 19
-  tools (32,054 bytes / ~8,014 estimated tokens; 92.28% smaller than the
-  61-tool full catalog).
+  `remaining`/`byteLimited` bounds. The advertised `core` surface drops to 16
+  tools; exact byte/token figures are in
+  [`docs/coverage/tool-surface.json`](docs/coverage/tool-surface.json).
+- **Dead headless-operation scaffolding.** `src/headless-operation-runner.ts`
+  and `src/headless-operation-service.ts` (plus the `executeOperation` path and
+  the `godot_operations.gd` script they drove) are deleted. Retained project
+  tools never used the runner, and `src/headless-mode.ts` stays as the
+  `run_project`/editor headless gating flag.
+
+### New tool
+
+- **`game_pause` hidden tool.** Sets or clears `SceneTree.paused` on the running
+  game through the existing `pause` runtime command. It stays out of the core
+  surface and is reachable through `godot_catalog` + `godot_call`.
 
 ## [2.0.0] - 2026-08-04
 

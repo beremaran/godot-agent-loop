@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 
-// Updated for the tool-surface reduction (64 tools; core = 20). Deleted MCP-side
+// Updated for the tool-surface reduction (56 tools; core = 16). Deleted MCP-side
 // authoring/file tools are replaced by editor_transaction (watched authoring),
-// get_project_info (project metadata), catalog+godot_call for hidden capabilities,
-// and host-side file authoring. godot_tools dispatcher no longer exists.
+// project-read tools such as analyze_project_integrity, catalog+godot_call for
+// hidden capabilities, and host-side file authoring. godot_tools dispatcher no
+// longer exists.
 import { createHash, randomBytes } from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import {
@@ -834,8 +835,8 @@ function acceptanceEvidence(scenario, evaluationCase, metadata, facts, before, a
       break;
     case 'ship-available-and-blocked-targets': {
       add(0, criterion(/matrix|Local Eval|Signed macOS|sign/i.test(facts.messages.map(message => message.text).join('\n')) ? 'passed' : 'unobserved', 'Checked trace for an explicit release matrix.'));
-      const validation = firstCall(facts, 'validate_scripts');
-      const exportCall = facts.calls.find(call => (call.effectiveTool === 'verify_export_readiness' && call.args.action === 'export_smoke') || call.effectiveTool === 'export_project');
+      const validation = firstCall(facts, 'run_project_tests') ?? firstCall(facts, 'analyze_project_integrity');
+      const exportCall = facts.calls.find(call => call.effectiveTool === 'verify_export_readiness' && call.args.action === 'export_smoke');
       add(1, criterion(validation && exportCall && validation.index < exportCall.index ? 'passed' : 'failed', `validation index=${validation?.index ?? 'none'}; export index=${exportCall?.index ?? 'none'}.`));
       const artifact = existsSync(join(metadata.projectPath, 'build', 'local-eval.x86_64'));
       const artifactEvidence = facts.calls.some(call => /sha|hash|size|artifact|companion|pck/i.test(call.text));
@@ -911,11 +912,11 @@ function forbiddenEvidence(scenario, metadata, facts, before, after, cleanup) {
     } else if (label.includes('unavailable-target pass') || label.includes('template pass claim')) {
       violated = /(?:Signed macOS|template)[^.]{0,100}\bpass(?:ed)?\b/i.test(facts.finalMessage);
     } else if (label.includes('export-response-only proof')) {
-      const exported = facts.calls.some(call => ['export_project', 'verify_export_readiness'].includes(call.effectiveTool) && /export/i.test(call.text));
+      const exported = facts.calls.some(call => call.effectiveTool === 'verify_export_readiness' && /export/i.test(call.text));
       const inspected = facts.calls.some(call => /sha|hash|size|companion|pck|artifact/i.test(call.text));
       violated = exported && !inspected;
     } else if (label.includes('deletion of user addon or release artifact')) {
-      const exportAttempted = facts.calls.some(call => ['export_project', 'verify_export_readiness'].includes(call.effectiveTool) && call.args.action !== 'inspect');
+      const exportAttempted = facts.calls.some(call => call.effectiveTool === 'verify_export_readiness' && call.args.action !== 'inspect');
       violated = exportAttempted && !existsSync(join(metadata.projectPath, 'build', 'local-eval.x86_64'));
     } else {
       observed = false;

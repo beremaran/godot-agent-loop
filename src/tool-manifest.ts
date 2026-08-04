@@ -65,7 +65,7 @@ export const toolManifest: Record<ToolName, ToolManifestEntry> = {
     domain: 'lifecycle',
     handler: 'handleEditorControl',
     backend: { kind: 'process' },
-    actions: ['inspect', 'select', 'save', 'reload', 'open_scene', 'set_property', 'rename_node', 'undo', 'redo'],
+    actions: ['inspect', 'select', 'save', 'reload', 'open_scene', 'undo', 'redo'],
     privileged: false,
   },
   editor_transaction: {
@@ -149,20 +149,6 @@ export const toolManifest: Record<ToolName, ToolManifestEntry> = {
     domain: 'lifecycle',
     handler: 'handleStopProject',
     backend: { kind: 'process' },
-    actions: null,
-    privileged: false,
-  },
-  get_godot_version: {
-    domain: 'lifecycle',
-    handler: 'handleGetGodotVersion',
-    backend: { kind: 'process' },
-    actions: null,
-    privileged: false,
-  },
-  get_project_info: {
-    domain: 'project',
-    handler: 'handleGetProjectInfo',
-    backend: { kind: 'godot-cli' },
     actions: null,
     privileged: false,
   },
@@ -407,13 +393,6 @@ export const toolManifest: Record<ToolName, ToolManifestEntry> = {
     actions: ['add', 'remove', 'get_groups'],
     privileged: false,
   },
-  export_project: {
-    domain: 'project',
-    handler: 'handleExportProject',
-    backend: { kind: 'godot-cli' },
-    actions: null,
-    privileged: false,
-  },
   game_touch: {
     domain: 'game',
     handler: 'handleGameTouch',
@@ -435,10 +414,10 @@ export const toolManifest: Record<ToolName, ToolManifestEntry> = {
     actions: ['set_strength', 'add_action', 'remove_action', 'list'],
     privileged: false,
   },
-  game_list_signals: {
+  game_pause: {
     domain: 'game',
-    handler: 'handleGameListSignals',
-    backend: { kind: 'runtime', command: 'list_signals' },
+    handler: 'handleGamePause',
+    backend: { kind: 'runtime', command: 'pause' },
     actions: null,
     privileged: false,
   },
@@ -455,20 +434,6 @@ export const toolManifest: Record<ToolName, ToolManifestEntry> = {
     backend: { kind: 'runtime', command: 'script' },
     actions: ['get_source', 'attach', 'detach'],
     privileged: true,
-  },
-  game_os_info: {
-    domain: 'game',
-    handler: 'handleGameOsInfo',
-    backend: { kind: 'runtime', command: 'os_info' },
-    actions: null,
-    privileged: false,
-  },
-  validate_scripts: {
-    domain: 'project',
-    handler: 'handleValidateScripts',
-    backend: { kind: 'godot-cli' },
-    actions: null,
-    privileged: false,
   },
 };
 

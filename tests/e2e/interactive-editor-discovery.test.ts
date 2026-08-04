@@ -156,8 +156,10 @@ describe('persistent editor discovery through the complete MCP path', () => {
         projectPath: project.projectPath, action: 'open_scene', scenePath: 'main.tscn',
       });
       expect(opened.isError, opened.text).toBe(false);
-      const dirty = await second.call('editor_control', {
-        projectPath: project.projectPath, action: 'set_property', nodePath: '.', property: 'name', value: 'UnsavedHumanState',
+      const dirty = await second.call('editor_transaction', {
+        projectPath: project.projectPath, scenePath: 'main.tscn', name: 'Unsaved human state',
+        operations: [{ op: 'set_properties', nodePath: '.', properties: { name: 'UnsavedHumanState' } }],
+        save: false,
       });
       expect(dirty.isError, dirty.text).toBe(false);
 
