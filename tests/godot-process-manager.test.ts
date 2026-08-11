@@ -1,6 +1,7 @@
 // @test-kind: unit
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { GODOT_MCP_CHILD_ENV_ALLOW } from '../src/godot-child-environment.js';
 import { GodotProcessManager } from '../src/godot-process-manager.js';
 import {
   GODOT_COMMAND_MAX_BUFFER_BYTES,
@@ -13,6 +14,34 @@ import {
 } from '../src/godot-subprocess.js';
 
 type Listener = (...args: any[]) => void;
+
+const TEST_LEAK_VARIABLE = 'GODOT_MCP_TEST_SHOULD_NOT_LEAK';
+const TEST_OPT_IN_VARIABLE = 'GODOT_MCP_TEST_OPT_IN';
+
+function withEnvironment(entries: Record<string, string | undefined>, run: () => void): void {
+  const previous = new Map<string, string | undefined>();
+  for (const [key, value] of Object.entries(entries)) {
+    previous.set(key, process.env[key]);
+    if (value === undefined) {
+      // eslint-disable-next-line @typescript-eslint/no-dynamic-delete -- process.env requires literal deletion; assignment stringifies undefined.
+      delete process.env[key];
+    } else {
+      process.env[key] = value;
+    }
+  }
+  try {
+    run();
+  } finally {
+    for (const [key, value] of previous) {
+      if (value === undefined) {
+        // eslint-disable-next-line @typescript-eslint/no-dynamic-delete -- process.env requires literal deletion; assignment stringifies undefined.
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  }
+}
 
 function createChild() {
   const listeners = new Map<string, Listener[]>();
@@ -115,6 +144,69 @@ describe('GodotProcessManager', () => {
     expect(spawnProcess).toHaveBeenCalledWith('godot', ['--path', '/project'], {
       stdio: 'pipe',
       env: expect.objectContaining({ GODOT_MCP_RUNTIME_SECRET: 'child-only-secret' }),
+    });
+  });
+
+  it('spawns Godot with only an allowlisted environment by default', () => {
+    withEnvironment({ [TEST_LEAK_VARIABLE]: 'top-secret' }, () => {
+      const child = createChild();
+      const spawnProcess = vi.fn(() => child as any);
+      const manager = new GodotProcessManager(undefined, 3, undefined, spawnProcess as any);
+      manager.start({ executable: 'godot', args: [] });
+
+      const spawnedEnv = (spawnProcess.mock.calls[0][2] as { env: NodeJS.ProcessEnv }).env;
+      expect(spawnedEnv[TEST_LEAK_VARIABLE]).toBeUndefined();
+      expect(spawnedEnv.PATH).toBe(process.env.PATH);
+      if (process.env.HOME !== undefined) expect(spawnedEnv.HOME).toBe(process.env.HOME);
+    });
+  });
+
+  it('forwards only the documented opt-in variables when GODOT_MCP_CHILD_ENV_ALLOW is set', () => {
+    withEnvironment({
+      [GODOT_MCP_CHILD_ENV_ALLOW]: `${TEST_OPT_IN_VARIABLE}, NO_SUCH_VARIABLE`,
+      [TEST_OPT_IN_VARIABLE]: '/run/user/1000/agent.sock',
+      [TEST_LEAK_VARIABLE]: 'top-secret',
+    }, () => {
+      const child = createChild();
+      const spawnProcess = vi.fn(() => child as any);
+      const manager = new GodotProcessManager(undefined, 3, undefined, spawnProcess as any);
+      manager.start({ executable: 'godot', args: [] });
+
+      const spawnedEnv = (spawnProcess.mock.calls[0][2] as { env: NodeJS.ProcessEnv }).env;
+      expect(spawnedEnv[TEST_OPT_IN_VARIABLE]).toBe('/run/user/1000/agent.sock');
+      expect(spawnedEnv[TEST_LEAK_VARIABLE]).toBeUndefined();
+    });
+  });
+
+  it('honors an explicit allowlist supplied to the manager', () => {
+    withEnvironment({ [TEST_OPT_IN_VARIABLE]: 'explicit-allowlist' }, () => {
+      const child = createChild();
+      const spawnProcess = vi.fn(() => child as any);
+      const manager = new GodotProcessManager(
+        undefined, 3, undefined, spawnProcess as any, new Set([TEST_OPT_IN_VARIABLE]),
+      );
+      manager.start({ executable: 'godot', args: [] });
+
+      const spawnedEnv = (spawnProcess.mock.calls[0][2] as { env: NodeJS.ProcessEnv }).env;
+      expect(spawnedEnv[TEST_OPT_IN_VARIABLE]).toBe('explicit-allowlist');
+    });
+  });
+
+  it('always forwards the explicit per-launch environment over the allowlist', () => {
+    withEnvironment({ [TEST_LEAK_VARIABLE]: 'top-secret' }, () => {
+      const child = createChild();
+      const spawnProcess = vi.fn(() => child as any);
+      const manager = new GodotProcessManager(undefined, 3, undefined, spawnProcess as any);
+      manager.start({
+        executable: 'godot',
+        args: [],
+        env: { GODOT_MCP_RUNTIME_SECRET: 'child-only-secret', PATH: '/custom/bin' },
+      });
+
+      const spawnedEnv = (spawnProcess.mock.calls[0][2] as { env: NodeJS.ProcessEnv }).env;
+      expect(spawnedEnv.PATH).toBe('/custom/bin');
+      expect(spawnedEnv.GODOT_MCP_RUNTIME_SECRET).toBe('child-only-secret');
+      expect(spawnedEnv[TEST_LEAK_VARIABLE]).toBeUndefined();
     });
   });
 

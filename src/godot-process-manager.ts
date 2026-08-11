@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from 'child_process';
+import { buildSanitizedGodotEnvironment } from './godot-child-environment.js';
 import {
   GODOT_GRACEFUL_SHUTDOWN_TIMEOUT_MS,
   GODOT_PROCESS_LOG_LINE_LIMIT,
@@ -39,6 +40,7 @@ export class GodotProcessManager {
     private readonly logLineLimit = GODOT_PROCESS_LOG_LINE_LIMIT,
     private readonly gracefulShutdownTimeoutMs = GODOT_GRACEFUL_SHUTDOWN_TIMEOUT_MS,
     private readonly spawnProcess: typeof spawn = spawn,
+    private readonly additionalEnvironmentKeys?: ReadonlySet<string>,
   ) {}
 
   get active(): boolean {
@@ -46,9 +48,11 @@ export class GodotProcessManager {
   }
 
   start(options: StartGodotProcessOptions): GodotProcess {
+    // The child never inherits the server's full environment; only the
+    // allowlisted essentials and the explicit per-launch variables are passed.
     const child = this.spawnProcess(options.executable, options.args, {
       stdio: 'pipe',
-      env: options.env === undefined ? undefined : { ...process.env, ...options.env },
+      env: buildSanitizedGodotEnvironment(options.env, this.additionalEnvironmentKeys),
     });
     const record: GodotProcess = { process: child, output: [], errors: [], outputDropped: 0, errorsDropped: 0 };
     this.activeProcess = record;
