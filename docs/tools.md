@@ -64,6 +64,14 @@ not require many primitive calls. `verify_project` runs bounded assertions
 (`node_exists`, `group_count`, `log_contains`) and can capture a screenshot and
 stop the project in one call.
 
+Running a project executes its GDScript with the user's OS permissions —
+privileged groups gate runtime RPC commands only, not project-process
+authority. Spawned Godot processes receive a sanitized environment (platform
+essentials plus the server's explicit runtime variables), never the server's
+full environment; forward extras with `GODOT_MCP_CHILD_ENV_ALLOW`. Run only
+trusted project sources; isolate untrusted code with an external OS/container
+sandbox.
+
 ## Hidden surface (40 tools)
 
 Every tool below is callable, but only through `godot_catalog search` +

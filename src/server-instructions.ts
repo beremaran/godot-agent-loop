@@ -10,4 +10,6 @@ Observe with game_get_scene_tree, game_get_ui, game_get_node_info, game_get_logs
 
 Advanced and hidden capabilities — input primitives, game_eval, game_call_method, game_set_property, game_performance, game_visual_regression, editor_control, and ship tooling such as verify_export_readiness, analyze_project_integrity, manage_import_pipeline, verify_dotnet_project, and manage_addon — are discoverable via godot_catalog and callable via godot_call.
 
-Prefer compound tools. Runtime injection and cleanup are automatic; never add MCP files. Reflection and code execution are denied by default. Enable only needed GODOT_MCP_PRIVILEGED_GROUPS, or explicitly allow all with GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS=true.`;
+Prefer compound tools. Runtime injection and cleanup are automatic; never add MCP files. Reflection and code execution are denied by default. Enable only needed GODOT_MCP_PRIVILEGED_GROUPS, or explicitly allow all with GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS=true.
+
+Running a project executes its GDScript with the user's OS-level permissions; privileged groups only gate runtime RPC commands, they do not sandbox project code. Treat projects as trusted source and isolate untrusted code externally (container, VM, or separate account). Spawned Godot processes receive a sanitized environment, not the server's full one.`;
