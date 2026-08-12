@@ -72,12 +72,13 @@ The server keeps dangerous capabilities off by default:
   installed transiently and cleaned up afterward.
 - **Spawned Godot processes receive a sanitized environment.** Every Godot
   process the server launches — long-running games, the editor, and short-lived
-  CLI runs (script validation, tests, import, export, addon reload) — receives
-  only platform essentials (PATH, home and temp directories, display and locale
-  variables) plus the server's explicit per-launch variables; the server's
-  full environment is never inherited. CLI validation runs additionally
-  disable the runtime transport. Forward additional variables deliberately
-  with `GODOT_MCP_CHILD_ENV_ALLOW`.
+  CLI runs (script validation, tests, import, export, addon reload, and the
+  dotnet build/restore/run workflow) — receives only platform essentials
+  (PATH, home and temp directories, display and locale variables) plus the
+  server's explicit per-launch variables; the server's full environment is
+  never inherited. CLI validation runs additionally disable the runtime
+  transport. Forward additional variables deliberately with
+  `GODOT_MCP_CHILD_ENV_ALLOW`.
 - **Retained logs and payloads are bounded and redacted** so that source,
   property values, URLs, headers, and engine errors are not echoed back
   wholesale.

@@ -313,15 +313,16 @@ only against trusted project sources. Authentication and policy denials never
 echo secrets, source, property values, URLs, headers, or engine errors.
 
 Every Godot process the server launches — long-running games, the editor, and
-short-lived CLI runs (script validation, tests, import, export, addon reload) —
-receives a sanitized environment: only platform essentials (PATH, home and temp
-directories, display and locale variables) plus the server's explicit
-per-launch variables (runtime secret, timing metadata, privileged-group
-grants). The server's full environment is never inherited. Forward additional
-variables deliberately with `GODOT_MCP_CHILD_ENV_ALLOW`. CLI validation runs
-additionally disable the runtime transport. Authentication success/failure
-emits a structured audit event containing only the event name, runtime
-component, numeric session ID, and timestamp.
+short-lived CLI runs (script validation, tests, import, export, addon reload,
+and the dotnet build/restore/run workflow) — receives a sanitized environment:
+only platform essentials (PATH, home and temp directories, display and locale
+variables) plus the server's explicit per-launch variables (runtime secret,
+timing metadata, privileged-group grants). The server's full environment is
+never inherited. Forward additional variables deliberately with
+`GODOT_MCP_CHILD_ENV_ALLOW`. CLI validation runs additionally disable the
+runtime transport. Authentication success/failure emits a structured audit
+event containing only the event name, runtime component, numeric session ID,
+and timestamp.
 
 ## Environment Variables
 

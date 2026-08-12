@@ -4,7 +4,7 @@ import { createHash, randomUUID } from 'crypto';
 import { homedir } from 'os';
 
 import { createErrorResponse, errorMessage, normalizeParameters, validatePath, type ToolArguments, type ToolResponse, PathSecurity } from '../utils.js';
-import { buildSanitizedGodotCliEnvironment, buildSanitizedGodotEnvironment } from '../godot-child-environment.js';
+import { buildSanitizedGodotCliEnvironment } from '../godot-child-environment.js';
 import type { ProjectSupport } from '../project-support.js';
 import type { GodotExecutableService } from '../godot-executable.js';
 import { execFile } from 'child_process';
@@ -1012,7 +1012,7 @@ export class DotnetWorkflowService {
     throwIfCancelled(signal);
     try {
       const { stdout, stderr } = await execFileAsync(executable, args, {
-        cwd, timeout, maxBuffer: 16 * 1024 * 1024, signal, env: buildSanitizedGodotEnvironment(),
+        cwd, timeout, maxBuffer: 16 * 1024 * 1024, signal, env: buildSanitizedGodotCliEnvironment(),
       });
       return { ok: true, exit_code: 0, timed_out: false, duration_ms: Math.round(performance.now() - started),
         stdout: (stdout ?? '').slice(-256 * 1024), stderr: (stderr ?? '').slice(-256 * 1024) };
