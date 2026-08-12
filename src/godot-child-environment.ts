@@ -1,11 +1,12 @@
 /**
- * Environment sanitization for every Godot process the server spawns.
+ * Sanitized child-process environment for every Godot process the server
+ * spawns.
  *
  * Spawned Godot processes must not inherit the server's full environment:
- * running a project executes its GDScript with the user's OS permissions, so
- * any credential in the environment would be readable by that project code.
+ * running a project executes its script code with the user's OS permissions,
+ * so any credential in the environment would be readable by that project code.
  * Only platform essentials needed for the engine to start (PATH, home and
- * temp directories, display/locale configuration) are forwarded by default,
+ * temp directories, display and locale configuration) are forwarded by default,
  * plus whatever the server explicitly passes per launch (runtime secret,
  * timing metadata, ...). Operators can forward additional variables
  * deliberately with `GODOT_MCP_CHILD_ENV_ALLOW`.

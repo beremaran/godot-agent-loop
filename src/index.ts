@@ -95,7 +95,8 @@ function resolveRuntimePort(): number {
 const RUNTIME_PORT = resolveRuntimePort();
 
 /**
- * Environment handed to every Godot process the server launches. Spawned
+ * The per-launch variables handed to every Godot process the server
+ * launches. Spawned
  * children receive only this plus the allowlisted platform essentials from
  * the server environment; protocol variables must be listed here explicitly.
  */
