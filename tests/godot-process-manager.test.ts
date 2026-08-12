@@ -151,9 +151,11 @@ describe('GodotProcessManager', () => {
     withEnvironment({ [TEST_LEAK_VARIABLE]: 'top-secret' }, () => {
       const child = createChild();
       const spawnProcess = vi.fn(() => child as any);
+      // Constructor order: (log, logLineLimit, gracefulShutdownTimeoutMs, spawnProcess, additionalEnvironmentKeys).
       const manager = new GodotProcessManager(undefined, 3, undefined, spawnProcess as any);
       manager.start({ executable: 'godot', args: [] });
 
+      expect(spawnProcess).toHaveBeenCalledTimes(1);
       const spawnedEnv = (spawnProcess.mock.calls[0][2] as { env: NodeJS.ProcessEnv }).env;
       expect(spawnedEnv[TEST_LEAK_VARIABLE]).toBeUndefined();
       expect(spawnedEnv.PATH).toBe(process.env.PATH);
@@ -172,6 +174,7 @@ describe('GodotProcessManager', () => {
       const manager = new GodotProcessManager(undefined, 3, undefined, spawnProcess as any);
       manager.start({ executable: 'godot', args: [] });
 
+      expect(spawnProcess).toHaveBeenCalledTimes(1);
       const spawnedEnv = (spawnProcess.mock.calls[0][2] as { env: NodeJS.ProcessEnv }).env;
       expect(spawnedEnv[TEST_OPT_IN_VARIABLE]).toBe('/run/user/1000/agent.sock');
       expect(spawnedEnv[TEST_LEAK_VARIABLE]).toBeUndefined();
@@ -187,6 +190,7 @@ describe('GodotProcessManager', () => {
       );
       manager.start({ executable: 'godot', args: [] });
 
+      expect(spawnProcess).toHaveBeenCalledTimes(1);
       const spawnedEnv = (spawnProcess.mock.calls[0][2] as { env: NodeJS.ProcessEnv }).env;
       expect(spawnedEnv[TEST_OPT_IN_VARIABLE]).toBe('explicit-allowlist');
     });
@@ -203,6 +207,7 @@ describe('GodotProcessManager', () => {
         env: { GODOT_MCP_RUNTIME_SECRET: 'child-only-secret', PATH: '/custom/bin' },
       });
 
+      expect(spawnProcess).toHaveBeenCalledTimes(1);
       const spawnedEnv = (spawnProcess.mock.calls[0][2] as { env: NodeJS.ProcessEnv }).env;
       expect(spawnedEnv.PATH).toBe('/custom/bin');
       expect(spawnedEnv.GODOT_MCP_RUNTIME_SECRET).toBe('child-only-secret');
