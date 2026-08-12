@@ -121,6 +121,26 @@ Once a request may have reached an editor or authoring process, transport or
 validation failure is returned without replaying the mutation through another
 backend. This avoids duplicate partial writes.
 
+### Post-commit failure recovery
+
+The committed undo action stays the source of truth after `commit_action()`.
+If the subsequent save or independent readback fails, the addon invokes the
+exact committed action's undo on the same editor history and re-persists:
+
+| Rollback field | Contract |
+| --- | --- |
+| `committed_action_undone` | The committed undo action was invoked and the editor history returned to its pre-commit version |
+| `file_restored` | Existing scene: the on-disk file was re-saved from the restored editor state, or the failed save never wrote it |
+| `created_scene_rolled_back` | Newly created scene: the initial scene file was removed |
+| `scene_closed` | Newly created scene: the editor scene tab was closed |
+
+For a newly created scene the addon removes the file and closes the editor
+scene tab (Godot 4.7 `close_scene`); older editor builds report
+`scene_closed=false`. If any restoration step cannot be proven, the failure
+payload includes a structured `partial_mutation` object naming the failed step
+(`created_scene_file`, `scene_file`, or `edited_scene`), so the agent can
+report or repair the residual state instead of retrying blindly.
+
 ## External synchronization
 
 File-backed mutations are serialized per project and debounced. The final
