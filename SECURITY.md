@@ -44,31 +44,55 @@ Please include, as far as you can determine them:
 
 ## Scope and threat model
 
-The server is designed to keep dangerous capabilities off by default:
+Running a project executes its GDScript **with your OS-level permissions**: the
+project process can read files you can read, read any environment variable it
+can see, and make its own network calls. Godot Agent Loop is a local
+development tool for **trusted projects**. The runtime policy below never
+replaces an OS or container sandbox, and nothing in this project should be
+used as one. If you must run untrusted source, isolate it yourself (for
+example in a container, VM, or dedicated low-privilege account) and keep any
+credentials out of reach of that environment.
 
-- **Privileged runtime groups** — reflection and code execution — are **denied
-  by default**. They must be explicitly opted into with
-  `GODOT_MCP_PRIVILEGED_GROUPS` / `GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS`, and are
-  intended only for trusted localhost development. Networking commands were
-  removed from the tool surface in 2.0.0, so no separate networking grant
-  exists.
+The server keeps dangerous capabilities off by default:
+
+- **Privileged runtime groups** gate runtime RPC operations only: reflection
+  (`call_method`, `get_property`, `set_property`) and code execution (`eval`,
+  `script`) over the authenticated loopback channel. They are **denied by
+  default** and must be explicitly opted into with
+  `GODOT_MCP_PRIVILEGED_GROUPS` / `GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS`,
+  intended only for trusted localhost development. These groups do not
+  restrict what the project process itself can do — project code runs with
+  your OS permissions regardless of which groups are enabled. Networking
+  commands were removed from the tool surface in 2.0.0, so no separate
+  networking grant exists.
 - **Runtime connections are authenticated** with `GODOT_MCP_RUNTIME_SECRET`. The
   server generates a fresh 256-bit secret when one is not supplied and passes it
   only to Godot processes it launches itself.
 - **Transports bind to loopback** and MCP-owned editor/runtime sessions are
   installed transiently and cleaned up afterward.
+- **Spawned Godot processes receive a sanitized environment.** Every Godot
+  process the server launches — long-running games, the editor, and short-lived
+  CLI runs (script validation, tests, import, export, addon reload, and the
+  dotnet build/restore/run workflow) — receives only platform essentials
+  (PATH, home and temp directories, display and locale variables) plus the
+  server's explicit per-launch variables; the server's full environment is
+  never inherited. CLI validation runs additionally disable the runtime
+  transport. Forward additional variables deliberately with
+  `GODOT_MCP_CHILD_ENV_ALLOW`.
 - **Retained logs and payloads are bounded and redacted** so that source,
   property values, URLs, headers, and engine errors are not echoed back
   wholesale.
 
 Reports that are in scope include, for example: authentication bypass of the
 runtime channel, escaping the privileged-group gating, path traversal outside a
-managed project, secret leakage, or remote access to a loopback-bound service.
+managed project, secret leakage through retained logs or the child environment,
+or remote access to a loopback-bound service.
 
 The following are **expected behaviour, not vulnerabilities**: an agent
 executing code or mutating files when the operator has explicitly enabled a
 privileged group; effects of running the server against untrusted project
-sources; and anything requiring an attacker who already has local access to the
-same user account and its environment.
+sources without an external OS/container sandbox; a project reading what it can
+read with the user's OS permissions; and anything requiring an attacker who
+already has local access to the same user account and its environment.
 
 Thank you for helping keep Godot Agent Loop and its users safe.

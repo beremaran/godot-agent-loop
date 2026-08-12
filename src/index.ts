@@ -92,6 +92,30 @@ function resolveRuntimePort(): number {
   return parsed;
 }
 
+const RUNTIME_PORT = resolveRuntimePort();
+
+/**
+ * The per-launch variables handed to every Godot process the server
+ * launches. Spawned
+ * children receive only this plus the allowlisted platform essentials from
+ * the server environment; protocol variables must be listed here explicitly.
+ */
+function resolveRuntimeEnvironment(): NodeJS.ProcessEnv {
+  return {
+    GODOT_MCP_RUNTIME_SECRET: RUNTIME_SECRET,
+    GODOT_MCP_RUNTIME_PORT: String(RUNTIME_PORT),
+    ...(process.env.GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS
+      ? { GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS: process.env.GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS }
+      : {}),
+    ...(process.env.GODOT_MCP_PRIVILEGED_GROUPS
+      ? { GODOT_MCP_PRIVILEGED_GROUPS: process.env.GODOT_MCP_PRIVILEGED_GROUPS }
+      : {}),
+    ...(process.env.GODOT_MCP_ALLOW_INSECURE_RUNTIME
+      ? { GODOT_MCP_ALLOW_INSECURE_RUNTIME: process.env.GODOT_MCP_ALLOW_INSECURE_RUNTIME }
+      : {}),
+  };
+}
+
 const pathSecurity = new PathSecurity();
 
 function firstString(...values: unknown[]): string | undefined {
@@ -199,7 +223,7 @@ export class GodotServer {
   private strictPathValidation = false;
   private initialized = false;
   private readonly tcpGameConnection = new GameConnection({
-    port: resolveRuntimePort(),
+    port: RUNTIME_PORT,
     allowPrivilegedCommands: ALLOW_PRIVILEGED_COMMANDS,
     allowedPrivilegedGroups: ALLOWED_PRIVILEGED_GROUPS,
     authSecret: RUNTIME_SECRET,
@@ -285,7 +309,7 @@ export class GodotServer {
       clearConnectedProjectPath: () => { this.gameConnection.clearConnectedProject(); },
       getInteractionPort: () => this.gameConnection.interactionPort,
       getRuntimeHandshake: () => this.gameConnection.handshake,
-      getRuntimeEnvironment: () => ({ GODOT_MCP_RUNTIME_SECRET: RUNTIME_SECRET }),
+      getRuntimeEnvironment: () => resolveRuntimeEnvironment(),
       installEditorPlugin: projectPath => {
         const previous = this.editorPluginInstallations.get(projectPath);
         const installation = this.editorPluginInstaller.install(projectPath);

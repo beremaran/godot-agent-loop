@@ -3,6 +3,7 @@ import { existsSync } from 'fs';
 import { normalize } from 'path';
 import { promisify } from 'util';
 import { GODOT_VERSION_OPTIONS } from './godot-subprocess.js';
+import { buildSanitizedGodotCliEnvironment } from './godot-child-environment.js';
 import { currentExecutionContext, isAbortError, throwIfCancelled } from './execution-context.js';
 
 const execFileAsync = promisify(execFile);
@@ -92,7 +93,7 @@ export class GodotExecutableValidator {
         this.validatedPaths.set(path, false);
         return false;
       }
-      await execFileAsync(path, ['--version'], { ...GODOT_VERSION_OPTIONS, signal });
+      await execFileAsync(path, ['--version'], { ...GODOT_VERSION_OPTIONS, signal, env: buildSanitizedGodotCliEnvironment() });
       this.logDebug(`Valid Godot path: ${path}`);
       this.validatedPaths.set(path, true);
       return true;

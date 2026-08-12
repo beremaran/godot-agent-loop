@@ -4,6 +4,7 @@ import { existsSync } from 'fs';
 import { join } from 'path';
 
 import { convertCamelToSnakeCase, createErrorResponse, errorMessage, normalizeParameters, validatePath, type ToolArguments, type ToolResponse } from '../utils.js';
+import { buildSanitizedGodotEnvironment } from '../godot-child-environment.js';
 import type { GodotProcess } from '../godot-process-manager.js';
 import type { GodotExecutableService } from '../godot-executable.js';
 import type { GameResponse } from '../game-connection.js';
@@ -240,7 +241,11 @@ export class LifecycleToolHandlers {
         this.context.logDebug('GODOT_MCP_HEADLESS is set; launching the editor without a window');
       }
       const editorProcess = spawn(godotPath, editorArgs, {
-        stdio: 'pipe', env: { ...process.env, ...this.context.getRuntimeEnvironment(), ...(this.context.getEditorEnvironment?.() ?? {}) },
+        stdio: 'pipe',
+        env: buildSanitizedGodotEnvironment({
+          ...this.context.getRuntimeEnvironment(),
+          ...(this.context.getEditorEnvironment?.() ?? {}),
+        }),
       });
       spawnedEditor = editorProcess;
       editorProcess.on('error', (err: Error) => { console.error('Failed to start Godot editor:', err); });

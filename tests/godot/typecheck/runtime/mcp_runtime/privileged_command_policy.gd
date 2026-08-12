@@ -1,9 +1,12 @@
 extends RefCounted
 
-# Trust policy for runtime commands that can execute arbitrary code, invoke
+# Trust policy for runtime RPC commands that can execute arbitrary code, invoke
 # arbitrary engine APIs, or mutate scripts. Authentication proves possession of
 # the per-launch session secret; this separate least-privilege gate still keeps
 # dangerous commands disabled unless the project owner explicitly opts in.
+# These groups gate only commands over the runtime channel; they do not
+# restrict what the running project process itself can do, which always
+# executes with the user's OS-level permissions.
 
 const CAPABILITY: String = "privileged-commands"
 const ENVIRONMENT_VARIABLE: String = "GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS"

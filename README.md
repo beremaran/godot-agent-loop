@@ -300,15 +300,29 @@ secret refuses unauthenticated sessions unless `GODOT_MCP_ALLOW_INSECURE_RUNTIME
 is set explicitly; use that only on a trusted machine.
 
 Commands that execute arbitrary GDScript or invoke arbitrary node properties or
-methods remain disabled by default even after authentication. Grant only the
-required group with `GODOT_MCP_PRIVILEGED_GROUPS`: `reflection` enables
-arbitrary property/method access and `code-execution` enables eval/script
-control. The legacy `GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS=true` grants both
-groups. Use either only for a trusted local developer workflow. Authentication
-and policy denials never echo secrets, source, property values, URLs, headers,
-or engine errors.
-Authentication success/failure emits a structured audit event containing only
-the event name, runtime component, numeric session ID, and timestamp.
+methods remain disabled by default even after authentication. These
+**privileged runtime groups** gate only runtime RPC operations over the
+authenticated loopback channel — they do not restrict what the project process
+itself can do. Running a project executes its GDScript with your OS-level
+permissions: project code can read files you can read and make its own network
+calls. Grant only the required group with `GODOT_MCP_PRIVILEGED_GROUPS`:
+`reflection` enables arbitrary property/method access and `code-execution`
+enables eval/script control. The legacy `GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS=true`
+grants both groups. Use either only for a trusted local developer workflow, and
+only against trusted project sources. Authentication and policy denials never
+echo secrets, source, property values, URLs, headers, or engine errors.
+
+Every Godot process the server launches — long-running games, the editor, and
+short-lived CLI runs (script validation, tests, import, export, addon reload,
+and the dotnet build/restore/run workflow) — receives a sanitized environment:
+only platform essentials (PATH, home and temp directories, display and locale
+variables) plus the server's explicit per-launch variables (runtime secret,
+timing metadata, privileged-group grants). The server's full environment is
+never inherited. Forward additional variables deliberately with
+`GODOT_MCP_CHILD_ENV_ALLOW`. CLI validation runs additionally disable the
+runtime transport. Authentication success/failure emits a structured audit
+event containing only the event name, runtime component, numeric session ID,
+and timestamp.
 
 ## Environment Variables
 
@@ -326,6 +340,7 @@ the event name, runtime component, numeric session ID, and timestamp.
 | `GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS` | Optional, default `false`. Explicitly enable runtime `eval`, arbitrary property/method access, and script control for a trusted localhost developer workflow. |
 | `GODOT_MCP_ALLOW_UNRESTRICTED` | Optional, default `false`. Explicitly re-enable the legacy open path mode when neither `GODOT_MCP_ALLOWED_DIRS` nor MCP client roots are configured. Without roots and without this flag, filesystem access is denied. |
 | `GODOT_MCP_ALLOW_INSECURE_RUNTIME` | Optional, default `false`. Set in the Godot runtime process to restore the legacy unauthenticated handshake for a separately launched runtime that cannot receive `GODOT_MCP_RUNTIME_SECRET`. Keep off whenever the runtime can receive the shared secret. |
+| `GODOT_MCP_CHILD_ENV_ALLOW` | Optional. Comma-separated names of extra environment variables to forward from the server environment into every Godot process the server launches, including short-lived CLI runs (for example `SSH_AUTH_SOCK`). By default children receive only platform essentials plus the server's explicit runtime variables, never the full server environment. |
 
 ### Structured runtime evidence
 

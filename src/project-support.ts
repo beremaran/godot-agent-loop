@@ -11,6 +11,7 @@ import {
   type ScriptDiagnostic,
 } from './utils.js';
 import { GODOT_COMMAND_OPTIONS, GODOT_VERSION_OPTIONS } from './godot-subprocess.js';
+import { buildSanitizedGodotCliEnvironment } from './godot-child-environment.js';
 import { currentExecutionContext, isAbortError, throwIfCancelled } from './execution-context.js';
 
 const execFileAsync = promisify(execFile);
@@ -153,7 +154,7 @@ export class ProjectSupport {
       const godotPath = await this.requireGodotPath();
       if (!godotPath) return null;
 
-      const { stdout } = await execFileAsync(godotPath, ['--version'], { ...GODOT_VERSION_OPTIONS, signal });
+      const { stdout } = await execFileAsync(godotPath, ['--version'], { ...GODOT_VERSION_OPTIONS, signal, env: buildSanitizedGodotCliEnvironment() });
       const match = /^(\d+)\.(\d+)(?:\.\d+)?\.stable\b/.exec(stdout.trim());
       return match ? `${match[1]}.${match[2]}.0` : null;
     } catch (error) {
@@ -198,7 +199,7 @@ export class ProjectSupport {
       const { stdout, stderr } = await execFileAsync(
         godotPath,
         ['--headless', '--path', projectPath, '--script', this.validateScriptPath, scriptResourcePath],
-        { ...GODOT_COMMAND_OPTIONS, signal },
+        { ...GODOT_COMMAND_OPTIONS, signal, env: buildSanitizedGodotCliEnvironment() },
       );
       output = `${stdout ?? ''}${stderr ?? ''}`;
     } catch (error: unknown) {

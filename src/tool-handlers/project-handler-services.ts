@@ -4,6 +4,7 @@ import { createHash, randomUUID } from 'crypto';
 import { homedir } from 'os';
 
 import { createErrorResponse, errorMessage, normalizeParameters, validatePath, type ToolArguments, type ToolResponse, PathSecurity } from '../utils.js';
+import { buildSanitizedGodotCliEnvironment } from '../godot-child-environment.js';
 import type { ProjectSupport } from '../project-support.js';
 import type { GodotExecutableService } from '../godot-executable.js';
 import { execFile } from 'child_process';
@@ -228,6 +229,7 @@ export class ProjectTestService {
     try {
       const { stdout, stderr } = await execFileAsync(executable, args, {
         cwd, timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024, signal,
+        env: buildSanitizedGodotCliEnvironment(),
       });
       return { exitCode: 0, stdout: stdout ?? '', stderr: stderr ?? '', timedOut: false, durationMs: Math.round(performance.now() - started) };
     } catch (error: unknown) {
@@ -414,7 +416,7 @@ export class ImportPipelineService {
       await reportProgress(1, 3, 'Importing project resources');
       const { stdout, stderr } = await execFileAsync(this.context.executable.path, [
         '--headless', '--path', projectPath, '--import',
-      ], { cwd: projectPath, timeout: Math.round(timeoutSeconds * 1000), maxBuffer: 4 * 1024 * 1024, signal });
+      ], { cwd: projectPath, timeout: Math.round(timeoutSeconds * 1000), maxBuffer: 4 * 1024 * 1024, signal, env: buildSanitizedGodotCliEnvironment() });
       const diagnostics = `${stdout ?? ''}\n${stderr ?? ''}`.split(/\r?\n/)
         .filter(line => /\b(?:warning|error)\b/i.test(line)).slice(0, 256);
       await reportProgress(2, 3, 'Collected bounded import diagnostics');
@@ -854,7 +856,7 @@ export class ExportReadinessService {
     throwIfCancelled(signal);
     try {
       const { stdout, stderr } = await execFileAsync(executable, args, {
-        cwd, timeout, maxBuffer: 16 * 1024 * 1024, signal,
+        cwd, timeout, maxBuffer: 16 * 1024 * 1024, signal, env: buildSanitizedGodotCliEnvironment(),
       });
       return { ok: true, exit_code: 0, timed_out: false, duration_ms: Math.round(performance.now() - started),
         stdout: (stdout ?? '').slice(-128 * 1024), stderr: (stderr ?? '').slice(-128 * 1024) };
@@ -1010,7 +1012,7 @@ export class DotnetWorkflowService {
     throwIfCancelled(signal);
     try {
       const { stdout, stderr } = await execFileAsync(executable, args, {
-        cwd, timeout, maxBuffer: 16 * 1024 * 1024, signal,
+        cwd, timeout, maxBuffer: 16 * 1024 * 1024, signal, env: buildSanitizedGodotCliEnvironment(),
       });
       return { ok: true, exit_code: 0, timed_out: false, duration_ms: Math.round(performance.now() - started),
         stdout: (stdout ?? '').slice(-256 * 1024), stderr: (stderr ?? '').slice(-256 * 1024) };
@@ -1246,7 +1248,7 @@ export class AddonManagementService {
     throwIfCancelled(signal);
     try {
       const { stdout, stderr } = await execFileAsync(executable, args, {
-        cwd, timeout, maxBuffer: 16 * 1024 * 1024, signal,
+        cwd, timeout, maxBuffer: 16 * 1024 * 1024, signal, env: buildSanitizedGodotCliEnvironment(),
       });
       return { ok: true, exit_code: 0, timed_out: false, duration_ms: Math.round(performance.now() - started),
         stdout: (stdout ?? '').slice(-128 * 1024), stderr: (stderr ?? '').slice(-128 * 1024) };

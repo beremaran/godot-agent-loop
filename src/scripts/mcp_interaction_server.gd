@@ -141,9 +141,11 @@ func _ready() -> void:
 			push_warning("McpInteractionServer: No %s configured; unauthenticated sessions are refused. Set the same secret in the MCP server and this process, or set %s=true to restore the legacy insecure mode." % [SECRET_ENVIRONMENT_VARIABLE, INSECURE_ENVIRONMENT_VARIABLE])
 	_register_domains()
 	_register_commands()
-	# Another Godot process may already own this project's runtime port. The
-	# autoloads still need to parse, but the server must not start a second
-	# transport or emit a misleading bind failure.
+	# Short-lived CLI validation runs set GODOT_MCP_RUNTIME_DISABLED=true so a
+	# leftover override.cfg autoload never opens the runtime transport or
+	# claims the port during those runs. The autoloads still need to parse,
+	# but the server must not start a transport or emit a misleading bind
+	# failure even when a port is configured.
 	if OS.get_environment(DISABLED_ENVIRONMENT_VARIABLE) == "true":
 		return
 	_server = TCPServer.new()
