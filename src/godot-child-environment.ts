@@ -12,6 +12,14 @@
  */
 export const GODOT_MCP_CHILD_ENV_ALLOW = 'GODOT_MCP_CHILD_ENV_ALLOW';
 
+/**
+ * Disables the runtime TCP transport inside short-lived Godot CLI runs. The
+ * transient interaction autoload may still be present in a project's
+ * override.cfg (leftover or mid-run state), but validation, test, import, and
+ * export invocations must never open a listener on the runtime port.
+ */
+export const GODOT_MCP_RUNTIME_DISABLED = 'GODOT_MCP_RUNTIME_DISABLED';
+
 /** Essential variables forwarded from the server process by default. */
 export const DEFAULT_CHILD_ENVIRONMENT_KEYS: readonly string[] = [
   'PATH',
@@ -68,4 +76,13 @@ export function buildSanitizedGodotEnvironment(
     if (source[key] !== undefined) env[key] = source[key];
   }
   return { ...env, ...extra };
+}
+
+/**
+ * Sanitized environment for short-lived Godot CLI invocations (script checks,
+ * tests, import, export, addon reload, version probes). These never take part
+ * in a runtime session, so the runtime transport is disabled as well.
+ */
+export function buildSanitizedGodotCliEnvironment(extra?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  return buildSanitizedGodotEnvironment({ [GODOT_MCP_RUNTIME_DISABLED]: 'true', ...extra });
 }
