@@ -66,11 +66,13 @@ stop the project in one call.
 
 Running a project executes its GDScript with the user's OS permissions —
 privileged groups gate runtime RPC commands only, not project-process
-authority. Spawned Godot processes receive a sanitized environment (platform
-essentials plus the server's explicit runtime variables), never the server's
-full environment; forward extras with `GODOT_MCP_CHILD_ENV_ALLOW`. Run only
-trusted project sources; isolate untrusted code with an external OS/container
-sandbox.
+authority. Every Godot process the server launches (long-running games, the
+editor, and short-lived CLI runs such as script validation, tests, import,
+export, and addon reload) receives a sanitized environment — platform
+essentials plus the server's explicit runtime variables, never the server's
+full environment; forward extras with `GODOT_MCP_CHILD_ENV_ALLOW`. CLI runs
+also disable the runtime transport. Run only trusted project sources; isolate
+untrusted code with an external OS/container sandbox.
 
 ## Hidden surface (40 tools)
 
