@@ -18,6 +18,22 @@ export interface GameLifecycleEvent {
 }
 
 export type GameResponse = JsonRpcResponse;
+export interface GameExitReason {
+  exitCode: number | null;
+  signal: string | null;
+}
+export class GameStartupError extends Error {
+  readonly code = 'GODOT_STARTUP_FAILED';
+  readonly exitCode: number | null;
+  readonly signal: string | null;
+
+  constructor(message: string, reason: GameExitReason | null = null) {
+    super(message);
+    this.name = 'GameStartupError';
+    this.exitCode = reason?.exitCode ?? null;
+    this.signal = reason?.signal ?? null;
+  }
+}
 interface PendingRequest {
   resolve: (value: GameResponse) => void;
   reject: (reason: Error) => void;
@@ -48,7 +64,11 @@ export class GameConnection {
   private runtimeHandshake: import('./runtime-protocol.js').RuntimeHandshake | null = null;
   private connectionGeneration = 0;
   private connectingSocket: Socket | null = null;
-  private pendingDelay: { timer: ReturnType<typeof setTimeout>; resolve: (active: boolean) => void } | null = null;
+  private pendingDelay: {
+    timer: ReturnType<typeof setTimeout>;
+    resolve: (active: boolean | 'process_exited') => void;
+    cleanup: () => void;
+  } | null = null;
 
   constructor(options: GameConnectionOptions = {}) {
     this.port = options.port ?? 9090;
@@ -89,36 +109,47 @@ export class GameConnection {
     this.projectPath = null;
   }
 
-  async connect(projectPath: string, isProcessActive: () => boolean, signal?: AbortSignal): Promise<void> {
+  async connect(projectPath: string, isProcessActive: () => boolean, signal?: AbortSignal, getExitReason: () => GameExitReason | null = () => null): Promise<void> {
     throwIfCancelled(signal);
     const generation = ++this.connectionGeneration;
     this.cancelPendingDelay(); this.destroySocket(); this.connected = false; this.responseBuffer = '';
     this.rejectAllPending(this.connectionError(null, 'Connection superseded'));
     this.projectPath = projectPath;
-    if (!await this.delay(this.initialDelayMs, generation, signal)) {
+    const initialDelay = await this.delay(this.initialDelayMs, generation, isProcessActive, signal);
+    if (initialDelay === 'process_exited') {
+      throw this.startupError(getExitReason());
+    }
+    if (!initialDelay) {
       throwIfCancelled(signal);
-      return;
+      throw new Error('Runtime connection was superseded');
     }
     for (let attempt = 1; attempt <= this.maxAttempts; attempt++) {
       throwIfCancelled(signal);
       if (!this.isCurrentGeneration(generation)) throw new Error('Runtime connection was superseded');
       if (!isProcessActive()) {
         this.logEvent('connection_aborted', { reason: 'process_not_running' });
-        throw new Error('Godot exited before the runtime became ready');
+        throw this.startupError(getExitReason());
       }
       try {
-        const connected = await this.connectOnce(attempt, generation, signal);
+        const connected = await this.connectOnce(attempt, generation, isProcessActive, getExitReason, signal);
         if (!connected || !this.isCurrentGeneration(generation)) throw new Error('Runtime connection was superseded');
         return;
       } catch (error) {
         throwIfCancelled(signal);
         if (!this.isCurrentGeneration(generation)) throw error;
+        if (!isProcessActive()) {
+          throw this.startupError(getExitReason());
+        }
         this.logEvent('connection_retry', {
           attempt, max_attempts: this.maxAttempts, retry_delay_ms: this.retryDelayMs,
         });
-        if (!await this.delay(this.retryDelayMs, generation, signal)) {
+        const retryDelay = await this.delay(this.retryDelayMs, generation, isProcessActive, signal);
+        if (retryDelay === 'process_exited') {
+          throw this.startupError(getExitReason());
+        }
+        if (!retryDelay) {
           throwIfCancelled(signal);
-          return;
+          throw new Error('Runtime connection was superseded');
         }
       }
     }
@@ -126,6 +157,9 @@ export class GameConnection {
       console.error(JSON.stringify({
         component: 'godot-agent-loop-server', event: 'connection_failed', attempts: this.maxAttempts,
       }));
+      if (!isProcessActive()) {
+        throw this.startupError(getExitReason());
+      }
       throw new Error(`Runtime did not become ready after ${this.maxAttempts} connection attempts`);
     }
   }
@@ -245,9 +279,15 @@ export class GameConnection {
     });
   }
 
-  private connectOnce(attempt: number, generation: number, signal?: AbortSignal): Promise<boolean> {
+  private connectOnce(attempt: number, generation: number, isProcessActive: () => boolean, getExitReason: () => GameExitReason | null, signal?: AbortSignal): Promise<boolean> {
     return new Promise((resolve, reject) => {
+      let processCheck: ReturnType<typeof setInterval> | undefined;
+      const cleanup = () => {
+        if (processCheck) clearInterval(processCheck);
+        signal?.removeEventListener('abort', onAbort);
+      };
       const onAbort = () => {
+        cleanup();
         socket.destroy();
         reject(abortError(signal?.reason));
       };
@@ -264,16 +304,31 @@ export class GameConnection {
         });
         socket.on('error', () => { this.logEvent('connection_error'); });
         this.negotiateProtocol().then(() => {
+          cleanup();
           resolve(true);
         }).catch(error => {
+          cleanup();
           socket.destroy();
           reject(error instanceof Error ? error : new Error(String(error)));
         });
       });
       this.connectingSocket = socket;
       signal?.addEventListener('abort', onAbort, { once: true });
-      socket.on('error', error => { if (this.isCurrentGeneration(generation)) reject(error); else resolve(false); });
-      socket.on('close', () => { if (!this.isCurrentGeneration(generation)) resolve(false); });
+      socket.on('error', error => { if (this.isCurrentGeneration(generation)) { cleanup(); reject(error); } else resolve(false); });
+      socket.on('close', () => {
+        cleanup();
+        if (!this.isCurrentGeneration(generation)) {
+          resolve(false);
+        } else {
+          reject(new Error('Connection closed before the runtime became ready'));
+        }
+      });
+      processCheck = setInterval(() => {
+        if (isProcessActive()) return;
+        cleanup();
+        socket.destroy();
+        reject(this.startupError(getExitReason()));
+      }, 25);
     });
   }
 
@@ -309,26 +364,53 @@ export class GameConnection {
     this.runtimeHandshake = handshake;
   }
 
+  private startupError(reason: GameExitReason | null): GameStartupError {
+    const suffix = reason?.exitCode !== null && reason?.exitCode !== undefined
+      ? ` (exit code ${reason.exitCode})`
+      : reason?.signal ? ` (signal ${reason.signal})` : '';
+    return new GameStartupError(`Godot exited during startup before the runtime became ready${suffix}`, reason);
+  }
   private isCurrentGeneration(generation: number): boolean { return generation === this.connectionGeneration; }
   private isCurrentSocket(socket: Socket, generation: number): boolean { return this.isCurrentGeneration(generation) && this.socket === socket; }
-  private delay(milliseconds: number, generation: number, signal?: AbortSignal): Promise<boolean> {
+  private delay(milliseconds: number, generation: number, isProcessActive: () => boolean, signal?: AbortSignal): Promise<boolean | 'process_exited'> {
     return new Promise(resolve => {
+      let processCheck: ReturnType<typeof setInterval> | undefined;
+      const cleanup = () => {
+        if (processCheck) {
+          clearInterval(processCheck);
+          processCheck = undefined;
+        }
+        signal?.removeEventListener('abort', onAbort);
+      };
       const onAbort = () => {
         clearTimeout(timer);
+        cleanup();
         if (this.pendingDelay?.timer === timer) this.pendingDelay = null;
         resolve(false);
       };
       const timer = setTimeout(() => {
-        signal?.removeEventListener('abort', onAbort);
+        cleanup();
         this.pendingDelay = null;
         resolve(this.isCurrentGeneration(generation));
       }, milliseconds);
-      this.pendingDelay = { timer, resolve };
+      this.pendingDelay = { timer, resolve, cleanup };
       signal?.addEventListener('abort', onAbort, { once: true });
+      processCheck = setInterval(() => {
+        if (isProcessActive()) return;
+        clearTimeout(timer);
+        cleanup();
+        if (this.pendingDelay?.timer === timer) this.pendingDelay = null;
+        resolve('process_exited');
+      }, 25);
     });
   }
   private cancelPendingDelay(): void {
-    if (this.pendingDelay !== null) { clearTimeout(this.pendingDelay.timer); this.pendingDelay.resolve(false); this.pendingDelay = null; }
+    if (this.pendingDelay !== null) {
+      clearTimeout(this.pendingDelay.timer);
+      this.pendingDelay.cleanup();
+      this.pendingDelay.resolve(false);
+      this.pendingDelay = null;
+    }
   }
   private destroySocket(): void {
     const sockets = [this.socket, this.connectingSocket]; this.socket = null; this.connectingSocket = null;

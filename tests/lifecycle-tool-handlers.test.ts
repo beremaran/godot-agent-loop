@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LifecycleToolHandlerContext } from '../src/tool-handlers/lifecycle-tool-handlers.js';
 import { LifecycleToolHandlers } from '../src/tool-handlers/lifecycle-tool-handlers.js';
 import type { GodotProcess } from '../src/godot-process-manager.js';
+import { GameConnection, GameStartupError } from '../src/game-connection.js';
 
 vi.mock('child_process', () => {
   return {
@@ -127,6 +128,33 @@ describe('LifecycleToolHandlers headless propagation', () => {
     const editorEnv = (spawnMock.mock.calls[0][2] as { env: NodeJS.ProcessEnv }).env;
     expect(editorEnv.GODOT_MCP_HEADLESS).toBeUndefined();
     expect(editorEnv.GODOT_MCP_EDITOR_START_PAUSED).toBe('false');
+  });
+});
+
+describe('GameConnection startup process exit', () => {
+  it.each([
+    ['initial delay', 100, 1],
+    ['retry delay', 1, 30],
+  ])('fails when Godot exits during the %s', async (_phase, initialDelayMs, exitAfterMs) => {
+    let active = true;
+    const connection = new GameConnection({
+      port: 1,
+      initialDelayMs,
+      retryDelayMs: 100,
+      maxAttempts: 2,
+    });
+    const exitTimer = setTimeout(() => { active = false; }, exitAfterMs);
+    await expect(connection.connect('/project', () => active)).rejects.toBeInstanceOf(GameStartupError);
+    clearTimeout(exitTimer);
+  });
+
+  it('cancels the startup delay without retaining its process poller', async () => {
+    const connection = new GameConnection({ initialDelayMs: 100, port: 1 });
+    const controller = new AbortController();
+    const startup = connection.connect('/project', () => true, controller.signal);
+    controller.abort();
+
+    await expect(startup).rejects.toMatchObject({ name: 'AbortError' });
   });
 });
 

@@ -301,7 +301,7 @@ export class GodotServer {
         });
       },
       stopProjectProcess: () => this.processManager.stop(),
-      connectToGame: (projectPath, signal) => this.connectToGame(projectPath, signal),
+      connectToGame: (projectPath, signal, getExitReason) => this.connectToGame(projectPath, signal, getExitReason),
       disconnectFromGame: () => { this.disconnectFromGame(); },
       injectInteractionServer: projectPath => { this.injectInteractionServer(projectPath); },
       removeInteractionServer: projectPath => { this.removeInteractionServer(projectPath); },
@@ -580,8 +580,8 @@ export class GodotServer {
   /**
    * Connect to the game's TCP interaction server with retries
    */
-  private async connectToGame(projectPath: string, signal?: AbortSignal): Promise<void> {
-    await this.gameConnection.connect(projectPath, () => this.activeProcess !== null, signal);
+  private async connectToGame(projectPath: string, signal?: AbortSignal, getExitReason?: () => import('./game-connection.js').GameExitReason | null): Promise<void> {
+    await this.gameConnection.connect(projectPath, () => this.activeProcess !== null, signal, getExitReason);
   }
 
   /**

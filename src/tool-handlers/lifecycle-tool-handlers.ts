@@ -6,6 +6,7 @@ import { join } from 'path';
 import { convertCamelToSnakeCase, createErrorResponse, errorMessage, normalizeParameters, validatePath, type ToolArguments, type ToolResponse } from '../utils.js';
 import { buildSanitizedGodotEnvironment } from '../godot-child-environment.js';
 import type { GodotProcess } from '../godot-process-manager.js';
+import { GameStartupError, type GameExitReason } from '../game-connection.js';
 import type { GodotExecutableService } from '../godot-executable.js';
 import type { GameResponse } from '../game-connection.js';
 import {
@@ -40,7 +41,7 @@ export interface LifecycleToolHandlerContext {
   logDebug: (message: string) => void;
   startProjectProcess: (executable: string, args: string[], onExit: () => void, env?: NodeJS.ProcessEnv) => GodotProcess;
   stopProjectProcess: () => GodotProcess | null;
-  connectToGame: (projectPath: string, signal?: AbortSignal) => Promise<void>;
+  connectToGame: (projectPath: string, signal?: AbortSignal, getExitReason?: () => GameExitReason | null) => Promise<void>;
   disconnectFromGame: () => void;
   injectInteractionServer: (projectPath: string) => void;
   removeInteractionServer: (projectPath: string) => void;
@@ -446,7 +447,10 @@ export class LifecycleToolHandlers {
       executionSignal?.addEventListener('abort', forwardCancellation, { once: true });
       try {
         await Promise.race([
-          this.context.connectToGame(args.projectPath, startupController.signal),
+          this.context.connectToGame(args.projectPath, startupController.signal, () => ({
+            exitCode: runningProcess.process.exitCode,
+            signal: runningProcess.process.signalCode,
+          })),
           this.watchForFatalStartup(runningProcess, startupController.signal),
         ]);
       } finally {
@@ -527,9 +531,15 @@ export class LifecycleToolHandlers {
         cleanup.process_stopped = this.context.getActiveProcess() === null;
       }
       const cancelled = isAbortError(error);
+      const diagnostics = this.startupDiagnostics(runningProcess);
+      const startupFailure = error instanceof GameStartupError;
+      const displayRemediation = this.isDisplayStartupFailure(diagnostics);
+      const message = this.errorMessage(error) + (displayRemediation
+        ? ' Set GODOT_MCP_HEADLESS=1 for headless environments, or configure a working display/Xvfb.'
+        : '');
       return setToolResultMetadata(createErrorResponse(
-        `${cancelled ? 'Cancelled' : 'Failed to run'} Godot project: ${this.errorMessage(error)}`,
-      ), { outcome: cancelled ? 'cancelled' : 'failure', details: { cleanup } });
+        `${cancelled ? 'Cancelled' : 'Failed to run'} Godot project: ${message}`,
+      ), { outcome: cancelled ? 'cancelled' : 'failure', details: { cleanup, startup_failure: startupFailure, startup_diagnostics: diagnostics } });
     }
   }
 
@@ -964,7 +974,13 @@ export class LifecycleToolHandlers {
       stderr: stderr.slice(-maxStreamCharacters),
       truncated: stdout.length > maxStreamCharacters || stderr.length > maxStreamCharacters,
       limit_bytes: maxStreamCharacters * 2,
+      exit_code: record?.process?.exitCode ?? null,
+      signal: record?.process?.signalCode ?? null,
     };
+  }
+
+  private isDisplayStartupFailure(diagnostics: Record<string, unknown>): boolean {
+    return /display|x11|wayland|xvfb|cannot open/i.test(`${diagnostics.stdout}\n${diagnostics.stderr}`);
   }
 
   private fatalStartupMessage(record: GodotProcess | null | undefined): string | null {
