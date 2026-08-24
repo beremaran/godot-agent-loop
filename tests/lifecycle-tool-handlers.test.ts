@@ -129,3 +129,25 @@ describe('LifecycleToolHandlers headless propagation', () => {
     expect(editorEnv.GODOT_MCP_EDITOR_START_PAUSED).toBe('false');
   });
 });
+
+describe('LifecycleToolHandlers scene preflight', () => {
+  it.each([
+    ['missing', 'scenes/missing.tscn'],
+    ['traversal', '../outside.tscn'],
+    ['outside root', '/outside.tscn'],
+  ])('rejects %s scenes before stopping the active project', async (_case, scene) => {
+    const projectPath = tempProject();
+    const stopProjectProcess = vi.fn(() => null);
+    const { context, captures } = createContext({
+      getActiveProcess: () => ({ process: {} as never, output: [], errors: [] }),
+      stopProjectProcess,
+    });
+    const handlers = new LifecycleToolHandlers(context);
+
+    const response = await handlers.handleRunProject({ projectPath, scene });
+
+    expect(response.isError).toBe(true);
+    expect(stopProjectProcess).not.toHaveBeenCalled();
+    expect(captures).toHaveLength(0);
+  });
+});

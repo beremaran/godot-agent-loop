@@ -381,6 +381,18 @@ export class LifecycleToolHandlers {
       if (!godotPath) return createErrorResponse('Could not find a valid Godot executable path');
       if (!existsSync(join(args.projectPath, 'project.godot')))
         return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`);
+      if (args.scene !== undefined) {
+        if (typeof args.scene !== 'string' || !validatePath(args.scene)) {
+          return createErrorResponse('Invalid scene path');
+        }
+        if (!this.context.isRelativePathAllowed(args.projectPath, args.scene)) {
+          return createErrorResponse('scene is outside the project root');
+        }
+        const sceneRelativePath = args.scene.startsWith('res://') ? args.scene.slice('res://'.length) : args.scene;
+        if (!existsSync(join(args.projectPath, sceneRelativePath))) {
+          return createErrorResponse(`Scene does not exist: ${args.scene}`);
+        }
+      }
 
       // The generated runtime installation must have exclusive ownership
       // before the user-facing run injects and launches the project.
@@ -464,6 +476,10 @@ export class LifecycleToolHandlers {
       const observedScene = typeof probeResult.current_scene === 'string' ? probeResult.current_scene
         : typeof handshake?.currentScene === 'string' ? handshake.currentScene
           : null;
+      const normalizeScene = (scene: string): string => scene.startsWith('res://') ? scene.slice('res://'.length) : scene;
+      if (args.scene !== undefined && (observedScene === null || normalizeScene(observedScene) !== normalizeScene(args.scene))) {
+        throw new Error(`Requested scene mismatch: requested ${args.scene}, observed ${observedScene ?? 'none'}`);
+      }
 
       return { content: [{ type: 'text', text: JSON.stringify({
         started: true,
