@@ -375,6 +375,7 @@ export class LifecycleToolHandlers {
     }
 
     let installationOwned = false;
+    let runningProcess: GodotProcess | null = null;
     try {
       throwIfCancelled();
       await reportProgress(0, 4, 'Validating project and Godot executable');
@@ -432,12 +433,13 @@ export class LifecycleToolHandlers {
 
       this.context.logDebug(`Running Godot project: ${args.projectPath}`);
       const processGeneration = ++this.processGeneration;
-      const runningProcess = this.context.startProjectProcess(
+      const startedProcess = this.context.startProjectProcess(
         godotPath, commandArgs, () => { this.handleProjectExit(processGeneration); }, {
           ...this.context.getRuntimeEnvironment(),
           ...(mode === 'deterministic' ? deterministicSessionEnvironment() : realtimeSessionEnvironment()),
         },
       );
+      runningProcess = startedProcess;
       await reportProgress(2, 4, 'Godot process started; waiting for runtime authentication');
       const executionSignal = currentExecutionContext()?.signal;
       const startupController = new AbortController();
@@ -448,10 +450,10 @@ export class LifecycleToolHandlers {
       try {
         await Promise.race([
           this.context.connectToGame(args.projectPath, startupController.signal, () => ({
-            exitCode: runningProcess.process.exitCode,
-            signal: runningProcess.process.signalCode,
+            exitCode: startedProcess.process.exitCode,
+            signal: startedProcess.process.signalCode,
           })),
-          this.watchForFatalStartup(runningProcess, startupController.signal),
+          this.watchForFatalStartup(startedProcess, startupController.signal),
         ]);
       } finally {
         executionSignal?.removeEventListener('abort', forwardCancellation);
@@ -463,7 +465,7 @@ export class LifecycleToolHandlers {
         'get_scene_tree', { max_nodes: 1 }, 5_000, currentExecutionContext()?.signal,
       );
       if ('error' in probe) throw new Error(`Runtime readiness probe failed: ${probe.error.message}`);
-      const fatalStartup = this.fatalStartupMessage(runningProcess);
+      const fatalStartup = this.fatalStartupMessage(startedProcess);
       if (fatalStartup) throw new Error(`Godot reported a fatal startup error: ${fatalStartup}`);
       await reportProgress(4, 4, 'Runtime authenticated and ready');
 

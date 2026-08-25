@@ -149,7 +149,7 @@ export class GameConnection {
         }
         if (!retryDelay) {
           throwIfCancelled(signal);
-          throw new Error('Runtime connection was superseded');
+          throw new Error('Runtime connection was superseded', { cause: error });
         }
       }
     }
@@ -281,7 +281,7 @@ export class GameConnection {
 
   private connectOnce(attempt: number, generation: number, isProcessActive: () => boolean, getExitReason: () => GameExitReason | null, signal?: AbortSignal): Promise<boolean> {
     return new Promise((resolve, reject) => {
-      let processCheck: ReturnType<typeof setInterval> | undefined;
+      let processCheck: ReturnType<typeof setInterval> | undefined = undefined;
       const cleanup = () => {
         if (processCheck) clearInterval(processCheck);
         signal?.removeEventListener('abort', onAbort);
