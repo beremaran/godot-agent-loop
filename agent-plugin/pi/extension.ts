@@ -3,7 +3,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { existsSync, readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const PACKAGE_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -14,6 +14,11 @@ interface PiServerLaunchOptions {
   localServerEntry?: string;
   adapterManifestPath?: string;
   exists?: (path: string) => boolean;
+}
+
+function isNodeExecutable(executable: string): boolean {
+  const name = basename(executable).toLowerCase().replace(/\.exe$/, '');
+  return name === 'node' || name === 'nodejs';
 }
 
 export function resolvePiServerLaunch(options: PiServerLaunchOptions = {}): {
@@ -31,7 +36,7 @@ export function resolvePiServerLaunch(options: PiServerLaunchOptions = {}): {
     || !Object.values(environment).every(value => typeof value === 'string')) {
     throw new Error(`Invalid MCP environment in ${manifestPath}`);
   }
-  if ((options.exists ?? existsSync)(localServerEntry)) {
+  if ((options.exists ?? existsSync)(localServerEntry) && isNodeExecutable(process.execPath)) {
     return { command: process.execPath, args: [localServerEntry], environment: environment as Record<string, string> };
   }
 
