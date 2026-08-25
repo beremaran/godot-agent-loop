@@ -98,7 +98,32 @@ async function stopNormalEditors(root: string, projectPaths: string[], children:
   }
 }
 
+async function waitForDiscoveryGone(projectPath: string): Promise<void> {
+  const record = join(projectPath, '.godot/godot_agent_loop/editor-session.json');
+  const deadline = Date.now() + 3_000;
+  while (existsSync(record) && Date.now() < deadline) {
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  expect(existsSync(record), 'editor shutdown left its discovery record').toBe(false);
+}
+
 describe('persistent editor discovery through the complete MCP path', () => {
+  it('removes the discovery record during editor shutdown', async () => {
+    const project = createTempProject();
+    retainedRoots.add(project.root);
+    installPersistentAddon(project.projectPath);
+    const editor = startNormalEditor(project.projectPath);
+    await waitForDiscovery(project.projectPath, editor.diagnostics);
+
+    editor.child.kill('SIGTERM');
+    const deadline = Date.now() + 10_000;
+    while ((await findProcesses(project.root)).length > 0 && Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    await assertNoLeakedGodotProcesses(project.root);
+    await waitForDiscoveryGone(project.projectPath);
+  }, 30_000);
+
   it('attaches Godot-first, survives an MCP restart, acknowledges fallback sync, and preserves an unsaved conflict', async () => {
     const project = createTempProject();
     retainedRoots.add(project.root);

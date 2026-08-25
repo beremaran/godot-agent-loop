@@ -22,6 +22,7 @@ var _driver_status: Label
 var _driver_pause_button: Button
 var _driver_paused: bool = false
 var _session_authenticated: bool = false
+var _shutdown_signals_connected: bool = false
 var _server_version: String = ""
 var _last_history_id: int = EditorUndoRedoManager.GLOBAL_HISTORY
 var _activity_entries: Array[Dictionary] = []
@@ -40,6 +41,7 @@ const PAUSE_BLOCKED_COMMANDS: Array[String] = [
 
 func _enter_tree() -> void:
 	set_process(true)
+	_connect_shutdown_signals()
 	_port = _read_port()
 	_secret = OS.get_environment("GODOT_MCP_EDITOR_SECRET")
 	if _secret.is_empty():
@@ -73,6 +75,7 @@ func _enter_tree() -> void:
 
 func _exit_tree() -> void:
 	set_process(false)
+	_disconnect_shutdown_signals()
 	_remove_owned_discovery_record()
 	if _peer != null:
 		_peer.disconnect_from_host()
@@ -1322,6 +1325,27 @@ func _creation_fallback(created: bool, message: String) -> Variant:
 	if created:
 		return message
 	return null
+
+func _connect_shutdown_signals() -> void:
+	var editor_root: Window = get_tree().root
+	if not editor_root.close_requested.is_connected(_on_editor_shutdown):
+		editor_root.close_requested.connect(_on_editor_shutdown)
+	if not editor_root.tree_exiting.is_connected(_on_editor_shutdown):
+		editor_root.tree_exiting.connect(_on_editor_shutdown)
+	_shutdown_signals_connected = true
+
+func _disconnect_shutdown_signals() -> void:
+	if not _shutdown_signals_connected or not is_inside_tree():
+		return
+	var editor_root: Window = get_tree().root
+	if editor_root.close_requested.is_connected(_on_editor_shutdown):
+		editor_root.close_requested.disconnect(_on_editor_shutdown)
+	if editor_root.tree_exiting.is_connected(_on_editor_shutdown):
+		editor_root.tree_exiting.disconnect(_on_editor_shutdown)
+	_shutdown_signals_connected = false
+
+func _on_editor_shutdown() -> void:
+	_remove_owned_discovery_record()
 
 func _write_discovery_record() -> Error:
 	var directory: String = _project_path.path_join(SESSION_DIRECTORY)
