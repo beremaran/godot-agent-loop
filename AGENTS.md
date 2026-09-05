@@ -52,3 +52,17 @@ Pull requests should explain the problem and solution, link relevant issues,
 list verification commands, and note OS/Godot versions for engine-facing work.
 Include screenshots or captured evidence for editor, rendering, or gameplay
 changes, and update README/tool documentation when public behavior changes.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs live in GitHub Issues; use the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Use the default canonical labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, and `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+This is a single-context repository with root `CONTEXT.md` and `docs/adr/` decisions. See `docs/agents/domain.md`.
