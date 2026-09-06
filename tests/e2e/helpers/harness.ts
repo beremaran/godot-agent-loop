@@ -10,6 +10,12 @@ import { StdioClientTransport, getDefaultEnvironment } from '@modelcontextprotoc
 import { ListRootsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { toolDefinitions } from '../../../src/tool-definitions.js';
 import { validateAgainstSchema } from '../../../src/tool-argument-validation.js';
+import {
+  DEFAULT_RUNTIME_PORT,
+  RUNTIME_PORT_ENVIRONMENT_VARIABLE,
+  parseExplicitRuntimePort,
+  selectRuntimePort,
+} from '../../../src/runtime-port.js';
 import { e2eMetrics } from './e2e-metrics.js';
 
 const execFileAsync = promisify(execFile);
@@ -364,13 +370,56 @@ export interface ClientRootsController {
   requests?: number;
 }
 
+/**
+ * Raw explicit port override for one harness run. An `extraEnv` entry wins
+ * over the ambient process environment so a single test can pin its port
+ * without leaking it to parallel runs.
+ */
+export function explicitHarnessPortRaw(extraEnv?: Record<string, string>): string | undefined {
+  return extraEnv?.[RUNTIME_PORT_ENVIRONMENT_VARIABLE] ?? process.env[RUNTIME_PORT_ENVIRONMENT_VARIABLE];
+}
+
+/**
+ * Allocate one isolated runtime port for a run. The established free-port
+ * strategy is used, retrying the rare case where the OS hands back the
+ * literal product default so auto-allocated parallel runs never default to
+ * `9090` unless explicitly pinned there.
+ */
+export async function allocateIsolatedRuntimePort(): Promise<number> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const port = await freePort();
+    if (port !== DEFAULT_RUNTIME_PORT) return port;
+  }
+  const port = await freePort();
+  return port;
+}
+
+/**
+ * Select the single shared port for one harness run: a validated explicit
+ * override wins, otherwise the freshly allocated port is used. Throws a
+ * diagnostic on an invalid override before any process is spawned.
+ */
+export function resolveHarnessRuntimePort(explicitRaw: string | undefined, allocatedPort: number): number {
+  return selectRuntimePort(explicitRaw, allocatedPort);
+}
+
 export async function startServer(options: StartServerOptions = {}): Promise<E2EServer> {
   e2eMetrics.mcpServerStarts += 1;
   const project = options.project ?? createTempProject();
-  const runtimePort = await freePort();
+  const explicitRaw = explicitHarnessPortRaw(options.extraEnv);
+  // Validate before allocating so an invalid override fails fast with a
+  // diagnostic and never spawns a server or Godot child.
+  const explicitPort = parseExplicitRuntimePort(explicitRaw);
+  const runtimePort = explicitPort ?? await allocateIsolatedRuntimePort();
   const godotBinary = resolveGodotBinary();
   const userDataDir = join(project.root, 'user-data');
   mkdirSync(userDataDir, { recursive: true });
+  // The selected port is the single shared value: strip any port entry from
+  // the caller-supplied extras so the propagated environment cannot diverge
+  // from the reported runtimePort.
+  const extraWithoutPort: Record<string, string> = { ...(options.extraEnv ?? {}) };
+  // eslint-disable-next-line @typescript-eslint/no-dynamic-delete -- port key is dynamic by contract; it is re-applied below as the single selected value.
+  delete extraWithoutPort[RUNTIME_PORT_ENVIRONMENT_VARIABLE];
 
   const transport = new StdioClientTransport({
     command: process.execPath,
@@ -382,7 +431,6 @@ export async function startServer(options: StartServerOptions = {}): Promise<E2E
       ...(process.env.XAUTHORITY ? { XAUTHORITY: process.env.XAUTHORITY } : {}),
       ...(process.env.XDG_RUNTIME_DIR ? { XDG_RUNTIME_DIR: process.env.XDG_RUNTIME_DIR } : {}),
       GODOT_PATH: godotBinary,
-      GODOT_MCP_RUNTIME_PORT: String(runtimePort),
       GODOT_MCP_ALLOWED_DIRS: project.root,
       GODOT_MCP_TOOL_SURFACE: options.toolSurface ?? 'full',
       // The SDK's default env inheritance is a small whitelist, so the product
@@ -393,7 +441,10 @@ export async function startServer(options: StartServerOptions = {}): Promise<E2E
       XDG_CONFIG_HOME: join(userDataDir, 'config'),
       XDG_CACHE_HOME: join(userDataDir, 'cache'),
       ...(options.allowPrivileged ? { GODOT_MCP_ALLOW_PRIVILEGED_COMMANDS: 'true' } : {}),
-      ...(options.extraEnv ?? {}),
+      ...extraWithoutPort,
+      // Selected port is applied last so it is the one value the MCP server,
+      // its Godot children, and the fixture all observe.
+      [RUNTIME_PORT_ENVIRONMENT_VARIABLE]: String(runtimePort),
     },
     stderr: 'pipe',
   });

@@ -75,6 +75,8 @@ function resolvePrivilegedGroups(): PrivilegedRuntimeGroup[] {
 
 const ALLOWED_PRIVILEGED_GROUPS = resolvePrivilegedGroups();
 
+import { DEFAULT_RUNTIME_PORT, RUNTIME_PORT_ENVIRONMENT_VARIABLE } from './runtime-port.js';
+
 /**
  * The loopback port shared with the in-game interaction server. The spawned
  * game process inherits this environment variable, so both ends agree; the
@@ -82,12 +84,12 @@ const ALLOWED_PRIVILEGED_GROUPS = resolvePrivilegedGroups();
  * use an isolated port.
  */
 function resolveRuntimePort(): number {
-  const configured = process.env.GODOT_MCP_RUNTIME_PORT;
-  if (!configured) return 9090;
+  const configured = process.env[RUNTIME_PORT_ENVIRONMENT_VARIABLE];
+  if (!configured) return DEFAULT_RUNTIME_PORT;
   const parsed = Number(configured);
   if (!Number.isInteger(parsed) || parsed <= 0 || parsed >= 65536) {
-    console.error(`[SERVER] Ignoring invalid GODOT_MCP_RUNTIME_PORT=${configured}; using 9090`);
-    return 9090;
+    console.error(`[SERVER] Ignoring invalid ${RUNTIME_PORT_ENVIRONMENT_VARIABLE}=${configured}; using ${DEFAULT_RUNTIME_PORT}`);
+    return DEFAULT_RUNTIME_PORT;
   }
   return parsed;
 }
