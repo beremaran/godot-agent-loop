@@ -25,6 +25,11 @@ import { e2eHeadless } from './helpers/e2e-headless.js';
  * Scene authoring is exercised the way the harness and product now intend:
  * fixture projects are authored by writing project.godot/.gd/.tscn directly
  * with Node fs, then run through the engine with the retained runtime tools.
+ *
+ * Each server here gets its own harness-allocated isolated runtime port
+ * (GODOT_MCP_RUNTIME_PORT), so simultaneous runs use distinct ports; see the
+ * README "Runtime port allocation in real-engine tests" section for the
+ * manual-vs-harness distinction and the occupied-port ownership failure.
  */
 
 let server: E2EServer | null = null;

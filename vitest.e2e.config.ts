@@ -6,6 +6,14 @@ import { defineConfig } from 'vitest/config';
  * `npm run test:e2e` after a build; requires a Godot binary resolvable via
  * GODOT_BIN, PATH, or a GODOT_PATH directory.
  *
+ * Each run gets an isolated free runtime port from the harness
+ * (`tests/e2e/helpers/harness.ts`); parallel runs never share the literal
+ * default 9090, and every concurrently running Godot/MCP instance must use a
+ * distinct port. An explicit GODOT_MCP_RUNTIME_PORT override (per-run
+ * extraEnv wins over the ambient environment) is validated before any
+ * process spawns, and an occupied selected port fails run_project fast with
+ * a port-ownership diagnostic instead of connecting to the unrelated owner.
+ *
  * The retained suite covers the representative full path, editor discovery,
  * adapter forwarding, and cross-platform startup.
  */

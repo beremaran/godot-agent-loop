@@ -291,7 +291,22 @@ autoload:
 2. In Godot: **Project > Project Settings > Autoload**
 3. Add the script with the name `McpInteractionServer`
 
-The server listens on `127.0.0.1:9090`. Each MCP server launch generates a
+The server listens on `127.0.0.1:9090` by default. Set `GODOT_MCP_RUNTIME_PORT`
+to an integer port `1-65535` to override the loopback runtime port on both
+ends: the MCP server and the Godot interaction runtime it launches inherit the
+same value. Each concurrently running Godot/MCP instance must use a distinct
+port. An invalid override does not stop startup: the MCP server logs
+`[SERVER] Ignoring invalid GODOT_MCP_RUNTIME_PORT=...; using 9090` and falls
+back to `9090`, and the Godot runtime logs a warning and keeps its configured
+port. When the selected port is already owned by another process,
+`run_project` fails fast with
+`GODOT_MCP_RUNTIME_PORT=<port> is already owned by another process` — first
+via a pre-spawn probe that spawns nothing, then via a startup-log watcher
+that terminates the runtime — so the client never connects to the unrelated
+owner. For manual multi-instance use, export a distinct
+`GODOT_MCP_RUNTIME_PORT` per MCP server before launch; the integration/E2E
+harnesses instead allocate an isolated free port per run automatically (see
+[Testing](#testing)). Each MCP server launch generates a
 cryptographic runtime secret, passes it only to the Godot child process, and
 authenticates it during capability negotiation before any runtime command is
 accepted. A manually managed runtime should set the same
@@ -333,6 +348,7 @@ and timestamp.
 | `GODOT_MCP_ALLOWED_DIRS` | Optional. Restrict `run_project` to projects under these roots (`;`, `,`, or `:` separated). When unset and no MCP client roots are provided, filesystem access is denied unless `GODOT_MCP_ALLOW_UNRESTRICTED` is set. |
 | `GODOT_MCP_HEADLESS` | Optional, default `false`. Set to `true` (or `1`) to run `run_project` with Godot's `--headless` flag so no window opens. Rendering-dependent operations such as screenshots fail fast with a headed-display remediation; intended for CI and headless workstations. The E2E suite honors it too: `GODOT_MCP_HEADLESS=1 npm run test:e2e` skips its pixel assertions, which stay covered by the virtual-display renderer jobs. |
 | `GODOT_MCP_RUNTIME_SECRET` | Optional explicit shared runtime secret. The MCP server generates a fresh 256-bit value when omitted and passes it only to Godot processes it launches. Set the same value manually only when connecting to a separately launched runtime. |
+| `GODOT_MCP_RUNTIME_PORT` | Optional, default `9090`. Overrides the loopback runtime port shared by the MCP server and the Godot interaction runtime. Must be an integer port `1-65535`; each concurrently running Godot/MCP instance must use a distinct port. An invalid server-side value logs a warning and falls back to `9090`; the integration/E2E harnesses instead validate an explicit override before spawning and reject it with `Invalid GODOT_MCP_RUNTIME_PORT=...`. An occupied port fails `run_project` fast with a `GODOT_MCP_RUNTIME_PORT=<port> is already owned by another process` diagnostic without connecting to the unrelated owner. |
 | `GODOT_MCP_EDITOR_START_PAUSED` | Optional, default `false`. Start the editor addon's cooperative lock in human-editing mode so mutating MCP tools are refused until **Resume Agent** is pressed. |
 | `GODOT_MCP_TOOL_SURFACE` | Optional, default `core`. `compact` is a compatibility alias for `core`; `full` advertises the complete 56-tool static catalog. Unknown values are rejected. Use `godot_catalog` plus `godot_call` for hidden tools. |
 | `GODOT_MCP_LEGACY_JSON_TEXT` | Optional, default `true`. Set to `false` for clients that read MCP `structuredContent` to omit the extra compatibility JSON text block and reduce repeated output. Bundled adapters set this to `false`. |
@@ -414,6 +430,29 @@ runs and CI jobs. The containerized runner (`scripts/run-e2e-docker.sh`, image
 built from `tests/e2e/docker/Dockerfile`) mirrors the primary Godot 4.7 CI job:
 Ubuntu + xvfb + the official Godot build, with `node_modules` kept in a named
 volume so the host install is never touched.
+
+### Runtime port allocation in real-engine tests
+
+The integration/E2E harnesses (`tests/e2e/helpers/harness.ts`) allocate one
+isolated free runtime port per run automatically and propagate that single
+selected value to the MCP server, its Godot children, and the reported
+`runtimePort`. Auto-allocated parallel runs never share the literal default
+`9090`; one distinct port per concurrently running Godot/MCP instance is
+required. This is harness-managed allocation: do not set
+`GODOT_MCP_RUNTIME_PORT` for normal test runs.
+
+To pin a run to a specific port — for example to reproduce a collision — set
+`GODOT_MCP_RUNTIME_PORT` in that run's `extraEnv` (which wins over the ambient
+process environment) or in the ambient environment. The harness validates an
+explicit override before spawning anything: an invalid value fails fast with
+`Invalid GODOT_MCP_RUNTIME_PORT=...; expected an integer port 1-65535` and
+never spawns a server or Godot child. When the selected port is already owned
+by another process, `run_project` fails fast with
+`GODOT_MCP_RUNTIME_PORT=<port> is already owned by another process; terminate
+the owner or select a free port and retry`: a pre-spawn probe rejects the run
+without spawning or connecting, and a startup-log watcher terminates a
+spawned runtime whose bind reports `Failed to listen on port <port>` instead
+of continuing against the unrelated owner.
 
 The shipped build, debug, verify, and ship skill scenarios are versioned under
 `evals/`. Their committed status is intentionally `not_run` until a deliberate
