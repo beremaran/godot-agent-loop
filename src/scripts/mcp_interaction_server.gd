@@ -152,7 +152,10 @@ func _ready() -> void:
 	port = _resolve_port()
 	var err: int = _server.listen(port, "127.0.0.1")
 	if err != OK:
-		push_error("McpInteractionServer: Failed to listen on port %d, error: %d" % [port, err])
+		push_error("McpInteractionServer: Failed to listen on port %d, error: %d; port is already owned by another process. Terminating runtime so the client never connects to the unrelated owner." % [port, err])
+		_server.stop()
+		_server = null
+		get_tree().quit(1)
 		return
 	print("McpInteractionServer: Listening on 127.0.0.1:%d" % port)
 

@@ -30,6 +30,12 @@ import {
 import type { EditorPluginInstallation } from '../editor-plugin-installer.js';
 import { canonicalProjectPath, type PublicEditorSession } from '../editor-session-registry.js';
 import { PRIVILEGED_RUNTIME_CAPABILITY, privilegedGroupCapability } from '../runtime-protocol.js';
+import {
+  assertRuntimePortAvailable,
+  findRuntimePortOwnershipFailure,
+  isRuntimePortOwnershipError,
+  RuntimePortOwnershipError,
+} from '../runtime-port.js';
 import type { StructuredToolError } from '../tool-results.js';
 
 export interface LifecycleToolHandlerContext {
@@ -414,6 +420,16 @@ export class LifecycleToolHandlers {
       this.context.injectInteractionServer(args.projectPath);
       installationOwned = true;
       await reportProgress(1, 4, 'Installed authenticated runtime bridge');
+      // Startup ownership check against the runner-selected port: when another
+      // process already owns it, fail before spawning so the client can never
+      // continue against the unrelated owner.
+      const interactionPort = this.context.getInteractionPort();
+      try {
+        await assertRuntimePortAvailable(interactionPort);
+      } catch (error: unknown) {
+        if (isRuntimePortOwnershipError(error)) throw error;
+        throw new RuntimePortOwnershipError(interactionPort, this.errorMessage(error));
+      }
       // No `-d`: that starts Godot's *local stdout debugger*, which breaks into an
       // interactive `debug>` prompt on any script error and blocks the main loop
       // forever. The game then stops answering every runtime command, so a single
@@ -454,6 +470,7 @@ export class LifecycleToolHandlers {
             signal: startedProcess.process.signalCode,
           })),
           this.watchForFatalStartup(startedProcess, startupController.signal),
+          this.watchForPortOwnership(startedProcess, interactionPort, startupController.signal),
         ]);
       } finally {
         executionSignal?.removeEventListener('abort', forwardCancellation);
@@ -1014,6 +1031,39 @@ export class LifecycleToolHandlers {
         if (fatal) {
           cleanup();
           reject(new Error(`Godot reported a fatal startup error: ${fatal}`));
+          return;
+        }
+        timer = setTimeout(inspect, 25);
+      };
+      signal.addEventListener('abort', cleanup, { once: true });
+      inspect();
+    });
+  }
+
+  /**
+   * Startup ownership watcher for the runner-selected port. The spawned
+   * runtime reports its bind failure on stdout/stderr; when that line names
+   * the selected port, reject promptly with an ownership diagnostic so the
+   * race aborts the connection attempt and the catch block terminates the
+   * runtime instead of continuing against the unrelated owner.
+   */
+  private watchForPortOwnership(record: GodotProcess, port: number, signal: AbortSignal): Promise<never> {
+    return new Promise((_, reject) => {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const cleanup = () => {
+        if (timer) clearTimeout(timer);
+        signal.removeEventListener('abort', cleanup);
+      };
+      const inspect = () => {
+        if (signal.aborted) {
+          cleanup();
+          return;
+        }
+        const output = [...(record.output ?? []), ...(record.errors ?? [])].join('\n');
+        const failure = findRuntimePortOwnershipFailure(output, port);
+        if (failure) {
+          cleanup();
+          reject(new RuntimePortOwnershipError(port, failure));
           return;
         }
         timer = setTimeout(inspect, 25);
