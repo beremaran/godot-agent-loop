@@ -604,18 +604,23 @@ func _editor_transaction(params: Dictionary) -> Dictionary:
 	if validation.has("error"):
 		return _rollback_created_transaction(validation, scene_path, created_scene)
 	var stages: Array = validation.get("stages", [])
+	var manager: EditorUndoRedoManager = null
+	var history_id: int = EditorUndoRedoManager.GLOBAL_HISTORY
+	var version_before_commit: int = -1
 	var undo_recorded: bool = not stages.is_empty()
 	if undo_recorded:
-		var manager: EditorUndoRedoManager = EditorInterface.get_editor_undo_redo()
+		manager = EditorInterface.get_editor_undo_redo()
 		if manager == null:
 			_discard_transaction_stages(stages)
 			return _rollback_created_transaction({"error": "undo_redo_unavailable"}, scene_path, created_scene)
+		history_id = manager.get_object_history_id(root)
+		version_before_commit = _history_version(root)
 		manager.create_action(action_name)
 		for stage_variant: Variant in stages:
 			var stage: Dictionary = stage_variant
 			_apply_transaction_stage(manager, root, stage)
 		manager.commit_action()
-		_last_history_id = manager.get_object_history_id(root)
+		_last_history_id = history_id
 	var focus_path: String = str(params.get("focus_path", validation.get("focus_path", "")))
 	var focused: bool = false
 	if not focus_path.is_empty():
@@ -623,13 +628,26 @@ func _editor_transaction(params: Dictionary) -> Dictionary:
 	var saved: bool = false
 	var save_error: Error = OK
 	if _variant_bool(params.get("save", true)):
-		save_error = EditorInterface.save_scene()
+		if _forced_save_failure():
+			save_error = ERR_CANT_CREATE
+		else:
+			save_error = EditorInterface.save_scene()
 		saved = save_error == OK
 	if save_error != OK:
-		return _rollback_created_transaction({"error": "scene_save_failed", "error_code": save_error, "undo_recorded": undo_recorded}, scene_path, created_scene)
-	var persisted: Dictionary = _independent_scene_readback(scene_path)
+		return _rollback_committed_transaction({
+			"error": "scene_save_failed", "error_code": save_error, "undo_recorded": undo_recorded,
+			"scene_created": created_scene,
+		}, scene_path, created_scene, manager, history_id, version_before_commit, undo_recorded, false)
+	var persisted: Dictionary
+	if _forced_readback_failure():
+		persisted = {"error": "packed_scene_reload_failed", "forced": true}
+	else:
+		persisted = _independent_scene_readback(scene_path)
 	if persisted.has("error"):
-		return _rollback_created_transaction({"error": "independent_readback_failed", "details": persisted, "undo_recorded": undo_recorded}, scene_path, created_scene)
+		return _rollback_committed_transaction({
+			"error": "independent_readback_failed", "details": persisted, "undo_recorded": undo_recorded,
+			"scene_created": created_scene,
+		}, scene_path, created_scene, manager, history_id, version_before_commit, undo_recorded, true)
 	return {
 		"success": true,
 		"backend": "editor",
@@ -652,6 +670,75 @@ func _rollback_created_transaction(result: Dictionary, scene_path: String, creat
 	if remove_error not in [OK, ERR_DOES_NOT_EXIST]:
 		result["rollback_error_code"] = remove_error
 	return result
+
+func _rollback_committed_transaction(
+	result: Dictionary,
+	scene_path: String,
+	created_scene: bool,
+	manager: EditorUndoRedoManager,
+	history_id: int,
+	version_before: int,
+	undo_recorded: bool,
+	file_written: bool,
+) -> Dictionary:
+	var committed_action_undone: bool = not undo_recorded
+	if undo_recorded:
+		committed_action_undone = _undo_committed_action(manager, history_id, version_before)
+	result["committed_action_undone"] = committed_action_undone
+	var evidence: Dictionary = {}
+	if created_scene:
+		var remove_error: Error = DirAccess.remove_absolute(ProjectSettings.globalize_path(scene_path))
+		var created_file_removed: bool = remove_error in [OK, ERR_DOES_NOT_EXIST]
+		result["created_scene_rolled_back"] = created_file_removed
+		if not created_file_removed:
+			result["rollback_error_code"] = remove_error
+			evidence["created_scene_file"] = {"error": "remove_failed", "error_code": remove_error}
+		var close_error: Error = ERR_UNAVAILABLE
+		if EditorInterface.has_method("close_scene"):
+			close_error = EditorInterface.close_scene()
+		result["scene_closed"] = close_error == OK
+		if close_error != OK:
+			evidence["edited_scene"] = {"error": "close_failed", "error_code": close_error}
+	else:
+		var file_restored: bool = true
+		if file_written:
+			file_restored = false
+			if committed_action_undone:
+				file_restored = EditorInterface.save_scene() == OK
+			if not file_restored:
+				evidence["scene_file"] = {"error": "restore_save_failed", "committed_action_undone": committed_action_undone}
+		result["file_restored"] = file_restored
+		var edited_root: Node = EditorInterface.get_edited_scene_root()
+		if committed_action_undone and edited_root != null and _scene_has_unsaved_changes(edited_root):
+			evidence["edited_scene"] = {"error": "unsaved_after_undo"}
+	if not evidence.is_empty():
+		result["partial_mutation"] = {
+			"scene_path": scene_path,
+			"committed_action_undone": committed_action_undone,
+			"details": evidence,
+		}
+	return result
+
+func _undo_committed_action(manager: EditorUndoRedoManager, history_id: int, version_before: int) -> bool:
+	if manager == null or version_before < 0:
+		return false
+	var history: UndoRedo = manager.get_history_undo_redo(history_id)
+	if history == null:
+		return false
+	var undid: int = 0
+	while history.get_version() > version_before:
+		if not history.undo():
+			return false
+		undid += 1
+		if undid > 256:
+			return false
+	return true
+
+func _forced_save_failure() -> bool:
+	return OS.get_environment("GODOT_MCP_FORCE_SAVE_FAILURE").strip_edges().to_lower() in ["1", "true", "yes"]
+
+func _forced_readback_failure() -> bool:
+	return OS.get_environment("GODOT_MCP_FORCE_READBACK_FAILURE").strip_edges().to_lower() in ["1", "true", "yes"]
 
 func _discard_transaction_stages(stages_variant: Variant) -> void:
 	if not stages_variant is Array:

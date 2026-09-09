@@ -172,6 +172,11 @@ identity. `editor_control` inspects the edited scene and selection, opens,
 saves, and reloads scenes, selects nodes, and walks the editor undo stack.
 Scene mutations (add/remove/rename/property edits) go through
 `editor_transaction`, which records one undo action and persists the scene.
+If persistence or the independent readback fails after the action was
+committed, the transaction invokes that exact undo action and restores the
+file (or removes and closes a newly created scene); failures that cannot be
+proven restored are reported as structured `partial_mutation` evidence in the
+error payload.
 
 ### Ship and validation
 
