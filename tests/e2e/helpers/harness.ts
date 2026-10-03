@@ -362,6 +362,8 @@ export interface StartServerOptions {
   preserveProject?: boolean;
   /** Mutable official-client Roots provider used by workspace-boundary tests. */
   clientRoots?: ClientRootsController;
+  /** Server entry script; defaults to build/index.js. */
+  entry?: string;
 }
 
 export interface ClientRootsController {
@@ -423,7 +425,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<E2E
 
   const transport = new StdioClientTransport({
     command: process.execPath,
-    args: [join(repoRoot, 'build/index.js')],
+    args: [options.entry ?? join(repoRoot, 'build/index.js')],
     env: {
       ...getDefaultEnvironment(),
       ...(process.env.DISPLAY ? { DISPLAY: process.env.DISPLAY } : {}),

@@ -1,6 +1,8 @@
 // @test-kind: e2e
+import { symlinkSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createTempProject, startServer, type E2EServer } from './helpers/harness.js';
+import { createTempProject, repoRoot, startServer, type E2EServer } from './helpers/harness.js';
 
 let server: E2EServer | null = null;
 
@@ -59,5 +61,16 @@ describe('portable process, path, input, and platform acceptance', () => {
 
     const stopped = await server.call('stop_project');
     expect(stopped.isError, stopped.text).toBe(false);
+  });
+
+  // npx and global installs launch the server through a node_modules/.bin symlink.
+  it.skipIf(process.platform === 'win32')('starts through an npm bin symlink', async () => {
+    const project = createTempProject();
+    const entry = join(project.root, 'godot-agent-loop');
+    symlinkSync(join(repoRoot, 'build/index.js'), entry);
+    server = await startServer({ project, entry });
+
+    const listed = await server.client.listTools();
+    expect(listed.tools.map(tool => tool.name)).toContain('godot_catalog');
   });
 });

@@ -9,7 +9,8 @@
 
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
-import { join, dirname, normalize, resolve } from 'path';
+import { join, dirname, normalize } from 'path';
+import { realpathSync } from 'fs';
 import { randomBytes } from 'crypto';
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -819,7 +820,7 @@ async function main(): Promise<void> {
   await server.run();
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === __filename) {
+if (process.argv[1] && realpathSync(process.argv[1]) === __filename) {
   main().catch((error: unknown) => {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Godot Agent Loop failed:', errorMessage);

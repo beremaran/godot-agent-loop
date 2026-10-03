@@ -149,6 +149,7 @@ vi.mock('fs', () => {
     renameSync: vi.fn(),
     chmodSync: vi.fn(),
     statSync: vi.fn(() => ({ mode: 0o600 })),
+    realpathSync: vi.fn((path) => path),
   };
 });
 
