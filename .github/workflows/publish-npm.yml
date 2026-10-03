@@ -9,9 +9,9 @@ on:
       tag:
         description: Signed, fully tested release tag
         required: true
-        default: v3.0.0
+        default: v3.0.1
       confirmation:
-        description: Type publish-@beremaran/godot-agent-loop@3.0.0
+        description: Type publish-@beremaran/godot-agent-loop@3.0.1
         required: true
 
 permissions:

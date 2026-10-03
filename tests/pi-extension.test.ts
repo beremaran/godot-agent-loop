@@ -31,7 +31,7 @@ describe('Pi MCP server launch', () => {
 
     expect(launch).toMatchObject({
       command: 'npx',
-      args: ['-y', '@beremaran/godot-agent-loop@3.0.0'],
+      args: ['-y', '@beremaran/godot-agent-loop@3.0.1'],
     });
   });
 });
