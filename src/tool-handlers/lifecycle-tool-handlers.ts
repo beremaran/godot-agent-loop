@@ -351,7 +351,7 @@ export class LifecycleToolHandlers {
         args.projectPath, 'transaction', params, 30_000, currentExecutionContext()?.signal,
       );
       if (result.error) {
-        return createErrorResponse(`editor_transaction failed: ${typeof result.error === 'string' ? result.error : JSON.stringify(result.error)}`);
+        return createErrorResponse(`editor_transaction failed: ${JSON.stringify(result)}`);
       }
       const editorSession = await this.context.getEditorSessionStatus?.(args.projectPath);
       return { content: [{ type: 'text', text: JSON.stringify({
